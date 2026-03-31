@@ -1,0 +1,115 @@
+services:
+
+  # ── Nginx ───────────────────────────────────────────────────────────────────
+  nginx:
+    ports:
+      - "80:80"
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    ports:
+      - "5432:5432"
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    ports:
+      - "6379:6379"
+
+  # ── RabbitMQ ────────────────────────────────────────────────────────────────
+  rabbitmq:
+    ports:
+      - "5672:5672"
+      - "15672:15672"     # Panel de administracion RabbitMQ
+
+  # ── MinIO ───────────────────────────────────────────────────────────────────
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"       # Consola web de MinIO
+
+  # ── Consul ──────────────────────────────────────────────────────────────────
+  consul:
+    ports:
+      - "8500:8500"       # UI de Consul
+
+  # ── Auth Service ────────────────────────────────────────────────────────────
+  auth-service:
+    ports:
+      - "8001:8000"
+    environment:
+      DEBUG: "True"
+      ENV: development
+    volumes:
+      - ../../backend/auth-service:/app
+      - ../../backend/shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Admin Service ───────────────────────────────────────────────────────────
+  admin-service:
+    ports:
+      - "8002:8000"
+    environment:
+      DEBUG: "True"
+      ENV: development
+    volumes:
+      - ../../backend/admin-service:/app
+      - ../../backend/shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Upload Service ──────────────────────────────────────────────────────────
+  upload-service:
+    ports:
+      - "8003:8000"
+    environment:
+      DEBUG: "True"
+      ENV: development
+    volumes:
+      - ../../backend/upload-service:/app
+      - ../../backend/shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Notify Service ──────────────────────────────────────────────────────────
+  notify-service:
+    ports:
+      - "8004:8000"
+    environment:
+      DEBUG: "True"
+      ENV: development
+    volumes:
+      - ../../backend/notify-service:/app
+      - ../../backend/shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── WebSocket Service ───────────────────────────────────────────────────────
+  websocket-service:
+    ports:
+      - "8005:8000"
+    environment:
+      DEBUG: "True"
+      ENV: development
+    volumes:
+      - ../../backend/websocket-service:/app
+      - ../../backend/shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Email Service ───────────────────────────────────────────────────────────
+  email-service:
+    ports:
+      - "8006:8000"
+    environment:
+      DEBUG: "True"
+      ENV: development
+    volumes:
+      - ../../backend/email-service:/app
+      - ../../backend/shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Prometheus ──────────────────────────────────────────────────────────────
+  prometheus:
+    ports:
+      - "9090:9090"
+
+  # ── Grafana ─────────────────────────────────────────────────────────────────
+  grafana:
+    ports:
+      - "3001:3000"

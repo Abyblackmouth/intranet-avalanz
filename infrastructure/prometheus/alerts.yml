@@ -1,0 +1,63 @@
+groups:
+  - name: avalanz-alerts
+    rules:
+
+      # ── Servicios caidos ────────────────────────────────────────────────────
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Servicio caido: {{ $labels.job }}"
+          description: "El servicio {{ $labels.job }} lleva mas de 1 minuto sin responder."
+
+      # ── Alta latencia ───────────────────────────────────────────────────────
+      - alert: HighResponseTime
+        expr: http_request_duration_seconds{quantile="0.95"} > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alta latencia en {{ $labels.job }}"
+          description: "El percentil 95 de respuesta supera 2 segundos en {{ $labels.job }}."
+
+      # ── Alto uso de memoria ─────────────────────────────────────────────────
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alto uso de memoria en {{ $labels.name }}"
+          description: "El contenedor {{ $labels.name }} esta usando mas del 85% de su memoria asignada."
+
+      # ── PostgreSQL caido ────────────────────────────────────────────────────
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL no disponible"
+          description: "La base de datos PostgreSQL lleva mas de 30 segundos sin responder."
+
+      # ── Redis caido ─────────────────────────────────────────────────────────
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis no disponible"
+          description: "Redis lleva mas de 30 segundos sin responder."
+
+      # ── Muchos errores 5xx ──────────────────────────────────────────────────
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alta tasa de errores en {{ $labels.job }}"
+          description: "El servicio {{ $labels.job }} esta generando mas del 10% de errores 5xx."

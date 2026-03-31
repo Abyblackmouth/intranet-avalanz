@@ -1,0 +1,94 @@
+{
+  "datacenter": "avalanz-dc1",
+  "data_dir": "/consul/data",
+  "log_level": "INFO",
+  "node_name": "avalanz-node-1",
+  "server": true,
+  "bootstrap_expect": 1,
+  "ui_config": {
+    "enabled": true
+  },
+  "client_addr": "0.0.0.0",
+  "bind_addr": "0.0.0.0",
+  "retry_join": [],
+  "services": [
+    {
+      "id": "auth-service",
+      "name": "auth-service",
+      "address": "auth-service",
+      "port": 8000,
+      "tags": ["api", "auth"],
+      "check": {
+        "http": "http://auth-service:8000/health",
+        "interval": "15s",
+        "timeout": "5s",
+        "deregister_critical_service_after": "1m"
+      }
+    },
+    {
+      "id": "admin-service",
+      "name": "admin-service",
+      "address": "admin-service",
+      "port": 8000,
+      "tags": ["api", "admin"],
+      "check": {
+        "http": "http://admin-service:8000/health",
+        "interval": "15s",
+        "timeout": "5s",
+        "deregister_critical_service_after": "1m"
+      }
+    },
+    {
+      "id": "upload-service",
+      "name": "upload-service",
+      "address": "upload-service",
+      "port": 8000,
+      "tags": ["api", "storage"],
+      "check": {
+        "http": "http://upload-service:8000/health",
+        "interval": "15s",
+        "timeout": "5s",
+        "deregister_critical_service_after": "1m"
+      }
+    },
+    {
+      "id": "notify-service",
+      "name": "notify-service",
+      "address": "notify-service",
+      "port": 8000,
+      "tags": ["api", "notifications"],
+      "check": {
+        "http": "http://notify-service:8000/health",
+        "interval": "15s",
+        "timeout": "5s",
+        "deregister_critical_service_after": "1m"
+      }
+    },
+    {
+      "id": "websocket-service",
+      "name": "websocket-service",
+      "address": "websocket-service",
+      "port": 8000,
+      "tags": ["api", "realtime"],
+      "check": {
+        "http": "http://websocket-service:8000/health",
+        "interval": "15s",
+        "timeout": "5s",
+        "deregister_critical_service_after": "1m"
+      }
+    },
+    {
+      "id": "email-service",
+      "name": "email-service",
+      "address": "email-service",
+      "port": 8000,
+      "tags": ["api", "email"],
+      "check": {
+        "http": "http://email-service:8000/health",
+        "interval": "15s",
+        "timeout": "5s",
+        "deregister_critical_service_after": "1m"
+      }
+    }
+  ]
+}

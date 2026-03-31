@@ -1,0 +1,15 @@
+# Web framework
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+
+# Configuracion
+pydantic-settings==2.2.1
+
+# JWT
+python-jose[cryptography]==3.3.0
+
+# SMTP async
+aiosmtplib==3.0.1
+
+# Utilidades
+python-multipart==0.0.9

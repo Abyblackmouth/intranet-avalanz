@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ subject }}</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; }
+    .wrapper { width: 100%; background-color: #f4f4f4; padding: 40px 0; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .header { background-color: #1a1a2e; padding: 32px 40px; text-align: center; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 1px; }
+    .body { padding: 40px; color: #333333; line-height: 1.6; }
+    .body h2 { color: #1a1a2e; font-size: 20px; margin-top: 0; }
+    .body p { margin: 0 0 16px; }
+    .btn { display: inline-block; padding: 12px 32px; background-color: #1a1a2e; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 16px 0; }
+    .divider { border: none; border-top: 1px solid #eeeeee; margin: 24px 0; }
+    .footer { background-color: #f9f9f9; padding: 24px 40px; text-align: center; color: #999999; font-size: 12px; }
+    .footer a { color: #999999; }
+    .alert-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; border-radius: 4px; margin: 16px 0; }
+    .alert-box.danger { background-color: #f8d7da; border-color: #dc3545; }
+    .alert-box.success { background-color: #d4edda; border-color: #28a745; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <h1>{{ company_name }}</h1>
+      </div>
+      <div class="body">
+        {{ content }}
+      </div>
+      <div class="footer">
+        <p>Este correo fue enviado por {{ company_name }}. Por favor no respondas a este mensaje.</p>
+        <p>&copy; {{ year }} {{ company_name }}. Todos los derechos reservados.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

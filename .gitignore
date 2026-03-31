@@ -1,0 +1,80 @@
+# ── Variables de entorno ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.so
+
+# ── Entornos virtuales ────────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# ── Pytest y cobertura ────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# ── Mypy ──────────────────────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ── Alembic ───────────────────────────────────────────────────────────────────
+# No ignorar las migraciones, solo los archivos temporales
+*.pyc
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+*.log.*
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Node / Next.js (frontend) ─────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+.npm
+.yarn
+
+# ── IDEs y editores ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# ── Archivos temporales del sistema ───────────────────────────────────────────
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# ── Certificados SSL ──────────────────────────────────────────────────────────
+*.pem
+*.key
+*.crt
+*.csr
+
+# ── Backups ───────────────────────────────────────────────────────────────────
+*.sql
+*.dump
+*.backup
