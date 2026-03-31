@@ -1,5 +1,3 @@
-// ── Login ─────────────────────────────────────────────────────────────────────
-
 export interface LoginRequest {
   email: string
   password: string
@@ -15,8 +13,6 @@ export interface LoginResponse {
   requires_2fa?: boolean
 }
 
-// ── 2FA ───────────────────────────────────────────────────────────────────────
-
 export interface TwoFARequest {
   temp_token: string
   code: string
@@ -30,8 +26,6 @@ export interface TwoFASetupResponse {
   account: string
 }
 
-// ── Cambio de contraseña ──────────────────────────────────────────────────────
-
 export interface ChangePasswordRequest {
   user_id: string
   new_password: string
@@ -42,8 +36,6 @@ export interface ChangePasswordResponse {
   user_id: string
 }
 
-// ── Recuperación de contraseña ────────────────────────────────────────────────
-
 export interface PasswordResetRequest {
   email: string
 }
@@ -52,8 +44,6 @@ export interface PasswordResetConfirmRequest {
   token: string
   new_password: string
 }
-
-// ── Usuario autenticado ───────────────────────────────────────────────────────
 
 export interface AuthUser {
   user_id: string
@@ -68,8 +58,6 @@ export interface AuthUser {
   exp: number
 }
 
-// ── Sesiones ──────────────────────────────────────────────────────────────────
-
 export interface UserSession {
   session_id: string
   ip_address: string
@@ -79,8 +67,6 @@ export interface UserSession {
   last_activity_at: string
   expires_at: string
 }
-
-// ── Tokens ────────────────────────────────────────────────────────────────────
 
 export interface TokenPair {
   access_token: string
