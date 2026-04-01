@@ -28,6 +28,7 @@ export interface UserRow {
 export default function UsersPage() {
   const { isSuperAdmin } = useAuthStore()
 
+  const [mounted, setMounted] = useState(false)
   const [users, setUsers] = useState<UserRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -38,6 +39,8 @@ export default function UsersPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterCompany, setFilterCompany] = useState<string>('all')
   const [companies, setCompanies] = useState<{ company_id: string; nombre_comercial: string }[]>([])
+
+  useEffect(() => { setMounted(true) }, [])
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true)
@@ -85,7 +88,7 @@ export default function UsersPage() {
       title="Usuarios"
       description="Gestiona los usuarios de la plataforma"
       actions={
-        isSuperAdmin() ? (
+        mounted && isSuperAdmin() ? (
           <button className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition">
             <Plus size={16} />
             Nuevo usuario
@@ -128,7 +131,7 @@ export default function UsersPage() {
           </div>
 
           {/* Empresa — solo super admin */}
-          {isSuperAdmin() && (
+          {mounted && isSuperAdmin() && (
             <div className="min-w-44">
               <label className="block text-xs font-medium text-slate-500 mb-1">Empresa</label>
               <select
