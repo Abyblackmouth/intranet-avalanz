@@ -33,7 +33,7 @@ async def fetch_user_permissions(user_id: str) -> Dict[str, Any]:
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
-                f"http://admin-service/internal/users/{user_id}/permissions"
+                f"http://admin-service:8000/internal/users/{user_id}/permissions"
             )
             resp.raise_for_status()
             return resp.json()
