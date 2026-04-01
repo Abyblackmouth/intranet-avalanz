@@ -214,8 +214,36 @@ sudo rm -rf infrastructure/prometheus/prometheus.yml
 mv infrastructure/prometheus/rometheus.yml infrastructure/prometheus/prometheus.yml
 ```
 
-### `ModuleNotFoundError: No module named 'app.database'`
-El archivo `database.py` no existe en el servicio. Crearlo manualmente copiando el contenido del `auth-service/app/database.py` y ajustando el import de `config`.
+### `passlib` incompatible con `bcrypt` 4.x
+`passlib 1.7.4` no es compatible con `bcrypt 4.x`. El `auth-service` usa `bcrypt` directamente sin `passlib`. Si ves el error `ValueError: password cannot be longer than 72 bytes` significa que hay una versión incorrecta instalada. Verifica `backend/auth-service/requirements.txt` — debe tener `bcrypt==4.0.1` sin `passlib[bcrypt]`.
 
-### `sqlalchemy.exc.ArgumentError: Type annotation for ... can't be correctly interpreted`
-SQLAlchemy 2.0 no acepta anotaciones de tipo simples en mixins. Las columnas en `shared/models/base.py` deben declararse sin anotaciones de tipo usando `Column()` directamente.
+### El super admin no puede iniciar sesion — 2FA no configurado
+En desarrollo el sistema detecta la IP de Docker como red externa y exige 2FA. Soluciones:
+1. Agregar el rango `172.16.0.0/12` a `CORPORATE_IP_RANGES` en `backend/auth-service/.env`
+2. Marcar al super admin con `is_2fa_configured = true` directamente en la BD:
+```bash
+docker exec -it avalanz-postgres psql -U avalanz_user -d avalanz_auth -c "UPDATE users SET is_2fa_configured = true WHERE email = 'admin@avalanz.com';"
+```
+
+### Tailwind no carga estilos — `Can't resolve 'tailwindcss'`
+Turbopack busca `tailwindcss` en la raíz del proyecto. Soluciones aplicadas:
+1. `globals.css` debe usar `@import "tailwindcss"` (sintaxis Tailwind v4)
+2. Crear `package.json` en la raíz con workspaces:
+```bash
+cat > ~/code/avalanz/intranet-avalanz/package.json << 'EOF'
+{
+  "name": "intranet-avalanz-root",
+  "private": true,
+  "workspaces": ["frontend"]
+}
+EOF
+```
+3. Limpiar caché: `rm -rf frontend/.next && npm run dev`
+
+### Token persistido redirige al dashboard sin sesión válida
+Zustand persiste `isAuthenticated` en localStorage. Al reiniciar el servidor el token expira pero el store sigue activo. Solución: limpiar desde consola del navegador:
+```javascript
+localStorage.clear();
+document.cookie.split(";").forEach(c => document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"));
+location.reload();
+```

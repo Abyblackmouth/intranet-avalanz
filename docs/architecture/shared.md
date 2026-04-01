@@ -308,7 +308,7 @@ Operaciones criptograficas centralizadas.
 
 | Funcion | Descripcion | Uso tipico |
 |---|---|---|
-| hash_password | Hash bcrypt de contrasena | Guardar contrasenas en BD |
+| hash_password | Hash bcrypt de contrasena (usa bcrypt directo, sin passlib) | Guardar contrasenas en BD |
 | verify_password | Verificar contrasena contra hash | Login |
 | generate_secure_token | Token URL-safe aleatorio | Links de recuperacion |
 | generate_numeric_code | Codigo numerico de N digitos | 2FA por SMS o email |
