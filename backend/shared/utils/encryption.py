@@ -1,23 +1,20 @@
+import bcrypt as _bcrypt
 import hashlib
 import hmac
 import secrets
 import base64
 from typing import Optional
-from passlib.context import CryptContext
 from cryptography.fernet import Fernet
 
 
 # ── Hashing de contrasenas ────────────────────────────────────────────────────
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return _bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
 
 
 # ── Tokens seguros aleatorios ─────────────────────────────────────────────────

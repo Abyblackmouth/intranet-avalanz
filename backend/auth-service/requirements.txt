@@ -14,8 +14,8 @@ alembic==1.13.1
 python-jose[cryptography]==3.3.0
 
 # Encriptacion y seguridad
-passlib[bcrypt]==1.7.4
-cryptography==42.0.7
+bcrypt==4.0.1
+bcrypt==4.0.1
 
 # TOTP y QR
 pyotp==2.9.0
