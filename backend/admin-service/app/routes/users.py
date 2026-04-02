@@ -19,11 +19,17 @@ class CreateUserRequest(BaseModel):
     company_id: str
     email: EmailStr
     full_name: str
+    matricula: Optional[str] = None
+    puesto: Optional[str] = None
+    departamento: Optional[str] = None
     is_super_admin: bool = False
 
 
 class UpdateUserRequest(BaseModel):
     full_name: Optional[str] = None
+    matricula: Optional[str] = None
+    puesto: Optional[str] = None
+    departamento: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -53,6 +59,9 @@ async def create_user(
         company_id=body.company_id,
         email=body.email,
         full_name=body.full_name,
+        matricula=body.matricula,
+        puesto=body.puesto,
+        departamento=body.departamento,
         is_super_admin=body.is_super_admin,
         requested_by=payload,
     )
@@ -102,6 +111,9 @@ async def update_user(
         db=db,
         user_id=user_id,
         full_name=body.full_name,
+        matricula=body.matricula,
+        puesto=body.puesto,
+        departamento=body.departamento,
         is_active=body.is_active,
         requested_by=payload,
     )

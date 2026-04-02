@@ -16,7 +16,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import api from '@/services/api'
-import { UserRow } from '@/app/(private)/admin/users/page'
+import { UserRow } from '@/types/user.types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

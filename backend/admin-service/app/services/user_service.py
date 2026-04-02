@@ -23,6 +23,9 @@ async def create_user(
     company_id: str,
     email: str,
     full_name: str,
+    matricula: Optional[str] = None,
+    puesto: Optional[str] = None,
+    departamento: Optional[str] = None,
     is_super_admin: bool = False,
     requested_by: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
@@ -38,6 +41,14 @@ async def create_user(
     if result.scalar_one_or_none():
         raise AlreadyExistsException("Email")
 
+    # Verificar si la matricula ya existe
+    if matricula:
+        result = await db.execute(
+            select(User).where(User.matricula == matricula, User.is_deleted == False)
+        )
+        if result.scalar_one_or_none():
+            raise AlreadyExistsException("Matricula")
+
     # Generar contrasena temporal
     temp_password = generate_secure_token(config.TEMP_PASSWORD_LENGTH)
     expires_at = now_utc() + timedelta(hours=config.TEMP_PASSWORD_EXPIRE_HOURS)
@@ -46,6 +57,9 @@ async def create_user(
         company_id=company_id,
         email=email,
         full_name=full_name,
+        matricula=matricula,
+        puesto=puesto,
+        departamento=departamento,
         is_active=True,
         is_super_admin=is_super_admin,
     )
@@ -67,6 +81,9 @@ async def create_user(
         "user_id": str(user.id),
         "email": email,
         "full_name": full_name,
+        "matricula": matricula,
+        "puesto": puesto,
+        "departamento": departamento,
         "temp_password": temp_password,
         "temp_password_expires_at": expires_at.isoformat(),
         "message": "Usuario creado. La contrasena temporal tiene validez de 24 horas",
@@ -111,7 +128,9 @@ async def list_users(
 
     if search:
         query = query.where(
-            User.full_name.ilike(f"%{search}%") | User.email.ilike(f"%{search}%")
+            User.full_name.ilike(f"%{search}%") |
+            User.email.ilike(f"%{search}%") |
+            User.matricula.ilike(f"%{search}%")
         )
 
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
@@ -133,6 +152,9 @@ async def update_user(
     db: AsyncSession,
     user_id: str,
     full_name: Optional[str] = None,
+    matricula: Optional[str] = None,
+    puesto: Optional[str] = None,
+    departamento: Optional[str] = None,
     is_active: Optional[bool] = None,
     requested_by: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
@@ -146,9 +168,27 @@ async def update_user(
 
     _check_company_scope(requested_by, str(user.company_id))
 
+    # Verificar matricula duplicada si se esta cambiando
+    if matricula and matricula != user.matricula:
+        result = await db.execute(
+            select(User).where(
+                User.matricula == matricula,
+                User.is_deleted == False,
+                User.id != user_id,
+            )
+        )
+        if result.scalar_one_or_none():
+            raise AlreadyExistsException("Matricula")
+
     values = {}
     if full_name is not None:
         values["full_name"] = full_name
+    if matricula is not None:
+        values["matricula"] = matricula
+    if puesto is not None:
+        values["puesto"] = puesto
+    if departamento is not None:
+        values["departamento"] = departamento
     if is_active is not None:
         values["is_active"] = is_active
 
@@ -364,6 +404,9 @@ def _serialize_user(user: User) -> Dict[str, Any]:
         "company_id": str(user.company_id),
         "email": user.email,
         "full_name": user.full_name,
+        "matricula": user.matricula,
+        "puesto": user.puesto,
+        "departamento": user.departamento,
         "is_active": user.is_active,
         "is_super_admin": user.is_super_admin,
         "created_at": user.created_at.isoformat(),
@@ -396,7 +439,7 @@ async def _sync_user_to_auth(
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
-                "http://auth-service/internal/users",
+                "http://auth-service:8000/internal/users",
                 json={
                     "user_id": user_id,
                     "email": email,
