@@ -21,29 +21,35 @@ El `admin-service` es el servicio de administración centralizada de la platafor
 ## Estructura
 
 ```
-admin-service/
+backend/admin-service/
+├── alembic.ini                          → Configuración de Alembic (migraciones)
 ├── app/
-│   ├── main.py                     → Punto de entrada, middlewares, routers, endpoint interno
-│   ├── config.py                   → Configuración del servicio
-│   ├── database.py                 → Motor async, sesión de BD, init/close
+│   ├── main.py                          → Punto de entrada, middlewares, routers, endpoint interno
+│   ├── config.py                        → Configuración del servicio
+│   ├── database.py                      → Motor async, sesión de BD, init/close
 │   ├── routes/
-│   │   ├── groups.py               → Endpoints de grupos
-│   │   ├── companies.py            → Endpoints de empresas
-│   │   ├── users.py                → Endpoints de usuarios y accesos
-│   │   ├── modules.py              → Endpoints de módulos y submódulos
-│   │   ├── roles.py                → Endpoints de roles globales y por módulo
-│   │   └── permissions.py         → Endpoints de permisos globales y por submódulo
+│   │   ├── groups.py                    → Endpoints de grupos
+│   │   ├── companies.py                 → Endpoints de empresas
+│   │   ├── users.py                     → Endpoints de usuarios y accesos
+│   │   ├── modules.py                   → Endpoints de módulos y submódulos
+│   │   ├── roles.py                     → Endpoints de roles globales y por módulo
+│   │   └── permissions.py              → Endpoints de permisos globales y por submódulo
 │   ├── services/
-│   │   ├── group_service.py        → Lógica de negocio de grupos
-│   │   ├── company_service.py      → Lógica de negocio de empresas
-│   │   ├── user_service.py         → Lógica de negocio de usuarios
-│   │   ├── module_service.py       → Lógica de negocio de módulos y submódulos
-│   │   ├── role_service.py         → Lógica de negocio de roles
-│   │   └── permission_service.py  → Lógica de negocio de permisos
+│   │   ├── group_service.py             → Lógica de negocio de grupos
+│   │   ├── company_service.py           → Lógica de negocio de empresas
+│   │   ├── user_service.py              → Lógica de negocio de usuarios
+│   │   ├── module_service.py            → Lógica de negocio de módulos y submódulos
+│   │   ├── role_service.py              → Lógica de negocio de roles
+│   │   └── permission_service.py       → Lógica de negocio de permisos
 │   ├── models/
-│   │   └── admin_models.py        → Modelos SQLAlchemy
+│   │   └── admin_models.py             → Modelos SQLAlchemy
 │   └── middleware/
 ├── migrations/
+│   ├── env.py                           → Configuración del entorno Alembic
+│   ├── script.py.mako                   → Template para archivos de migración
+│   └── versions/
+│       ├── 152e0764c443_initial_schema.py                     → Estado inicial de la BD
+│       └── 56a1e78b4518_add_matricula_puesto_departamento.py  → Campos de empleado
 ├── tests/
 ├── Dockerfile
 ├── requirements.txt
@@ -102,15 +108,20 @@ Group (Grupo Avalanz / Zignia)
 | is_active | Boolean | Si la empresa está activa en el catálogo |
 | is_deleted | Boolean | Soft delete |
 
-#### users
+#### users (actualizada)
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria — mismo UUID que en auth-service |
 | company_id | UUID FK | Empresa a la que pertenece |
 | email | String(255) | Email único |
 | full_name | String(255) | Nombre completo |
+| matricula | String(50) | Número de empleado — único, opcional |
+| puesto | String(150) | Puesto o cargo del empleado — opcional |
+| departamento | String(150) | Departamento del empleado — opcional |
 | is_active | Boolean | Si el usuario está activo |
 | is_super_admin | Boolean | Bandera de super administrador global |
+
+> Para agregar más campos a esta tabla ver: `docs/architecture/agregar-campos-usuario.md`
 
 #### modules
 | Columna | Tipo | Descripción |
@@ -200,6 +211,19 @@ Group (Grupo Avalanz / Zignia)
 
 ---
 
+## Respuesta serializada de usuario
+
+El `_serialize_user` en `user_service.py` combina datos de tres fuentes:
+
+| Campo | Fuente |
+|---|---|
+| user_id, email, full_name, matricula, puesto, departamento | admin-service BD |
+| company_name | JOIN con tabla companies |
+| roles | JOIN con user_global_roles + global_roles |
+| is_locked, is_2fa_configured, last_login_at | auth-service (endpoint interno batch-info) |
+
+---
+
 ## Reglas de negocio para habilitar / deshabilitar
 
 ### Grupos
@@ -244,6 +268,25 @@ Group (Grupo Avalanz / Zignia)
 
 ---
 
+## Flujo de creación de usuario
+
+```
+1. Frontend POST /api/v1/users/
+        |
+2. admin-service crea el usuario en su BD
+        |
+3. admin-service llama a auth-service POST /internal/users
+   para crear las credenciales (contraseña temporal)
+        |
+4. auth-service envía correo de bienvenida via email-service
+        |
+5. Usuario recibe correo con contraseña temporal
+        |
+6. En primer login: cambia contraseña → configura 2FA → accede
+```
+
+---
+
 ## Filtro de datos por empresa (regla de arquitectura)
 
 Cada módulo operativo que se construya en el futuro **debe** filtrar sus consultas por `company_id` del usuario que viene en el JWT.
@@ -254,6 +297,23 @@ query = select(Expediente).where(Expediente.company_id == company_id)
 ```
 
 **Excepción:** usuarios con rol `super_admin` pueden omitir este filtro.
+
+---
+
+## Nginx — Rutas expuestas
+
+Las siguientes rutas están configuradas en `infrastructure/nginx/conf.d/intranet.conf`:
+
+| Ruta | Servicio |
+|---|---|
+| /api/v1/users/ | admin-service |
+| /api/v1/companies/ | admin-service |
+| /api/v1/groups/ | admin-service |
+| /api/v1/modules/ | admin-service |
+| /api/v1/roles/ | admin-service |
+| /api/v1/permissions/ | admin-service |
+
+> Si agregas nuevos prefijos de ruta, agrégalos también en Nginx y reinicia el contenedor.
 
 ---
 
@@ -296,6 +356,30 @@ query = select(Expediente).where(Expediente.company_id == company_id)
 | POST | /{user_id}/module-access | super_admin, admin_empresa | Asignar acceso a módulo |
 | DELETE | /{user_id}/module-access | super_admin, admin_empresa | Revocar acceso a módulo |
 | GET | /{user_id}/permissions | super_admin, admin_empresa | Ver permisos del usuario |
+
+### Campos de creación de usuario (CreateUserRequest)
+
+```python
+class CreateUserRequest(BaseModel):
+    company_id: str             # requerido
+    email: EmailStr             # requerido
+    full_name: str              # requerido
+    matricula: Optional[str]    # opcional — número de empleado
+    puesto: Optional[str]       # opcional — cargo
+    departamento: Optional[str] # opcional — área
+    is_super_admin: bool = False
+```
+
+### Campos de actualización (UpdateUserRequest)
+
+```python
+class UpdateUserRequest(BaseModel):
+    full_name: Optional[str]
+    matricula: Optional[str]
+    puesto: Optional[str]
+    departamento: Optional[str]
+    is_active: Optional[bool]
+```
 
 ### Módulos — `/api/v1/modules`
 
@@ -354,6 +438,37 @@ query = select(Expediente).where(Expediente.company_id == company_id)
   "companies": ["uuid-corporativo", "uuid-dyce"],
   "permissions": []
 }
+```
+
+---
+
+## Comunicación con otros servicios
+
+| Servicio | Tipo | Endpoint | Propósito |
+|---|---|---|---|
+| auth-service | HTTP interno | POST /internal/users | Crear credenciales al crear usuario |
+| auth-service | HTTP interno | GET /internal/users/{id}/info | Obtener is_locked, is_2fa_configured, last_login_at |
+| auth-service | HTTP interno | POST /internal/users/batch-info | Obtener datos de auth para múltiples usuarios en un query |
+
+---
+
+## Alembic — Migraciones
+
+Ver guía completa en: `docs/architecture/alembic-guia.md`
+
+Comandos rápidos:
+```bash
+# Generar migración
+docker exec avalanz-admin bash -c "cd /app && alembic revision --autogenerate -m 'descripcion'"
+
+# Aplicar migraciones
+docker exec avalanz-admin bash -c "cd /app && alembic upgrade head"
+
+# Ver estado actual
+docker exec avalanz-admin bash -c "cd /app && alembic current"
+
+# Revertir última migración
+docker exec avalanz-admin bash -c "cd /app && alembic downgrade -1"
 ```
 
 ---
