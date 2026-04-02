@@ -232,6 +232,24 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             </div>
           )}
 
+
+          {/* Matricula */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Matrícula / No. empleado
+            </label>
+            <div className="relative">
+              <Hash size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                name="matricula"
+                value={form.matricula}
+                onChange={handleChange}
+                placeholder="Ej. EMP-001"
+                className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
           {/* Nombre completo */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
@@ -268,23 +286,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             </div>
           </div>
 
-          {/* Matricula */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Matrícula / No. empleado
-            </label>
-            <div className="relative">
-              <Hash size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                name="matricula"
-                value={form.matricula}
-                onChange={handleChange}
-                placeholder="Ej. EMP-001"
-                className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
+
 
           {/* Puesto y Departamento en fila */}
           <div className="grid grid-cols-2 gap-3">
@@ -337,7 +339,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
               >
                 <option value="">Sin rol global</option>
                 {globalRoles.map(r => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                  <option key={r.role_id} value={r.role_id}>{r.name}</option>
                 ))}
               </select>
             </div>
@@ -412,7 +414,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
                     >
                       <option value="">Seleccionar rol</option>
                       {moduleRoles.map(r => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
+                        <option key={r.role_id} value={r.role_id}>{r.name}</option>
                       ))}
                     </select>
                     <button

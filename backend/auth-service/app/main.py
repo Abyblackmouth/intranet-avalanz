@@ -7,6 +7,7 @@ from app.config import config
 from app.database import init_db, close_db
 from app.routes.auth import router as auth_router
 from app.routes.twofa import router as twofa_router
+from app.routes.internal import router as internal_router
 
 from shared.exceptions.http_exceptions import (
     AppException,
@@ -61,6 +62,7 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(twofa_router, prefix="/api/v1")
+app.include_router(internal_router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 from datetime import timedelta
 
 from app.config import config
-from app.models.admin_models import User, UserGlobalRole, UserModuleAccess, GlobalRole, Module, ModuleRole
+from app.models.admin_models import User, Company, UserGlobalRole, UserModuleAccess, GlobalRole, Module, ModuleRole
 from shared.utils.encryption import hash_password, generate_secure_token
 from shared.utils.helpers import now_utc, paginate, get_offset, is_strong_password, slugify
 from shared.exceptions.http_exceptions import (
@@ -30,18 +30,15 @@ async def create_user(
     requested_by: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
 
-    # Verificar permisos del solicitante
     if is_super_admin and not _is_global_admin(requested_by):
         raise ForbiddenException("Solo un super admin puede crear otros super admins")
 
-    # Verificar si el email ya existe
     result = await db.execute(
         select(User).where(User.email == email, User.is_deleted == False)
     )
     if result.scalar_one_or_none():
         raise AlreadyExistsException("Email")
 
-    # Verificar si la matricula ya existe
     if matricula:
         result = await db.execute(
             select(User).where(User.matricula == matricula, User.is_deleted == False)
@@ -49,7 +46,6 @@ async def create_user(
         if result.scalar_one_or_none():
             raise AlreadyExistsException("Matricula")
 
-    # Generar contrasena temporal
     temp_password = generate_secure_token(config.TEMP_PASSWORD_LENGTH)
     expires_at = now_utc() + timedelta(hours=config.TEMP_PASSWORD_EXPIRE_HOURS)
 
@@ -66,7 +62,6 @@ async def create_user(
     db.add(user)
     await db.flush()
 
-    # Notificar al auth-service para crear las credenciales
     await _sync_user_to_auth(
         user_id=str(user.id),
         email=email,
@@ -94,12 +89,16 @@ async def create_user(
 
 async def get_user_by_id(db: AsyncSession, user_id: str) -> Dict[str, Any]:
     result = await db.execute(
-        select(User).where(User.id == user_id, User.is_deleted == False)
+        select(User, Company)
+        .join(Company, User.company_id == Company.id)
+        .where(User.id == user_id, User.is_deleted == False)
     )
-    user = result.scalar_one_or_none()
-    if not user:
+    row = result.first()
+    if not row:
         raise NotFoundException("Usuario")
-    return _serialize_user(user)
+    user, company = row
+    auth_data = await _get_auth_data(str(user.id))
+    return _serialize_user(user, company.nombre_comercial, auth_data)
 
 
 # ── Listar usuarios ───────────────────────────────────────────────────────────
@@ -115,9 +114,13 @@ async def list_users(
 ) -> Dict[str, Any]:
 
     per_page = min(per_page, config.MAX_PAGE_SIZE)
-    query = select(User).where(User.is_deleted == False)
 
-    # Si no es super admin solo ve usuarios de su empresa
+    query = (
+        select(User, Company)
+        .join(Company, User.company_id == Company.id)
+        .where(User.is_deleted == False)
+    )
+
     if not _is_global_admin(requested_by):
         query = query.where(User.company_id == requested_by.get("company_id"))
     elif company_id:
@@ -138,10 +141,52 @@ async def list_users(
 
     query = query.offset(get_offset(page, per_page)).limit(per_page)
     result = await db.execute(query)
-    users = result.scalars().all()
+    rows = result.all()
+
+    # Obtener datos del auth-service en batch
+    user_ids = [str(row.User.id) for row in rows]
+    auth_data_map = await _get_auth_data_batch(user_ids)
+
+    # Obtener roles globales de todos los usuarios en un solo query
+    if rows:
+        roles_result = await db.execute(
+            select(UserGlobalRole, GlobalRole)
+            .join(GlobalRole, UserGlobalRole.role_id == GlobalRole.id)
+            .where(
+                UserGlobalRole.user_id.in_(user_ids),
+                GlobalRole.is_active == True,
+                GlobalRole.is_deleted == False,
+            )
+        )
+        roles_rows = roles_result.all()
+        roles_map = {}
+        for rrow in roles_rows:
+            uid = str(rrow.UserGlobalRole.user_id)
+            if uid not in roles_map:
+                roles_map[uid] = []
+            roles_map[uid].append(rrow.GlobalRole.slug)
+
+        # Agregar super_admin si is_super_admin
+        for row in rows:
+            uid = str(row.User.id)
+            if row.User.is_super_admin:
+                if uid not in roles_map:
+                    roles_map[uid] = []
+                if "super_admin" not in roles_map[uid]:
+                    roles_map[uid].append("super_admin")
+    else:
+        roles_map = {}
 
     return {
-        "data": [_serialize_user(u) for u in users],
+        "data": [
+            _serialize_user(
+                row.User,
+                row.Company.nombre_comercial,
+                auth_data_map.get(str(row.User.id), {}),
+                roles_map.get(str(row.User.id), [])
+            )
+            for row in rows
+        ],
         "meta": paginate(total, page, per_page),
     }
 
@@ -168,7 +213,6 @@ async def update_user(
 
     _check_company_scope(requested_by, str(user.company_id))
 
-    # Verificar matricula duplicada si se esta cambiando
     if matricula and matricula != user.matricula:
         result = await db.execute(
             select(User).where(
@@ -347,7 +391,7 @@ async def revoke_module_access(
     await db.commit()
 
 
-# ── Permisos del usuario (consumido por auth-service) ────────────────────────
+# ── Permisos del usuario ──────────────────────────────────────────────────────
 
 async def get_user_permissions(db: AsyncSession, user_id: str) -> Dict[str, Any]:
     result = await db.execute(
@@ -357,7 +401,6 @@ async def get_user_permissions(db: AsyncSession, user_id: str) -> Dict[str, Any]
     if not user:
         raise NotFoundException("Usuario")
 
-    # Roles globales
     global_roles_result = await db.execute(
         select(GlobalRole).join(UserGlobalRole).where(
             UserGlobalRole.user_id == user_id,
@@ -370,7 +413,6 @@ async def get_user_permissions(db: AsyncSession, user_id: str) -> Dict[str, Any]
     if user.is_super_admin and "super_admin" not in global_roles:
         global_roles.append("super_admin")
 
-    # Modulos y roles por modulo
     accesses_result = await db.execute(
         select(UserModuleAccess, Module, ModuleRole)
         .join(Module, UserModuleAccess.module_id == Module.id)
@@ -398,10 +440,11 @@ async def get_user_permissions(db: AsyncSession, user_id: str) -> Dict[str, Any]
 
 # ── Helpers internos ──────────────────────────────────────────────────────────
 
-def _serialize_user(user: User) -> Dict[str, Any]:
+def _serialize_user(user: User, company_name: str = "", auth_data: Dict = {}, roles: List = []) -> Dict[str, Any]:
     return {
         "user_id": str(user.id),
         "company_id": str(user.company_id),
+        "company_name": company_name,
         "email": user.email,
         "full_name": user.full_name,
         "matricula": user.matricula,
@@ -409,6 +452,10 @@ def _serialize_user(user: User) -> Dict[str, Any]:
         "departamento": user.departamento,
         "is_active": user.is_active,
         "is_super_admin": user.is_super_admin,
+        "roles": roles,
+        "is_locked": auth_data.get("is_locked", False),
+        "is_2fa_configured": auth_data.get("is_2fa_configured", False),
+        "last_login_at": auth_data.get("last_login_at", None),
         "created_at": user.created_at.isoformat(),
     }
 
@@ -427,6 +474,33 @@ def _check_company_scope(payload: Optional[Dict[str, Any]], target_company_id: s
         return
     if payload.get("company_id") != target_company_id:
         raise ForbiddenException("No tienes acceso a recursos de otra empresa")
+
+
+async def _get_auth_data(user_id: str) -> Dict[str, Any]:
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(
+                f"http://auth-service:8000/internal/users/{user_id}/info"
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception:
+        pass
+    return {}
+
+
+async def _get_auth_data_batch(user_ids: List[str]) -> Dict[str, Dict]:
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.post(
+                "http://auth-service:8000/internal/users/batch-info",
+                json={"user_ids": user_ids}
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception:
+        pass
+    return {}
 
 
 async def _sync_user_to_auth(
