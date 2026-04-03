@@ -118,6 +118,7 @@ Group (Grupo Avalanz / Zignia)
 | matricula | String(50) | Número de empleado — único, opcional |
 | puesto | String(150) | Puesto o cargo del empleado — opcional |
 | departamento | String(150) | Departamento del empleado — opcional |
+| lock_reason | String(255) | Motivo del último bloqueo o desbloqueo — opcional |
 | is_active | Boolean | Si el usuario está activo |
 | is_super_admin | Boolean | Bandera de super administrador global |
 
@@ -353,9 +354,13 @@ Las siguientes rutas están configuradas en `infrastructure/nginx/conf.d/intrane
 | PATCH | /{user_id} | super_admin, admin_empresa | Actualizar usuario |
 | DELETE | /{user_id} | super_admin, admin_empresa | Eliminar usuario |
 | POST | /{user_id}/global-roles | super_admin | Asignar rol global |
+| DELETE | /{user_id}/global-roles | super_admin | Remover rol global |
 | POST | /{user_id}/module-access | super_admin, admin_empresa | Asignar acceso a módulo |
 | DELETE | /{user_id}/module-access | super_admin, admin_empresa | Revocar acceso a módulo |
 | GET | /{user_id}/permissions | super_admin, admin_empresa | Ver permisos del usuario |
+| GET | /{user_id}/sessions | super_admin, admin_empresa | Sesiones activas del usuario |
+| GET | /{user_id}/login-history | super_admin, admin_empresa | Historial de login del usuario |
+| POST | /{user_id}/lock | super_admin | Bloquear o desbloquear cuenta |
 
 ### Campos de creación de usuario (CreateUserRequest)
 
