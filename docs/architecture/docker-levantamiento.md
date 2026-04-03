@@ -95,7 +95,29 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```bash
 # Estado de los contenedores
 docker ps --format "table {{.Names}}\t{{.Status}}"
+```
 
+Contenedores esperados:
+
+| Contenedor | Descripción |
+|---|---|
+| avalanz-nginx | API Gateway |
+| avalanz-auth | Auth Service |
+| avalanz-admin | Admin Service |
+| avalanz-upload | Upload Service |
+| avalanz-notify | Notify Service |
+| avalanz-websocket | WebSocket Service |
+| avalanz-email | Email Service |
+| avalanz-postgres | Base de datos PostgreSQL |
+| avalanz-redis | Caché Redis |
+| avalanz-rabbitmq | Message Broker |
+| avalanz-minio | Almacenamiento S3 |
+| avalanz-consul | Service Registry |
+| avalanz-prometheus | Métricas |
+| avalanz-grafana | Dashboards |
+| avalanz-cron | Tareas programadas de limpieza |
+
+```bash
 # Health checks de cada servicio
 curl http://localhost/health/auth
 curl http://localhost/health/admin
@@ -163,6 +185,12 @@ docker exec -it avalanz-redis redis-cli -a Avalanz2026!
 
 # Ver logs de todos los servicios
 docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
+
+# Ejecutar limpieza manual del cron
+docker exec avalanz-cron /scripts/cleanup.sh
+
+# Ver logs del cron
+docker exec avalanz-cron cat /var/log/cron/cleanup.log
 ```
 
 ---
@@ -219,10 +247,22 @@ mv infrastructure/prometheus/rometheus.yml infrastructure/prometheus/prometheus.
 
 ### El super admin no puede iniciar sesion — 2FA no configurado
 En desarrollo el sistema detecta la IP de Docker como red externa y exige 2FA. Soluciones:
-1. Agregar el rango `172.16.0.0/12` a `CORPORATE_IP_RANGES` en `backend/auth-service/.env`
+1. Agregar el rango `172.16.0.0/12` a `CORPORATE_IP_RANGES` en `backend/auth-service/.env` en formato JSON:
+```bash
+CORPORATE_IP_RANGES=["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12","127.0.0.1/32"]
+```
 2. Marcar al super admin con `is_2fa_configured = true` directamente en la BD:
 ```bash
 docker exec -it avalanz-postgres psql -U avalanz_user -d avalanz_auth -c "UPDATE users SET is_2fa_configured = true WHERE email = 'admin@avalanz.com';"
+```
+
+### `CORPORATE_IP_RANGES` rompe el auth-service al arrancar
+Pydantic requiere formato JSON con corchetes. Formato incorrecto:
+```bash
+# Incorrecto
+CORPORATE_IP_RANGES=192.168.0.0/16,10.0.0.0/8
+# Correcto
+CORPORATE_IP_RANGES=["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12"]
 ```
 
 ### Tailwind no carga estilos — `Can't resolve 'tailwindcss'`
@@ -246,4 +286,11 @@ Zustand persiste `isAuthenticated` en localStorage. Al reiniciar el servidor el 
 localStorage.clear();
 document.cookie.split(";").forEach(c => document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"));
 location.reload();
+```
+
+### El contenedor `avalanz-cron` hace crash loop con `setpgid: Operation not permitted`
+`dcron` no funciona correctamente en WSL2. El contenedor usa un loop con `sleep 60` en lugar de `dcron`. Si el contenedor sigue en crash loop, reconstruirlo:
+```bash
+cd infrastructure/docker
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --force-recreate cron -d
 ```
