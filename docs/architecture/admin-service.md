@@ -361,6 +361,7 @@ Las siguientes rutas están configuradas en `infrastructure/nginx/conf.d/intrane
 | GET | /{user_id}/sessions | super_admin, admin_empresa | Sesiones activas del usuario |
 | GET | /{user_id}/login-history | super_admin, admin_empresa | Historial de login del usuario |
 | POST | /{user_id}/lock | super_admin | Bloquear o desbloquear cuenta |
+| POST | /{user_id}/reset-password | super_admin, admin_empresa | Resetear contraseña del usuario |
 
 ### Campos de creación de usuario (CreateUserRequest)
 
@@ -454,6 +455,7 @@ class UpdateUserRequest(BaseModel):
 | auth-service | HTTP interno | POST /internal/users | Crear credenciales al crear usuario |
 | auth-service | HTTP interno | GET /internal/users/{id}/info | Obtener is_locked, is_2fa_configured, last_login_at |
 | auth-service | HTTP interno | POST /internal/users/batch-info | Obtener datos de auth para múltiples usuarios en un query |
+| auth-service | HTTP interno | POST /internal/users/{id}/reset-password | Resetear contraseña del usuario |
 
 ---
 

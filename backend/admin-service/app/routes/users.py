@@ -13,8 +13,6 @@ router = APIRouter(prefix="/users", tags=["Usuarios"])
 validator = JWTValidator(secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
 
 
-# ── Schemas de entrada ────────────────────────────────────────────────────────
-
 class CreateUserRequest(BaseModel):
     company_id: str
     email: EmailStr
@@ -48,7 +46,18 @@ class RevokeModuleAccessRequest(BaseModel):
     module_id: str
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+class ToggleLockRequest(BaseModel):
+    lock: bool
+    reason: str
+
+
+class RemoveGlobalRoleRequest(BaseModel):
+    role_id: str
+
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str
+
 
 @router.post("/", response_model=CreatedResponse)
 async def create_user(
@@ -156,6 +165,22 @@ async def assign_global_role(
     return BaseResponse(success=True, message="Rol global asignado exitosamente")
 
 
+@router.delete("/{user_id}/global-roles", response_model=BaseResponse)
+async def remove_global_role(
+    user_id: str,
+    body: RemoveGlobalRoleRequest,
+    db: AsyncSession = Depends(get_db),
+    payload=Depends(validator.require_roles(["super_admin"])),
+):
+    await user_service.remove_global_role(
+        db=db,
+        user_id=user_id,
+        role_id=body.role_id,
+        requested_by=payload,
+    )
+    return BaseResponse(success=True, message="Rol removido exitosamente")
+
+
 @router.post("/{user_id}/module-access", response_model=BaseResponse)
 async def assign_module_access(
     user_id: str,
@@ -198,6 +223,7 @@ async def get_user_permissions(
     result = await user_service.get_user_permissions(db=db, user_id=user_id)
     return DataResponse(success=True, message="Permisos del usuario obtenidos", data=result)
 
+
 @router.get("/{user_id}/sessions", response_model=DataResponse)
 async def get_user_sessions(
     user_id: str,
@@ -222,11 +248,6 @@ async def get_user_login_history(
     return DataResponse(success=True, message="Historial obtenido", data=resp.json())
 
 
-class ToggleLockRequest(BaseModel):
-    lock: bool
-    reason: str
-
-
 @router.post("/{user_id}/lock", response_model=DataResponse)
 async def toggle_lock_user(
     user_id: str,
@@ -245,21 +266,17 @@ async def toggle_lock_user(
     return DataResponse(success=True, message=f"Usuario {action} exitosamente", data=result)
 
 
-class RemoveGlobalRoleRequest(BaseModel):
-    role_id: str
-
-
-@router.delete("/{user_id}/global-roles", response_model=BaseResponse)
-async def remove_global_role(
+@router.post("/{user_id}/reset-password", response_model=BaseResponse)
+async def reset_user_password(
     user_id: str,
-    body: RemoveGlobalRoleRequest,
+    body: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
-    payload=Depends(validator.require_roles(["super_admin"])),
+    payload=Depends(validator.require_roles(["super_admin", "admin_empresa"])),
 ):
-    await user_service.remove_global_role(
+    await user_service.reset_password(
         db=db,
         user_id=user_id,
-        role_id=body.role_id,
+        new_password=body.new_password,
         requested_by=payload,
     )
-    return BaseResponse(success=True, message="Rol removido exitosamente")
+    return BaseResponse(success=True, message="Contrasena reseteada exitosamente")

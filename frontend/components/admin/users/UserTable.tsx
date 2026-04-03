@@ -5,7 +5,7 @@ import {
   MoreHorizontal, Eye, Pencil, Lock, Unlock, KeyRound,
   LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight, X,
 } from 'lucide-react'
-import { toggleLockUser, revokeAllSessions, deleteUser } from '@/services/adminService'
+import { toggleLockUser, revokeAllSessions, deleteUser, resetUserPassword } from '@/services/adminService'
 import { UserRow } from '@/types/user.types'
 import UserDetail from '@/components/admin/users/UserDetail'
 import UserEditForm from '@/components/admin/users/UserEditForm'
@@ -80,7 +80,7 @@ const LockModal = ({ user, onConfirm, onClose, isLoading }: { user: UserRow; onC
   const action = user.is_locked ? 'desbloquear' : 'bloquear'
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40" />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-slate-900 capitalize">{action} usuario</h3>
@@ -108,7 +108,7 @@ const LockModal = ({ user, onConfirm, onClose, isLoading }: { user: UserRow; onC
 
 const ConfirmModal = ({ title, message, confirmLabel, onConfirm, onClose, isLoading, danger = true }: { title: string; message: string; confirmLabel: string; onConfirm: () => void; onClose: () => void; isLoading: boolean; danger?: boolean }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center">
-    <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+    <div className="absolute inset-0 bg-black/40" />
     <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-bold text-slate-900">{title}</h3>
@@ -126,13 +126,123 @@ const ConfirmModal = ({ title, message, confirmLabel, onConfirm, onClose, isLoad
   </div>
 )
 
-const ActionMenu = ({ user, onRefresh, onViewDetail, onEdit }: { user: UserRow; onRefresh: () => void; onViewDetail: () => void; onEdit: () => void }) => {
+const ResetPasswordModal = ({
+  user,
+  onConfirm,
+  onClose,
+  isLoading,
+}: {
+  user: UserRow
+  onConfirm: (password: string) => void
+  onClose: () => void
+  isLoading: boolean
+}) => {
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+
+  const rules = {
+    length: password.length >= 8,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+  }
+  const allValid = Object.values(rules).every(Boolean)
+  const matches = password === confirm && confirm.length > 0
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-bold text-slate-900">Resetear contrasena</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Define una nueva contrasena para <strong>{user.full_name}</strong>. El usuario debera cambiarla en su proximo inicio de sesion.
+        </p>
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Nueva contrasena <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Minimo 8 caracteres"
+              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Confirmar contrasena <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              placeholder="Repite la contrasena"
+              className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                confirm.length > 0
+                  ? matches ? 'border-green-400' : 'border-red-400'
+                  : 'border-slate-300'
+              }`}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5 mb-5">
+          {[
+            { key: 'length', label: 'Minimo 8 caracteres' },
+            { key: 'upper', label: 'Una mayuscula' },
+            { key: 'lower', label: 'Una minuscula' },
+            { key: 'number', label: 'Un numero' },
+            { key: 'special', label: 'Un caracter especial' },
+          ].map(({ key, label }) => (
+            <span key={key} className={`text-xs flex items-center gap-1 ${rules[key as keyof typeof rules] ? 'text-green-600' : 'text-slate-400'}`}>
+              <span>{rules[key as keyof typeof rules] ? '✓' : '○'}</span> {label}
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">
+            Cancelar
+          </button>
+          <button
+            onClick={() => onConfirm(password)}
+            disabled={!allValid || !matches || isLoading}
+            className="px-5 py-2 text-sm font-medium rounded-lg bg-[#1a4fa0] text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            {isLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            Resetear contrasena
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ActionMenu = ({
+  user,
+  onRefresh,
+  onViewDetail,
+  onEdit,
+  onResetPassword,
+}: {
+  user: UserRow
+  onRefresh: () => void
+  onViewDetail: () => void
+  onEdit: () => void
+  onResetPassword: () => void
+}) => {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
   const [showLockModal, setShowLockModal] = useState(false)
   const [showRevokeModal, setShowRevokeModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [loadingLock, setLoadingLock] = useState(false)
+  const [loadingRevoke, setLoadingRevoke] = useState(false)
+  const [loadingDelete, setLoadingDelete] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
 
   const openMenu = () => {
@@ -146,32 +256,34 @@ const ActionMenu = ({ user, onRefresh, onViewDetail, onEdit }: { user: UserRow; 
   useEffect(() => {
     if (!open) return
     const handleScroll = () => setOpen(false)
-    window.addEventListener('scroll', handleScroll, true)
-    return () => window.removeEventListener('scroll', handleScroll, true)
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
   }, [open])
 
   const handleLock = async (reason: string) => {
-    setLoading(true)
+    setLoadingLock(true)
     try { await toggleLockUser(user.user_id, !user.is_locked, reason); setShowLockModal(false); onRefresh() }
-    catch { } finally { setLoading(false) }
+    catch (e) { console.error('Lock error', e) } finally { setLoadingLock(false) }
   }
 
   const handleRevoke = async () => {
-    setLoading(true)
+    setLoadingRevoke(true)
     try { await revokeAllSessions(user.user_id); setShowRevokeModal(false); onRefresh() }
-    catch { } finally { setLoading(false) }
+    catch (e) { console.error('Revoke error', e) } finally { setLoadingRevoke(false) }
   }
 
   const handleDelete = async () => {
-    setLoading(true)
+    setLoadingDelete(true)
     try { await deleteUser(user.user_id); setShowDeleteModal(false); onRefresh() }
-    catch { } finally { setLoading(false) }
+    catch (e) { console.error('Delete error', e) } finally { setLoadingDelete(false) }
   }
+
+  const anyLoading = loadingLock || loadingRevoke || loadingDelete
 
   return (
     <>
-      <button ref={btnRef} onClick={openMenu} disabled={loading} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
-        {loading ? <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <MoreHorizontal size={16} />}
+      <button ref={btnRef} onClick={openMenu} disabled={anyLoading} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+        {anyLoading ? <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <MoreHorizontal size={16} />}
       </button>
 
       {open && (
@@ -180,7 +292,7 @@ const ActionMenu = ({ user, onRefresh, onViewDetail, onEdit }: { user: UserRow; 
           <div className="fixed z-50 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5" style={{ top: menuPos.top, right: menuPos.right }}>
             <MenuItem icon={<Eye size={14} />} label="Ver detalle" onClick={() => { setOpen(false); onViewDetail() }} />
             {!user.is_protected && <MenuItem icon={<Pencil size={14} />} label="Editar" onClick={() => { setOpen(false); onEdit() }} />}
-            <MenuItem icon={<KeyRound size={14} />} label="Resetear contrasena" onClick={() => setOpen(false)} />
+            <MenuItem icon={<KeyRound size={14} />} label="Resetear contrasena" onClick={() => { setOpen(false); onResetPassword() }} />
             <div className="h-px bg-slate-100 my-1" />
             {!user.is_protected && (
               <MenuItem icon={user.is_locked ? <Unlock size={14} /> : <Lock size={14} />} label={user.is_locked ? 'Desbloquear cuenta' : 'Bloquear cuenta'} onClick={() => { setOpen(false); setShowLockModal(true) }} danger={!user.is_locked} />
@@ -196,9 +308,9 @@ const ActionMenu = ({ user, onRefresh, onViewDetail, onEdit }: { user: UserRow; 
         </>
       )}
 
-      {showLockModal && <LockModal user={user} onConfirm={handleLock} onClose={() => setShowLockModal(false)} isLoading={loading} />}
-      {showRevokeModal && <ConfirmModal title="Revocar sesiones" message={`Se cerrarán todas las sesiones activas de ${user.full_name}.`} confirmLabel="Revocar" onConfirm={handleRevoke} onClose={() => setShowRevokeModal(false)} isLoading={loading} />}
-      {showDeleteModal && <ConfirmModal title="Eliminar usuario" message={`Esta acción eliminará permanentemente la cuenta de ${user.full_name}. No se puede deshacer.`} confirmLabel="Eliminar" onConfirm={handleDelete} onClose={() => setShowDeleteModal(false)} isLoading={loading} />}
+      {showLockModal && <LockModal user={user} onConfirm={handleLock} onClose={() => setShowLockModal(false)} isLoading={loadingLock} />}
+      {showRevokeModal && <ConfirmModal title="Revocar sesiones" message={`Se cerrarán todas las sesiones activas de ${user.full_name}.`} confirmLabel="Revocar" onConfirm={handleRevoke} onClose={() => setShowRevokeModal(false)} isLoading={loadingRevoke} />}
+      {showDeleteModal && <ConfirmModal title="Eliminar usuario" message={`Esta acción eliminará permanentemente la cuenta de ${user.full_name}. No se puede deshacer.`} confirmLabel="Eliminar" onConfirm={handleDelete} onClose={() => setShowDeleteModal(false)} isLoading={loadingDelete} />}
     </>
   )
 }
@@ -223,6 +335,22 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
   const totalPages = Math.ceil(total / perPage)
   const [detailUserId, setDetailUserId] = useState<string | null>(null)
   const [editUserId, setEditUserId] = useState<string | null>(null)
+  const [resetUser, setResetUser] = useState<UserRow | null>(null)
+  const [loadingReset, setLoadingReset] = useState(false)
+
+  const handleReset = async (password: string) => {
+    if (!resetUser) return
+    setLoadingReset(true)
+    try {
+      await resetUserPassword(resetUser.user_id, password)
+      setResetUser(null)
+      onRefresh()
+    } catch (e) {
+      console.error('Reset error', e)
+    } finally {
+      setLoadingReset(false)
+    }
+  }
 
   if (isLoading) return (
     <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
@@ -280,7 +408,13 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
                 <td className="px-4 py-3"><StatusBadge user={user} /></td>
                 <td className="px-4 py-3"><p className="text-xs text-slate-500">{formatRelative(user.last_login_at)}</p></td>
                 <td className="px-4 py-3">
-                  <ActionMenu user={user} onRefresh={onRefresh} onViewDetail={() => setDetailUserId(user.user_id)} onEdit={() => setEditUserId(user.user_id)} />
+                  <ActionMenu
+                    user={user}
+                    onRefresh={onRefresh}
+                    onViewDetail={() => setDetailUserId(user.user_id)}
+                    onEdit={() => setEditUserId(user.user_id)}
+                    onResetPassword={() => setResetUser(user)}
+                  />
                 </td>
               </tr>
             ))}
@@ -306,6 +440,7 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
 
       {detailUserId && <UserDetail userId={detailUserId} onClose={() => setDetailUserId(null)} onRefresh={onRefresh} />}
       {editUserId && <UserEditForm userId={editUserId} onClose={() => setEditUserId(null)} onSuccess={onRefresh} />}
+      {resetUser && <ResetPasswordModal user={resetUser} onConfirm={handleReset} onClose={() => setResetUser(null)} isLoading={loadingReset} />}
     </>
   )
 }

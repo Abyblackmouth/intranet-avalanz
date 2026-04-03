@@ -115,6 +115,7 @@ Estos endpoints no requieren autenticación JWT y solo son accesibles dentro de 
 | GET | /internal/users/{user_id}/sessions | Listar sesiones activas de un usuario (max 50) |
 | GET | /internal/users/{user_id}/login-history | Historial de login de un usuario (max 50) |
 | POST | /internal/users/{user_id}/lock | Bloquear o desbloquear cuenta de un usuario |
+| POST | /internal/users/{user_id}/reset-password | Resetear contraseña — hashea la nueva y activa is_temp_password |
 
 ### POST /internal/users
 Crea las credenciales en el auth-service cuando el admin-service crea un usuario nuevo.

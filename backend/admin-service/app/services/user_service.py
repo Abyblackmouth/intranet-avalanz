@@ -142,6 +142,34 @@ async def delete_user(db, user_id, requested_by=None):
     await db.commit()
 
 
+async def reset_password(db, user_id, new_password, requested_by=None):
+    from shared.utils.helpers import is_strong_password
+
+    result = await db.execute(select(User).where(User.id == user_id, User.is_deleted == False))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise NotFoundException("Usuario")
+    if user.email == PROTECTED_SUPER_ADMIN_EMAIL:
+        raise ForbiddenException("Este usuario no puede ser modificado")
+    if not _is_super_admin(requested_by) and not _is_admin_empresa(requested_by):
+        raise ForbiddenException("No tienes permisos para resetear contrasenas")
+    if not is_strong_password(new_password):
+        raise ValidationException(
+            "La contrasena debe tener minimo 8 caracteres, una mayuscula, "
+            "una minuscula, un numero y un caracter especial"
+        )
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"http://auth-service:8000/internal/users/{user_id}/reset-password",
+                json={"new_password": new_password},
+            )
+            if resp.status_code != 200 or not resp.json().get("success"):
+                raise ValidationException("Error al resetear la contrasena")
+    except httpx.HTTPError:
+        raise ValidationException("Error al comunicarse con el servicio de autenticacion")
+
+
 async def assign_global_role(db, user_id, role_id, requested_by=None):
     if not _is_super_admin(requested_by):
         raise ForbiddenException("Solo un super admin puede asignar roles globales")
@@ -199,6 +227,17 @@ async def get_user_permissions(db, user_id):
     accesses_result = await db.execute(select(UserModuleAccess, Module, ModuleRole).join(Module, UserModuleAccess.module_id == Module.id).join(ModuleRole, UserModuleAccess.role_id == ModuleRole.id).where(UserModuleAccess.user_id == user_id, UserModuleAccess.is_active == True, Module.is_active == True, Module.is_deleted == False))
     accesses = accesses_result.all()
     return {"roles": global_roles + [f"{a.Module.slug}:{a.ModuleRole.slug}" for a in accesses], "modules": [a.Module.slug for a in accesses], "companies": list(set([str(a.Module.company_id) for a in accesses])), "permissions": []}
+
+
+async def remove_global_role(db, user_id, role_id, requested_by=None):
+    if not _is_super_admin(requested_by):
+        raise ForbiddenException("Solo un super admin puede remover roles globales")
+    result = await db.execute(select(UserGlobalRole).where(UserGlobalRole.user_id == user_id, UserGlobalRole.role_id == role_id))
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        return
+    await db.execute(UserGlobalRole.__table__.delete().where(UserGlobalRole.user_id == user_id, UserGlobalRole.role_id == role_id))
+    await db.commit()
 
 
 def _serialize_user(user, company_name="", auth_data={}, roles=[]):
@@ -280,24 +319,3 @@ async def _sync_user_to_auth(user_id, email, full_name, temp_password, temp_pass
             await client.post("http://auth-service:8000/internal/users", json={"user_id": user_id, "email": email, "full_name": full_name, "temp_password": temp_password, "temp_password_expires_at": temp_password_expires_at})
     except Exception:
         raise ValidationException("Error al sincronizar usuario con el servicio de autenticacion")
-
-
-async def remove_global_role(db, user_id, role_id, requested_by=None):
-    if not _is_super_admin(requested_by):
-        raise ForbiddenException("Solo un super admin puede remover roles globales")
-    result = await db.execute(
-        select(UserGlobalRole).where(
-            UserGlobalRole.user_id == user_id,
-            UserGlobalRole.role_id == role_id,
-        )
-    )
-    assignment = result.scalar_one_or_none()
-    if not assignment:
-        return
-    await db.execute(
-        UserGlobalRole.__table__.delete().where(
-            UserGlobalRole.user_id == user_id,
-            UserGlobalRole.role_id == role_id,
-        )
-    )
-    await db.commit()

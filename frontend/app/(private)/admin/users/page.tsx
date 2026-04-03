@@ -27,8 +27,8 @@ export default function UsersPage() {
 
   useEffect(() => { setMounted(true) }, [])
 
-  const fetchUsers = useCallback(async () => {
-    setIsLoading(true)
+  const fetchUsers = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true)
     try {
       const params: Record<string, string | number> = { page, per_page: perPage }
       if (search) params.search = search
@@ -56,7 +56,7 @@ export default function UsersPage() {
   }, [])
 
   useEffect(() => { fetchCompanies() }, [fetchCompanies])
-  useEffect(() => { fetchUsers() }, [fetchUsers])
+  useEffect(() => { fetchUsers() }, [page, search, filterStatus, filterCompany])
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
@@ -88,8 +88,8 @@ export default function UsersPage() {
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
-                  type="text"
-                  placeholder="Nombre, correo o matrícula..."
+                  type="search"
+                  placeholder="Nombre, correo o matrícula..." autoComplete="new-password"
                   value={search}
                   onChange={handleSearch}
                   className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -144,7 +144,7 @@ export default function UsersPage() {
         <UserTable
           users={users}
           isLoading={isLoading}
-          onRefresh={fetchUsers}
+          onRefresh={() => fetchUsers(true)}
           page={page}
           perPage={perPage}
           total={total}

@@ -62,3 +62,5 @@ export const getModuleRoles = (moduleId: string) =>
 
 export const removeGlobalRole = (userId: string, roleId: string) =>
   api.delete(`/api/v1/users/${userId}/global-roles`, { data: { role_id: roleId } })
+export const resetUserPassword = (userId: string, newPassword: string) =>
+  api.post(`/api/v1/users/${userId}/reset-password`, { new_password: newPassword })

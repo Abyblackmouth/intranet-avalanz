@@ -180,3 +180,35 @@ async def create_user(body: CreateUserRequest, db: AsyncSession = Depends(get_db
     await db.commit()
 
     return {"success": True, "user_id": body.user_id}
+
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: str,
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from shared.utils.encryption import hash_password
+    from sqlalchemy import update
+
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.is_deleted == False)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        return {"success": False, "message": "Usuario no encontrado"}
+
+    hashed = hash_password(body.new_password)
+    await db.execute(
+        update(User).where(User.id == user_id).values(
+            hashed_password=hashed,
+            is_temp_password=True,
+            failed_attempts=0,
+        )
+    )
+    await db.commit()
+    return {"success": True, "message": "Contrasena reseteada"}
