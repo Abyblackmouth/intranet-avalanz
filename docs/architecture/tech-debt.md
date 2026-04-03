@@ -1,0 +1,36 @@
+# Tech Debt & UX Pendientes
+
+Este archivo documenta mejoras pendientes que no son fallas críticas pero impactan la experiencia o el rendimiento. Se atienden cuando no hay features activas en desarrollo.
+
+---
+
+## Frontend
+
+### Autocomplete de Chrome en campo de búsqueda de usuarios
+**Archivo:** `frontend/app/(private)/admin/users/page.tsx`
+**Descripción:** Chrome autocompleta el campo de búsqueda con credenciales guardadas al abrir modales que contienen inputs de contraseña. `autoComplete="off"` y `type="search"` no lo resuelven — Chrome los ignora. Requiere un componente de input personalizado que bloquee el comportamiento de forma más agresiva.
+**Impacto:** UX — el filtro de búsqueda se llena con el email del admin al abrir el modal de reset de contraseña.
+
+---
+
+## Backend
+
+### Mensaje de cuenta bloqueada no diferencia tipo de bloqueo
+**Archivo:** `backend/auth-service/app/services/auth_service.py`
+**Descripción:** Cuando una cuenta está bloqueada, el mensaje de error es genérico sin importar si fue bloqueada manualmente por un admin o automáticamente por intentos fallidos.
+**Cambio requerido:**
+- Bloqueo manual → `"Tu cuenta ha sido bloqueada. Contacta al administrador."`
+- Bloqueo por intentos fallidos → `"Cuenta bloqueada por múltiples intentos fallidos. Contacta al administrador."`
+**Impacto:** UX — el usuario no sabe por qué fue bloqueado ni qué hacer.
+
+---
+
+## Notas
+- Los items de este archivo no bloquean el merge ni el avance de features.
+- Revisar y limpiar este archivo al inicio de cada sprint.
+
+### Hover en opciones del menú de 3 puntos
+**Archivo:** `frontend/components/admin/users/UserTable.tsx`
+**Descripción:** Las opciones del menú de acciones (3 puntos) no tienen hover visible al pasar el mouse. El usuario no puede distinguir visualmente sobre qué opción está posicionado.
+**Cambio requerido:** Agregar fondo gris (`hover:bg-slate-100`) en el componente `MenuItem` para opciones no peligrosas, y `hover:bg-red-50` para las peligrosas ya lo tiene.
+**Impacto:** UX — falta feedback visual de posición del cursor.
