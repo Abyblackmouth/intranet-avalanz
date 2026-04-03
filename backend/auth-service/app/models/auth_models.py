@@ -21,6 +21,7 @@ class User(BaseModelWithSoftDelete):
     failed_attempts         = Column(Integer, default=0, nullable=False)
     is_locked               = Column(Boolean, default=False, nullable=False)
     locked_at               = Column(DateTime(timezone=True), nullable=True)
+    lock_type               = Column(String(20), nullable=True)  # manual | failed_attempts
     last_login_at           = Column(DateTime(timezone=True), nullable=True)
     last_login_ip           = Column(String(45), nullable=True)
 

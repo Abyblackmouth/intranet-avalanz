@@ -129,8 +129,10 @@ async def lock_user(
     if body.lock:
         from datetime import datetime, timezone
         values["locked_at"] = datetime.now(timezone.utc)
+        values["lock_type"] = "manual"
     else:
         values["locked_at"] = None
+        values["lock_type"] = None
 
     await db.execute(update(User).where(User.id == user_id).values(**values))
     await db.commit()

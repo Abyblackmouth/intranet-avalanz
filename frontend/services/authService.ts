@@ -51,9 +51,9 @@ export const changePassword = async (
 
 export const requestPasswordReset = async (
   data: PasswordResetRequest
-): Promise<ApiResponse<null>> => {
+) => {
   const res = await api.post('/api/v1/auth/password-reset/request', data)
-  return res.data
+  return res
 }
 
 export const confirmPasswordReset = async (

@@ -109,8 +109,12 @@ export default function ResetPasswordPage() {
     setIsLoading(true)
     setError(null)
     try {
-      await requestPasswordReset({ email: data.email })
-      setEmailSent(true)
+      const res = await requestPasswordReset({ email: data.email })
+      if (res?.data?.success === false) {
+        setError(res.data.message || 'No se pudo procesar la solicitud.')
+      } else {
+        setEmailSent(true)
+      }
     } catch {
       setError('Error al enviar el correo. Intenta de nuevo.')
     } finally {

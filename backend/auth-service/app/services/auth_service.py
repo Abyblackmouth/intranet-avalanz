@@ -81,7 +81,7 @@ async def login(
 
     # Verificar si esta bloqueada
     if user.is_locked:
-        if user.failed_attempts >= config.MAX_FAILED_ATTEMPTS:
+        if user.lock_type == "failed_attempts":
             raise ForbiddenException("Cuenta bloqueada por multiples intentos fallidos, contacta al administrador")
         raise ForbiddenException("Tu cuenta ha sido bloqueada, contacta al administrador")
 
@@ -266,7 +266,7 @@ async def refresh_access_token(
 
 # ── Recuperacion de contrasena ────────────────────────────────────────────────
 
-async def request_password_reset(db: AsyncSession, email: str) -> None:
+async def request_password_reset(db: AsyncSession, email: str) -> dict:
     from datetime import timedelta
 
     result = await db.execute(
@@ -276,7 +276,10 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
 
     # No revelamos si el email existe o no por seguridad
     if not user:
-        return
+        return {"status": "sent"}
+    # Bloqueado manualmente por admin: no permitir recuperacion
+    if user.is_locked and user.lock_type == "manual":
+        return {"status": "blocked"}
 
     token = generate_secure_token()
     token_hash = hash_sha256(token)
@@ -292,6 +295,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
     # El email-service se encarga del envio
     # Se publica evento a RabbitMQ (se implementa en la fase de servicios transversales)
     await _send_password_reset_email(user.email, user.full_name, token)
+    return {"status": "sent"}
 
 
 async def confirm_password_reset(
@@ -327,6 +331,7 @@ async def confirm_password_reset(
             is_locked=False,
             failed_attempts=0,
             locked_at=None,
+            lock_type=None,
         )
     )
     await db.execute(
@@ -466,6 +471,7 @@ async def _register_failed_attempt(
             failed_attempts=new_attempts,
             is_locked=should_lock,
             locked_at=now_utc() if should_lock else None,
+            lock_type="failed_attempts" if should_lock else None,
         )
     )
     await _save_login_history(

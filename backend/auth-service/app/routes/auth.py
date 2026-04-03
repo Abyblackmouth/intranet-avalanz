@@ -123,7 +123,12 @@ async def request_password_reset(
     body: PasswordResetRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    await auth_service.request_password_reset(db=db, email=body.email)
+    result = await auth_service.request_password_reset(db=db, email=body.email)
+    if result.get("status") == "blocked":
+        return BaseResponse(
+            success=False,
+            message="Tu cuenta tiene restricciones. Contacta al administrador.",
+        )
     return BaseResponse(
         success=True,
         message="Si el correo existe recibiras un enlace de recuperacion en los proximos minutos",
