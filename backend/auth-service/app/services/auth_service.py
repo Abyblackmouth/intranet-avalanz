@@ -81,7 +81,9 @@ async def login(
 
     # Verificar si esta bloqueada
     if user.is_locked:
-        raise ForbiddenException("Cuenta bloqueada por multiples intentos fallidos, contacta al administrador")
+        if user.failed_attempts >= config.MAX_FAILED_ATTEMPTS:
+            raise ForbiddenException("Cuenta bloqueada por multiples intentos fallidos, contacta al administrador")
+        raise ForbiddenException("Tu cuenta ha sido bloqueada, contacta al administrador")
 
     # Verificar contrasena
     if not verify_password(password, user.hashed_password):
@@ -289,8 +291,7 @@ async def request_password_reset(db: AsyncSession, email: str) -> None:
 
     # El email-service se encarga del envio
     # Se publica evento a RabbitMQ (se implementa en la fase de servicios transversales)
-    reset_link = f"{config.PASSWORD_RESET_BASE_URL}?token={token}"
-    print(f"[password-reset] link generado para {email}: {reset_link}")
+    await _send_password_reset_email(user.email, user.full_name, token)
 
 
 async def confirm_password_reset(
@@ -323,6 +324,9 @@ async def confirm_password_reset(
         update(User).where(User.id == reset.user_id).values(
             hashed_password=hash_password(new_password),
             is_temp_password=False,
+            is_locked=False,
+            failed_attempts=0,
+            locked_at=None,
         )
     )
     await db.execute(
@@ -470,6 +474,8 @@ async def _register_failed_attempt(
         failure_reason=f"contrasena incorrecta (intento {new_attempts})",
     )
     await db.commit()
+    if should_lock:
+        await _send_account_locked_email(user.email, user.full_name, new_attempts, client_ip)
 
 
 async def _save_login_history(
@@ -502,3 +508,33 @@ def decode_2fa_temp_token_safe(temp_token: str) -> Dict[str, Any]:
         config.JWT_SECRET_KEY,
         config.JWT_ALGORITHM,
     )
+
+async def _send_account_locked_email(email: str, full_name: str, failed_attempts: int, client_ip: str):
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://email-service:8000/api/v1/email/account-locked",
+                json={
+                    "to_email": email,
+                    "full_name": full_name,
+                    "failed_attempts": failed_attempts,
+                    "locked_from_ip": client_ip,
+                },
+            )
+    except Exception:
+        pass
+
+
+async def _send_password_reset_email(email: str, full_name: str, reset_link: str):
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://email-service:8000/api/v1/email/password-reset",
+                json={
+                    "to_email": email,
+                    "full_name": full_name,
+                    "reset_token": reset_link,
+                },
+            )
+    except Exception:
+        pass

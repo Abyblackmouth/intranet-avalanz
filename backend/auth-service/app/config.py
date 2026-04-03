@@ -18,7 +18,7 @@ class AuthConfig(BaseConfig):
     TOTP_INTERVAL: int = 30
 
     # ── Bloqueo de cuenta por intentos fallidos ───────────────────────────────
-    MAX_FAILED_ATTEMPTS: int = 5
+    MAX_FAILED_ATTEMPTS: int = 3
     ACCOUNT_LOCKOUT_NOTIFY_ADMIN: bool = True
 
     # ── Contrasena temporal ───────────────────────────────────────────────────

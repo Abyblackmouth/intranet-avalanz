@@ -31,6 +31,7 @@ async def create_user(db, company_id, email, full_name, matricula=None, puesto=N
     db.add(user)
     await db.flush()
     await _sync_user_to_auth(str(user.id), email, full_name, temp_password, expires_at.isoformat())
+    await _send_welcome_email(email, full_name, temp_password, str(user.id))
     await db.commit()
     return {"user_id": str(user.id), "email": email, "full_name": full_name, "matricula": matricula, "puesto": puesto, "departamento": departamento, "temp_password": temp_password, "temp_password_expires_at": expires_at.isoformat(), "message": "Usuario creado. La contrasena temporal tiene validez de 24 horas"}
 
@@ -168,6 +169,7 @@ async def reset_password(db, user_id, new_password, requested_by=None):
                 raise ValidationException("Error al resetear la contrasena")
     except httpx.HTTPError:
         raise ValidationException("Error al comunicarse con el servicio de autenticacion")
+    await _send_reset_password_email(user.email, user.full_name, str(user.id))
 
 
 async def assign_global_role(db, user_id, role_id, requested_by=None):
@@ -319,3 +321,32 @@ async def _sync_user_to_auth(user_id, email, full_name, temp_password, temp_pass
             await client.post("http://auth-service:8000/internal/users", json={"user_id": user_id, "email": email, "full_name": full_name, "temp_password": temp_password, "temp_password_expires_at": temp_password_expires_at})
     except Exception:
         raise ValidationException("Error al sincronizar usuario con el servicio de autenticacion")
+
+async def _send_welcome_email(email: str, full_name: str, temp_password: str, user_id: str):
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://email-service:8000/api/v1/email/welcome",
+                json={"to_email": email, "full_name": full_name, "temp_password": temp_password},
+            )
+    except Exception:
+        pass
+
+
+async def _send_reset_password_email(email: str, full_name: str, user_id: str):
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://email-service:8000/api/v1/email/system-notification",
+                json={
+                    "to_email": email,
+                    "full_name": full_name,
+                    "subject": "Tu contrasena ha sido reseteada",
+                    "message": "Un administrador ha reseteado tu contrasena. Deberas cambiarla en tu proximo inicio de sesion.",
+                    "action_label": "Iniciar sesion",
+                    "action_url": f"http://localhost:3000/change-password?user_id={user_id}",
+                    "alert_type": "warning",
+                },
+            )
+    except Exception:
+        pass
