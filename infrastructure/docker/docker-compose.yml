@@ -239,6 +239,29 @@ services:
     networks:
       - avalanz-network
 
+  # ── Cron Jobs ───────────────────────────────────────────────────────────────
+  cron:
+    build:
+      context: ../cron
+      dockerfile: Dockerfile
+    container_name: avalanz-cron
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_USER: ${POSTGRES_USER}
+      DB_NAME: avalanz_auth
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - cron-backups:/backups
+      - cron-logs:/var/log/cron
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - avalanz-network
+
 # ── Volumes ─────────────────────────────────────────────────────────────────
 volumes:
   postgres-data:
@@ -248,6 +271,8 @@ volumes:
   consul-data:
   prometheus-data:
   grafana-data:
+  cron-backups:
+  cron-logs:
 
 # ── Networks ─────────────────────────────────────────────────────────────────
 networks:

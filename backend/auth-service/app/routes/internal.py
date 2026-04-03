@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from app.database import get_db
-from app.models.auth_models import User
+from app.models.auth_models import User, UserSession, LoginHistory
 
 router = APIRouter(prefix="/internal", tags=["Internal"])
 
@@ -53,3 +53,54 @@ async def get_users_batch_info(
         }
         for u in users
     }
+
+
+@router.get("/users/{user_id}/sessions")
+async def get_user_sessions(user_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(UserSession)
+        .where(
+            UserSession.user_id == user_id,
+            UserSession.is_revoked == False,
+        )
+        .order_by(desc(UserSession.last_activity_at))
+        .limit(50)
+    )
+    sessions = result.scalars().all()
+    return [
+        {
+            "session_id": str(s.id),
+            "ip_address": s.ip_address,
+            "user_agent": s.user_agent,
+            "is_corporate_network": s.is_corporate_network,
+            "session_started_at": s.session_started_at.isoformat(),
+            "last_activity_at": s.last_activity_at.isoformat(),
+            "expires_at": s.expires_at.isoformat(),
+        }
+        for s in sessions
+    ]
+
+
+@router.get("/users/{user_id}/login-history")
+async def get_user_login_history(user_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(LoginHistory)
+        .where(LoginHistory.user_id == user_id)
+        .order_by(desc(LoginHistory.created_at))
+        .limit(50)
+    )
+    history = result.scalars().all()
+    return [
+        {
+            "id": str(h.id),
+            "ip_address": h.ip_address,
+            "user_agent": h.user_agent,
+            "is_corporate_network": h.is_corporate_network,
+            "success": h.success,
+            "failure_reason": h.failure_reason,
+            "requires_2fa": h.requires_2fa,
+            "completed_2fa": h.completed_2fa,
+            "created_at": h.created_at.isoformat(),
+        }
+        for h in history
+    ]

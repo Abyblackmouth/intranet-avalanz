@@ -1,0 +1,2 @@
+0 2 * * * /scripts/cleanup.sh >> /var/log/cron/cleanup.log 2>&1
+0 3 * * 0 /scripts/rotate_backups.sh >> /var/log/cron/rotate_backups.log 2>&1

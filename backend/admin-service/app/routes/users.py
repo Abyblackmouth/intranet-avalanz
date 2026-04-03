@@ -187,3 +187,26 @@ async def get_user_permissions(
 ):
     result = await user_service.get_user_permissions(db=db, user_id=user_id)
     return DataResponse(success=True, message="Permisos del usuario obtenidos", data=result)
+
+@router.get("/{user_id}/sessions", response_model=DataResponse)
+async def get_user_sessions(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    payload=Depends(validator.require_roles(["super_admin", "admin_empresa"])),
+):
+    import httpx
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(f"http://auth-service:8000/internal/users/{user_id}/sessions")
+    return DataResponse(success=True, message="Sesiones obtenidas", data=resp.json())
+
+
+@router.get("/{user_id}/login-history", response_model=DataResponse)
+async def get_user_login_history(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    payload=Depends(validator.require_roles(["super_admin", "admin_empresa"])),
+):
+    import httpx
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(f"http://auth-service:8000/internal/users/{user_id}/login-history")
+    return DataResponse(success=True, message="Historial obtenido", data=resp.json())

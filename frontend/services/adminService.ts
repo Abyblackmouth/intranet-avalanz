@@ -47,3 +47,10 @@ export const getModules = () =>
 
 export const getModuleRoles = (moduleId: string) =>
   api.get(`/api/v1/roles/modules/${moduleId}`)
+// ── Sesiones e historial (via admin-service que consulta auth-service) ────────
+
+export const getUserSessions = (userId: string) =>
+  api.get(`/api/v1/users/${userId}/sessions`)
+
+export const getUserLoginHistory = (userId: string) =>
+  api.get(`/api/v1/users/${userId}/login-history`)
