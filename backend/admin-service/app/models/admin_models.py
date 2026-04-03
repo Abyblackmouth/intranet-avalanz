@@ -36,6 +36,7 @@ class User(BaseModelWithSoftDelete):
     matricula       = Column(String(50), unique=True, nullable=True, index=True)
     puesto          = Column(String(150), nullable=True)
     departamento    = Column(String(150), nullable=True)
+    lock_reason     = Column(String(255), nullable=True)
     is_active       = Column(Boolean, default=True, nullable=False)
     is_super_admin  = Column(Boolean, default=False, nullable=False)
     company         = relationship("Company", back_populates="users")

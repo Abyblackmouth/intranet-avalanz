@@ -13,9 +13,9 @@ El `auth-service` es el servicio de autenticación centralizada de la plataforma
 - Emisión y renovación de tokens JWT
 - Gestión de sesiones activas e historial
 - Recuperación de contraseña por email
-- Bloqueo de cuenta por intentos fallidos
+- Bloqueo de cuenta por intentos fallidos (automático y manual)
 - Primer login con contraseña temporal
-- Endpoints internos para que otros servicios consulten datos de autenticación
+- Endpoints internos para que otros servicios consulten y actualicen datos de autenticación
 
 ---
 
@@ -109,18 +109,23 @@ Estos endpoints no requieren autenticación JWT y solo son accesibles dentro de 
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | /internal/users | Crear credenciales de usuario (llamado por admin-service al crear usuario) |
-| GET | /internal/users/{user_id}/permissions | Obtener roles, módulos y empresas (llamado al emitir JWT) |
+| POST | /internal/users | Crear credenciales de usuario al crear desde admin-service |
 | GET | /internal/users/{user_id}/info | Obtener is_locked, is_2fa_configured, last_login_at |
 | POST | /internal/users/batch-info | Obtener datos de auth para múltiples usuarios |
+| GET | /internal/users/{user_id}/sessions | Listar sesiones activas de un usuario (max 50) |
+| GET | /internal/users/{user_id}/login-history | Historial de login de un usuario (max 50) |
+| POST | /internal/users/{user_id}/lock | Bloquear o desbloquear cuenta de un usuario |
 
-### GET /internal/users/{user_id}/permissions
+### POST /internal/users
+Crea las credenciales en el auth-service cuando el admin-service crea un usuario nuevo.
+
 ```json
 {
-  "roles": ["super_admin", "legal:director_legal"],
-  "modules": ["legal", "boveda"],
-  "companies": ["uuid-corporativo", "uuid-dyce"],
-  "permissions": []
+  "user_id": "uuid",
+  "email": "usuario@empresa.com",
+  "full_name": "Nombre Completo",
+  "temp_password": "contraseña_temporal",
+  "temp_password_expires_at": "2026-04-04T00:00:00+00:00"
 }
 ```
 
@@ -146,6 +151,18 @@ Response:
   "uuid1": { "is_locked": false, "is_2fa_configured": true, "last_login_at": "..." },
   "uuid2": { "is_locked": true, "is_2fa_configured": false, "last_login_at": null }
 }
+```
+
+### POST /internal/users/{user_id}/lock
+Bloquea o desbloquea una cuenta. Llamado por el admin-service cuando un super_admin ejecuta la acción.
+
+Request:
+```json
+{ "lock": true, "reason": "Motivo del bloqueo" }
+```
+Response:
+```json
+{ "success": true, "is_locked": true }
 ```
 
 ---
@@ -195,6 +212,34 @@ POST /api/v1/auth/2fa/verify
 { access_token, refresh_token, token_type: "bearer" }
 ```
 
+### Flujo 4 — Creación de usuario desde admin-service
+
+```
+admin-service POST /api/v1/users/
+        |
+admin-service llama internamente a:
+POST /internal/users
+        |
+auth-service crea credenciales con contraseña temporal hasheada
+        |
+Usuario recibe correo con contraseña temporal via email-service
+```
+
+### Flujo 5 — Bloqueo manual desde admin-service
+
+```
+super_admin ejecuta bloqueo en el frontend
+        |
+admin-service guarda lock_reason en su BD
+        |
+admin-service llama internamente a:
+POST /internal/users/{user_id}/lock { lock: true, reason: "..." }
+        |
+auth-service actualiza is_locked y locked_at en su BD
+        |
+El usuario no puede iniciar sesión hasta ser desbloqueado
+```
+
 ---
 
 ## Payload del access_token
@@ -235,8 +280,6 @@ POST /api/v1/auth/2fa/verify
 | MAX_FAILED_ATTEMPTS | Intentos antes de bloquear cuenta | 5 |
 
 ### Formato correcto de CORPORATE_IP_RANGES
-
-Pydantic requiere formato JSON con corchetes, NO separado por comas:
 
 ```bash
 # Correcto

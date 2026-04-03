@@ -23,6 +23,7 @@ class CreateUserRequest(BaseModel):
     puesto: Optional[str] = None
     departamento: Optional[str] = None
     is_super_admin: bool = False
+    global_role_id: Optional[str] = None
 
 
 class UpdateUserRequest(BaseModel):
@@ -65,6 +66,13 @@ async def create_user(
         is_super_admin=body.is_super_admin,
         requested_by=payload,
     )
+    if body.global_role_id:
+        await user_service.assign_global_role(
+            db=db,
+            user_id=result["user_id"],
+            role_id=body.global_role_id,
+            requested_by=payload,
+        )
     return CreatedResponse(data=result)
 
 
@@ -210,3 +218,26 @@ async def get_user_login_history(
     async with httpx.AsyncClient(timeout=5.0) as client:
         resp = await client.get(f"http://auth-service:8000/internal/users/{user_id}/login-history")
     return DataResponse(success=True, message="Historial obtenido", data=resp.json())
+
+
+class ToggleLockRequest(BaseModel):
+    lock: bool
+    reason: str
+
+
+@router.post("/{user_id}/lock", response_model=DataResponse)
+async def toggle_lock_user(
+    user_id: str,
+    body: ToggleLockRequest,
+    db: AsyncSession = Depends(get_db),
+    payload=Depends(validator.require_roles(["super_admin"])),
+):
+    result = await user_service.toggle_lock_user(
+        db=db,
+        user_id=user_id,
+        lock=body.lock,
+        reason=body.reason,
+        requested_by=payload,
+    )
+    action = "bloqueado" if body.lock else "desbloqueado"
+    return DataResponse(success=True, message=f"Usuario {action} exitosamente", data=result)

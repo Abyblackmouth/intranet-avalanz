@@ -14,6 +14,8 @@ export interface UserRow {
   is_locked: boolean
   is_2fa_configured: boolean
   is_super_admin: boolean
+  is_protected: boolean
+  lock_reason: string | null
   last_login_at: string | null
   created_at: string
 }
@@ -61,4 +63,10 @@ export interface CreateUserResponse {
   temp_password: string
   temp_password_expires_at: string
   message: string
+}
+// ── Lock / Unlock ─────────────────────────────────────────────────────────────
+
+export interface ToggleLockPayload {
+  lock: boolean
+  reason: string
 }

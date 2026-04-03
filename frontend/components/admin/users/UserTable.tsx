@@ -1,73 +1,56 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   MoreHorizontal, Eye, Pencil, Lock, Unlock, KeyRound,
-  LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight,
+  LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight, X,
 } from 'lucide-react'
-import api from '@/services/api'
+import { toggleLockUser, revokeAllSessions, deleteUser } from '@/services/adminService'
 import { UserRow } from '@/types/user.types'
 import UserDetail from '@/components/admin/users/UserDetail'
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const StatusBadge = ({ user }: { user: UserRow }) => {
   if (user.is_locked) return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-      Bloqueado
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />Bloqueado
     </span>
   )
   if (!user.is_active) return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-      Inactivo
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Inactivo
     </span>
   )
   return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-600 border border-green-200">
-      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-      Activo
+      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Activo
     </span>
   )
 }
 
 const RoleBadge = ({ roles }: { roles: string[] }) => {
   const roleColors: Record<string, string> = {
-    super_admin:   'bg-red-100 text-red-700 border-red-200',
+    super_admin: 'bg-red-100 text-red-700 border-red-200',
     admin_empresa: 'bg-amber-100 text-amber-700 border-amber-200',
-    default:       'bg-blue-100 text-blue-700 border-blue-200',
+    default: 'bg-blue-100 text-blue-700 border-blue-200',
   }
-  if (!roles || roles.length === 0) return (
-    <span className="text-xs text-slate-400">Sin rol</span>
-  )
+  if (!roles || roles.length === 0) return <span className="text-xs text-slate-400">Sin rol</span>
   return (
     <div className="flex flex-wrap gap-1">
-      {roles.slice(0, 2).map((role) => {
-        const color = roleColors[role] || roleColors.default
-        const label = role.replace(/_/g, ' ').toUpperCase()
-        return (
-          <span key={role} className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${color}`}>
-            {label}
-          </span>
-        )
-      })}
-      {roles.length > 2 && (
-        <span className="text-xs text-slate-400">+{roles.length - 2}</span>
-      )}
+      {roles.slice(0, 2).map((role) => (
+        <span key={role} className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${roleColors[role] || roleColors.default}`}>
+          {role.replace(/_/g, ' ').toUpperCase()}
+        </span>
+      ))}
+      {roles.length > 2 && <span className="text-xs text-slate-400">+{roles.length - 2}</span>}
     </div>
   )
 }
 
 const TwoFABadge = ({ configured }: { configured: boolean }) =>
   configured ? (
-    <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
-      <ShieldCheck size={13} /> Activo
-    </span>
+    <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium"><ShieldCheck size={13} /> Activo</span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-      <ShieldOff size={13} /> Inactivo
-    </span>
+    <span className="inline-flex items-center gap-1 text-xs text-slate-400"><ShieldOff size={13} /> Inactivo</span>
   )
 
 const formatRelative = (dateStr: string | null) => {
@@ -91,27 +74,70 @@ const Avatar = ({ name }: { name: string }) => {
   )
 }
 
-// ── Action Menu ───────────────────────────────────────────────────────────────
+const LockModal = ({ user, onConfirm, onClose, isLoading }: { user: UserRow; onConfirm: (r: string) => void; onClose: () => void; isLoading: boolean }) => {
+  const [reason, setReason] = useState('')
+  const action = user.is_locked ? 'desbloquear' : 'bloquear'
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-bold text-slate-900 capitalize">{action} usuario</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">
+          Vas a <strong>{action}</strong> la cuenta de <strong>{user.full_name}</strong>.
+          {user.is_locked && user.lock_reason && <span className="block mt-1 text-xs text-slate-400">Motivo anterior: {user.lock_reason}</span>}
+        </p>
+        <div className="mb-5">
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Motivo <span className="text-red-500">*</span></label>
+          <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder={`Escribe el motivo para ${action} esta cuenta...`} rows={3} className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+        </div>
+        <div className="flex items-center justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
+          <button onClick={() => onConfirm(reason)} disabled={!reason.trim() || isLoading} className={`px-5 py-2 text-sm font-medium rounded-lg disabled:opacity-50 flex items-center gap-2 ${user.is_locked ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-red-600 text-white hover:bg-red-700'}`}>
+            {isLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            {action.charAt(0).toUpperCase() + action.slice(1)}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-const ActionMenu = ({
-  user, onRefresh, onViewDetail,
-}: {
-  user: UserRow
-  onRefresh: () => void
-  onViewDetail: () => void
-}) => {
+const ConfirmModal = ({ title, message, confirmLabel, onConfirm, onClose, isLoading, danger = true }: { title: string; message: string; confirmLabel: string; onConfirm: () => void; onClose: () => void; isLoading: boolean; danger?: boolean }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-bold text-slate-900">{title}</h3>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+      </div>
+      <p className="text-sm text-slate-600 mb-6">{message}</p>
+      <div className="flex items-center justify-end gap-3">
+        <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
+        <button onClick={onConfirm} disabled={isLoading} className={`px-5 py-2 text-sm font-medium rounded-lg disabled:opacity-50 flex items-center gap-2 ${danger ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-[#1a4fa0] text-white hover:bg-blue-700'}`}>
+          {isLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+          {confirmLabel}
+        </button>
+      </div>
+    </div>
+  </div>
+)
+
+const ActionMenu = ({ user, onRefresh, onViewDetail, onEdit }: { user: UserRow; onRefresh: () => void; onViewDetail: () => void; onEdit: () => void }) => {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
+  const [showLockModal, setShowLockModal] = useState(false)
+  const [showRevokeModal, setShowRevokeModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
 
   const openMenu = () => {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
-      setMenuPos({
-        top: rect.bottom + window.scrollY + 4,
-        right: window.innerWidth - rect.right,
-      })
+      setMenuPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right })
     }
     setOpen(true)
   }
@@ -123,112 +149,64 @@ const ActionMenu = ({
     return () => window.removeEventListener('scroll', handleScroll, true)
   }, [open])
 
-  const action = async (fn: () => Promise<void>) => {
+  const handleLock = async (reason: string) => {
     setLoading(true)
-    setOpen(false)
-    try { await fn() } finally { setLoading(false); onRefresh() }
+    try { await toggleLockUser(user.user_id, !user.is_locked, reason); setShowLockModal(false); onRefresh() }
+    catch { } finally { setLoading(false) }
   }
 
-  const toggleLock = () => action(async () => {
-    await api.patch(`/api/v1/users/${user.user_id}`, { is_active: user.is_locked ? true : false })
-  })
+  const handleRevoke = async () => {
+    setLoading(true)
+    try { await revokeAllSessions(user.user_id); setShowRevokeModal(false); onRefresh() }
+    catch { } finally { setLoading(false) }
+  }
 
-  const resetPassword = () => action(async () => {
-    await api.post(`/api/v1/auth/password-reset/request`, { email: user.email })
-  })
-
-  const revokeSessions = () => action(async () => {
-    await api.post(`/api/v1/auth/sessions/revoke-all`, { user_id: user.user_id })
-  })
+  const handleDelete = async () => {
+    setLoading(true)
+    try { await deleteUser(user.user_id); setShowDeleteModal(false); onRefresh() }
+    catch { } finally { setLoading(false) }
+  }
 
   return (
     <>
-      <button
-        ref={btnRef}
-        onClick={openMenu}
-        disabled={loading}
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-      >
-        {loading
-          ? <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-          : <MoreHorizontal size={16} />
-        }
+      <button ref={btnRef} onClick={openMenu} disabled={loading} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+        {loading ? <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <MoreHorizontal size={16} />}
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div
-            className="fixed z-50 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5"
-            style={{ top: menuPos.top, right: menuPos.right }}
-          >
-            <MenuItem
-              icon={<Eye size={14} />}
-              label="Ver detalle"
-              onClick={() => { setOpen(false); onViewDetail() }}
-            />
-            <MenuItem
-              icon={<Pencil size={14} />}
-              label="Editar"
-              onClick={() => setOpen(false)}
-            />
-            <MenuItem
-              icon={<KeyRound size={14} />}
-              label="Resetear contrasena"
-              onClick={resetPassword}
-            />
+          <div className="fixed z-50 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5" style={{ top: menuPos.top, right: menuPos.right }}>
+            <MenuItem icon={<Eye size={14} />} label="Ver detalle" onClick={() => { setOpen(false); onViewDetail() }} />
+            {!user.is_protected && <MenuItem icon={<Pencil size={14} />} label="Editar" onClick={() => { setOpen(false); onEdit() }} />}
+            <MenuItem icon={<KeyRound size={14} />} label="Resetear contrasena" onClick={() => setOpen(false)} />
             <div className="h-px bg-slate-100 my-1" />
-            <MenuItem
-              icon={user.is_locked
-                ? <Unlock size={14} />
-                : <Lock size={14} />
-              }
-              label={user.is_locked ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
-              onClick={toggleLock}
-              danger={!user.is_locked}
-            />
-            <MenuItem
-              icon={<LogOut size={14} />}
-              label="Revocar sesiones"
-              onClick={revokeSessions}
-              danger
-            />
-            <div className="h-px bg-slate-100 my-1" />
-            <MenuItem
-              icon={<Trash2 size={14} />}
-              label="Eliminar usuario"
-              onClick={() => setOpen(false)}
-              danger
-            />
+            {!user.is_protected && (
+              <MenuItem icon={user.is_locked ? <Unlock size={14} /> : <Lock size={14} />} label={user.is_locked ? 'Desbloquear cuenta' : 'Bloquear cuenta'} onClick={() => { setOpen(false); setShowLockModal(true) }} danger={!user.is_locked} />
+            )}
+            <MenuItem icon={<LogOut size={14} />} label="Revocar sesiones" onClick={() => { setOpen(false); setShowRevokeModal(true) }} danger />
+            {!user.is_protected && (
+              <>
+                <div className="h-px bg-slate-100 my-1" />
+                <MenuItem icon={<Trash2 size={14} />} label="Eliminar usuario" onClick={() => { setOpen(false); setShowDeleteModal(true) }} danger />
+              </>
+            )}
           </div>
         </>
       )}
+
+      {showLockModal && <LockModal user={user} onConfirm={handleLock} onClose={() => setShowLockModal(false)} isLoading={loading} />}
+      {showRevokeModal && <ConfirmModal title="Revocar sesiones" message={`Se cerrarán todas las sesiones activas de ${user.full_name}.`} confirmLabel="Revocar" onConfirm={handleRevoke} onClose={() => setShowRevokeModal(false)} isLoading={loading} />}
+      {showDeleteModal && <ConfirmModal title="Eliminar usuario" message={`Esta acción eliminará permanentemente la cuenta de ${user.full_name}. No se puede deshacer.`} confirmLabel="Eliminar" onConfirm={handleDelete} onClose={() => setShowDeleteModal(false)} isLoading={loading} />}
     </>
   )
 }
 
-const MenuItem = ({
-  icon, label, onClick, danger = false,
-}: {
-  icon: React.ReactNode
-  label: string
-  onClick: () => void
-  danger?: boolean
-}) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition
-      ${danger
-        ? 'text-red-600 hover:bg-red-50'
-        : 'text-slate-700 hover:bg-slate-50'
-      }`}
-  >
-    <span className="shrink-0">{icon}</span>
-    {label}
+const MenuItem = ({ icon, label, onClick, danger = false }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) => (
+  <button onClick={onClick} className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition ${danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50'}`}>
+    <span className="shrink-0">{icon}</span>{label}
   </button>
 )
-
-// ── Tabla principal ───────────────────────────────────────────────────────────
 
 interface UserTableProps {
   users: UserRow[]
@@ -240,11 +218,10 @@ interface UserTableProps {
   onPageChange: (page: number) => void
 }
 
-export default function UserTable({
-  users, isLoading, onRefresh, page, perPage, total, onPageChange,
-}: UserTableProps) {
+export default function UserTable({ users, isLoading, onRefresh, page, perPage, total, onPageChange }: UserTableProps) {
   const totalPages = Math.ceil(total / perPage)
   const [detailUserId, setDetailUserId] = useState<string | null>(null)
+  const [editUserId, setEditUserId] = useState<string | null>(null)
 
   if (isLoading) return (
     <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
@@ -269,6 +246,7 @@ export default function UserTable({
               <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Empresa</th>
               <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Rol</th>
               <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">2FA</th>
+              <th className="px-4 py-3 w-10"></th>
               <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Estado</th>
               <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Ultima conexion</th>
               <th className="px-4 py-3 w-10" />
@@ -277,45 +255,32 @@ export default function UserTable({
           <tbody className="divide-y divide-slate-100">
             {users.map((user) => (
               <tr key={user.user_id} className="hover:bg-slate-50/60 transition">
-
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar name={user.full_name} />
                     <div>
-                      <p className="text-sm font-medium text-slate-900 leading-tight">{user.full_name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-slate-900 leading-tight">{user.full_name}</p>
+                        {user.is_protected && <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">Protegido</span>}
+                      </div>
                       <p className="text-xs text-slate-400 leading-tight">{user.email}</p>
                     </div>
                   </div>
                 </td>
-
-                <td className="px-4 py-3">
-                  <p className="text-sm text-slate-700">{user.company_name || '—'}</p>
+                <td className="px-4 py-3"><p className="text-sm text-slate-700">{user.company_name || '—'}</p></td>
+                <td className="px-4 py-3"><RoleBadge roles={user.roles} /></td>
+                <td className="px-4 py-3"><TwoFABadge configured={user.is_2fa_configured} /></td>
+                <td className="px-4 py-3 text-center">
+                  {user.is_locked
+                    ? <Lock size={18} className="text-red-500 mx-auto" />
+                    : <Unlock size={18} className="text-green-500 mx-auto" />
+                  }
                 </td>
-
+                <td className="px-4 py-3"><StatusBadge user={user} /></td>
+                <td className="px-4 py-3"><p className="text-xs text-slate-500">{formatRelative(user.last_login_at)}</p></td>
                 <td className="px-4 py-3">
-                  <RoleBadge roles={user.roles} />
+                  <ActionMenu user={user} onRefresh={onRefresh} onViewDetail={() => setDetailUserId(user.user_id)} onEdit={() => setEditUserId(user.user_id)} />
                 </td>
-
-                <td className="px-4 py-3">
-                  <TwoFABadge configured={user.is_2fa_configured} />
-                </td>
-
-                <td className="px-4 py-3">
-                  <StatusBadge user={user} />
-                </td>
-
-                <td className="px-4 py-3">
-                  <p className="text-xs text-slate-500">{formatRelative(user.last_login_at)}</p>
-                </td>
-
-                <td className="px-4 py-3">
-                  <ActionMenu
-                    user={user}
-                    onRefresh={onRefresh}
-                    onViewDetail={() => setDetailUserId(user.user_id)}
-                  />
-                </td>
-
               </tr>
             ))}
           </tbody>
@@ -323,56 +288,22 @@ export default function UserTable({
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-            <p className="text-xs text-slate-400">
-              Mostrando {(page - 1) * perPage + 1} a {Math.min(page * perPage, total)} de {total} usuarios
-            </p>
+            <p className="text-xs text-slate-400">Mostrando {(page - 1) * perPage + 1} a {Math.min(page * perPage, total)} de {total} usuarios</p>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => onPageChange(page - 1)}
-                disabled={page === 1}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
-              >
-                <ChevronLeft size={15} />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-                .map((p, idx, arr) => (
-                  <>
-                    {idx > 0 && arr[idx - 1] !== p - 1 && (
-                      <span key={`dots-${p}`} className="text-slate-300 text-xs px-1">...</span>
-                    )}
-                    <button
-                      key={p}
-                      onClick={() => onPageChange(p)}
-                      className={`w-8 h-8 rounded-lg text-sm transition ${
-                        p === page
-                          ? 'bg-[#1a4fa0] text-white font-medium'
-                          : 'text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  </>
-                ))}
-              <button
-                onClick={() => onPageChange(page + 1)}
-                disabled={page === totalPages}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
-              >
-                <ChevronRight size={15} />
-              </button>
+              <button onClick={() => onPageChange(page - 1)} disabled={page === 1} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"><ChevronLeft size={15} /></button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1).map((p, idx, arr) => (
+                <>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && <span key={`dots-${p}`} className="text-slate-300 text-xs px-1">...</span>}
+                  <button key={p} onClick={() => onPageChange(p)} className={`w-8 h-8 rounded-lg text-sm transition ${p === page ? 'bg-[#1a4fa0] text-white font-medium' : 'text-slate-600 hover:bg-slate-100'}`}>{p}</button>
+                </>
+              ))}
+              <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"><ChevronRight size={15} /></button>
             </div>
           </div>
         )}
       </div>
 
-      {detailUserId && (
-        <UserDetail
-          userId={detailUserId}
-          onClose={() => setDetailUserId(null)}
-          onRefresh={onRefresh}
-        />
-      )}
+      {detailUserId && <UserDetail userId={detailUserId} onClose={() => setDetailUserId(null)} onRefresh={onRefresh} />}
     </>
   )
 }

@@ -104,3 +104,79 @@ async def get_user_login_history(user_id: str, db: AsyncSession = Depends(get_db
         }
         for h in history
     ]
+
+
+class LockUserRequest(BaseModel):
+    lock: bool
+    reason: str
+
+
+@router.post("/users/{user_id}/lock")
+async def lock_user(
+    user_id: str,
+    body: LockUserRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import update
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.is_deleted == False)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        return {"success": False, "message": "Usuario no encontrado"}
+
+    values = {"is_locked": body.lock}
+    if body.lock:
+        from datetime import datetime, timezone
+        values["locked_at"] = datetime.now(timezone.utc)
+    else:
+        values["locked_at"] = None
+
+    await db.execute(update(User).where(User.id == user_id).values(**values))
+    await db.commit()
+
+    return {"success": True, "is_locked": body.lock}
+
+
+class CreateUserRequest(BaseModel):
+    user_id: str
+    email: str
+    full_name: str
+    temp_password: str
+    temp_password_expires_at: str
+
+
+@router.post("/users")
+async def create_user(body: CreateUserRequest, db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import insert
+    from datetime import datetime, timezone
+    from shared.utils.encryption import hash_password
+
+    result = await db.execute(
+        select(User).where(User.email == body.email)
+    )
+    if result.scalar_one_or_none():
+        return {"success": True, "message": "Usuario ya existe"}
+
+    expires_at = datetime.fromisoformat(body.temp_password_expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    hashed = hash_password(body.temp_password)
+
+    user = User(
+        id=body.user_id,
+        email=body.email,
+        full_name=body.full_name,
+        hashed_password=hashed,
+        is_active=True,
+        is_temp_password=True,
+        temp_password_expires_at=expires_at,
+        is_2fa_configured=False,
+        failed_attempts=0,
+        is_locked=False,
+    )
+    db.add(user)
+    await db.commit()
+
+    return {"success": True, "user_id": body.user_id}

@@ -18,6 +18,9 @@ export const updateUser = (userId: string, data: UpdateUserPayload) =>
 export const deleteUser = (userId: string) =>
   api.delete(`/api/v1/users/${userId}`)
 
+export const toggleLockUser = (userId: string, lock: boolean, reason: string) =>
+  api.post(`/api/v1/users/${userId}/lock`, { lock, reason })
+
 export const assignGlobalRole = (userId: string, roleId: string) =>
   api.post(`/api/v1/users/${userId}/global-roles`, { role_id: roleId })
 
@@ -29,6 +32,15 @@ export const revokeModuleAccess = (userId: string, moduleId: string) =>
 
 export const getUserPermissions = (userId: string) =>
   api.get(`/api/v1/users/${userId}/permissions`)
+
+export const getUserSessions = (userId: string) =>
+  api.get(`/api/v1/users/${userId}/sessions`)
+
+export const getUserLoginHistory = (userId: string) =>
+  api.get(`/api/v1/users/${userId}/login-history`)
+
+export const revokeAllSessions = (userId: string) =>
+  api.post(`/api/v1/auth/sessions/revoke-all`, { user_id: userId })
 
 // ── Empresas ──────────────────────────────────────────────────────────────────
 
@@ -47,10 +59,3 @@ export const getModules = () =>
 
 export const getModuleRoles = (moduleId: string) =>
   api.get(`/api/v1/roles/modules/${moduleId}`)
-// ── Sesiones e historial (via admin-service que consulta auth-service) ────────
-
-export const getUserSessions = (userId: string) =>
-  api.get(`/api/v1/users/${userId}/sessions`)
-
-export const getUserLoginHistory = (userId: string) =>
-  api.get(`/api/v1/users/${userId}/login-history`)
