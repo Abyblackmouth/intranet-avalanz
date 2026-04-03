@@ -82,7 +82,7 @@ async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, s
     return {"data": [_serialize_user(row.User, row.Company.nombre_comercial, auth_data_map.get(str(row.User.id), {}), roles_map.get(str(row.User.id), [])) for row in rows], "meta": paginate(total, page, per_page)}
 
 
-async def update_user(db, user_id, full_name=None, matricula=None, puesto=None, departamento=None, is_active=None, requested_by=None):
+async def update_user(db, user_id, full_name=None, email=None, matricula=None, puesto=None, departamento=None, is_active=None, requested_by=None):
     result = await db.execute(select(User).where(User.id == user_id, User.is_deleted == False))
     user = result.scalar_one_or_none()
     if not user:
@@ -97,6 +97,7 @@ async def update_user(db, user_id, full_name=None, matricula=None, puesto=None, 
             raise AlreadyExistsException("Matricula")
     values = {}
     if full_name is not None: values["full_name"] = full_name
+    if email is not None: values["email"] = email
     if matricula is not None: values["matricula"] = matricula
     if puesto is not None: values["puesto"] = puesto
     if departamento is not None: values["departamento"] = departamento
@@ -279,3 +280,24 @@ async def _sync_user_to_auth(user_id, email, full_name, temp_password, temp_pass
             await client.post("http://auth-service:8000/internal/users", json={"user_id": user_id, "email": email, "full_name": full_name, "temp_password": temp_password, "temp_password_expires_at": temp_password_expires_at})
     except Exception:
         raise ValidationException("Error al sincronizar usuario con el servicio de autenticacion")
+
+
+async def remove_global_role(db, user_id, role_id, requested_by=None):
+    if not _is_super_admin(requested_by):
+        raise ForbiddenException("Solo un super admin puede remover roles globales")
+    result = await db.execute(
+        select(UserGlobalRole).where(
+            UserGlobalRole.user_id == user_id,
+            UserGlobalRole.role_id == role_id,
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        return
+    await db.execute(
+        UserGlobalRole.__table__.delete().where(
+            UserGlobalRole.user_id == user_id,
+            UserGlobalRole.role_id == role_id,
+        )
+    )
+    await db.commit()

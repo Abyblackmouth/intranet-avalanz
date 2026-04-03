@@ -28,6 +28,7 @@ class CreateUserRequest(BaseModel):
 
 class UpdateUserRequest(BaseModel):
     full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
     matricula: Optional[str] = None
     puesto: Optional[str] = None
     departamento: Optional[str] = None
@@ -119,6 +120,7 @@ async def update_user(
         db=db,
         user_id=user_id,
         full_name=body.full_name,
+        email=body.email,
         matricula=body.matricula,
         puesto=body.puesto,
         departamento=body.departamento,
@@ -241,3 +243,23 @@ async def toggle_lock_user(
     )
     action = "bloqueado" if body.lock else "desbloqueado"
     return DataResponse(success=True, message=f"Usuario {action} exitosamente", data=result)
+
+
+class RemoveGlobalRoleRequest(BaseModel):
+    role_id: str
+
+
+@router.delete("/{user_id}/global-roles", response_model=BaseResponse)
+async def remove_global_role(
+    user_id: str,
+    body: RemoveGlobalRoleRequest,
+    db: AsyncSession = Depends(get_db),
+    payload=Depends(validator.require_roles(["super_admin"])),
+):
+    await user_service.remove_global_role(
+        db=db,
+        user_id=user_id,
+        role_id=body.role_id,
+        requested_by=payload,
+    )
+    return BaseResponse(success=True, message="Rol removido exitosamente")

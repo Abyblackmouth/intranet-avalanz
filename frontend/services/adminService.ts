@@ -59,3 +59,6 @@ export const getModules = () =>
 
 export const getModuleRoles = (moduleId: string) =>
   api.get(`/api/v1/roles/modules/${moduleId}`)
+
+export const removeGlobalRole = (userId: string, roleId: string) =>
+  api.delete(`/api/v1/users/${userId}/global-roles`, { data: { role_id: roleId } })

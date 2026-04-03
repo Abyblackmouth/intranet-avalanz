@@ -38,6 +38,7 @@ export interface CreateUserPayload {
 
 export interface UpdateUserPayload {
   full_name?: string
+  email?: string
   matricula?: string
   puesto?: string
   departamento?: string

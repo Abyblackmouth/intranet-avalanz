@@ -8,6 +8,7 @@ import {
 import { toggleLockUser, revokeAllSessions, deleteUser } from '@/services/adminService'
 import { UserRow } from '@/types/user.types'
 import UserDetail from '@/components/admin/users/UserDetail'
+import UserEditForm from '@/components/admin/users/UserEditForm'
 
 const StatusBadge = ({ user }: { user: UserRow }) => {
   if (user.is_locked) return (
@@ -304,6 +305,7 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
       </div>
 
       {detailUserId && <UserDetail userId={detailUserId} onClose={() => setDetailUserId(null)} onRefresh={onRefresh} />}
+      {editUserId && <UserEditForm userId={editUserId} onClose={() => setEditUserId(null)} onSuccess={onRefresh} />}
     </>
   )
 }
