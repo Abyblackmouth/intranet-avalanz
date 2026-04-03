@@ -38,6 +38,8 @@ auth-service/
 │   │   └── auth_models.py    → Modelos SQLAlchemy
 │   └── middleware/
 ├── migrations/
+│   └── versions/
+│       └── e6c58da1bf69_add_lock_type_to_users.py  → Migración 1: campo lock_type
 ├── tests/
 ├── Dockerfile
 ├── requirements.txt
@@ -53,7 +55,7 @@ auth-service/
 | Framework | FastAPI |
 | Base de datos | PostgreSQL 15 (asyncpg) |
 | ORM | SQLAlchemy 2.0 async |
-| Migraciones | Alembic |
+| Migraciones | Alembic (con psycopg2-binary para migraciones) |
 | JWT | python-jose |
 | Hashing | bcrypt |
 | Cifrado | cryptography Fernet |
@@ -81,8 +83,17 @@ Tabla central de autenticación.
 | failed_attempts | Integer | Intentos fallidos consecutivos |
 | is_locked | Boolean | Si la cuenta está bloqueada |
 | locked_at | DateTime | Fecha de bloqueo |
+| lock_type | String(20) | Tipo de bloqueo: "manual" o "failed_attempts" |
 | last_login_at | DateTime | Último login exitoso |
 | last_login_ip | String(45) | IP del último login |
+
+### Valores de lock_type
+
+| Valor | Descripción |
+|---|---|
+| `manual` | Bloqueado por un administrador desde el panel |
+| `failed_attempts` | Bloqueado automáticamente por intentos fallidos |
+| `null` | No está bloqueado |
 
 ---
 
@@ -156,6 +167,7 @@ Response:
 
 ### POST /internal/users/{user_id}/lock
 Bloquea o desbloquea una cuenta. Llamado por el admin-service cuando un super_admin ejecuta la acción.
+Asigna `lock_type = "manual"` al bloquear y `lock_type = null` al desbloquear.
 
 Request:
 ```json
@@ -165,6 +177,39 @@ Response:
 ```json
 { "success": true, "is_locked": true }
 ```
+
+### POST /internal/users/{user_id}/reset-password
+Resetea la contraseña del usuario. Activa `is_temp_password = true` y resetea `failed_attempts = 0`.
+
+Request:
+```json
+{ "new_password": "NuevaContrasena@123" }
+```
+Response:
+```json
+{ "success": true, "message": "Contrasena reseteada" }
+```
+
+---
+
+## Mensajes de bloqueo en el login
+
+El mensaje de error al intentar iniciar sesión con cuenta bloqueada se diferencia según `lock_type`:
+
+| lock_type | Mensaje mostrado al usuario |
+|---|---|
+| `failed_attempts` | "Cuenta bloqueada por múltiples intentos fallidos, contacta al administrador" |
+| `manual` | "Tu cuenta ha sido bloqueada, contacta al administrador" |
+
+---
+
+## Recuperación de contraseña y bloqueos
+
+| Escenario | Comportamiento |
+|---|---|
+| Usuario no bloqueado | Envía correo con link de recuperación |
+| Bloqueado por intentos fallidos | Envía correo — al confirmar nueva contraseña se desbloquea automáticamente |
+| Bloqueado manualmente por admin | No envía correo — muestra "Tu cuenta tiene restricciones. Contacta al administrador." |
 
 ---
 
@@ -236,9 +281,43 @@ admin-service guarda lock_reason en su BD
 admin-service llama internamente a:
 POST /internal/users/{user_id}/lock { lock: true, reason: "..." }
         |
-auth-service actualiza is_locked y locked_at en su BD
+auth-service actualiza is_locked, locked_at y lock_type="manual" en su BD
         |
 El usuario no puede iniciar sesión hasta ser desbloqueado
+```
+
+### Flujo 6 — Bloqueo automático por intentos fallidos
+
+```
+Usuario falla 3 intentos consecutivos (MAX_FAILED_ATTEMPTS)
+        |
+auth-service actualiza is_locked=true, lock_type="failed_attempts"
+        |
+auth-service llama a email-service → correo de cuenta bloqueada con IP y fecha
+        |
+Usuario no puede recuperar contraseña por el flujo normal de olvide contraseña
+        |
+Solo un admin puede desbloquear manualmente, O el usuario puede recuperar
+contraseña via /reset-password → al confirmar se desbloquea automáticamente
+```
+
+### Flujo 7 — Recuperación de contraseña
+
+```
+Usuario va a /reset-password → ingresa su correo
+        |
+POST /api/v1/auth/password-reset/request
+        |
+Si lock_type == "manual" → responde { success: false } sin enviar correo
+Si no bloqueado o lock_type == "failed_attempts" → genera token y envía correo
+        |
+Usuario recibe correo con link válido 30 minutos
+        |
+POST /api/v1/auth/password-reset/confirm { token, new_password }
+        |
+is_locked=false, failed_attempts=0, lock_type=null, is_temp_password=false
+        |
+Modal de éxito con countdown de 2 segundos → redirect /login
 ```
 
 ---
@@ -278,7 +357,7 @@ El usuario no puede iniciar sesión hasta ser desbloqueado
 | CORPORATE_IP_RANGES | Rangos IP corporativos (formato JSON) | ["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12"] |
 | TOTP_ISSUER | Nombre mostrado en el autenticador | Avalanz |
 | MAX_ACTIVE_SESSIONS | Máximo de sesiones simultáneas | 3 |
-| MAX_FAILED_ATTEMPTS | Intentos antes de bloquear cuenta | 5 |
+| MAX_FAILED_ATTEMPTS | Intentos antes de bloquear cuenta | 3 |
 
 ### Formato correcto de CORPORATE_IP_RANGES
 
@@ -288,6 +367,26 @@ CORPORATE_IP_RANGES=["192.168.0.0/16","10.0.0.0/8","172.16.0.0/12","127.0.0.1/32
 
 # Incorrecto — rompe el servicio
 CORPORATE_IP_RANGES=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12
+```
+
+---
+
+## Alembic en auth-service
+
+El auth-service tiene Alembic configurado. A diferencia del admin-service, usa `psycopg2-binary` para las migraciones (no `asyncpg`).
+
+```bash
+# Instalar psycopg2 en el contenedor (solo necesario la primera vez)
+docker exec avalanz-auth pip install psycopg2-binary --quiet --root-user-action=ignore
+
+# Generar migración
+docker exec avalanz-auth bash -c "cd /app && alembic revision --autogenerate -m 'descripcion'"
+
+# Aplicar migraciones
+docker exec avalanz-auth bash -c "cd /app && alembic upgrade head"
+
+# Copiar versiones al proyecto local
+docker cp avalanz-auth:/app/migrations/versions/ backend/auth-service/migrations/
 ```
 
 ---

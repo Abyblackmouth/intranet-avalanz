@@ -19,7 +19,7 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 
 ## Estado actual del proyecto
 
-**Rama activa:** `feature/admin-users`
+**Rama activa:** `feature/email-service`
 **Última actividad:** 2026-04-03
 
 ---
@@ -39,17 +39,27 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
   - Modal de confirmación para revocar sesiones y eliminar
   - Acciones ocultas para el usuario protegido (editar, bloquear, eliminar)
 - Bloqueo/desbloqueo funcional — se guarda en admin-service y auth-service
+- Reseteo de contraseña funcional — modal con validación, correo al usuario, is_temp_password activado
+- Eliminación de usuario funcional — soft delete con is_deleted y deleted_at
 - Cron de limpieza diaria de login_history y user_sessions con respaldo CSV
 - Alembic configurado en admin-service con 3 migraciones aplicadas
-- Endpoints internos en auth-service: create, info, batch-info, sessions, login-history, lock
+- Alembic configurado en auth-service con 1 migración aplicada (lock_type)
+- Endpoints internos en auth-service: create, info, batch-info, sessions, login-history, lock, reset-password
+- Servicio de correo conectado con Mailpit en desarrollo:
+  - Bienvenida al crear usuario
+  - Reset de contraseña por admin
+  - Cuenta bloqueada por intentos fallidos
+  - Recuperación de contraseña con desbloqueo automático
+- Campo lock_type en auth-service: diferencia bloqueo manual vs intentos fallidos
+- Mensajes de bloqueo diferenciados en el login
+- Recuperación de contraseña bloqueada para usuarios bloqueados manualmente
 
 ---
 
-## Pendiente en feature/admin-users
+## Pendiente en feature/email-service
 
-- Resetear contraseña — conectar feedback al usuario (actualmente el request se hace pero no hay confirmación visual)
+- Merge feature/email-service → develop cuando esté completo
 - Módulos y permisos del usuario en el modal de detalle (dejado para cuando se trabaje módulos)
-- Merge feature/admin-users → develop cuando esté completo
 
 ---
 
@@ -75,6 +85,7 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 - Sin emojis a menos que el usuario los use primero
 - Guías van a docs/architecture/
 - Al modificar backend: copiar al contenedor y reiniciar el servicio
+- Commits siempre en inglés
 
 ---
 
@@ -89,6 +100,10 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 - Al crear usuario: admin-service sincroniza al auth-service via POST /internal/users
 - Al bloquear: admin-service guarda lock_reason, llama a POST /internal/users/{id}/lock
 - IP WSL2 puede cambiar — verificar con `ip addr show eth0` si el login falla
+- lock_type en auth-service: "manual" = bloqueado por admin, "failed_attempts" = bloqueado automáticamente
+- Mailpit para desarrollo: UI en http://localhost:8025, SMTP en mailpit:1025
+- Mailpit debe estar conectado a la red Docker: docker network connect docker_avalanz-network mailpit
+- MAX_FAILED_ATTEMPTS = 3 en auth-service/app/config.py
 
 ---
 
@@ -103,7 +118,8 @@ intranet-avalanz/
 │   │   │   └── services/        → company, group, module, permission, role, user service
 │   │   └── migrations/versions/ → 3 migraciones aplicadas
 │   ├── auth-service/            → JWT, 2FA, sesiones, bloqueo de cuentas
-│   │   └── app/routes/          → auth.py, twofa.py, internal.py
+│   │   ├── app/routes/          → auth.py, twofa.py, internal.py
+│   │   └── migrations/versions/ → 1 migración aplicada (lock_type)
 │   ├── email-service/           → Correos transaccionales con plantillas HTML
 │   ├── notify-service/          → Notificaciones en BD
 │   ├── upload-service/          → Archivos a MinIO/S3
@@ -166,3 +182,4 @@ intranet-avalanz/
 | avalanz-prometheus | 9090 | Prometheus |
 | avalanz-grafana | 3001 | Grafana |
 | avalanz-cron | — | Limpieza de historicos |
+| mailpit | 8025 / 1025 | Captura de correos en desarrollo |

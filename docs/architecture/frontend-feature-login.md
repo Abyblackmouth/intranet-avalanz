@@ -80,11 +80,13 @@ frontend/
 ```
 /reset-password
   └── POST /api/v1/auth/password-reset/request
-        └── Email enviado (mensaje neutro)
+        ├── Si éxito → muestra pantalla "Revisa tu correo"
+        └── Si cuenta bloqueada manualmente → muestra error "Tu cuenta tiene restricciones. Contacta al administrador."
 
 /reset-password?token=xxx
   └── POST /api/v1/auth/password-reset/confirm
-        └── Contraseña actualizada
+        └── Contraseña actualizada + cuenta desbloqueada si era por intentos
+        └── Modal de éxito con countdown 2 segundos
         └── redirect /login
 ```
 
@@ -128,11 +130,12 @@ Recibe `mode` y opcionalmente `temp_token` como query params.
 
 **Sin token** (solicitar recuperación):
 - Campo de email
-- Al enviar muestra mensaje neutro sin confirmar si el email existe
+- Al enviar muestra pantalla "Revisa tu correo" si fue exitoso
+- Si la cuenta está bloqueada manualmente muestra mensaje de error sin enviar correo
 
 **Con token** (nueva contraseña):
-- Formulario de nueva contraseña con indicador de reglas
-- Al guardar redirige al login con mensaje de éxito
+- Formulario de nueva contraseña con indicador de reglas debajo del segundo input
+- Al guardar muestra modal de éxito con countdown de 2 segundos y redirige al login automáticamente
 
 ---
 
@@ -201,24 +204,30 @@ Los requests que fallan mientras se está renovando el token se encolan y se rei
 
 ## Configuración de email para desarrollo
 
-Para probar el flujo de recuperación de contraseña en desarrollo se recomienda usar **Mailtrap**:
-
-1. Crear cuenta en mailtrap.io
-2. Ir a Email Testing → Inboxes → SMTP Settings
-3. Actualizar `backend/email-service/.env`:
+Para probar el flujo de recuperación de contraseña en desarrollo se usa **Mailpit**:
 
 ```bash
-SMTP_HOST=sandbox.smtp.mailtrap.io
-SMTP_PORT=587
-SMTP_USER=tu_user
-SMTP_PASSWORD=tu_password
-SMTP_USE_TLS=True
+# Levantar Mailpit
+docker run -d --name mailpit -p 8025:8025 -p 1025:1025 axllent/mailpit
+
+# Conectar a la red Docker
+docker network connect docker_avalanz-network mailpit
 ```
 
-4. Reiniciar el email-service:
+Actualizar `backend/email-service/.env`:
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml restart email-service
+SMTP_HOST=mailpit
+SMTP_PORT=1025
+SMTP_USE_TLS=False
 ```
+
+Reiniciar el email-service:
+```bash
+docker compose -f infrastructure/docker/docker-compose.yml \
+  -f infrastructure/docker/docker-compose.dev.yml restart email-service
+```
+
+UI de correos disponible en `http://localhost:8025`
 
 ---
 
@@ -235,3 +244,6 @@ localStorage.clear();
 document.cookie.split(";").forEach(c => document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"));
 location.reload();
 ```
+
+### Autocomplete de Chrome en campo de búsqueda
+Chrome autocompleta el campo de búsqueda de usuarios con credenciales guardadas al abrir modales con inputs de contraseña. `autoComplete="off"` no funciona. Pendiente de resolver — ver tech-debt.md.

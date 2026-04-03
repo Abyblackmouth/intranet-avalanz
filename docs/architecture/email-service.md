@@ -94,12 +94,14 @@ Todos los correos se renderizan usando `base.html` que incluye:
 ```
 El link generado apunta a: `{FRONTEND_URL}/reset-password?token={reset_token}`
 
+> **Importante:** El auth-service debe mandar solo el token, no la URL completa. El email-service construye la URL internamente.
+
 ### POST /api/v1/email/account-locked
 ```json
 {
   "to_email": "usuario@empresa.com",
   "full_name": "Juan Pérez",
-  "failed_attempts": 5,
+  "failed_attempts": 3,
   "locked_from_ip": "201.100.45.23"
 }
 ```
@@ -109,10 +111,10 @@ El link generado apunta a: `{FRONTEND_URL}/reset-password?token={reset_token}`
 {
   "to_email": "usuario@empresa.com",
   "full_name": "Juan Pérez",
-  "subject": "Mantenimiento programado",
-  "message": "El sistema estará en mantenimiento el sábado de 2am a 4am.",
-  "action_label": "Ver detalles",
-  "action_url": "http://intranet/anuncios/123",
+  "subject": "Tu contrasena ha sido reseteada",
+  "message": "Un administrador ha reseteado tu contrasena.",
+  "action_label": "Iniciar sesion",
+  "action_url": "http://localhost:3000/change-password?user_id=uuid",
   "alert_type": "warning"
 }
 ```
@@ -133,6 +135,18 @@ El `html_content` se inserta dentro de la plantilla corporativa base automática
 
 ---
 
+## Cuándo usa cada servicio el email-service
+
+| Evento | Servicio que lo dispara | Endpoint | Correo enviado |
+|---|---|---|---|
+| Usuario creado | admin-service → `_send_welcome_email()` | /welcome | Bienvenida con contraseña temporal |
+| Contraseña reseteada por admin | admin-service → `_send_reset_password_email()` | /system-notification | Aviso de reset con link a /change-password |
+| Cuenta bloqueada por intentos | auth-service → `_send_account_locked_email()` | /account-locked | Notificación con IP y fecha |
+| Recuperación de contraseña | auth-service → `_send_password_reset_email()` | /password-reset | Link de recuperación válido 30 min |
+| Evento de módulo | Cualquier módulo futuro | /module | Correo genérico del módulo |
+
+---
+
 ## Cómo consumir desde otros servicios
 
 ```python
@@ -141,7 +155,7 @@ import httpx
 async def send_welcome(email: str, name: str, password: str):
     async with httpx.AsyncClient(timeout=10.0) as client:
         await client.post(
-            "http://email-service/api/v1/email/welcome",
+            "http://email-service:8000/api/v1/email/welcome",
             json={
                 "to_email": email,
                 "full_name": name,
@@ -150,16 +164,28 @@ async def send_welcome(email: str, name: str, password: str):
         )
 ```
 
+> Los errores del email-service se capturan silenciosamente con `except Exception: pass` — un fallo en el correo no interrumpe el flujo principal.
+
 ---
 
 ## Configuración SMTP
 
-### Desarrollo (Postfix local)
+### Desarrollo con Mailpit (recomendado)
+
+Mailpit intercepta todos los correos sin enviarlos a internet. UI disponible en `http://localhost:8025`.
+
 ```bash
-SMTP_HOST=localhost
-SMTP_PORT=25
-SMTP_USER=
-SMTP_PASSWORD=
+# Levantar Mailpit
+docker run -d --name mailpit -p 8025:8025 -p 1025:1025 axllent/mailpit
+
+# Conectar a la red Docker de Avalanz
+docker network connect docker_avalanz-network mailpit
+```
+
+Configuración en `backend/email-service/.env`:
+```bash
+SMTP_HOST=mailpit
+SMTP_PORT=1025
 SMTP_USE_TLS=False
 SMTP_USE_SSL=False
 ```
@@ -201,17 +227,6 @@ SMTP_USE_SSL=False
 | EMAIL_FROM_NAME | Nombre del remitente | Avalanz |
 | EMAIL_FROM_ADDRESS | Correo del remitente | noreply@avalanz.com |
 | FRONTEND_URL | URL base del frontend para links | http://localhost:3000 |
-
----
-
-## Cuándo usa cada servicio el email-service
-
-| Evento | Servicio que lo dispara | Correo enviado |
-|---|---|---|
-| Usuario creado | admin-service | Bienvenida con contraseña temporal |
-| Solicitud de recuperación | auth-service | Link de restablecimiento |
-| Cuenta bloqueada | auth-service | Notificación de bloqueo |
-| Evento de módulo | Cualquier módulo futuro | Correo de módulo genérico |
 
 ---
 
