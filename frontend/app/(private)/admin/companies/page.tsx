@@ -153,7 +153,7 @@ export default function CompaniesPage() {
   return (
     <PageWrapper
       title="Empresas"
-      subtitle="Administración de grupos y empresas"
+      description="Administración de grupos y empresas"
       actions={
         mounted && isSuperAdmin() ? (
           <button
