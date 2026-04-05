@@ -103,10 +103,19 @@ Group (Grupo Avalanz / Zignia)
 | nombre_comercial | String(100) | Nombre corto / comercial |
 | name | String(255) | Razón social completa |
 | slug | String(255) | Identificador URL único |
-| rfc | String(20) | RFC de la empresa |
+| rfc | String(20) | RFC de la empresa — único |
 | description | Text | Descripción opcional |
 | is_active | Boolean | Si la empresa está activa en el catálogo |
 | is_deleted | Boolean | Soft delete |
+| calle | String(255) | Nombre de vialidad del domicilio fiscal |
+| num_ext | String(20) | Número exterior |
+| num_int | String(20) | Número interior |
+| colonia | String(150) | Colonia |
+| cp | String(10) | Código postal |
+| municipio | String(150) | Municipio o demarcación territorial |
+| estado | String(100) | Entidad federativa |
+| constancia_fecha_emision | String(50) | Fecha de emisión de la constancia SAT |
+| constancia_fecha_vigencia | String(50) | Fecha de vigencia calculada (+1 mes desde emisión) |
 
 #### users (actualizada)
 | Columna | Tipo | Descripción |

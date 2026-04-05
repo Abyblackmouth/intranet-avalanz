@@ -56,16 +56,24 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 
 ---
 
-## Pendiente en feature/email-service
+## Rama activa: feature/admin-companies-groups
 
-- Merge feature/email-service → develop cuando esté completo
-- Módulos y permisos del usuario en el modal de detalle (dejado para cuando se trabaje módulos)
+### Completado en esta rama
+- Panel de empresas con tarjetas por grupo, búsqueda, toggle activa/inactiva
+- Alta de empresa manual y carga automática desde constancia SAT (pdfjs-dist, sin almacenar archivo)
+- Campos de domicilio fiscal en companies: calle, num_ext, num_int, colonia, cp, municipio, estado
+- Campos de vigencia de constancia SAT: constancia_fecha_emision, constancia_fecha_vigencia
+- Migración 951e0445379d aplicada en admin-service
+- Filtro de empresas inactivas en selectores de usuario (UserForm, page usuarios)
+
+### Pendiente en esta rama
+- Editar empresa
+- Vista detalle de empresa
 
 ---
 
 ## Próximos módulos admin pendientes
 
-- Empresas (CRUD)
 - Grupos (CRUD)
 - Módulos y submódulos
 - Roles y permisos
