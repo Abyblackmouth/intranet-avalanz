@@ -40,3 +40,9 @@ Este archivo documenta mejoras pendientes que no son fallas críticas pero impac
 **Descripción:** Al presionar el botón de atrás del navegador durante el flujo de cambio de contraseña temporal, el usuario puede acceder al dashboard sin haber completado el cambio. Esto ocurre porque el middleware solo valida que exista un token, no que el flujo de primer login esté completo.
 **Cambio requerido:** Verificar `is_temp_password` en el AuthProvider o middleware y forzar la redirección a `/change-password` si el usuario tiene contraseña temporal activa.
 **Impacto:** Seguridad — usuario puede acceder al sistema sin cambiar su contraseña temporal.
+
+### Editar empresa del usuario desde el formulario de edición
+**Archivo:** `frontend/components/admin/users/UserEditForm.tsx`
+**Descripción:** El formulario de edición de usuario no incluye el campo de empresa (`company_id`). El super admin debería poder reasignar un usuario a una empresa diferente desde este formulario.
+**Cambio requerido:** Agregar selector de empresa (solo empresas activas) en `UserEditForm.tsx` y pasar `company_id` en el payload de `UpdateUserRequest`. Verificar que el backend en `update_user` de `user_service.py` acepte y procese el campo `company_id`.
+**Impacto:** UX — el super admin no puede cambiar la empresa de un usuario sin eliminarlo y recrearlo.
