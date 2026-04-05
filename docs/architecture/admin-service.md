@@ -248,7 +248,9 @@ El `_serialize_user` en `user_service.py` combina datos de tres fuentes:
 |---|---|
 | Deshabilitar empresa | Todos sus usuarios deben estar desactivados primero |
 | Habilitar empresa | Su grupo debe estar activo |
-| Eliminar empresa | No debe tener usuarios asociados |
+| Eliminar empresa | Debe estar inactiva primero + no debe tener usuarios asociados |
+
+**Trazabilidad de eliminación:** La cadena obligatoria es: desactivar usuarios → desactivar empresa → eliminar empresa. No se puede saltar ningún paso.
 
 ---
 

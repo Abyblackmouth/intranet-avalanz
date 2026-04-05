@@ -61,14 +61,18 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 ### Completado en esta rama
 - Panel de empresas con tarjetas por grupo, búsqueda, toggle activa/inactiva
 - Alta de empresa manual y carga automática desde constancia SAT (pdfjs-dist, sin almacenar archivo)
+- Editar empresa con validación de RFC y razón social solo para super_admin
+- Actualización de constancia SAT en edición — valida RFC, carga solo domicilio y fechas
+- Vista detalle de empresa — panel lateral con info, domicilio y vigencia de constancia
+- Eliminar empresa con trazabilidad: debe estar inactiva y sin usuarios
 - Campos de domicilio fiscal en companies: calle, num_ext, num_int, colonia, cp, municipio, estado
 - Campos de vigencia de constancia SAT: constancia_fecha_emision, constancia_fecha_vigencia
 - Migración 951e0445379d aplicada en admin-service
 - Filtro de empresas inactivas en selectores de usuario (UserForm, page usuarios)
+- Hover y bordes mejorados en menús de 3 puntos (companies y users)
 
 ### Pendiente en esta rama
-- Editar empresa
-- Vista detalle de empresa
+- Merge a develop
 
 ---
 
