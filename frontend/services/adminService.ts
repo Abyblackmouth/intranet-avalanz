@@ -42,15 +42,38 @@ export const getUserLoginHistory = (userId: string) =>
 export const revokeAllSessions = (userId: string) =>
   api.post(`/api/v1/auth/sessions/revoke-all`, { user_id: userId })
 
+export const resetUserPassword = (userId: string, newPassword: string) =>
+  api.post(`/api/v1/users/${userId}/reset-password`, { new_password: newPassword })
+
+// ── Grupos ────────────────────────────────────────────────────────────────────
+
+export const getGroups = (params?: Record<string, string | number | boolean>) =>
+  api.get('/api/v1/groups/', { params })
+
+export const enableGroup = (groupId: string) =>
+  api.patch(`/api/v1/groups/${groupId}/enable`)
+
+export const disableGroup = (groupId: string) =>
+  api.patch(`/api/v1/groups/${groupId}/disable`)
+
 // ── Empresas ──────────────────────────────────────────────────────────────────
 
-export const getCompanies = (params?: Record<string, string | number>) =>
+export const getCompanies = (params?: Record<string, string | number | boolean>) =>
   api.get('/api/v1/companies/', { params })
+
+export const enableCompany = (companyId: string) =>
+  api.patch(`/api/v1/companies/${companyId}/enable`)
+
+export const disableCompany = (companyId: string) =>
+  api.patch(`/api/v1/companies/${companyId}/disable`)
 
 // ── Roles globales ────────────────────────────────────────────────────────────
 
 export const getGlobalRoles = () =>
   api.get('/api/v1/roles/global')
+
+export const removeGlobalRole = (userId: string, roleId: string) =>
+  api.delete(`/api/v1/users/${userId}/global-roles`, { data: { role_id: roleId } })
 
 // ── Modulos ───────────────────────────────────────────────────────────────────
 
@@ -59,8 +82,3 @@ export const getModules = () =>
 
 export const getModuleRoles = (moduleId: string) =>
   api.get(`/api/v1/roles/modules/${moduleId}`)
-
-export const removeGlobalRole = (userId: string, roleId: string) =>
-  api.delete(`/api/v1/users/${userId}/global-roles`, { data: { role_id: roleId } })
-export const resetUserPassword = (userId: string, newPassword: string) =>
-  api.post(`/api/v1/users/${userId}/reset-password`, { new_password: newPassword })
