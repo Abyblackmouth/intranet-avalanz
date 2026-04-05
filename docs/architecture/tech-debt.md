@@ -54,3 +54,9 @@ Este archivo documenta mejoras pendientes que no son fallas críticas pero impac
 - Verificar que el RFC del PDF coincida con el RFC de la empresa — si no coincide mostrar: "La constancia no corresponde a la empresa [nombre_comercial]"
 - Si el RFC coincide, cargar solo domicilio y fechas de vigencia
 **Impacto:** UX — el admin no puede actualizar el domicilio fiscal de una empresa existente cargando su nueva constancia.
+
+### Performance del frontend en desarrollo — Next.js Turbopack lento en WSL2
+**Archivo:** `frontend/next.config.ts`
+**Descripción:** Next.js con Turbopack detecta el filesystem de WSL2 como lento (benchmark >200ms). Esto causa arranque lento y hot reload tardado en desarrollo. El `package.json` de la raíz con workspaces también puede contribuir al problema.
+**Cambio requerido:** Investigar opciones: mover `.next/dev` a un directorio en el filesystem nativo de Linux, evaluar si eliminar el `package.json` raíz mejora la situación, o configurar `turbopack.root` más específicamente.
+**Impacto:** DX — el desarrollo es más lento de lo esperado en WSL2.

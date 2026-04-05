@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Building2, CheckCircle2, Search, Plus, MoreHorizontal, Pencil } from 'lucide-react'
+import { Building2, CheckCircle2, Search, Plus, MoreHorizontal, Pencil, Eye } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import { useAuthStore } from '@/store/authStore'
 import { GroupRow, CompanyRow } from '@/types/company.types'
 import { getGroups, getCompanies, enableCompany, disableCompany } from '@/services/adminService'
 import CompanyForm from '@/components/admin/companies/CompanyForm'
 import CompanyEditForm from '@/components/admin/companies/CompanyEditForm'
+import CompanyDetail from '@/components/admin/companies/CompanyDetail'
 
 export default function CompaniesPage() {
   const { isSuperAdmin } = useAuthStore()
@@ -19,6 +20,7 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingCompany, setEditingCompany] = useState<CompanyRow | null>(null)
+  const [detailCompany, setDetailCompany] = useState<CompanyRow | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -314,6 +316,17 @@ export default function CompaniesPage() {
             <button
               onClick={() => {
                 const company = groups.flatMap(g => g.companies ?? []).find(c => c.company_id === openMenuId)
+                if (company) setDetailCompany(company)
+                setOpenMenuId(null)
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <Eye size={14} className="text-slate-400" />
+              Ver detalle
+            </button>
+            <button
+              onClick={() => {
+                const company = groups.flatMap(g => g.companies ?? []).find(c => c.company_id === openMenuId)
                 if (company) setEditingCompany(company)
                 setOpenMenuId(null)
               }}
@@ -334,6 +347,14 @@ export default function CompaniesPage() {
             setShowForm(false)
             fetchData()
           }}
+        />
+      )}
+
+      {/* Panel detalle empresa */}
+      {detailCompany && (
+        <CompanyDetail
+          company={detailCompany}
+          onClose={() => setDetailCompany(null)}
         />
       )}
 
