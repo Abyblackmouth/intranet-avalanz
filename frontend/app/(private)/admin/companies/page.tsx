@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Building2, CheckCircle2, Search } from 'lucide-react'
+import { Building2, CheckCircle2, Search, Plus } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import { useAuthStore } from '@/store/authStore'
 import { GroupRow, CompanyRow } from '@/types/company.types'
 import { getGroups, getCompanies, enableCompany, disableCompany } from '@/services/adminService'
+import CompanyForm from '@/components/admin/companies/CompanyForm'
 
 export default function CompaniesPage() {
   const { isSuperAdmin } = useAuthStore()
@@ -15,6 +16,7 @@ export default function CompaniesPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
@@ -118,11 +120,25 @@ export default function CompaniesPage() {
     .filter((g) => !search || (g.companies?.length ?? 0) > 0)
 
   return (
-    <PageWrapper title="Empresas" subtitle="Administración de grupos y empresas">
+    <PageWrapper
+      title="Empresas"
+      subtitle="Administración de grupos y empresas"
+      actions={
+        mounted && isSuperAdmin() ? (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+          >
+            <Plus size={15} />
+            Nueva empresa
+          </button>
+        ) : null
+      }
+    >
 
       {/* Resumen */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-        <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center gap-4">
+        <div className="bg-white rounded-xl border border-slate-300 shadow-sm px-5 py-4 flex items-center gap-4">
           <div className="p-2 bg-blue-50 rounded-lg">
             <Building2 size={20} className="text-blue-600" />
           </div>
@@ -131,7 +147,7 @@ export default function CompaniesPage() {
             <p className="text-2xl font-bold text-slate-800">{groups.length}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center gap-4">
+        <div className="bg-white rounded-xl border border-slate-300 shadow-sm px-5 py-4 flex items-center gap-4">
           <div className="p-2 bg-violet-50 rounded-lg">
             <Building2 size={20} className="text-violet-600" />
           </div>
@@ -140,7 +156,7 @@ export default function CompaniesPage() {
             <p className="text-2xl font-bold text-slate-800">{totalCompanies}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 flex items-center gap-4">
+        <div className="bg-white rounded-xl border border-slate-300 shadow-sm px-5 py-4 flex items-center gap-4">
           <div className="p-2 bg-emerald-50 rounded-lg">
             <CheckCircle2 size={20} className="text-emerald-600" />
           </div>
@@ -151,8 +167,8 @@ export default function CompaniesPage() {
         </div>
       </div>
 
-      {/* Buscador + error */}
-      <div className="flex items-center gap-4 mb-4">
+      {/* Buscador */}
+      <div className="flex items-center gap-3 mb-4">
         <div className="relative" style={{ width: '320px' }}>
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -205,7 +221,7 @@ export default function CompaniesPage() {
                   {group.companies.map((company) => (
                     <div
                       key={company.company_id}
-                      className="bg-white rounded-xl border border-slate-200 shadow-md hover:shadow-lg transition-shadow duration-200 px-4 py-3"
+                      className="bg-white rounded-xl border-2 border-slate-300 shadow-md hover:shadow-xl hover:border-[#1a4fa0] transition-all duration-200 px-4 py-3 cursor-pointer"
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <div className={`w-3 h-3 rounded-full flex-shrink-0 transition-colors duration-300 ${
@@ -267,6 +283,18 @@ export default function CompaniesPage() {
           )}
         </div>
       )}
+
+      {/* Modal alta empresa */}
+      {showForm && (
+        <CompanyForm
+          onClose={() => setShowForm(false)}
+          onSaved={() => {
+            setShowForm(false)
+            fetchData()
+          }}
+        />
+      )}
+
     </PageWrapper>
   )
 }

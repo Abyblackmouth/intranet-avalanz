@@ -61,6 +61,9 @@ export const disableGroup = (groupId: string) =>
 export const getCompanies = (params?: Record<string, string | number | boolean>) =>
   api.get('/api/v1/companies/', { params })
 
+export const createCompany = (data: Record<string, any>) =>
+  api.post('/api/v1/companies/', data)
+
 export const enableCompany = (companyId: string) =>
   api.patch(`/api/v1/companies/${companyId}/enable`)
 

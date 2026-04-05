@@ -23,6 +23,15 @@ async def create_company(
     rfc: Optional[str] = None,
     description: Optional[str] = None,
     is_active: bool = True,
+    calle: Optional[str] = None,
+    num_ext: Optional[str] = None,
+    num_int: Optional[str] = None,
+    colonia: Optional[str] = None,
+    cp: Optional[str] = None,
+    municipio: Optional[str] = None,
+    estado: Optional[str] = None,
+    constancia_fecha_emision: Optional[str] = None,
+    constancia_fecha_vigencia: Optional[str] = None,
     requested_by: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
 
@@ -62,6 +71,15 @@ async def create_company(
         rfc=rfc,
         description=description,
         is_active=is_active,
+        calle=calle,
+        num_ext=num_ext,
+        num_int=num_int,
+        colonia=colonia,
+        cp=cp,
+        municipio=municipio,
+        estado=estado,
+        constancia_fecha_emision=constancia_fecha_emision,
+        constancia_fecha_vigencia=constancia_fecha_vigencia,
     )
     db.add(company)
     await db.commit()
@@ -327,6 +345,15 @@ def _serialize_company(company: Company) -> Dict[str, Any]:
         "rfc": company.rfc,
         "description": company.description,
         "is_active": company.is_active,
+        "calle": company.calle,
+        "num_ext": company.num_ext,
+        "num_int": company.num_int,
+        "colonia": company.colonia,
+        "cp": company.cp,
+        "municipio": company.municipio,
+        "estado": company.estado,
+        "constancia_fecha_emision": company.constancia_fecha_emision,
+        "constancia_fecha_vigencia": company.constancia_fecha_vigencia,
         "created_at": company.created_at.isoformat(),
     }
 

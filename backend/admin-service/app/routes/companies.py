@@ -22,6 +22,15 @@ class CreateCompanyRequest(BaseModel):
     rfc: Optional[str] = None
     description: Optional[str] = None
     is_active: bool = True
+    calle: Optional[str] = None
+    num_ext: Optional[str] = None
+    num_int: Optional[str] = None
+    colonia: Optional[str] = None
+    cp: Optional[str] = None
+    municipio: Optional[str] = None
+    estado: Optional[str] = None
+    constancia_fecha_emision: Optional[str] = None
+    constancia_fecha_vigencia: Optional[str] = None
 
 
 class UpdateCompanyRequest(BaseModel):
@@ -47,6 +56,15 @@ async def create_company(
         rfc=body.rfc,
         description=body.description,
         is_active=body.is_active,
+        calle=body.calle,
+        num_ext=body.num_ext,
+        num_int=body.num_int,
+        colonia=body.colonia,
+        cp=body.cp,
+        municipio=body.municipio,
+        estado=body.estado,
+        constancia_fecha_emision=body.constancia_fecha_emision,
+        constancia_fecha_vigencia=body.constancia_fecha_vigencia,
         requested_by=payload,
     )
     return CreatedResponse(data=result)
