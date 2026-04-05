@@ -48,7 +48,7 @@ export default function UsersPage() {
 
   const fetchCompanies = useCallback(async () => {
     try {
-      const res = await api.get('/api/v1/companies/', { params: { per_page: 100 } })
+      const res = await api.get('/api/v1/companies/', { params: { per_page: 100, is_active: true } })
       setCompanies(res.data.data.data || [])
     } catch {
       setCompanies([])

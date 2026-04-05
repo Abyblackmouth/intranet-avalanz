@@ -78,7 +78,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
     const loadData = async () => {
       try {
         const [companiesRes, rolesRes, modulesRes] = await Promise.all([
-          getCompanies({ per_page: 100 }),
+          getCompanies({ per_page: 100, is_active: true }),
           getGlobalRoles(),
           getModules(),
         ])
