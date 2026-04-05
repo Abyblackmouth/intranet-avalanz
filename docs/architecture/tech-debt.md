@@ -46,3 +46,11 @@ Este archivo documenta mejoras pendientes que no son fallas críticas pero impac
 **Descripción:** El formulario de edición de usuario no incluye el campo de empresa (`company_id`). El super admin debería poder reasignar un usuario a una empresa diferente desde este formulario.
 **Cambio requerido:** Agregar selector de empresa (solo empresas activas) en `UserEditForm.tsx` y pasar `company_id` en el payload de `UpdateUserRequest`. Verificar que el backend en `update_user` de `user_service.py` acepte y procese el campo `company_id`.
 **Impacto:** UX — el super admin no puede cambiar la empresa de un usuario sin eliminarlo y recrearlo.
+
+### Carga de constancia SAT en edición de empresa
+**Archivo:** `frontend/components/admin/companies/CompanyEditForm.tsx`
+**Descripción:** El formulario de edición no tiene tab de carga de constancia SAT. Al agregarlo debe comportarse diferente al de alta:
+- No cargar RFC ni razón social del PDF (ya existen en BD)
+- Verificar que el RFC del PDF coincida con el RFC de la empresa — si no coincide mostrar: "La constancia no corresponde a la empresa [nombre_comercial]"
+- Si el RFC coincide, cargar solo domicilio y fechas de vigencia
+**Impacto:** UX — el admin no puede actualizar el domicilio fiscal de una empresa existente cargando su nueva constancia.
