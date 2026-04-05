@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Building2, CheckCircle2, Search, Plus } from 'lucide-react'
+import { Building2, CheckCircle2, Search, Plus, MoreHorizontal, Pencil } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import { useAuthStore } from '@/store/authStore'
 import { GroupRow, CompanyRow } from '@/types/company.types'
 import { getGroups, getCompanies, enableCompany, disableCompany } from '@/services/adminService'
 import CompanyForm from '@/components/admin/companies/CompanyForm'
+import CompanyEditForm from '@/components/admin/companies/CompanyEditForm'
 
 export default function CompaniesPage() {
   const { isSuperAdmin } = useAuthStore()
@@ -17,6 +18,9 @@ export default function CompaniesPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [editingCompany, setEditingCompany] = useState<CompanyRow | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
@@ -29,6 +33,12 @@ export default function CompaniesPage() {
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     setError(msg)
     errorTimerRef.current = setTimeout(() => setError(null), 3000)
+  }
+
+  const openMenu = (e: React.MouseEvent<HTMLButtonElement>, companyId: string) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenuPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right })
+    setOpenMenuId(companyId)
   }
 
   const fetchData = useCallback(async () => {
@@ -221,9 +231,18 @@ export default function CompaniesPage() {
                   {group.companies.map((company) => (
                     <div
                       key={company.company_id}
-                      className="bg-white rounded-xl border-2 border-slate-300 shadow-md hover:shadow-xl hover:border-[#1a4fa0] transition-all duration-200 px-4 py-3 cursor-pointer"
+                      className="bg-white rounded-xl border-2 border-slate-300 shadow-md hover:shadow-xl hover:border-[#1a4fa0] transition-all duration-200 px-4 py-3 cursor-pointer relative"
                     >
-                      <div className="flex items-center gap-2 mb-2">
+                      {/* Boton 3 puntos esquina superior derecha */}
+                      {mounted && isSuperAdmin() && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openMenu(e, company.company_id) }}
+                          className="absolute top-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                        >
+                          <MoreHorizontal size={15} />
+                        </button>
+                      )}
+                      <div className="flex items-center gap-2 mb-2 pr-7">
                         <div className={`w-3 h-3 rounded-full flex-shrink-0 transition-colors duration-300 ${
                           company.is_active ? 'bg-emerald-400' : 'bg-red-400'
                         }`} />
@@ -250,19 +269,22 @@ export default function CompaniesPage() {
                           }`}>
                             {company.is_active ? 'Activa' : 'Inactiva'}
                           </span>
-                          <button
-                            onClick={() => handleToggle(company)}
-                            disabled={togglingId === company.company_id}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed ${
-                              company.is_active ? 'bg-emerald-500' : 'bg-slate-200'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${
-                                company.is_active ? 'translate-x-[18px]' : 'translate-x-[2px]'
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleToggle(company)}
+                              disabled={togglingId === company.company_id}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed ${
+                                company.is_active ? 'bg-emerald-500' : 'bg-slate-200'
                               }`}
-                            />
-                          </button>
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${
+                                  company.is_active ? 'translate-x-[18px]' : 'translate-x-[2px]'
+                                }`}
+                              />
+                            </button>
+
+                          </div>
                         </div>
                       )}
                     </div>
@@ -284,12 +306,44 @@ export default function CompaniesPage() {
         </div>
       )}
 
+      {/* Menu flotante de acciones */}
+      {openMenuId && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
+          <div className="fixed z-50 w-44 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 flex flex-col" style={{ top: menuPos.top, right: menuPos.right }}>
+            <button
+              onClick={() => {
+                const company = groups.flatMap(g => g.companies ?? []).find(c => c.company_id === openMenuId)
+                if (company) setEditingCompany(company)
+                setOpenMenuId(null)
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <Pencil size={14} className="text-slate-400" />
+              Editar
+            </button>
+          </div>
+        </>
+      )}
+
       {/* Modal alta empresa */}
       {showForm && (
         <CompanyForm
           onClose={() => setShowForm(false)}
           onSaved={() => {
             setShowForm(false)
+            fetchData()
+          }}
+        />
+      )}
+
+      {/* Modal editar empresa */}
+      {editingCompany && (
+        <CompanyEditForm
+          company={editingCompany}
+          onClose={() => setEditingCompany(null)}
+          onSaved={() => {
+            setEditingCompany(null)
             fetchData()
           }}
         />

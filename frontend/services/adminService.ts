@@ -64,6 +64,9 @@ export const getCompanies = (params?: Record<string, string | number | boolean>)
 export const createCompany = (data: Record<string, any>) =>
   api.post('/api/v1/companies/', data)
 
+export const updateCompany = (companyId: string, data: Record<string, any>) =>
+  api.patch(`/api/v1/companies/${companyId}`, data)
+
 export const enableCompany = (companyId: string) =>
   api.patch(`/api/v1/companies/${companyId}/enable`)
 

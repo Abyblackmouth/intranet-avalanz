@@ -18,4 +18,13 @@ export interface CompanyRow {
   description: string | null
   is_active: boolean
   created_at: string
+  calle: string | null
+  num_ext: string | null
+  num_int: string | null
+  colonia: string | null
+  cp: string | null
+  municipio: string | null
+  estado: string | null
+  constancia_fecha_emision: string | null
+  constancia_fecha_vigencia: string | null
 }

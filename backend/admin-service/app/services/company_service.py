@@ -163,6 +163,15 @@ async def update_company(
     name: Optional[str] = None,
     rfc: Optional[str] = None,
     description: Optional[str] = None,
+    calle: Optional[str] = None,
+    num_ext: Optional[str] = None,
+    num_int: Optional[str] = None,
+    colonia: Optional[str] = None,
+    cp: Optional[str] = None,
+    municipio: Optional[str] = None,
+    estado: Optional[str] = None,
+    constancia_fecha_emision: Optional[str] = None,
+    constancia_fecha_vigencia: Optional[str] = None,
     requested_by: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
 
@@ -205,6 +214,24 @@ async def update_company(
         values["rfc"] = rfc
     if description is not None:
         values["description"] = description
+    if calle is not None:
+        values["calle"] = calle
+    if num_ext is not None:
+        values["num_ext"] = num_ext
+    if num_int is not None:
+        values["num_int"] = num_int
+    if colonia is not None:
+        values["colonia"] = colonia
+    if cp is not None:
+        values["cp"] = cp
+    if municipio is not None:
+        values["municipio"] = municipio
+    if estado is not None:
+        values["estado"] = estado
+    if constancia_fecha_emision is not None:
+        values["constancia_fecha_emision"] = constancia_fecha_emision
+    if constancia_fecha_vigencia is not None:
+        values["constancia_fecha_vigencia"] = constancia_fecha_vigencia
 
     if values:
         await db.execute(update(Company).where(Company.id == company_id).values(**values))
