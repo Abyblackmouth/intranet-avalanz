@@ -339,6 +339,11 @@ async def delete_company(
     if not company:
         raise NotFoundException("Empresa")
 
+    if company.is_active:
+        raise ValidationException(
+            "Debes desactivar la empresa antes de eliminarla"
+        )
+
     users_count = await db.execute(
         select(func.count()).where(
             User.company_id == company_id,

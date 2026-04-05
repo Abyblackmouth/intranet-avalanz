@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Building2, CheckCircle2, Search, Plus, MoreHorizontal, Pencil, Eye } from 'lucide-react'
+import { Building2, CheckCircle2, Search, Plus, MoreHorizontal, Pencil, Eye, Trash2 } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import { useAuthStore } from '@/store/authStore'
 import { GroupRow, CompanyRow } from '@/types/company.types'
-import { getGroups, getCompanies, enableCompany, disableCompany } from '@/services/adminService'
+import { getGroups, getCompanies, enableCompany, disableCompany, deleteCompany } from '@/services/adminService'
 import CompanyForm from '@/components/admin/companies/CompanyForm'
 import CompanyEditForm from '@/components/admin/companies/CompanyEditForm'
 import CompanyDetail from '@/components/admin/companies/CompanyDetail'
@@ -21,6 +21,9 @@ export default function CompaniesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingCompany, setEditingCompany] = useState<CompanyRow | null>(null)
   const [detailCompany, setDetailCompany] = useState<CompanyRow | null>(null)
+  const [deletingCompany, setDeletingCompany] = useState<CompanyRow | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -41,6 +44,22 @@ export default function CompaniesPage() {
     const rect = e.currentTarget.getBoundingClientRect()
     setMenuPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right })
     setOpenMenuId(companyId)
+  }
+
+  const handleDelete = async () => {
+    if (!deletingCompany) return
+    setIsDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteCompany(deletingCompany.company_id)
+      setDeletingCompany(null)
+      fetchData()
+    } catch (err: any) {
+      const msg = (err?.response?.data?.message ?? 'No se pudo eliminar la empresa') as string
+      setDeleteError(msg)
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const fetchData = useCallback(async () => {
@@ -217,8 +236,8 @@ export default function CompaniesPage() {
                   </h2>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                     group.is_active
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-slate-100 text-slate-500'
+                      ? 'bg-emerald-300 text-emerald-700'
+                      : 'bg-slate-300 text-slate-500'
                   }`}>
                     {group.is_active ? 'Activo' : 'Inactivo'}
                   </span>
@@ -312,14 +331,14 @@ export default function CompaniesPage() {
       {openMenuId && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
-          <div className="fixed z-50 w-44 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 flex flex-col" style={{ top: menuPos.top, right: menuPos.right }}>
+          <div className="fixed z-50 w-44 bg-white border-2 border-slate-300 rounded-xl shadow-2xl py-1.5 flex flex-col" style={{ top: menuPos.top, right: menuPos.right }}>
             <button
               onClick={() => {
                 const company = groups.flatMap(g => g.companies ?? []).find(c => c.company_id === openMenuId)
                 if (company) setDetailCompany(company)
                 setOpenMenuId(null)
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-300 transition-colors"
             >
               <Eye size={14} className="text-slate-400" />
               Ver detalle
@@ -330,10 +349,22 @@ export default function CompaniesPage() {
                 if (company) setEditingCompany(company)
                 setOpenMenuId(null)
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-300 transition-colors"
             >
               <Pencil size={14} className="text-slate-400" />
               Editar
+            </button>
+            <div className="h-px bg-slate-200 my-1" />
+            <button
+              onClick={() => {
+                const company = groups.flatMap(g => g.companies ?? []).find(c => c.company_id === openMenuId)
+                if (company) { setDeletingCompany(company); setDeleteError(null) }
+                setOpenMenuId(null)
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-200 transition-colors"
+            >
+              <Trash2 size={14} className="text-red-400" />
+              Eliminar
             </button>
           </div>
         </>
@@ -348,6 +379,47 @@ export default function CompaniesPage() {
             fetchData()
           }}
         />
+      )}
+
+      {/* Modal confirmar eliminacion */}
+      {deletingCompany && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-50 rounded-lg">
+                <Trash2 size={18} className="text-red-500" />
+              </div>
+              <h2 className="font-semibold text-slate-800">Eliminar empresa</h2>
+            </div>
+            <p className="text-sm text-slate-600 mb-2">
+              ¿Estás seguro de que deseas eliminar <span className="font-semibold">{deletingCompany.nombre_comercial}</span>?
+            </p>
+            <p className="text-xs text-slate-400 mb-4">
+              La empresa debe estar inactiva y sin usuarios asociados. Esta acción no se puede deshacer.
+            </p>
+            {deleteError && (
+              <div className="mb-4 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => { setDeletingCompany(null); setDeleteError(null) }}
+                className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {isDeleting && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {isDeleting ? 'Eliminando...' : 'Eliminar empresa'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Panel detalle empresa */}

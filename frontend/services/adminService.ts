@@ -67,6 +67,9 @@ export const createCompany = (data: Record<string, any>) =>
 export const updateCompany = (companyId: string, data: Record<string, any>) =>
   api.patch(`/api/v1/companies/${companyId}`, data)
 
+export const deleteCompany = (companyId: string) =>
+  api.delete(`/api/v1/companies/${companyId}`)
+
 export const enableCompany = (companyId: string) =>
   api.patch(`/api/v1/companies/${companyId}/enable`)
 

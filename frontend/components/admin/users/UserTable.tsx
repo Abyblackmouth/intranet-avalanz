@@ -289,7 +289,7 @@ const ActionMenu = ({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="fixed z-50 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5" style={{ top: menuPos.top, right: menuPos.right }}>
+          <div className="fixed z-50 w-52 bg-white border-2 border-slate-300 rounded-xl shadow-2xl py-1.5" style={{ top: menuPos.top, right: menuPos.right }}>
             <MenuItem icon={<Eye size={14} />} label="Ver detalle" onClick={() => { setOpen(false); onViewDetail() }} />
             {!user.is_protected && <MenuItem icon={<Pencil size={14} />} label="Editar" onClick={() => { setOpen(false); onEdit() }} />}
             <MenuItem icon={<KeyRound size={14} />} label="Resetear contrasena" onClick={() => { setOpen(false); onResetPassword() }} />
@@ -316,7 +316,7 @@ const ActionMenu = ({
 }
 
 const MenuItem = ({ icon, label, onClick, danger = false }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition ${danger ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-slate-50'}`}>
+  <button onClick={onClick} className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition ${danger ? 'text-red-600 hover:bg-red-200' : 'text-slate-700 hover:bg-slate-300'}`}>
     <span className="shrink-0">{icon}</span>{label}
   </button>
 )
