@@ -283,7 +283,7 @@ const ActionMenu = ({
   return (
     <>
       <button ref={btnRef} onClick={openMenu} disabled={anyLoading} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
-        {anyLoading ? <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <MoreHorizontal size={16} />}
+        {anyLoading ? <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <MoreHorizontal size={20} />}
       </button>
 
       {open && (

@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 from datetime import timedelta
 
 from app.config import config
-from app.models.admin_models import User, Company, UserGlobalRole, UserModuleAccess, GlobalRole, Module, ModuleRole
+from app.models.admin_models import User, Company, UserGlobalRole, UserModuleAccess, GlobalRole, Module, ModuleRole, Submodule
 from shared.utils.encryption import generate_secure_token
 from shared.utils.helpers import now_utc, paginate, get_offset
 from shared.exceptions.http_exceptions import (
@@ -226,9 +226,58 @@ async def get_user_permissions(db, user_id):
     if not user:
         raise NotFoundException("Usuario")
     global_roles = await _get_user_roles(db, user_id, user.is_super_admin)
+
+    # Super admin obtiene acceso a todos los modulos activos automaticamente
+    if user.is_super_admin:
+        all_modules_result = await db.execute(
+            select(Module).where(Module.is_active == True, Module.is_deleted == False)
+        )
+        all_modules = all_modules_result.scalars().all()
+        modules_with_subs = []
+        for m in all_modules:
+            subs_result = await db.execute(
+                select(Submodule).where(
+                    Submodule.module_id == m.id,
+                    Submodule.is_active == True,
+                    Submodule.is_deleted == False,
+                ).order_by(Submodule.order.asc())
+            )
+            subs = subs_result.scalars().all()
+            modules_with_subs.append({
+                "slug": m.slug,
+                "icon": m.icon,
+                "submodules": [{"slug": s.slug, "icon": s.icon, "name": s.name} for s in subs],
+            })
+        return {
+            "roles": global_roles,
+            "modules": modules_with_subs,
+            "companies": list(set([str(m.company_id) for m in all_modules])),
+            "permissions": [],
+        }
+
     accesses_result = await db.execute(select(UserModuleAccess, Module, ModuleRole).join(Module, UserModuleAccess.module_id == Module.id).join(ModuleRole, UserModuleAccess.role_id == ModuleRole.id).where(UserModuleAccess.user_id == user_id, UserModuleAccess.is_active == True, Module.is_active == True, Module.is_deleted == False))
     accesses = accesses_result.all()
-    return {"roles": global_roles + [f"{a.Module.slug}:{a.ModuleRole.slug}" for a in accesses], "modules": [a.Module.slug for a in accesses], "companies": list(set([str(a.Module.company_id) for a in accesses])), "permissions": []}
+    modules_with_subs = []
+    for a in accesses:
+        subs_result = await db.execute(
+            select(Submodule).where(
+                Submodule.module_id == a.Module.id,
+                Submodule.is_active == True,
+                Submodule.is_deleted == False,
+            ).order_by(Submodule.order.asc())
+        )
+        subs = subs_result.scalars().all()
+        modules_with_subs.append({
+            "slug": a.Module.slug,
+            "icon": a.Module.icon,
+            "submodules": [{"slug": s.slug, "icon": s.icon, "name": s.name} for s in subs],
+        })
+    return {
+        "roles": global_roles + [f"{a.Module.slug}:{a.ModuleRole.slug}" for a in accesses],
+        "modules": modules_with_subs,
+        "companies": list(set([str(a.Module.company_id) for a in accesses])),
+        "permissions": [],
+    }
 
 
 async def remove_global_role(db, user_id, role_id, requested_by=None):

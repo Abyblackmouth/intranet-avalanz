@@ -50,7 +50,7 @@ export interface AuthUser {
   email: string
   full_name: string
   roles: string[]
-  modules: string[]
+  modules: Array<string | { slug: string; icon: string | null }>
   companies: string[]
   permissions: string[]
   session_started_at: string

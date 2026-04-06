@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Users, Building2, LayoutGrid,
-  Shield, Key, Layers, BarChart2, Settings, Scale,
+  Shield, Key, Layers, Settings,
 } from 'lucide-react'
+import * as LucideIcons from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 
 interface NavItem {
@@ -25,10 +26,20 @@ const adminItems: NavItem[] = [
   { label: 'Permisos',   href: '/admin/permissions', icon: <Key size={17} /> },
 ]
 
-const testModules: NavItem[] = [
-  { label: 'Legal',  href: '/app/legal',  icon: <Scale size={17} />,    isModule: true },
-  { label: 'Boveda', href: '/app/boveda', icon: <BarChart2 size={17} />, isModule: true },
-]
+function ModuleIcon({ slug }: { slug: string }) {
+  const iconName = slug.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+  const Icon = (LucideIcons as any)[iconName]
+  if (!Icon) return <LucideIcons.Layers size={17} />
+  return <Icon size={17} />
+}
+
+function getModuleIcon(iconSlug: string | null | undefined): React.ReactNode {
+  if (!iconSlug) return <LucideIcons.Layers size={17} />
+  const iconName = iconSlug.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+  const Icon = (LucideIcons as any)[iconName]
+  if (!Icon) return <LucideIcons.Layers size={17} />
+  return <Icon size={17} />
+}
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -95,23 +106,59 @@ export default function Sidebar() {
           </div>
         )}
 
-        {mounted && isAdmin() && (testModules.length > 0 || modules.length > 0) && (
+        {mounted && modules.length > 0 && (
           <div className="h-px bg-slate-100 mx-3" />
         )}
 
-        {/* Modulos */}
-        <div className="px-2">
-          {mounted && !collapsed && (
-            <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest px-2 mb-1.5 mt-1">
-              Mis Modulos
-            </p>
-          )}
-          <nav className="space-y-0.5">
-            {testModules.map((item) => (
-              <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
-            ))}
-          </nav>
-        </div>
+        {/* Modulos dinamicos del JWT */}
+        {mounted && modules.length > 0 && (
+          <div className="px-2">
+            {!collapsed && (
+              <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest px-2 mb-1.5 mt-1">
+                Mis Modulos
+              </p>
+            )}
+            <nav className="space-y-0.5">
+              {modules.map((mod: any) => {
+                const slug = typeof mod === 'string' ? mod : mod.slug
+                const icon = typeof mod === 'string' ? null : mod.icon
+                const submodules = typeof mod === 'string' ? [] : (mod.submodules ?? [])
+                const moduleActive = isActive(`/app/${slug}`)
+                return (
+                  <div key={slug}>
+                    <NavLink
+                      item={{
+                        label: slug.charAt(0).toUpperCase() + slug.slice(1),
+                        href: `/app/${slug}`,
+                        icon: getModuleIcon(icon),
+                        isModule: true,
+                      }}
+                      active={moduleActive}
+                      collapsed={collapsed}
+                    />
+                    {!collapsed && submodules.length > 0 && (
+                      <div className="ml-4 border-l border-slate-200 pl-2 mt-0.5 space-y-0.5">
+                        {submodules.map((sub: any) => (
+                          <NavLink
+                            key={sub.slug}
+                            item={{
+                              label: sub.name ?? sub.slug.charAt(0).toUpperCase() + sub.slug.slice(1),
+                              href: `/app/${slug}/${sub.slug}`,
+                              icon: getModuleIcon(sub.icon),
+                              isModule: true,
+                            }}
+                            active={isActive(`/app/${slug}/${sub.slug}`)}
+                            collapsed={collapsed}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </nav>
+          </div>
+        )}
 
       </div>
 

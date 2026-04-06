@@ -94,6 +94,7 @@ class Submodule(BaseModelWithSoftDelete):
     module_id   = Column(UUID(as_uuid=True), ForeignKey("modules.id", ondelete="RESTRICT"), nullable=False)
     name        = Column(String(255), nullable=False)
     slug        = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
     icon        = Column(String(100), nullable=True)
     order       = Column(Integer, default=0, nullable=False)
     is_active   = Column(Boolean, default=True, nullable=False)

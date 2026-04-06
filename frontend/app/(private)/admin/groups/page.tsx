@@ -379,7 +379,7 @@ export default function GroupsPage() {
                     onClick={(e) => { e.stopPropagation(); openMenu(e, group.group_id) }}
                     className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
                   >
-                    <MoreHorizontal size={15} />
+                    <MoreHorizontal size={20} />
                   </button>
                 )}
 
@@ -446,7 +446,7 @@ export default function GroupsPage() {
                 if (g) setDetailGroup(g)
                 setOpenMenuId(null)
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-200 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-300 transition-colors"
             >
               <Eye size={14} className="text-slate-400" />
               Ver detalle
@@ -457,7 +457,7 @@ export default function GroupsPage() {
                 if (g) setEditingGroup(g)
                 setOpenMenuId(null)
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-200 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-300 transition-colors"
             >
               <Pencil size={14} className="text-slate-400" />
               Editar

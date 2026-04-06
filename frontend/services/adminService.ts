@@ -85,6 +85,29 @@ export const enableCompany = (companyId: string) =>
 export const disableCompany = (companyId: string) =>
   api.patch(`/api/v1/companies/${companyId}/disable`)
 
+// ── Modulos ──────────────────────────────────────────────────────────────────
+
+export const getModule = (moduleId: string) =>
+  api.get(`/api/v1/modules/${moduleId}`)
+
+export const createModule = (data: Record<string, any>) =>
+  api.post('/api/v1/modules/', data)
+
+export const updateModule = (moduleId: string, data: Record<string, any>) =>
+  api.patch(`/api/v1/modules/${moduleId}`, data)
+
+export const deleteModule = (moduleId: string) =>
+  api.delete(`/api/v1/modules/${moduleId}`)
+
+export const createSubmodule = (moduleId: string, data: Record<string, any>) =>
+  api.post(`/api/v1/modules/${moduleId}/submodules`, data)
+
+export const updateSubmodule = (moduleId: string, submoduleId: string, data: Record<string, any>) =>
+  api.patch(`/api/v1/modules/${moduleId}/submodules/${submoduleId}`, data)
+
+export const deleteSubmodule = (moduleId: string, submoduleId: string) =>
+  api.delete(`/api/v1/modules/${moduleId}/submodules/${submoduleId}`)
+
 // ── Roles globales ────────────────────────────────────────────────────────────
 
 export const getGlobalRoles = () =>

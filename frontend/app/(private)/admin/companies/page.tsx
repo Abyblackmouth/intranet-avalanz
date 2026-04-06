@@ -260,7 +260,7 @@ export default function CompaniesPage() {
                           onClick={(e) => { e.stopPropagation(); openMenu(e, company.company_id) }}
                           className="absolute top-2 right-2 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
                         >
-                          <MoreHorizontal size={15} />
+                          <MoreHorizontal size={20} />
                         </button>
                       )}
                       <div className="flex items-center gap-2 mb-2 pr-7">
