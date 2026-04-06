@@ -45,6 +45,15 @@ export default function Sidebar() {
   const pathname = usePathname()
   const { user, isAdmin, isSuperAdmin } = useAuthStore()
   const [collapsed, setCollapsed] = useState(false)
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
+
+  const toggleModule = (slug: string) => {
+    setExpandedModules(prev => {
+      const next = new Set(prev)
+      next.has(slug) ? next.delete(slug) : next.add(slug)
+      return next
+    })
+  }
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
@@ -124,19 +133,34 @@ export default function Sidebar() {
                 const icon = typeof mod === 'string' ? null : mod.icon
                 const submodules = typeof mod === 'string' ? [] : (mod.submodules ?? [])
                 const moduleActive = isActive(`/app/${slug}`)
+                const expanded = expandedModules.has(slug)
                 return (
                   <div key={slug}>
-                    <NavLink
-                      item={{
-                        label: slug.charAt(0).toUpperCase() + slug.slice(1),
-                        href: `/app/${slug}`,
-                        icon: getModuleIcon(icon),
-                        isModule: true,
-                      }}
-                      active={moduleActive}
-                      collapsed={collapsed}
-                    />
-                    {!collapsed && submodules.length > 0 && (
+                    <div
+                      className={`flex items-center rounded-lg transition-colors cursor-pointer group ${
+                        moduleActive ? 'bg-[#1a4fa0]' : 'hover:bg-slate-100'
+                      }`}
+                    >
+                      <Link
+                        href={`/app/${slug}`}
+                        className={`flex items-center gap-2.5 px-3 py-2 flex-1 min-w-0 text-sm font-medium ${
+                          moduleActive ? 'text-white' : 'text-slate-600'
+                        } ${collapsed ? 'justify-center' : ''}`}
+                        title={collapsed ? slug.charAt(0).toUpperCase() + slug.slice(1) : undefined}
+                      >
+                        <span className="shrink-0">{getModuleIcon(icon)}</span>
+                        {!collapsed && <span className="truncate">{slug.charAt(0).toUpperCase() + slug.slice(1)}</span>}
+                      </Link>
+                      {!collapsed && submodules.length > 0 && (
+                        <button
+                          onClick={() => toggleModule(slug)}
+                          className={`px-3 py-2 shrink-0 rounded-lg ${moduleActive ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                          <ChevronRight size={16} className={`transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+                    {!collapsed && expanded && submodules.length > 0 && (
                       <div className="ml-4 border-l border-slate-200 pl-2 mt-0.5 space-y-0.5">
                         {submodules.map((sub: any) => (
                           <NavLink

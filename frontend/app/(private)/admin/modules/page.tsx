@@ -124,6 +124,28 @@ function ModuleForm({
     }
   }
 
+  if (scaffoldDone) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-4 text-center">
+          <div className="p-3 bg-emerald-50 rounded-xl">
+            <CheckCircle2 size={32} className="text-emerald-500" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800 text-base mb-1">Módulo creado exitosamente</p>
+            <p className="text-sm text-slate-500">Cierra sesión y vuelve a entrar para verlo en el menú lateral.</p>
+          </div>
+          <button
+            onClick={onSaved}
+            className="px-6 py-2 text-sm font-medium bg-[#1a4fa0] text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -278,6 +300,7 @@ function SubmoduleForm({
   })
   const [isSaving, setIsSaving] = useState(false)
   const [scaffolding, setScaffolding] = useState(false)
+  const [scaffoldDone, setScaffoldDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {
@@ -313,7 +336,7 @@ function SubmoduleForm({
           new Promise(resolve => setTimeout(resolve, 5000)),
         ])
         setScaffolding(false)
-        onSaved()
+        setScaffoldDone(true)
       }
     } catch (err: any) {
       const msg = (err?.response?.data?.message ?? '') as string
@@ -321,6 +344,28 @@ function SubmoduleForm({
       setIsSaving(false)
       setScaffolding(false)
     }
+  }
+
+  if (scaffoldDone) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-4 text-center">
+          <div className="p-3 bg-emerald-50 rounded-xl">
+            <CheckCircle2 size={32} className="text-emerald-500" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800 text-base mb-1">Submódulo creado exitosamente</p>
+            <p className="text-sm text-slate-500">Cierra sesión y vuelve a entrar para verlo en el menú lateral.</p>
+          </div>
+          <button
+            onClick={onSaved}
+            className="px-6 py-2 text-sm font-medium bg-[#1a4fa0] text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
