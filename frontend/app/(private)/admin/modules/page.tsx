@@ -82,6 +82,7 @@ function ModuleForm({
   })
   const [isSaving, setIsSaving] = useState(false)
   const [scaffolding, setScaffolding] = useState(false)
+  const [scaffoldDone, setScaffoldDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {

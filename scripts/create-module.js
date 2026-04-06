@@ -329,14 +329,11 @@ function createSubmodule(moduleSlug, subSlug) {
   if (!fs.existsSync(beBase)) {
     console.warn(`  ! El backend "${moduleSlug}-service" no existe — solo se creó el frontend.`)
   } else {
-    write(
-      path.join(beBase, `app/routes/${subSlug.replace(/-/g,'_')}.py`),
-      backendSubRoute(moduleSlug, subSlug)
-    )
-    write(
-      path.join(beBase, `app/services/${subSlug.replace(/-/g,'_')}_service.py`),
-      backendSubService(moduleSlug, subSlug)
-    )
+    const subSlugClean = subSlug.replace(/-/g,'_')
+    write(path.join(beBase, `app/routes/${subSlugClean}/__init__.py`), backendSubRouteInit(moduleSlug, subSlug))
+    write(path.join(beBase, `app/routes/${subSlugClean}/${subSlugClean}.py`), backendSubRoute(moduleSlug, subSlug))
+    write(path.join(beBase, `app/services/${subSlugClean}/__init__.py`), backendSubServiceInit())
+    write(path.join(beBase, `app/services/${subSlugClean}/${subSlugClean}_service.py`), backendSubService(moduleSlug, subSlug))
   }
 
   console.log(`\nOK: Submódulo "${subSlug}" creado en "${moduleSlug}" exitosamente.`)
