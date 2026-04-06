@@ -78,6 +78,7 @@ function ModuleForm({
     order: module?.order ?? 0,
   })
   const [isSaving, setIsSaving] = useState(false)
+  const [scaffolding, setScaffolding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {
@@ -92,21 +93,34 @@ function ModuleForm({
           icon: form.icon.trim() || null,
           order: form.order,
         })
+        onSaved()
       } else {
-        await createModule({
+        const res = await createModule({
           company_id: form.company_id,
           name: form.name.trim(),
           description: form.description.trim() || null,
           icon: form.icon.trim() || null,
           order: form.order,
         })
+        const slug = res.data?.data?.slug ?? form.name.trim().toLowerCase().replace(/\s+/g, '-')
+        setIsSaving(false)
+        setScaffolding(true)
+        const [scaffoldResult] = await Promise.allSettled([
+          fetch('http://localhost:3002/scaffold/module', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slug }),
+          }),
+          new Promise(resolve => setTimeout(resolve, 5000)),
+        ])
+        setScaffolding(false)
+        onSaved()
       }
-      onSaved()
     } catch (err: any) {
       const msg = (err?.response?.data?.message ?? '') as string
       setError(msg.replace(/con slug '[^']*'/g, '').replace(/^Modulo\b/, 'El módulo') || 'No se pudo guardar')
-    } finally {
       setIsSaving(false)
+      setScaffolding(false)
     }
   }
 
@@ -220,7 +234,7 @@ function ModuleForm({
           </button>
           <button
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || scaffolding}
             className="px-5 py-2 text-sm font-medium bg-[#1a4fa0] text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
           >
             {isSaving && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
@@ -228,15 +242,30 @@ function ModuleForm({
           </button>
         </div>
       </div>
+
+      {/* Modal de progreso scaffold */}
+      {scaffolding && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-10 flex flex-col items-center gap-5 w-full max-w-sm mx-4">
+            <div className="w-14 h-14 border-4 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
+            <div className="text-center">
+              <p className="text-base font-semibold text-slate-800 mb-1">Creando módulo</p>
+              <p className="text-sm text-slate-400">Esto puede tomar unos segundos...</p>
+              <p className="text-xs text-slate-300 mt-2">Esto puede tomar unos segundos</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Modal submódulo ───────────────────────────────────────────────────────────
 function SubmoduleForm({
-  moduleId, submodule, onClose, onSaved,
+  moduleId, moduleSlug, submodule, onClose, onSaved,
 }: {
   moduleId: string
+  moduleSlug: string
   submodule?: SubmoduleRow
   onClose: () => void
   onSaved: () => void
@@ -248,6 +277,7 @@ function SubmoduleForm({
     order: submodule?.order ?? 0,
   })
   const [isSaving, setIsSaving] = useState(false)
+  const [scaffolding, setScaffolding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {
@@ -261,20 +291,35 @@ function SubmoduleForm({
           icon: form.icon.trim() || null,
           order: form.order,
         })
+        onSaved()
       } else {
-        await createSubmodule(moduleId, {
+        const res = await createSubmodule(moduleId, {
           name: form.name.trim(),
           description: form.description.trim() || null,
           icon: form.icon.trim() || null,
           order: form.order,
         })
+        const subSlug = res.data?.data?.slug ?? form.name.trim().toLowerCase().replace(/\s+/g, '-')
+        // Obtener slug del modulo padre
+        // moduleSlug viene como prop
+        setIsSaving(false)
+        setScaffolding(true)
+        await Promise.allSettled([
+          fetch('http://localhost:3002/scaffold/submodule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ moduleSlug: moduleSlug, subSlug }),
+          }),
+          new Promise(resolve => setTimeout(resolve, 5000)),
+        ])
+        setScaffolding(false)
+        onSaved()
       }
-      onSaved()
     } catch (err: any) {
       const msg = (err?.response?.data?.message ?? '') as string
       setError(msg.replace(/con slug '[^']*'/g, '') || 'No se pudo guardar')
-    } finally {
       setIsSaving(false)
+      setScaffolding(false)
     }
   }
 
@@ -366,7 +411,7 @@ function SubmoduleForm({
           </button>
           <button
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || scaffolding}
             className="px-5 py-2 text-sm font-medium bg-[#1a4fa0] text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
           >
             {isSaving && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
@@ -374,6 +419,20 @@ function SubmoduleForm({
           </button>
         </div>
       </div>
+
+      {/* Modal de progreso scaffold */}
+      {scaffolding && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-10 py-10 flex flex-col items-center gap-5 w-full max-w-sm mx-4">
+            <div className="w-14 h-14 border-4 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
+            <div className="text-center">
+              <p className="text-base font-semibold text-slate-800 mb-1">Creando submódulo</p>
+              <p className="text-sm text-slate-400">Esto puede tomar unos segundos...</p>
+              <p className="text-xs text-slate-300 mt-2">Esto puede tomar unos segundos</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -443,8 +502,8 @@ export default function ModulesPage() {
   const [deleteModuleError, setDeleteModuleError] = useState<string | null>(null)
 
   // Modales submódulo
-  const [addingSubmoduleToModule, setAddingSubmoduleToModule] = useState<string | null>(null)
-  const [editingSubmodule, setEditingSubmodule] = useState<{ moduleId: string; submodule: SubmoduleRow } | null>(null)
+  const [addingSubmoduleToModule, setAddingSubmoduleToModule] = useState<{ id: string; slug: string } | null>(null)
+  const [editingSubmodule, setEditingSubmodule] = useState<{ moduleId: string; moduleSlug: string; submodule: SubmoduleRow } | null>(null)
   const [deletingSubmodule, setDeletingSubmodule] = useState<{ moduleId: string; submodule: SubmoduleRow } | null>(null)
   const [isDeletingSubmodule, setIsDeletingSubmodule] = useState(false)
   const [deleteSubmoduleError, setDeleteSubmoduleError] = useState<string | null>(null)
@@ -642,7 +701,7 @@ export default function ModulesPage() {
                   {mounted && isSuperAdmin() && (
                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setAddingSubmoduleToModule(module.module_id) }}
+                        onClick={(e) => { e.stopPropagation(); setAddingSubmoduleToModule({ id: module.module_id, slug: module.slug }) }}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100 transition"
                       >
                         <Plus size={12} />
@@ -745,7 +804,7 @@ export default function ModulesPage() {
               onClick={() => {
                 for (const m of modules) {
                   const sub = m.submodules?.find(s => s.submodule_id === openSubMenuId)
-                  if (sub) { setEditingSubmodule({ moduleId: m.module_id, submodule: sub }); break }
+                  if (sub) { setEditingSubmodule({ moduleId: m.module_id, moduleSlug: m.slug, submodule: sub }); break }
                 }
                 setOpenSubMenuId(null)
               }}
@@ -785,7 +844,8 @@ export default function ModulesPage() {
       {/* Modal crear/editar submódulo */}
       {addingSubmoduleToModule && (
         <SubmoduleForm
-          moduleId={addingSubmoduleToModule}
+          moduleId={addingSubmoduleToModule.id}
+          moduleSlug={addingSubmoduleToModule.slug}
           onClose={() => setAddingSubmoduleToModule(null)}
           onSaved={() => { setAddingSubmoduleToModule(null); fetchData() }}
         />
@@ -794,6 +854,7 @@ export default function ModulesPage() {
       {editingSubmodule && (
         <SubmoduleForm
           moduleId={editingSubmodule.moduleId}
+          moduleSlug={editingSubmodule.moduleSlug}
           submodule={editingSubmodule.submodule}
           onClose={() => setEditingSubmodule(null)}
           onSaved={() => { setEditingSubmodule(null); fetchData() }}
