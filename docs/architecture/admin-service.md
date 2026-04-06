@@ -152,7 +152,8 @@ Group (Grupo Avalanz / Zignia)
 | module_id | UUID FK | Módulo al que pertenece |
 | name | String(255) | Nombre del submódulo |
 | slug | String(255) | Identificador único dentro del módulo |
-| icon | String(100) | Icono del submódulo |
+| description | Text | Descripción opcional |
+| icon | String(100) | Icono del submódulo (slug de Lucide) |
 | order | Integer | Orden de aparición |
 | is_active | Boolean | Si el submódulo está activo |
 
@@ -251,6 +252,14 @@ El `_serialize_user` en `user_service.py` combina datos de tres fuentes:
 | Eliminar empresa | Debe estar inactiva primero + no debe tener usuarios asociados |
 
 **Trazabilidad de eliminación:** La cadena obligatoria es: desactivar usuarios → desactivar empresa → eliminar empresa. No se puede saltar ningún paso.
+
+### Módulos y submódulos
+| Acción | Restricción |
+|---|---|
+| Eliminar módulo | Requiere clave de confirmación (`claves-admin.md`) — solo hace soft delete |
+| Super admin | Recibe todos los módulos activos automáticamente en el JWT |
+| JWT módulos | Formato: `{ slug, icon, submodules: [{ slug, icon, name }] }` |
+| Código en filesystem | No se elimina al hacer soft delete — debe eliminarse manualmente vía git |
 
 ---
 
@@ -563,57 +572,4 @@ uvicorn app.main:app --reload --port 8002
 El servicio queda disponible en `http://localhost:8002`
 La documentación interactiva en `http://localhost:8002/docs` (solo en DEBUG=True)
 
----
 
-## Módulos y Submódulos
-
-### Endpoints de módulos
-
-| Método | Ruta | Rol requerido | Descripción |
-|---|---|---|---|
-| POST | `/api/v1/modules/` | super_admin | Crear módulo |
-| GET | `/api/v1/modules/` | cualquier usuario | Listar módulos |
-| GET | `/api/v1/modules/{module_id}` | cualquier usuario | Obtener módulo con submódulos |
-| PATCH | `/api/v1/modules/{module_id}` | super_admin | Actualizar módulo |
-| DELETE | `/api/v1/modules/{module_id}` | super_admin | Soft delete de módulo |
-
-### Endpoints de submódulos
-
-| Método | Ruta | Rol requerido | Descripción |
-|---|---|---|---|
-| POST | `/api/v1/modules/{module_id}/submodules` | super_admin | Crear submódulo |
-| PATCH | `/api/v1/modules/{module_id}/submodules/{submodule_id}` | super_admin | Actualizar submódulo |
-| DELETE | `/api/v1/modules/{module_id}/submodules/{submodule_id}` | super_admin | Soft delete de submódulo |
-
-### Tabla modules
-
-| Campo | Tipo | Descripción |
-|---|---|---|
-| id | UUID | Identificador único |
-| company_id | UUID | Empresa a la que pertenece |
-| name | String | Nombre del módulo |
-| slug | String | Identificador único en URL |
-| description | Text | Descripción opcional |
-| icon | String | Slug del ícono de Lucide |
-| order | Integer | Orden en el menú lateral |
-| is_active | Boolean | Si el módulo está activo |
-
-### Tabla submodules
-
-| Campo | Tipo | Descripción |
-|---|---|---|
-| id | UUID | Identificador único |
-| module_id | UUID | Módulo al que pertenece |
-| name | String | Nombre del submódulo |
-| slug | String | Identificador único dentro del módulo |
-| description | Text | Descripción opcional |
-| icon | String | Slug del ícono de Lucide |
-| order | Integer | Orden en el menú lateral |
-| is_active | Boolean | Si el submódulo está activo |
-
-### Reglas de trazabilidad
-
-- El super_admin recibe automáticamente todos los módulos activos en el JWT — no requiere asignación manual
-- Los módulos se incluyen en el JWT como `{ slug, icon, submodules: [{ slug, icon, name }] }`
-- Al eliminar un módulo se hace soft delete — el código en filesystem NO se elimina
-- La eliminación de un módulo requiere clave de confirmación (`TF9DX4-2JAQSJ-61FVM6-0QB1AK`, ver `claves-admin.md`)
