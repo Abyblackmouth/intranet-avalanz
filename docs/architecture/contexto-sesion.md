@@ -10,17 +10,17 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 5. docs/architecture/auth-service.md
 6. docs/architecture/admin-service.md
 7. docs/architecture/frontend.md
-8. docs/architecture/docker-levantamiento.md
-9. La guía específica del módulo en el que se va a trabajar
-
-
+8. docs/architecture/modulos-submodulos.md
+9. docs/architecture/docker-levantamiento.md
+10. La guía específica del módulo en el que se va a trabajar
 
 ---
 
 ## Estado actual del proyecto
 
-**Rama activa:** `feature/email-service`
-**Última actividad:** 2026-04-03
+**Rama activa:** `develop`
+**Próxima rama:** `feature/admin-roles-permissions`
+**Última actividad:** 2026-04-06
 
 ---
 
@@ -42,7 +42,7 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 - Reseteo de contraseña funcional — modal con validación, correo al usuario, is_temp_password activado
 - Eliminación de usuario funcional — soft delete con is_deleted y deleted_at
 - Cron de limpieza diaria de login_history y user_sessions con respaldo CSV
-- Alembic configurado en admin-service con 3 migraciones aplicadas
+- Alembic configurado en admin-service con 3 migraciones aplicadas (última: 951e0445379d)
 - Alembic configurado en auth-service con 1 migración aplicada (lock_type)
 - Endpoints internos en auth-service: create, info, batch-info, sessions, login-history, lock, reset-password
 - Servicio de correo conectado con Mailpit en desarrollo:
@@ -53,45 +53,89 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 - Campo lock_type en auth-service: diferencia bloqueo manual vs intentos fallidos
 - Mensajes de bloqueo diferenciados en el login
 - Recuperación de contraseña bloqueada para usuarios bloqueados manualmente
+- Panel admin — módulo de empresas completo:
+  - Tarjetas por grupo con toggle activa/inactiva sin parpadeo
+  - Alta manual y carga automática desde constancia SAT (pdfjs-dist, sin almacenar archivo)
+  - Edición con tab de constancia SAT — valida RFC, carga solo domicilio y fechas
+  - Vista detalle — panel lateral con info, domicilio y vigencia de constancia
+  - Eliminar con trazabilidad: debe estar inactiva y sin usuarios + clave de confirmación
+  - Campos domicilio fiscal: calle, num_ext, num_int, colonia, cp, municipio, estado
+  - Campos vigencia constancia SAT: constancia_fecha_emision, constancia_fecha_vigencia
+  - RFC y razón social editables solo por super_admin
+- Panel admin — módulo de grupos completo:
+  - Tarjetas con stats (total/activas empresas), toggle activo/inactivo
+  - CRUD completo con panel de detalle lateral mostrando empresas del grupo
+  - Trazabilidad: no se puede desactivar con empresas activas, no eliminar con empresas asociadas
+- Panel admin — módulo de módulos y submódulos completo:
+  - Lista expandible con íconos dinámicos (100 íconos de Lucide)
+  - Selector de íconos en grid 5×4 con scroll
+  - CRUD completo de módulos y submódulos
+  - Scaffold automático al guardar: genera estructura de archivos frontend y backend
+  - Modal de progreso mínimo 5 segundos con mensaje de cierre de sesión
+  - Clave de confirmación para eliminar módulos (ver claves-admin.md)
+  - Soft delete en BD — código en filesystem NO se elimina
+- Sidebar dinámico:
+  - Módulos leídos del JWT con íconos y submódulos
+  - Submódulos anidados colapsables por módulo
+  - Super admin recibe todos los módulos activos automáticamente sin asignación manual
+- Scripts de desarrollo:
+  - `scripts/create-module.js` — genera estructura de módulo o submódulo manualmente
+  - `scripts/scaffold-server.js` — webhook en puerto 3002 para scaffold automático (solo desarrollo)
 
 ---
 
-## Rama activa: feature/admin-companies-groups
+## Próxima rama: feature/admin-roles-permissions
 
-### Completado en esta rama
-- Panel de empresas con tarjetas por grupo, búsqueda, toggle activa/inactiva
-- Alta de empresa manual y carga automática desde constancia SAT (pdfjs-dist, sin almacenar archivo)
-- Editar empresa con validación de RFC y razón social solo para super_admin
-- Actualización de constancia SAT en edición — valida RFC, carga solo domicilio y fechas
-- Vista detalle de empresa — panel lateral con info, domicilio y vigencia de constancia
-- Eliminar empresa con trazabilidad: debe estar inactiva y sin usuarios
-- Campos de domicilio fiscal en companies: calle, num_ext, num_int, colonia, cp, municipio, estado
-- Campos de vigencia de constancia SAT: constancia_fecha_emision, constancia_fecha_vigencia
-- Migración 951e0445379d aplicada en admin-service
-- Filtro de empresas inactivas en selectores de usuario (UserForm, page usuarios)
-- Hover y bordes mejorados en menús de 3 puntos (companies y users)
+### Objetivo
+Implementar el CRUD completo de Roles Globales, Roles de Módulo, Permisos Globales y Permisos de Submódulo. Es el último módulo de administración antes de pasar a los módulos operativos.
 
-### Completado en esta rama (continuación)
-- Módulos y submódulos CRUD completo con selector de íconos (100 íconos)
-- Scaffold server — genera estructura de archivos al crear módulo/submódulo
-- Sidebar dinámico con módulos y submódulos colapsables desde JWT
-- Super admin recibe todos los módulos activos automáticamente en JWT
-- Modal de progreso al crear módulo/submódulo (mínimo 5 segundos)
-- Clave de confirmación para eliminar módulos (`claves-admin.md`)
-- Script generador `scripts/create-module.js`
-- Scaffold server `scripts/scaffold-server.js` en puerto 3002
+### Plan de trabajo
 
-### Pendiente en esta rama
-- Roles y Permisos (CRUD)
-- Merge feature/admin-companies-groups → develop
+**Roles Globales (`/admin/roles`)**
+- Listar roles globales con tarjetas
+- Crear rol global (nombre, descripción)
+- Editar rol global
+- Eliminar rol global (soft delete)
+- Ver detalle: nombre, descripción, permisos asignados
+- Asignar/quitar permisos globales a un rol
 
----
+**Roles de Módulo**
+- Listar roles por módulo
+- Crear rol de módulo
+- Editar rol de módulo
+- Eliminar rol de módulo
+- Asignar/quitar permisos de submódulo a un rol de módulo
 
-## Próximos módulos admin pendientes
+**Permisos Globales (`/admin/permissions`)**
+- Listar permisos globales agrupados por categoría
+- Crear permiso global (nombre, descripción, categoría)
+- Editar permiso global
+- Eliminar permiso global
 
-- Grupos (CRUD)
-- Módulos y submódulos
-- Roles y permisos
+**Permisos de Submódulo**
+- Listar permisos por submódulo
+- Crear permiso de submódulo (leer, escribir, eliminar, etc.)
+- Editar permiso
+- Eliminar permiso
+- Vista árbol: módulo → submódulo → permisos
+
+**Integración con usuarios**
+- Al asignar acceso de módulo a usuario, poder elegir el rol de módulo
+- Ver permisos efectivos del usuario en el detalle
+
+### Archivos a crear/modificar
+```
+frontend/app/(private)/admin/roles/page.tsx         → CRUD roles globales + módulo
+frontend/app/(private)/admin/permissions/page.tsx   → CRUD permisos globales + submódulo
+frontend/services/adminService.ts                   → funciones de roles y permisos
+frontend/types/role.types.ts                        → tipos de roles y permisos
+```
+
+### Backend ya existente — solo falta el frontend
+- `backend/admin-service/app/routes/roles.py`
+- `backend/admin-service/app/routes/permissions.py`
+- `backend/admin-service/app/services/role_service.py`
+- `backend/admin-service/app/services/permission_service.py`
 
 ---
 
@@ -109,6 +153,11 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 - Guías van a docs/architecture/
 - Al modificar backend: copiar al contenedor y reiniciar el servicio
 - Commits siempre en inglés
+- Bordes siempre `border-slate-300`, cards con `shadow-md hover:shadow-xl hover:border-[#1a4fa0]`
+- Botones primarios: `bg-[#1a4fa0] hover:bg-blue-700`
+- Hover menús: gris `slate-300`, rojo `red-200`
+- Menús flotantes: `border-2 border-slate-300 shadow-2xl`
+- `MoreHorizontal size={20}` en todos los menús de 3 puntos
 
 ---
 
@@ -127,13 +176,21 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 - Mailpit para desarrollo: UI en http://localhost:8025, SMTP en mailpit:1025
 - Mailpit debe estar conectado a la red Docker: docker network connect docker_avalanz-network mailpit
 - MAX_FAILED_ATTEMPTS = 3 en auth-service/app/config.py
+- Módulos en JWT: `{ slug, icon, submodules: [{ slug, icon, name }] }`
+- Super admin recibe todos los módulos activos automáticamente en JWT — no requiere asignación manual
+- Scaffold server corre en puerto 3002 (3001 ocupado por Grafana)
+- Clave eliminación módulos: TF9DX4-2JAQSJ-61FVM6-0QB1AK (ver claves-admin.md)
+- `turbopack.root` configurado en next.config.ts para resolver Tailwind en WSL2
 
 ---
 
 ## Estructura del proyecto
+
 ```
 intranet-avalanz/
 ├── backend/
+│   ├── modules/                 → Módulos operativos generados con scaffold
+│   │   └── [modulo]-service/    → Ej: legal-service, boveda-service
 │   ├── admin-service/           → CRUD usuarios, empresas, grupos, módulos, roles, permisos
 │   │   ├── app/
 │   │   │   ├── models/admin_models.py
@@ -155,14 +212,16 @@ intranet-avalanz/
 │   │   └── (private)/
 │   │       ├── admin/           → users, companies, groups, modules, roles, permissions
 │   │       └── app/             → módulos operativos dinámicos
+│   │           └── [modulo]/    → layout.tsx + page.tsx + [submodulo]/page.tsx
 │   ├── components/
 │   │   ├── admin/
 │   │   │   ├── users/           → UserTable, UserForm, UserEditForm, UserDetail, UserModuleAccess
-│   │   │   ├── companies/       → CompanyTable, CompanyForm
-│   │   │   ├── groups/          → GroupTable, GroupForm
-│   │   │   ├── modules/         → ModuleTable, ModuleForm, SubmoduleForm
+│   │   │   ├── companies/       → CompanyForm, CompanyEditForm, CompanyDetail
+│   │   │   ├── groups/          → (inline en page)
+│   │   │   ├── modules/         → (inline en page)
 │   │   │   ├── permissions/     → PermissionForm, PermissionTree
 │   │   │   └── roles/           → RoleTable, RoleForm
+│   │   ├── app/                 → Componentes de módulos operativos por módulo
 │   │   ├── auth/                → AuthProvider, LoginForm, ChangePasswordForm, Setup2FAForm, ResetPasswordForm
 │   │   ├── layout/              → Sidebar, Header, Breadcrumb, PageWrapper
 │   │   ├── notifications/       → NotificationBell, NotificationList
@@ -172,6 +231,10 @@ intranet-avalanz/
 │   ├── store/                   → authStore, notificationStore, uiStore
 │   ├── types/                   → api.types, auth.types, company.types, module.types, user.types
 │   └── lib/                     → constants, formatters, utils, validators
+│
+├── scripts/
+│   ├── create-module.js         → Generador de estructura para módulos y submódulos
+│   └── scaffold-server.js       → Webhook para scaffold automático (solo desarrollo, puerto 3002)
 │
 ├── infrastructure/
 │   ├── cron/                    → Dockerfile, entrypoint.sh, cleanup.sh, rotate_backups.sh
