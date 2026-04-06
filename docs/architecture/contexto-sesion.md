@@ -71,7 +71,18 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 - Filtro de empresas inactivas en selectores de usuario (UserForm, page usuarios)
 - Hover y bordes mejorados en menús de 3 puntos (companies y users)
 
+### Completado en esta rama (continuación)
+- Módulos y submódulos CRUD completo con selector de íconos (100 íconos)
+- Scaffold server — genera estructura de archivos al crear módulo/submódulo
+- Sidebar dinámico con módulos y submódulos colapsables desde JWT
+- Super admin recibe todos los módulos activos automáticamente en JWT
+- Modal de progreso al crear módulo/submódulo (mínimo 5 segundos)
+- Clave de confirmación para eliminar módulos (`claves-admin.md`)
+- Script generador `scripts/create-module.js`
+- Scaffold server `scripts/scaffold-server.js` en puerto 3002
+
 ### Pendiente en esta rama
+- Roles y Permisos (CRUD)
 - Merge a develop
 
 ---

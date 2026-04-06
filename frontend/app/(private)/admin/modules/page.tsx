@@ -18,6 +18,9 @@ import {
   createSubmodule, updateSubmodule, deleteSubmodule,
 } from '@/services/adminService'
 
+// ── Clave de eliminacion de modulos ─────────────────────────────────────────────
+const MODULE_DELETE_KEY = 'TF9DX4-2JAQSJ-61FVM6-0QB1AK'
+
 // ── Iconos disponibles ────────────────────────────────────────────────────────
 const ICONS = [
   // Legal y jurídico
@@ -484,7 +487,7 @@ function SubmoduleForm({
 
 // ── Modal confirmar eliminación ───────────────────────────────────────────────
 function ConfirmDelete({
-  title, description, onClose, onConfirm, isLoading, error,
+  title, description, onClose, onConfirm, isLoading, error, requireKey = false,
 }: {
   title: string
   description: string
@@ -492,7 +495,21 @@ function ConfirmDelete({
   onConfirm: () => void
   isLoading: boolean
   error: string | null
+  requireKey?: boolean
 }) {
+  const [key, setKey] = useState('')
+  const [keyError, setKeyError] = useState<string | null>(null)
+
+  const handleConfirm = () => {
+    if (requireKey) {
+      if (key.trim().toUpperCase() !== MODULE_DELETE_KEY) {
+        setKeyError('Clave incorrecta')
+        return
+      }
+    }
+    onConfirm()
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -503,6 +520,21 @@ function ConfirmDelete({
           <h2 className="font-semibold text-slate-800">{title}</h2>
         </div>
         <p className="text-sm text-slate-600 mb-4">{description}</p>
+        {requireKey && (
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Clave de confirmación
+            </label>
+            <input
+              type="text"
+              value={key}
+              onChange={(e) => { setKey(e.target.value.toUpperCase()); setKeyError(null) }}
+              placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX"
+              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm font-mono text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
+            />
+            {keyError && <p className="text-xs text-red-500 mt-1">{keyError}</p>}
+          </div>
+        )}
         {error && (
           <div className="mb-4 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
         )}
@@ -511,7 +543,7 @@ function ConfirmDelete({
             Cancelar
           </button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
             disabled={isLoading}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
@@ -915,6 +947,7 @@ export default function ModulesPage() {
           onConfirm={handleDeleteModule}
           isLoading={isDeletingModule}
           error={deleteModuleError}
+          requireKey
         />
       )}
 
