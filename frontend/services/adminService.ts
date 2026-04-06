@@ -50,6 +50,15 @@ export const resetUserPassword = (userId: string, newPassword: string) =>
 export const getGroups = (params?: Record<string, string | number | boolean>) =>
   api.get('/api/v1/groups/', { params })
 
+export const createGroup = (data: Record<string, any>) =>
+  api.post('/api/v1/groups/', data)
+
+export const updateGroup = (groupId: string, data: Record<string, any>) =>
+  api.patch(`/api/v1/groups/${groupId}`, data)
+
+export const deleteGroup = (groupId: string) =>
+  api.delete(`/api/v1/groups/${groupId}`)
+
 export const enableGroup = (groupId: string) =>
   api.patch(`/api/v1/groups/${groupId}/enable`)
 
