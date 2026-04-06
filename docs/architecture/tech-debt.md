@@ -61,8 +61,5 @@ Este archivo documenta mejoras pendientes que no son fallas críticas pero impac
 **Cambio requerido:** Investigar opciones: mover `.next/dev` a un directorio en el filesystem nativo de Linux, evaluar si eliminar el `package.json` raíz mejora la situación, o configurar `turbopack.root` más específicamente.
 **Impacto:** DX — el desarrollo es más lento de lo esperado en WSL2.
 
-### Refresh automático del JWT al crear módulo
-**Archivo:** `frontend/app/(private)/admin/modules/page.tsx`
-**Descripción:** Al crear un módulo o submódulo, el sidebar no se actualiza hasta que el usuario cierra sesión y vuelve a entrar porque el JWT no se refresca automáticamente.
-**Solución:** Después del scaffold, llamar al endpoint de refresh de token y actualizar el authStore con el nuevo JWT que ya incluye el módulo recién creado.
-**Impacto:** UX — el usuario tiene que reiniciar sesión para ver el nuevo módulo en el sidebar.
+### Refresh del JWT al crear módulo
+**Decisión tomada:** El usuario cierra sesión manualmente después de crear un módulo. El modal de confirmación post-scaffold indica claramente que debe cerrar sesión para ver el módulo en el sidebar. No se implementará refresh automático por simplicidad y seguridad.

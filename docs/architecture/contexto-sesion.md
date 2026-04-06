@@ -83,7 +83,7 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 
 ### Pendiente en esta rama
 - Roles y Permisos (CRUD)
-- Merge a develop
+- Merge feature/admin-companies-groups → develop
 
 ---
 
