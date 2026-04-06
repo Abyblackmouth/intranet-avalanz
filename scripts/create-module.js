@@ -255,8 +255,13 @@ async def list_${subSlug.replace(/-/g,'_')}():
     return {"data": [], "message": "Listado de ${toTitle(subSlug)}"}
 `
 
+const backendSubRouteInit = (moduleSlug, subSlug) => `from app.routes.${subSlug.replace(/-/g,'_')} import ${subSlug.replace(/-/g,'_')}
+`
+
 const backendSubService = (moduleSlug, subSlug) => `# ${toTitle(subSlug)} service — lógica de negocio del submódulo
 `
+
+const backendSubServiceInit = () => ``
 
 // ── Crear módulo ──────────────────────────────────────────────────────────────
 
@@ -337,7 +342,7 @@ function createSubmodule(moduleSlug, subSlug) {
   console.log(`\nOK: Submódulo "${subSlug}" creado en "${moduleSlug}" exitosamente.`)
   console.log(`\nPróximos pasos:`)
   console.log(`   1. Da de alta el submódulo en el admin: /admin/modules`)
-  console.log(`   2. Importa el router en backend/modules/${moduleSlug}-service/app/routes/__init__.py`)
+  console.log(`   2. Importa el router en backend/modules/${moduleSlug}-service/app/main.py`)
   console.log(`   3. Desarrolla la lógica en los archivos generados`)
 }
 
