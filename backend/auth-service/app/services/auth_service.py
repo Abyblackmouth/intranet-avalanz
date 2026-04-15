@@ -53,6 +53,7 @@ async def build_token_payload(user: User) -> Dict[str, Any]:
         "modules": perms.get("modules", []),
         "companies": perms.get("companies", []),
         "permissions": perms.get("permissions", []),
+        "cross_company": perms.get("cross_company", False),
     }
 
 
