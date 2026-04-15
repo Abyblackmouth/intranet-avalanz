@@ -63,3 +63,15 @@ Este archivo documenta mejoras pendientes que no son fallas críticas pero impac
 
 ### Refresh del JWT al crear módulo
 **Decisión tomada:** El usuario cierra sesión manualmente después de crear un módulo. El modal de confirmación post-scaffold indica claramente que debe cerrar sesión para ver el módulo en el sidebar. No se implementará refresh automático por simplicidad y seguridad.
+
+### TypeScript — role_id no existe en tipo GlobalRole y ModuleRole en UserForm
+**Archivo:** `frontend/components/admin/users/UserForm.tsx`
+**Descripción:** El componente usa `r.role_id` y `r.id` indistintamente para acceder al ID de roles globales y de módulo. Los tipos `GlobalRole` y `ModuleRole` no tienen definido el campo `role_id` — el type checker los rechaza.
+**Cambio requerido:** Actualizar los tipos en `role.types.ts` para asegurar consistencia en el nombre del campo ID, y ajustar `UserForm.tsx` para usar el campo correcto.
+**Impacto:** TypeScript — no bloquea el build de producción pero genera errores en `tsc --noEmit`.
+
+### TypeScript — pages de rutas dinámicas [id] no son módulos válidos
+**Archivos:** `frontend/app/(private)/admin/companies/[id]/page.tsx`, `groups/[id]/page.tsx`, `modules/[id]/page.tsx`, `users/[id]/page.tsx`, `app/[module]/[submodule]/page.tsx`
+**Descripción:** El validador de tipos de Next.js `.next/dev/types/validator.ts` reporta que estas páginas no exportan un módulo válido. Las páginas dinámicas requieren un `export default` correctamente tipado con los props de params.
+**Cambio requerido:** Verificar que cada página dinámica tenga `export default function Page({ params }: { params: { id: string } })` o el tipo de params correspondiente.
+**Impacto:** TypeScript — no bloquea el build pero genera ruido en el output de `tsc --noEmit`.
