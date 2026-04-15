@@ -29,11 +29,14 @@ class UpdateGlobalRoleRequest(BaseModel):
 class CreateModuleRoleRequest(BaseModel):
     name: str
     description: Optional[str] = None
+    scope: str = "empresa"
+    module_id: Optional[str] = None
 
 
 class UpdateModuleRoleRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    scope: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -112,45 +115,66 @@ async def assign_permission_to_global_role(
         permission_id=body.permission_id,
         requested_by=payload,
     )
-    return BaseResponse(success=True, message="Permiso asignado al rol global exitosamente")
+    return BaseResponse(success=True, message="Permiso asignado al rol global")
 
 
-# ── Roles por modulo ──────────────────────────────────────────────────────────
+@router.delete("/global/{role_id}/permissions/{permission_id}", response_model=BaseResponse)
+async def remove_permission_from_global_role(
+    role_id: str,
+    permission_id: str,
+    db: AsyncSession = Depends(get_db),
+    payload=Depends(validator.require_roles(["super_admin"])),
+):
+    await role_service.remove_permission_from_global_role(
+        db=db,
+        role_id=role_id,
+        permission_id=permission_id,
+        requested_by=payload,
+    )
+    return BaseResponse(success=True, message="Permiso removido del rol global")
 
-@router.post("/modules/{module_id}", response_model=CreatedResponse)
+
+# ── Roles operativos ──────────────────────────────────────────────────────────
+
+@router.post("/operational", response_model=CreatedResponse)
 async def create_module_role(
-    module_id: str,
     body: CreateModuleRoleRequest,
     db: AsyncSession = Depends(get_db),
     payload=Depends(validator.require_roles(["super_admin"])),
 ):
     result = await role_service.create_module_role(
         db=db,
-        module_id=module_id,
         name=body.name,
         description=body.description,
+        scope=body.scope,
+        module_id=body.module_id,
         requested_by=payload,
     )
     return CreatedResponse(data=result)
 
 
-@router.get("/modules/{module_id}", response_model=DataResponse)
+@router.get("/operational", response_model=DataResponse)
 async def list_module_roles(
-    module_id: str,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    module_id: Optional[str] = Query(None),
+    scope: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     payload=Depends(validator.require_roles(["super_admin", "admin_empresa"])),
 ):
     result = await role_service.list_module_roles(
-        db=db, module_id=module_id, page=page, per_page=per_page, requested_by=payload
+        db=db,
+        page=page,
+        per_page=per_page,
+        module_id=module_id,
+        scope=scope,
+        requested_by=payload,
     )
-    return DataResponse(success=True, message="Roles del modulo obtenidos", data=result)
+    return DataResponse(success=True, message="Roles operativos obtenidos", data=result)
 
 
-@router.patch("/modules/{module_id}/{role_id}", response_model=DataResponse)
+@router.patch("/operational/{role_id}", response_model=DataResponse)
 async def update_module_role(
-    module_id: str,
     role_id: str,
     body: UpdateModuleRoleRequest,
     db: AsyncSession = Depends(get_db),
@@ -161,15 +185,15 @@ async def update_module_role(
         role_id=role_id,
         name=body.name,
         description=body.description,
+        scope=body.scope,
         is_active=body.is_active,
         requested_by=payload,
     )
-    return DataResponse(success=True, message="Rol de modulo actualizado", data=result)
+    return DataResponse(success=True, message="Rol operativo actualizado", data=result)
 
 
-@router.delete("/modules/{module_id}/{role_id}", response_model=DeletedResponse)
+@router.delete("/operational/{role_id}", response_model=DeletedResponse)
 async def delete_module_role(
-    module_id: str,
     role_id: str,
     db: AsyncSession = Depends(get_db),
     payload=Depends(validator.require_roles(["super_admin"])),
@@ -178,9 +202,8 @@ async def delete_module_role(
     return DeletedResponse()
 
 
-@router.post("/modules/{module_id}/{role_id}/permissions", response_model=BaseResponse)
+@router.post("/operational/{role_id}/permissions", response_model=BaseResponse)
 async def assign_permission_to_module_role(
-    module_id: str,
     role_id: str,
     body: AssignPermissionRequest,
     db: AsyncSession = Depends(get_db),
@@ -192,4 +215,20 @@ async def assign_permission_to_module_role(
         permission_id=body.permission_id,
         requested_by=payload,
     )
-    return BaseResponse(success=True, message="Permiso asignado al rol de modulo exitosamente")
+    return BaseResponse(success=True, message="Permiso asignado al rol operativo")
+
+
+@router.delete("/operational/{role_id}/permissions/{permission_id}", response_model=BaseResponse)
+async def remove_permission_from_module_role(
+    role_id: str,
+    permission_id: str,
+    db: AsyncSession = Depends(get_db),
+    payload=Depends(validator.require_roles(["super_admin"])),
+):
+    await role_service.remove_permission_from_module_role(
+        db=db,
+        role_id=role_id,
+        permission_id=permission_id,
+        requested_by=payload,
+    )
+    return BaseResponse(success=True, message="Permiso removido del rol operativo")
