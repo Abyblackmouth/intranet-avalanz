@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { X, User, Mail, Hash, Briefcase, Building2, Shield, Layers, ChevronDown, ChevronUp } from 'lucide-react'
-import { createUser } from '@/services/adminService'
-import { getCompanies } from '@/services/adminService'
-import { getGlobalRoles } from '@/services/adminService'
-import { getModules, getModuleRoles } from '@/services/adminService'
+import { createUser, getCompanies, getGlobalRoles, getModules } from '@/services/adminService'
+import { getOperationalRoles } from '@/services/roleService'
 import { useAuthStore } from '@/store/authStore'
 import { CreateUserPayload } from '@/types/user.types'
 
@@ -20,33 +18,34 @@ interface Company {
 }
 
 interface GlobalRole {
-  id: string
+  role_id: string
   name: string
   slug: string
 }
 
 interface Module {
-  id: string
+  module_id: string
   name: string
   slug: string
 }
 
-interface ModuleRole {
-  id: string
+interface OperationalRole {
+  role_id: string
   name: string
   slug: string
+  scope: 'empresa' | 'corporativo'
 }
 
 interface ModuleAccess {
   module_id: string
   module_name: string
   role_id: string
+  role_name: string
 }
 
 export default function UserForm({ onClose, onSuccess }: UserFormProps) {
   const { isSuperAdmin } = useAuthStore()
 
-  // Datos del formulario
   const [form, setForm] = useState({
     company_id: '',
     email: '',
@@ -58,18 +57,15 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
     global_role_id: '',
   })
 
-  // Modulos seleccionados
   const [moduleAccesses, setModuleAccesses] = useState<ModuleAccess[]>([])
   const [selectedModuleId, setSelectedModuleId] = useState('')
   const [selectedRoleId, setSelectedRoleId] = useState('')
-  const [moduleRoles, setModuleRoles] = useState<ModuleRole[]>([])
 
-  // Datos del API
   const [companies, setCompanies] = useState<Company[]>([])
   const [globalRoles, setGlobalRoles] = useState<GlobalRole[]>([])
   const [modules, setModules] = useState<Module[]>([])
+  const [operationalRoles, setOperationalRoles] = useState<OperationalRole[]>([])
 
-  // UI
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [showModules, setShowModules] = useState(false)
@@ -77,38 +73,22 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [companiesRes, rolesRes, modulesRes] = await Promise.all([
+        const [companiesRes, rolesRes, modulesRes, opRolesRes] = await Promise.all([
           getCompanies({ per_page: 100, is_active: true }),
           getGlobalRoles(),
           getModules(),
+          getOperationalRoles({ per_page: 100 }),
         ])
         setCompanies(companiesRes.data.data.data || [])
         setGlobalRoles(rolesRes.data.data.data || rolesRes.data.data || [])
         setModules(modulesRes.data.data.data || modulesRes.data.data || [])
+        setOperationalRoles(opRolesRes.data.data.data || [])
       } catch {
         setError('Error al cargar datos del formulario')
       }
     }
     loadData()
   }, [])
-
-  useEffect(() => {
-    if (!selectedModuleId) {
-      setModuleRoles([])
-      setSelectedRoleId('')
-      return
-    }
-    const loadRoles = async () => {
-      try {
-        const res = await getModuleRoles(selectedModuleId)
-        setModuleRoles(res.data.data.data || res.data.data || [])
-        setSelectedRoleId('')
-      } catch {
-        setModuleRoles([])
-      }
-    }
-    loadRoles()
-  }, [selectedModuleId])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -122,13 +102,16 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
     if (!selectedModuleId || !selectedRoleId) return
     if (moduleAccesses.find(a => a.module_id === selectedModuleId)) return
 
-    const module = modules.find(m => m.id === selectedModuleId)
+    const module = modules.find(m => m.module_id === selectedModuleId)
+    const role = operationalRoles.find(r => r.role_id === selectedRoleId)
+
     setModuleAccesses(prev => [
       ...prev,
       {
         module_id: selectedModuleId,
         module_name: module?.name || '',
         role_id: selectedRoleId,
+        role_name: role?.name || '',
       },
     ])
     setSelectedModuleId('')
@@ -175,18 +158,15 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
   }
 
   const availableModules = modules.filter(
-    m => !moduleAccesses.find(a => a.module_id === m.id)
+    m => !moduleAccesses.find(a => a.module_id === m.module_id)
   )
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end">
-      {/* Overlay */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-      {/* Drawer */}
       <div className="relative w-full max-w-lg h-full bg-white shadow-2xl flex flex-col overflow-hidden">
 
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Nuevo usuario</h2>
@@ -200,7 +180,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
           </button>
         </div>
 
-        {/* Formulario */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
           {error && (
@@ -209,7 +188,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             </div>
           )}
 
-          {/* Empresa */}
           {isSuperAdmin() && (
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
@@ -232,8 +210,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             </div>
           )}
 
-
-          {/* Matricula */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Matrícula / No. empleado
@@ -250,7 +226,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
               />
             </div>
           </div>
-          {/* Nombre completo */}
+
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Nombre completo <span className="text-red-500">*</span>
@@ -268,7 +244,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             </div>
           </div>
 
-          {/* Email */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Correo electrónico <span className="text-red-500">*</span>
@@ -286,9 +261,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             </div>
           </div>
 
-
-
-          {/* Puesto y Departamento en fila */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
@@ -324,7 +296,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             </div>
           </div>
 
-          {/* Rol global */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Rol global
@@ -345,7 +316,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             </div>
           </div>
 
-          {/* Modulos */}
           <div>
             <button
               type="button"
@@ -366,8 +336,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
 
             {showModules && (
               <div className="mt-3 space-y-3">
-
-                {/* Modulos asignados */}
                 {moduleAccesses.length > 0 && (
                   <div className="space-y-2">
                     {moduleAccesses.map(access => (
@@ -377,9 +345,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
                       >
                         <div>
                           <p className="text-sm font-medium text-blue-900">{access.module_name}</p>
-                          <p className="text-xs text-blue-600">
-                            {moduleRoles.find(r => r.id === access.role_id)?.name || 'Rol asignado'}
-                          </p>
+                          <p className="text-xs text-blue-600">{access.role_name}</p>
                         </div>
                         <button
                           type="button"
@@ -393,7 +359,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
                   </div>
                 )}
 
-                {/* Agregar modulo */}
                 {availableModules.length > 0 && (
                   <div className="flex gap-2">
                     <select
@@ -403,17 +368,17 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
                     >
                       <option value="">Seleccionar módulo</option>
                       {availableModules.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
+                        <option key={m.module_id} value={m.module_id}>{m.name}</option>
                       ))}
                     </select>
                     <select
                       value={selectedRoleId}
                       onChange={e => setSelectedRoleId(e.target.value)}
-                      disabled={!selectedModuleId || moduleRoles.length === 0}
+                      disabled={operationalRoles.length === 0}
                       className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                     >
                       <option value="">Seleccionar rol</option>
-                      {moduleRoles.map(r => (
+                      {operationalRoles.map(r => (
                         <option key={r.role_id} value={r.role_id}>{r.name}</option>
                       ))}
                     </select>
@@ -435,7 +400,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
             )}
           </div>
 
-          {/* Super admin toggle — solo super admin puede ver esto */}
           {isSuperAdmin() && (
             <div className="flex items-center justify-between px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
               <div>
@@ -457,7 +421,6 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
 
         </form>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
           <button
             type="button"
