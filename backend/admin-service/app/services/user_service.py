@@ -50,10 +50,11 @@ async def get_user_by_id(db, user_id):
 async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, search=None, requested_by=None):
     per_page = min(per_page, config.MAX_PAGE_SIZE)
     query = select(User, Company).join(Company, User.company_id == Company.id).where(User.is_deleted == False)
-    if not _is_super_admin(requested_by):
-        query = query.where(User.company_id == requested_by.get("company_id"))
-    elif company_id:
+
+    # super_admin y admin_empresa ven todos los usuarios — filtro opcional por empresa
+    if company_id and _is_super_admin(requested_by):
         query = query.where(User.company_id == company_id)
+
     if is_active is not None:
         query = query.where(User.is_active == is_active)
     if search:
@@ -90,8 +91,11 @@ async def update_user(db, user_id, full_name=None, email=None, matricula=None, p
         raise NotFoundException("Usuario")
     if user.email == PROTECTED_SUPER_ADMIN_EMAIL:
         raise ForbiddenException("Este usuario no puede ser modificado")
-    if not _is_super_admin(requested_by):
+    if not _is_super_admin(requested_by) and not _is_admin_empresa(requested_by):
         raise ForbiddenException("No tienes permisos para editar usuarios")
+    # admin_empresa no puede modificar matricula
+    if matricula is not None and not _is_super_admin(requested_by):
+        raise ForbiddenException("No tienes permisos para modificar la matricula")
     if matricula and matricula != user.matricula:
         result = await db.execute(select(User).where(User.matricula == matricula, User.is_deleted == False, User.id != user_id))
         if result.scalar_one_or_none():
@@ -116,7 +120,10 @@ async def toggle_lock_user(db, user_id, lock, reason, requested_by=None):
         raise NotFoundException("Usuario")
     if user.email == PROTECTED_SUPER_ADMIN_EMAIL:
         raise ForbiddenException("Este usuario no puede ser bloqueado")
-    if not _is_super_admin(requested_by):
+    # admin_empresa no puede bloquear a un super_admin
+    if user.is_super_admin and not _is_super_admin(requested_by):
+        raise ForbiddenException("No tienes permisos para bloquear a un super administrador")
+    if not _is_super_admin(requested_by) and not _is_admin_empresa(requested_by):
         raise ForbiddenException("No tienes permisos para bloquear usuarios")
     if not reason or not reason.strip():
         raise ValidationException("El motivo es requerido")
@@ -193,14 +200,21 @@ async def assign_module_access(db, user_id, module_id, role_id, requested_by=Non
     user = result.scalar_one_or_none()
     if not user:
         raise NotFoundException("Usuario")
-    if not _is_super_admin(requested_by):
-        _check_company_scope(requested_by, str(user.company_id))
+    if not _is_super_admin(requested_by) and not _is_admin_empresa(requested_by):
+        raise ForbiddenException("No tienes permisos para asignar acceso a modulos")
     result = await db.execute(select(Module).where(Module.id == module_id, Module.is_deleted == False))
     if not result.scalar_one_or_none():
         raise NotFoundException("Modulo")
-    result = await db.execute(select(ModuleRole).where(ModuleRole.id == role_id, ModuleRole.module_id == module_id, ModuleRole.is_deleted == False))
+    # El rol puede ser del catálogo general (sin module_id) o específico del módulo
+    result = await db.execute(
+        select(ModuleRole).where(
+            ModuleRole.id == role_id,
+            ModuleRole.is_deleted == False,
+            ModuleRole.is_active == True,
+        )
+    )
     if not result.scalar_one_or_none():
-        raise NotFoundException("Rol de modulo")
+        raise NotFoundException("Rol operativo")
     result = await db.execute(select(UserModuleAccess).where(UserModuleAccess.user_id == user_id, UserModuleAccess.module_id == module_id))
     if result.scalar_one_or_none():
         raise AlreadyExistsException("Acceso al modulo")
@@ -212,10 +226,8 @@ async def revoke_module_access(db, user_id, module_id, requested_by=None):
     result = await db.execute(select(UserModuleAccess).where(UserModuleAccess.user_id == user_id, UserModuleAccess.module_id == module_id))
     if not result.scalar_one_or_none():
         raise NotFoundException("Acceso al modulo")
-    result = await db.execute(select(User).where(User.id == user_id, User.is_deleted == False))
-    user = result.scalar_one_or_none()
-    if not _is_super_admin(requested_by):
-        _check_company_scope(requested_by, str(user.company_id))
+    if not _is_super_admin(requested_by) and not _is_admin_empresa(requested_by):
+        raise ForbiddenException("No tienes permisos para revocar acceso a modulos")
     await db.execute(update(UserModuleAccess).where(UserModuleAccess.user_id == user_id, UserModuleAccess.module_id == module_id).values(is_active=False))
     await db.commit()
 
@@ -253,9 +265,20 @@ async def get_user_permissions(db, user_id):
             "modules": modules_with_subs,
             "companies": list(set([str(m.company_id) for m in all_modules])),
             "permissions": [],
+            "cross_company": True,
         }
 
-    accesses_result = await db.execute(select(UserModuleAccess, Module, ModuleRole).join(Module, UserModuleAccess.module_id == Module.id).join(ModuleRole, UserModuleAccess.role_id == ModuleRole.id).where(UserModuleAccess.user_id == user_id, UserModuleAccess.is_active == True, Module.is_active == True, Module.is_deleted == False))
+    accesses_result = await db.execute(
+        select(UserModuleAccess, Module, ModuleRole)
+        .join(Module, UserModuleAccess.module_id == Module.id)
+        .join(ModuleRole, UserModuleAccess.role_id == ModuleRole.id)
+        .where(
+            UserModuleAccess.user_id == user_id,
+            UserModuleAccess.is_active == True,
+            Module.is_active == True,
+            Module.is_deleted == False,
+        )
+    )
     accesses = accesses_result.all()
     modules_with_subs = []
     for a in accesses:
@@ -272,11 +295,16 @@ async def get_user_permissions(db, user_id):
             "icon": a.Module.icon,
             "submodules": [{"slug": s.slug, "icon": s.icon, "name": s.name} for s in subs],
         })
+
+    # cross_company es True si alguno de los roles del usuario tiene scope corporativo
+    cross_company = any(a.ModuleRole.scope == "corporativo" for a in accesses)
+
     return {
         "roles": global_roles + [f"{a.Module.slug}:{a.ModuleRole.slug}" for a in accesses],
         "modules": modules_with_subs,
         "companies": list(set([str(a.Module.company_id) for a in accesses])),
         "permissions": [],
+        "cross_company": cross_company,
     }
 
 
@@ -370,6 +398,7 @@ async def _sync_user_to_auth(user_id, email, full_name, temp_password, temp_pass
             await client.post("http://auth-service:8000/internal/users", json={"user_id": user_id, "email": email, "full_name": full_name, "temp_password": temp_password, "temp_password_expires_at": temp_password_expires_at})
     except Exception:
         raise ValidationException("Error al sincronizar usuario con el servicio de autenticacion")
+
 
 async def _send_welcome_email(email: str, full_name: str, temp_password: str, user_id: str):
     try:
