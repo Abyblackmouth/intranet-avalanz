@@ -26,7 +26,6 @@ class Company(BaseModelWithSoftDelete):
     rfc              = Column(String(20), unique=True, nullable=True)
     description      = Column(Text, nullable=True)
     is_active        = Column(Boolean, default=True, nullable=False)
-    # Domicilio fiscal
     calle            = Column(String(255), nullable=True)
     num_ext          = Column(String(20), nullable=True)
     num_int          = Column(String(20), nullable=True)
@@ -34,7 +33,6 @@ class Company(BaseModelWithSoftDelete):
     cp               = Column(String(10), nullable=True)
     municipio        = Column(String(150), nullable=True)
     estado           = Column(String(100), nullable=True)
-    # Vigencia de constancia SAT
     constancia_fecha_emision  = Column(String(50), nullable=True)
     constancia_fecha_vigencia = Column(String(50), nullable=True)
 
@@ -64,7 +62,7 @@ class GlobalRole(BaseModelWithSoftDelete):
     is_active   = Column(Boolean, default=True, nullable=False)
 
 
-class GlobalPermission(BaseModel):
+class GlobalPermission(BaseModelWithSoftDelete):
     __tablename__ = "global_permissions"
 
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -101,17 +99,25 @@ class Submodule(BaseModelWithSoftDelete):
 
 
 class ModuleRole(BaseModelWithSoftDelete):
+    """
+    Rol operativo reutilizable. module_id es opcional — si es None el rol pertenece
+    al catálogo general y puede asignarse a cualquier módulo. Si tiene module_id
+    pertenece exclusivamente a ese módulo.
+    scope: 'empresa' filtra datos por company_id del usuario.
+    scope: 'corporativo' permite ver datos de todas las empresas (ej. Auditoría, Contraloría).
+    """
     __tablename__ = "module_roles"
 
     id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    module_id   = Column(UUID(as_uuid=True), ForeignKey("modules.id", ondelete="RESTRICT"), nullable=False)
+    module_id   = Column(UUID(as_uuid=True), ForeignKey("modules.id", ondelete="RESTRICT"), nullable=True)
     name        = Column(String(100), nullable=False)
     slug        = Column(String(100), nullable=False, index=True)
     description = Column(Text, nullable=True)
+    scope       = Column(String(20), nullable=False, default="empresa")
     is_active   = Column(Boolean, default=True, nullable=False)
 
 
-class SubmodulePermission(BaseModel):
+class SubmodulePermission(BaseModelWithSoftDelete):
     __tablename__ = "submodule_permissions"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
