@@ -74,6 +74,23 @@ async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, s
             if uid not in roles_map:
                 roles_map[uid] = []
             roles_map[uid].append(rrow.GlobalRole.slug)
+        # Incluir roles de modulo para usuarios sin rol global
+        module_roles_result = await db.execute(
+            select(UserModuleAccess, ModuleRole)
+            .join(ModuleRole, UserModuleAccess.role_id == ModuleRole.id)
+            .where(
+                UserModuleAccess.user_id.in_(user_ids),
+                UserModuleAccess.is_active == True,
+                ModuleRole.is_deleted == False,
+            )
+        )
+        for mrow in module_roles_result.all():
+            uid = str(mrow.UserModuleAccess.user_id)
+            if uid not in roles_map or len(roles_map[uid]) == 0:
+                if uid not in roles_map:
+                    roles_map[uid] = []
+                if mrow.ModuleRole.name not in roles_map[uid]:
+                    roles_map[uid].append(mrow.ModuleRole.name)
         for row in rows:
             uid = str(row.User.id)
             if row.User.is_super_admin:

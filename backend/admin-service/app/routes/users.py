@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 
 from app.config import config
 from app.database import get_db
@@ -22,6 +22,7 @@ class CreateUserRequest(BaseModel):
     departamento: Optional[str] = None
     is_super_admin: bool = False
     global_role_id: Optional[str] = None
+    module_accesses: Optional[List[dict]] = None
 
 
 class UpdateUserRequest(BaseModel):
@@ -83,6 +84,18 @@ async def create_user(
             role_id=body.global_role_id,
             requested_by=payload,
         )
+    if body.module_accesses:
+        for access in body.module_accesses:
+            try:
+                await user_service.assign_module_access(
+                    db=db,
+                    user_id=result["user_id"],
+                    module_id=access["module_id"],
+                    role_id=access["role_id"],
+                    requested_by=payload,
+                )
+            except Exception:
+                pass
     return CreatedResponse(data=result)
 
 
