@@ -117,31 +117,73 @@ notify-service/
 
 ---
 
-## Cómo crear notificaciones desde otros servicios
+## Flujo completo de notificacion
+
+Cuando se crea una notificacion el flujo es:
+
+1. Cualquier servicio llama a POST /api/v1/notifications/
+2. notify-service guarda la notificacion en BD
+3. notify-service llama internamente a websocket-service POST /ws/send
+4. websocket-service envia el evento notification.new al usuario via WebSocket
+5. El frontend recibe el evento y actualiza el contador de la campana
+6. Aparece un toast flotante en la esquina inferior derecha que se auto-cierra en 5 segundos
+7. Si el usuario abre la campana ve la notificacion en la lista
+
+## Como crear notificaciones desde otros servicios
 
 Cualquier microservicio puede crear notificaciones haciendo una llamada HTTP interna al `notify-service`:
 
 ```python
 import httpx
 
-async def notify_user(user_id: str, title: str, body: str, data: dict = None):
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            "http://notify-service/api/v1/notifications/",
-            json={
-                "user_id": user_id,
-                "type": "info",
-                "title": title,
-                "body": body,
-                "data": data,
-            },
-            headers={"Authorization": f"Bearer {internal_token}"}
-        )
+async def notify_user(user_id: str, title: str, body: str, type: str = "info", data: dict = None):
+    """
+    Crea una notificacion para un usuario. El notify-service se encarga de
+    guardarla en BD y enviarla en tiempo real via WebSocket automaticamente.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://notify-service:8000/api/v1/notifications/",
+                json={
+                    "user_id": user_id,
+                    "type": type,
+                    "title": title,
+                    "body": body,
+                    "data": data,
+                },
+                headers={"Authorization": f"Bearer {internal_token}"}
+            )
+    except Exception:
+        pass  # Las notificaciones no deben interrumpir el flujo principal
 ```
 
 ---
 
-## Configuración (.env)
+## Frontend — componentes y hooks
+
+El frontend tiene los siguientes componentes para notificaciones:
+
+### Componentes
+- components/notifications/NotificationBell.tsx — campana con contador y panel desplegable
+- components/shared/ToastContainer.tsx — toasts flotantes esquina inferior derecha
+
+### Hooks
+- hooks/useNotifications.ts — consulta y gestiona notificaciones del usuario
+- hooks/useWebSocket.ts — mantiene conexion WebSocket y despacha notificaciones en tiempo real
+
+### Store
+- store/notificationStore.ts — estado global de notificaciones (lista + contador)
+- store/toastStore.ts — cola de toasts con maximo 3 visibles simultaneamente
+
+### Comportamiento
+- Al iniciar sesion el WebSocket se conecta automaticamente
+- Cada 60 segundos se refresca el contador de no leidas
+- Al llegar notification.new via WebSocket: se agrega al store, se incrementa el contador y aparece un toast
+- El toast se auto-cierra en 5 segundos o se puede cerrar manualmente
+- Maximo 3 toasts visibles al mismo tiempo — los demas se encolan
+
+## Configuracion (.env)
 
 | Variable | Descripción | Default |
 |---|---|---|
