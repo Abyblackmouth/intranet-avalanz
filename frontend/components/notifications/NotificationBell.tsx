@@ -1,4 +1,5 @@
 'use client'
+import React from 'react'
 
 import { useEffect, useRef } from 'react'
 import { Bell, Check, CheckCheck, X, Info, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react'
@@ -127,11 +128,12 @@ export function NotificationList() {
           </div>
         ) : (
           notifications.map((n) => (
-            <NotificationItem
-              key={n.id}
-              notification={n}
-              onMarkAsRead={handleMarkAsRead}
-            />
+            <React.Fragment key={n.id}>
+              <NotificationItem
+                notification={n}
+                onMarkAsRead={handleMarkAsRead}
+              />
+            </React.Fragment>
           ))
         )}
       </div>

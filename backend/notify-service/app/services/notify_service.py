@@ -1,3 +1,4 @@
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func
 from typing import Optional, Dict, Any, List
@@ -34,7 +35,12 @@ async def create_notification(
     await db.commit()
     await db.refresh(notification)
 
-    return _serialize(notification)
+    serialized = _serialize(notification)
+
+    # Notificar en tiempo real via websocket-service
+    await _push_to_websocket(user_id, serialized)
+
+    return serialized
 
 
 # ── Crear notificaciones en masa ──────────────────────────────────────────────
@@ -160,6 +166,24 @@ async def mark_all_as_read(db: AsyncSession, user_id: str) -> Dict[str, Any]:
     )
     await db.commit()
     return {"message": "Todas las notificaciones marcadas como leidas"}
+
+
+# ── Push WebSocket ───────────────────────────────────────────────────────────
+
+async def _push_to_websocket(user_id: str, notification: Dict[str, Any]) -> None:
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            await client.post(
+                "http://websocket-service:8000/ws/send",
+                json={
+                    "user_id": user_id,
+                    "event_type": "notification.new",
+                    "data": notification,
+                    "module_slug": notification.get("module_slug"),
+                },
+            )
+    except Exception:
+        pass
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

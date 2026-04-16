@@ -55,7 +55,12 @@ export function useWebSocket() {
           switch (msg.event) {
             case 'notification.new':
               if (msg.data) {
-                addNotification(msg.data)
+                // Normalizar el campo id — el backend devuelve notification_id
+                const normalized = {
+                  ...msg.data,
+                  id: msg.data.id ?? msg.data.notification_id,
+                }
+                addNotification(normalized)
               }
               break
 
