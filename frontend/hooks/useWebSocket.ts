@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { useNotificationStore } from '@/store/notificationStore'
+import { useToastStore } from '@/store/toastStore'
 import Cookies from 'js-cookie'
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost/ws'
@@ -15,6 +16,7 @@ export function useWebSocket() {
 
   const { user, logout: clearStore } = useAuthStore()
   const { addNotification } = useNotificationStore()
+  const { addToast } = useToastStore()
 
   const disconnect = useCallback(() => {
     if (heartbeat.current) clearInterval(heartbeat.current)
@@ -61,6 +63,11 @@ export function useWebSocket() {
                   id: msg.data.id ?? msg.data.notification_id,
                 }
                 addNotification(normalized)
+                addToast({
+                  type: normalized.type ?? 'info',
+                  title: normalized.title,
+                  body: normalized.body,
+                })
               }
               break
 

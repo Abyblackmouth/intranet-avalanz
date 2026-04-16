@@ -1,6 +1,7 @@
 import AuthProvider from '@/components/auth/AuthProvider'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
+import ToastContainer from '@/components/shared/ToastContainer'
 
 export default function PrivateLayout({
   children,
@@ -18,6 +19,7 @@ export default function PrivateLayout({
           </main>
         </div>
       </div>
+      <ToastContainer />
     </AuthProvider>
   )
 }
