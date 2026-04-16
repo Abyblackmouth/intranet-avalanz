@@ -24,7 +24,8 @@ from shared.middleware.cors import setup_cors
 from shared.middleware.rate_limit import setup_rate_limit
 from shared.middleware.logging import setup_logging
 from shared.middleware.jwt_validator import JWTValidator
-from shared.models.responses import HealthResponse, DataResponse
+from shared.models.responses import HealthResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
 
 # ── Ciclo de vida ─────────────────────────────────────────────────────────────
@@ -48,6 +49,8 @@ app = FastAPI(
 )
 
 
+# ── Metricas Prometheus ──────────────────────────────────────────────────────
+Instrumentator().instrument(app).expose(app)
 # ── Middlewares ───────────────────────────────────────────────────────────────
 
 setup_logging(app, service_name=config.SERVICE_NAME, log_level=config.LOG_LEVEL, log_format=config.LOG_FORMAT)

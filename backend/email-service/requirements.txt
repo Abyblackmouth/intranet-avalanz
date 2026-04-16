@@ -13,3 +13,4 @@ aiosmtplib==3.0.1
 
 # Utilidades
 python-multipart==0.0.9
+prometheus-fastapi-instrumentator==7.0.0

@@ -17,6 +17,8 @@ from shared.exceptions.http_exceptions import (
 from shared.middleware.cors import setup_cors
 from shared.middleware.rate_limit import setup_rate_limit
 from shared.middleware.logging import setup_logging
+from prometheus_fastapi_instrumentator import Instrumentator
+setup_logging
 from shared.models.responses import HealthResponse
 
 
@@ -36,6 +38,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+Instrumentator().instrument(app).expose(app)
 setup_logging(app, service_name=config.SERVICE_NAME, log_level=config.LOG_LEVEL, log_format=config.LOG_FORMAT)
 setup_cors(app, origins=config.CORS_ORIGINS, allow_credentials=config.CORS_ALLOW_CREDENTIALS, allow_methods=config.CORS_ALLOW_METHODS, allow_headers=config.CORS_ALLOW_HEADERS)
 setup_rate_limit(app, max_requests=config.RATE_LIMIT_REQUESTS, window_seconds=config.RATE_LIMIT_WINDOW_SECONDS)
