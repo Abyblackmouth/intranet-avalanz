@@ -10,149 +10,137 @@ Antes de continuar el trabajo, el asistente debe leer las siguientes guías en o
 5. docs/architecture/auth-service.md
 6. docs/architecture/admin-service.md
 7. docs/architecture/frontend.md
-8. docs/architecture/modulos-submodulos.md
-9. docs/architecture/docker-levantamiento.md
-10. La guía específica del módulo en el que se va a trabajar
+8. docs/architecture/notify-service.md
+9. docs/architecture/websocket-service.md
+10. docs/architecture/monitoring.md
+11. docs/architecture/modulos-submodulos.md
+12. docs/architecture/docker-levantamiento.md
+13. La guía específica del módulo en el que se va a trabajar
+
+---
+
+## Reglas de trabajo
+
+Estas reglas aplican en cada sesión de chat sin excepción.
+
+**Código completo** — todo archivo nuevo se entrega como artefacto descargable. Ajustes y cambios puntuales se entregan con el comando cat directo en terminal.
+
+**Lectura de archivos** — siempre con grep o sed, nunca cat en el chat (rompe el heredoc).
+
+**Archivos de Windows a Linux** — después de cada descarga dar el comando PowerShell con ruta UNC:
+```powershell
+$src = if (Test-Path "$env:USERPROFILE\Downloads\archivo (1).ext") { "$env:USERPROFILE\Downloads\archivo (1).ext" } else { "$env:USERPROFILE\Downloads\archivo.ext" }
+Copy-Item $src "\\wsl$\Ubuntu\home\abyblackmouth\code\avalanz\intranet-avalanz\ruta\destino"
+```
+
+**Git** — una rama por feature. Push y merge a develop solo cuando se confirma que el entregable está completo. Nunca push en medio de una feature.
+
+**Guías** — al cerrar cada rama revisar todas las guías relevantes, ajustar lo que cambió y agregar lo nuevo. La guía debe leerse como si siempre hubiera sido así — sin mencionar cambios ni movimientos.
+
+**contexto-sesion.md** — solo se actualiza cuando se está perdiendo contexto y hay que cambiar de chat. No se actualiza al final de cada rama.
+
+**Comentarios en código** — solo comentarios que expliquen qué hace el código. Nunca comentarios que describan refactorizaciones, movimientos o cambios realizados.
+
+**Inicio de sesión nueva** — el flujo es siempre este orden:
+1. El usuario pega el contenido de contexto-sesion.md
+2. El usuario carga los archivos: Alcance, Resumen Técnico y Acta de Constitución
+3. Claude pide la estructura del proyecto con un comando Ubuntu y espera a que el usuario la pegue
+4. El usuario carga todos los archivos .md de docs/architecture/
+5. Claude lee todos los .md cargados y da un resumen breve de cada uno para confirmar que los leyó
+6. Solo después de todo esto se puede continuar trabajando
+
+**Para archivos grandes** — escribir directamente con cat en WSL en lugar de descargar desde artefacto, ya que los artefactos a veces se guardan como duplicados con (1) en el nombre.
+
+**Backend modificado** — siempre copiar el archivo al contenedor con docker cp y reiniciar el servicio después de cada cambio.
 
 ---
 
 ## Estado actual del proyecto
 
 **Rama activa:** `develop`
-**Próxima rama:** `feature/admin-roles-permissions`
-**Última actividad:** 2026-04-06
+**Última actividad:** 2026-04-16
 
 ---
 
-## Lo que está funcionando
+## Módulos completados
 
-- Login completo con 2FA condicional por red
-- Sidebar y Header sin errores de hidratación
-- Panel admin — módulo de usuarios completo:
-  - Tabla con empresa, rol, 2FA, candado de acceso, estado, última conexión
-  - Badge "Protegido" en el Super Administrador del sistema
-  - Formulario de alta con todos los campos y asignación de rol y módulos
-  - Formulario de edición con todos los campos y cambio de rol global
-  - Modal de detalle con 3 pestañas: info, sesiones activas, historial de login
-  - Menú de 3 puntos con: ver detalle, editar, resetear contraseña, bloquear/desbloquear, revocar sesiones, eliminar
-  - Modal de motivo obligatorio para bloquear/desbloquear
-  - Modal de confirmación para revocar sesiones y eliminar
-  - Acciones ocultas para el usuario protegido (editar, bloquear, eliminar)
-- Bloqueo/desbloqueo funcional — se guarda en admin-service y auth-service
-- Reseteo de contraseña funcional — modal con validación, correo al usuario, is_temp_password activado
-- Eliminación de usuario funcional — soft delete con is_deleted y deleted_at
-- Cron de limpieza diaria de login_history y user_sessions con respaldo CSV
-- Alembic configurado en admin-service con 3 migraciones aplicadas (última: 951e0445379d)
-- Alembic configurado en auth-service con 1 migración aplicada (lock_type)
-- Endpoints internos en auth-service: create, info, batch-info, sessions, login-history, lock, reset-password
-- Servicio de correo conectado con Mailpit en desarrollo:
-  - Bienvenida al crear usuario
-  - Reset de contraseña por admin
-  - Cuenta bloqueada por intentos fallidos
-  - Recuperación de contraseña con desbloqueo automático
-- Campo lock_type en auth-service: diferencia bloqueo manual vs intentos fallidos
-- Mensajes de bloqueo diferenciados en el login
-- Recuperación de contraseña bloqueada para usuarios bloqueados manualmente
-- Panel admin — módulo de empresas completo:
-  - Tarjetas por grupo con toggle activa/inactiva sin parpadeo
-  - Alta manual y carga automática desde constancia SAT (pdfjs-dist, sin almacenar archivo)
-  - Edición con tab de constancia SAT — valida RFC, carga solo domicilio y fechas
-  - Vista detalle — panel lateral con info, domicilio y vigencia de constancia
-  - Eliminar con trazabilidad: debe estar inactiva y sin usuarios + clave de confirmación
-  - Campos domicilio fiscal: calle, num_ext, num_int, colonia, cp, municipio, estado
-  - Campos vigencia constancia SAT: constancia_fecha_emision, constancia_fecha_vigencia
-  - RFC y razón social editables solo por super_admin
-- Panel admin — módulo de grupos completo:
-  - Tarjetas con stats (total/activas empresas), toggle activo/inactivo
-  - CRUD completo con panel de detalle lateral mostrando empresas del grupo
-  - Trazabilidad: no se puede desactivar con empresas activas, no eliminar con empresas asociadas
-- Panel admin — módulo de módulos y submódulos completo:
-  - Lista expandible con íconos dinámicos (100 íconos de Lucide)
-  - Selector de íconos en grid 5×4 con scroll
-  - CRUD completo de módulos y submódulos
-  - Scaffold automático al guardar: genera estructura de archivos frontend y backend
-  - Modal de progreso mínimo 5 segundos con mensaje de cierre de sesión
-  - Clave de confirmación para eliminar módulos (ver claves-admin.md)
-  - Soft delete en BD — código en filesystem NO se elimina
-- Sidebar dinámico:
-  - Módulos leídos del JWT con íconos y submódulos
-  - Submódulos anidados colapsables por módulo
-  - Super admin recibe todos los módulos activos automáticamente sin asignación manual
-- Scripts de desarrollo:
-  - `scripts/create-module.js` — genera estructura de módulo o submódulo manualmente
-  - `scripts/scaffold-server.js` — webhook en puerto 3002 para scaffold automático (solo desarrollo)
+### Autenticación
+- Login con 2FA condicional por red (corporativa = sin 2FA, externa = con 2FA)
+- Cambio de contraseña temporal en primer login
+- Configuración y verificación de TOTP (Google Authenticator)
+- Recuperación de contraseña con desbloqueo automático
+- Bloqueo automático por intentos fallidos (MAX_FAILED_ATTEMPTS = 3)
+- Bloqueo manual por administrador con motivo obligatorio
+- lock_type diferencia bloqueo manual vs intentos fallidos
+- Refresh automático de JWT en el frontend
+
+### Panel de administración
+- **Usuarios** — tabla completa, alta, edición, detalle con pestañas, bloqueo/desbloqueo, reset contraseña, revocar sesiones, eliminar, badge Protegido
+- **Empresas** — tarjetas por grupo, alta manual y desde constancia SAT, edición, detalle, eliminar con trazabilidad
+- **Grupos** — tarjetas con stats, CRUD, panel detalle, trazabilidad
+- **Módulos y submódulos** — CRUD, íconos Lucide, scaffold automático, sidebar dinámico
+- **Roles** — catálogo de roles globales y operativos con scope (empresa/corporativo), CRUD completo
+- **Permisos** — permisos globales por categoría, permisos por submódulo en árbol, CRUD completo
+
+### Sistema de notificaciones en tiempo real
+- notify-service guarda notificaciones en BD y llama al websocket-service
+- websocket-service entrega el evento al frontend via WebSocket
+- Frontend: campana con contador en tiempo real, panel desplegable, marcar como leída
+- Toasts flotantes en esquina inferior derecha con animación, auto-cierre 5s, máximo 3 simultáneos
+- Hook useWebSocket con reconexión automática cada 5s y heartbeat cada 30s
+
+### Monitoreo
+- prometheus-fastapi-instrumentator en los 6 servicios FastAPI
+- Prometheus recolecta métricas cada 15s
+- Dashboard Grafana con auto-refresh 10s: peticiones/seg, errores, latencia, RAM, CPU
+- RabbitMQ también monitoreado
+- Pendiente: exporters para PostgreSQL, Redis y Nginx
+
+### Infraestructura
+- Cron de limpieza: login_history (90 días) y user_sessions (30 días) con CSV backup y rotación semanal
+- Mailpit para captura de correos en desarrollo (restart unless-stopped)
+- Scaffold automático genera estructura frontend y backend al crear módulo
 
 ---
 
-## Próxima rama: feature/admin-roles-permissions
+## Modelo de roles (importante)
 
-### Objetivo
-Implementar el CRUD completo de Roles Globales, Roles de Módulo, Permisos Globales y Permisos de Submódulo. Es el último módulo de administración antes de pasar a los módulos operativos.
+El sistema tiene dos tipos de roles:
 
-### Plan de trabajo
+**Roles globales** — solo dos, hardcodeados: `super_admin` y `admin_empresa`. Definen acceso al panel de administración.
 
-**Roles Globales (`/admin/roles`)**
-- Listar roles globales con tarjetas
-- Crear rol global (nombre, descripción)
-- Editar rol global
-- Eliminar rol global (soft delete)
-- Ver detalle: nombre, descripción, permisos asignados
-- Asignar/quitar permisos globales a un rol
+**Roles operativos** — catálogo general reutilizable en cualquier módulo. Se crean desde `/admin/roles`. Tienen `scope` (empresa o corporativo) y `module_id` nullable (null = catálogo general).
 
-**Roles de Módulo**
-- Listar roles por módulo
-- Crear rol de módulo
-- Editar rol de módulo
-- Eliminar rol de módulo
-- Asignar/quitar permisos de submódulo a un rol de módulo
+El JWT incluye `cross_company: true` para super_admin y roles con scope corporativo.
 
-**Permisos Globales (`/admin/permissions`)**
-- Listar permisos globales agrupados por categoría
-- Crear permiso global (nombre, descripción, categoría)
-- Editar permiso global
-- Eliminar permiso global
-
-**Permisos de Submódulo**
-- Listar permisos por submódulo
-- Crear permiso de submódulo (leer, escribir, eliminar, etc.)
-- Editar permiso
-- Eliminar permiso
-- Vista árbol: módulo → submódulo → permisos
-
-**Integración con usuarios**
-- Al asignar acceso de módulo a usuario, poder elegir el rol de módulo
-- Ver permisos efectivos del usuario en el detalle
-
-### Archivos a crear/modificar
-```
-frontend/app/(private)/admin/roles/page.tsx         → CRUD roles globales + módulo
-frontend/app/(private)/admin/permissions/page.tsx   → CRUD permisos globales + submódulo
-frontend/services/adminService.ts                   → funciones de roles y permisos
-frontend/types/role.types.ts                        → tipos de roles y permisos
-```
-
-### Backend ya existente — solo falta el frontend
-- `backend/admin-service/app/routes/roles.py`
-- `backend/admin-service/app/routes/permissions.py`
-- `backend/admin-service/app/services/role_service.py`
-- `backend/admin-service/app/services/permission_service.py`
+La tabla `user_table` muestra: rol global si existe, rol operativo si no hay rol global, "Sin rol" si no tiene ninguno.
 
 ---
 
-## Convenciones importantes
+## Correos implementados
 
-- Comandos de copia siempre en PowerShell — Linux WSL no llega a Downloads de Windows
-- Si el archivo se descarga como (1), usar este patrón en PowerShell:
-```powershell
-  $src = if (Test-Path "$env:USERPROFILE\Downloads\archivo (1).ext") { "$env:USERPROFILE\Downloads\archivo (1).ext" } else { "$env:USERPROFILE\Downloads\archivo.ext" }
-  Copy-Item $src "\\wsl$\Ubuntu\home\abyblackmouth\code\avalanz\intranet-avalanz\ruta\destino"
-```
-- Para archivos grandes usar cat directo en WSL, no descargar desde artefacto
-- Sin comentarios de movimientos en el código, solo comentarios de funciones
-- Sin emojis a menos que el usuario los use primero
-- Guías van a docs/architecture/
-- Al modificar backend: copiar al contenedor y reiniciar el servicio
-- Commits siempre en inglés
+| Evento | Estado |
+|---|---|
+| Bienvenida al crear usuario | Activo |
+| Reset de contraseña por admin | Activo |
+| Cuenta bloqueada por intentos fallidos | Activo |
+| Recuperación de contraseña | Activo |
+| Sesión revocada remotamente | Pendiente |
+| Bloqueo manual por administrador | Pendiente |
+
+---
+
+## Próximos pasos
+
+1. **Release UI/UX** — pulir todas las pantallas del panel de administración
+2. **Dashboard principal** — pantalla de inicio con métricas de negocio, accesos rápidos y notificaciones recientes
+3. **Primer módulo operativo** — según lo que defina el negocio (Bóveda DYCE o Legal)
+4. **Configuración para producción** — HTTPS, servidor real, backups reales, alertas Grafana
+
+---
+
+## Convenciones de UI
+
 - Bordes siempre `border-slate-300`, cards con `shadow-md hover:shadow-xl hover:border-[#1a4fa0]`
 - Botones primarios: `bg-[#1a4fa0] hover:bg-blue-700`
 - Hover menús: gris `slate-300`, rojo `red-200`
@@ -169,18 +157,18 @@ frontend/types/role.types.ts                        → tipos de roles y permiso
 - Hydration: todo lo que dependa de Zustand protegido con `mounted &&`
 - PROTECTED_SUPER_ADMIN_EMAIL = "admin@avalanz.com" en user_service.py
 - Roles globales usan campo `role_id` (no `id`) en la respuesta del API
-- Al crear usuario: admin-service sincroniza al auth-service via POST /internal/users
-- Al bloquear: admin-service guarda lock_reason, llama a POST /internal/users/{id}/lock
 - IP WSL2 puede cambiar — verificar con `ip addr show eth0` si el login falla
-- lock_type en auth-service: "manual" = bloqueado por admin, "failed_attempts" = bloqueado automáticamente
-- Mailpit para desarrollo: UI en http://localhost:8025, SMTP en mailpit:1025
-- Mailpit debe estar conectado a la red Docker: docker network connect docker_avalanz-network mailpit
+- NEXT_PUBLIC_WS_URL = `ws://172.20.92.197/ws` (IP WSL2 en desarrollo)
+- Mailpit: UI en http://localhost:8025, SMTP en mailpit:1025
+- Grafana: http://localhost:3001, credenciales: admin / Avalanz2026!
+- Prometheus: http://localhost:9090
 - MAX_FAILED_ATTEMPTS = 3 en auth-service/app/config.py
 - Módulos en JWT: `{ slug, icon, submodules: [{ slug, icon, name }] }`
-- Super admin recibe todos los módulos activos automáticamente en JWT — no requiere asignación manual
+- Super admin recibe todos los módulos activos automáticamente en JWT
 - Scaffold server corre en puerto 3002 (3001 ocupado por Grafana)
 - Clave eliminación módulos: TF9DX4-2JAQSJ-61FVM6-0QB1AK (ver claves-admin.md)
 - `turbopack.root` configurado en next.config.ts para resolver Tailwind en WSL2
+- Al modificar backend: copiar al contenedor con docker cp y reiniciar el servicio
 
 ---
 
@@ -189,21 +177,12 @@ frontend/types/role.types.ts                        → tipos de roles y permiso
 ```
 intranet-avalanz/
 ├── backend/
-│   ├── modules/                 → Módulos operativos generados con scaffold
-│   │   └── [modulo]-service/    → Ej: legal-service, boveda-service
 │   ├── admin-service/           → CRUD usuarios, empresas, grupos, módulos, roles, permisos
-│   │   ├── app/
-│   │   │   ├── models/admin_models.py
-│   │   │   ├── routes/          → companies, groups, modules, permissions, roles, users
-│   │   │   └── services/        → company, group, module, permission, role, user service
-│   │   └── migrations/versions/ → 3 migraciones aplicadas
 │   ├── auth-service/            → JWT, 2FA, sesiones, bloqueo de cuentas
-│   │   ├── app/routes/          → auth.py, twofa.py, internal.py
-│   │   └── migrations/versions/ → 1 migración aplicada (lock_type)
 │   ├── email-service/           → Correos transaccionales con plantillas HTML
-│   ├── notify-service/          → Notificaciones en BD
+│   ├── notify-service/          → Notificaciones en BD + push a websocket-service
 │   ├── upload-service/          → Archivos a MinIO/S3
-│   ├── websocket-service/       → Comunicación en tiempo real
+│   ├── websocket-service/       → Comunicación en tiempo real via WebSocket
 │   └── shared/                  → Config, excepciones, modelos base, middlewares, utils
 │
 ├── frontend/
@@ -211,38 +190,28 @@ intranet-avalanz/
 │   │   ├── (auth)/              → login, change-password, setup-2fa, reset-password
 │   │   └── (private)/
 │   │       ├── admin/           → users, companies, groups, modules, roles, permissions
-│   │       └── app/             → módulos operativos dinámicos
-│   │           └── [modulo]/    → layout.tsx + page.tsx + [submodulo]/page.tsx
+│   │       └── app/             → módulos operativos dinámicos [module]/[submodule]
 │   ├── components/
-│   │   ├── admin/
-│   │   │   ├── users/           → UserTable, UserForm, UserEditForm, UserDetail, UserModuleAccess
-│   │   │   ├── companies/       → CompanyForm, CompanyEditForm, CompanyDetail
-│   │   │   ├── groups/          → (inline en page)
-│   │   │   ├── modules/         → (inline en page)
-│   │   │   ├── permissions/     → PermissionForm, PermissionTree
-│   │   │   └── roles/           → RoleTable, RoleForm
-│   │   ├── app/                 → Componentes de módulos operativos por módulo
-│   │   ├── auth/                → AuthProvider, LoginForm, ChangePasswordForm, Setup2FAForm, ResetPasswordForm
+│   │   ├── admin/               → users, companies, groups, modules, roles, permissions
+│   │   ├── auth/                → AuthProvider, formularios de autenticación
 │   │   ├── layout/              → Sidebar, Header, Breadcrumb, PageWrapper
-│   │   ├── notifications/       → NotificationBell, NotificationList
-│   │   └── shared/              → ConfirmDialog, DataTable, EmptyState, LoadingSpinner, StatusBadge
-│   ├── hooks/                   → useAuth, useModules, useNotifications, usePagination, usePermissions, useWebSocket
-│   ├── services/                → api, authService, adminService, moduleService, notificationService, roleService, uploadService
-│   ├── store/                   → authStore, notificationStore, uiStore
-│   ├── types/                   → api.types, auth.types, company.types, module.types, user.types
-│   └── lib/                     → constants, formatters, utils, validators
+│   │   ├── notifications/       → NotificationBell (campana + panel)
+│   │   └── shared/              → ToastContainer, componentes reutilizables
+│   ├── hooks/                   → useWebSocket, useNotifications, useAuth, usePagination
+│   ├── store/                   → authStore, notificationStore, toastStore
+│   ├── services/                → api, authService, adminService, notificationService, roleService
+│   └── types/                   → api.types, auth.types, user.types, role.types, module.types
 │
 ├── scripts/
 │   ├── create-module.js         → Generador de estructura para módulos y submódulos
-│   └── scaffold-server.js       → Webhook para scaffold automático (solo desarrollo, puerto 3002)
+│   └── scaffold-server.js       → Webhook scaffold automático (puerto 3002, solo desarrollo)
 │
 ├── infrastructure/
-│   ├── cron/                    → Dockerfile, entrypoint.sh, cleanup.sh, rotate_backups.sh
-│   ├── docker/                  → docker-compose.yml, docker-compose.dev.yml, docker-compose.prod.yml, seeder.py
+│   ├── cron/                    → Limpieza de históricos con backup CSV
+│   ├── docker/                  → docker-compose.yml, docker-compose.dev.yml, seeder.py
 │   ├── nginx/                   → nginx.conf, conf.d/intranet.conf
 │   ├── prometheus/              → prometheus.yml, alerts.yml
-│   ├── grafana/                 → datasources.yml
-│   └── consul/                  → consul.json
+│   └── grafana/                 → datasources.yml, avalanz-services-dashboard.json
 │
 └── docs/architecture/           → Todas las guías técnicas del proyecto
 ```
@@ -251,21 +220,20 @@ intranet-avalanz/
 
 ## Servicios Docker
 
-| Contenedor | Puerto interno | Descripción |
+| Contenedor | Puerto externo | Descripción |
 |---|---|---|
-| avalanz-nginx | 80 | API Gateway |
-| avalanz-auth | 8000 | Auth Service |
-| avalanz-admin | 8000 | Admin Service |
-| avalanz-upload | 8000 | Upload Service |
-| avalanz-notify | 8000 | Notify Service |
-| avalanz-websocket | 8000 | WebSocket Service |
-| avalanz-email | 8000 | Email Service |
+| avalanz-nginx | 80 | API Gateway + WebSocket proxy |
+| avalanz-auth | — | Auth Service (interno :8000) |
+| avalanz-admin | — | Admin Service (interno :8000) |
+| avalanz-upload | — | Upload Service (interno :8000) |
+| avalanz-notify | — | Notify Service (interno :8000) |
+| avalanz-websocket | — | WebSocket Service (interno :8000) |
+| avalanz-email | — | Email Service (interno :8000) |
 | avalanz-postgres | 5432 | PostgreSQL |
 | avalanz-redis | 6379 | Redis |
-| avalanz-rabbitmq | 5672 | RabbitMQ |
+| avalanz-rabbitmq | 5672 / 15692 | RabbitMQ |
 | avalanz-minio | 9000 | MinIO |
-| avalanz-consul | 8500 | Consul |
 | avalanz-prometheus | 9090 | Prometheus |
 | avalanz-grafana | 3001 | Grafana |
-| avalanz-cron | — | Limpieza de historicos |
+| avalanz-cron | — | Limpieza de históricos |
 | mailpit | 8025 / 1025 | Captura de correos en desarrollo |

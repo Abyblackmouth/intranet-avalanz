@@ -48,7 +48,7 @@ frontend/
 │   │   │   ├── layout.tsx
 │   │   │   ├── page.tsx
 │   │   │   └── [module]/[submodule]/
-│   │   └── layout.tsx
+│   │   └── layout.tsx            → Incluye ToastContainer
 │   ├── layout.tsx                → Layout raíz global
 │   ├── page.tsx                  → Redirect a /login
 │   └── not-found.tsx
@@ -56,14 +56,30 @@ frontend/
 ├── components/
 │   ├── ui/                       → Componentes shadcn/ui
 │   ├── layout/                   → Sidebar, Header, Breadcrumb
+│   │   └── Header.tsx            → Inicializa useWebSocket y renderiza NotificationBell
 │   ├── auth/                     → Formularios de autenticación
 │   ├── admin/                    → Componentes del panel admin
-│   ├── shared/                   → Componentes globales reutilizables
-│   └── notifications/            → Campana y lista de notificaciones
+│   ├── shared/
+│   │   └── ToastContainer.tsx    → Toasts flotantes esquina inferior derecha
+│   └── notifications/
+│       └── NotificationBell.tsx  → Campana con contador y panel desplegable
 │
-├── hooks/                        → Custom hooks
-├── store/                        → Zustand stores
-├── services/                     → Llamadas al API (Axios)
+├── hooks/
+│   ├── useWebSocket.ts           → Conexión WebSocket con reconexión automática
+│   └── useNotifications.ts       → Consulta y gestión de notificaciones
+│
+├── store/
+│   ├── authStore.ts              → Estado global de autenticación
+│   ├── notificationStore.ts      → Lista y contador de notificaciones
+│   └── toastStore.ts             → Cola de toasts con máximo 3 simultáneos
+│
+├── services/
+│   ├── api.ts                    → Axios con interceptors y refresh automático
+│   ├── authService.ts            → Endpoints de autenticación
+│   ├── adminService.ts           → Endpoints del panel de administración
+│   ├── notificationService.ts    → Endpoints del notify-service
+│   └── roleService.ts            → Endpoints de roles y permisos
+│
 ├── lib/                          → Utilidades y helpers
 ├── types/                        → TypeScript interfaces
 ├── proxy.ts                      → Middleware de protección de rutas
@@ -79,9 +95,11 @@ Archivo: `frontend/.env.local`
 | Variable | Descripción | Valor desarrollo |
 |---|---|---|
 | NEXT_PUBLIC_API_URL | URL base del API | http://localhost |
-| NEXT_PUBLIC_WS_URL | URL del WebSocket | ws://localhost/ws |
+| NEXT_PUBLIC_WS_URL | URL del WebSocket | ws://172.20.92.197/ws |
 | NEXT_PUBLIC_APP_NAME | Nombre de la app | Intranet Avalanz |
 | NEXT_PUBLIC_APP_VERSION | Versión de la app | 1.0.0 |
+
+En producción `NEXT_PUBLIC_WS_URL` usa el dominio real: `ws://intranet.avalanz.com/ws`
 
 ---
 
@@ -92,7 +110,6 @@ El middleware intercepta todas las rutas antes de renderizar. Si no hay `access_
 Rutas públicas: `/login`, `/reset-password`, `/change-password`, `/setup-2fa`
 
 ```typescript
-// Lógica del middleware
 if (!token && !isPublicRoute) → redirect('/login')
 if (token && pathname === '/login') → redirect('/app')
 ```
@@ -121,19 +138,35 @@ Persiste `user` e `isAuthenticated` en `localStorage` automáticamente.
 | isAdmin() | boolean | Si es super_admin o admin_empresa |
 | isSuperAdmin() | boolean | Si es super_admin |
 
-### Uso en componentes
+### notificationStore
 
-```typescript
-import { useAuthStore } from '@/store/authStore'
+Archivo: `store/notificationStore.ts`
 
-const { user, isAdmin, hasModule, logout } = useAuthStore()
+Gestiona la lista de notificaciones del usuario y el contador de no leídas en memoria durante la sesión.
 
-// Verificar si puede ver el panel admin
-if (isAdmin()) { ... }
+| Campo / Método | Tipo | Descripción |
+|---|---|---|
+| notifications | Notification[] | Lista de notificaciones cargadas |
+| unreadCount | number | Contador de notificaciones no leídas |
+| isOpen | boolean | Si el panel de notificaciones está abierto |
+| setNotifications(list) | void | Reemplaza la lista completa |
+| addNotification(n) | void | Agrega una notificación al inicio — máximo 50 en memoria |
+| markAsRead(id) | void | Marca una notificación como leída localmente |
+| markAllAsRead() | void | Marca todas como leídas localmente |
+| setUnreadCount(n) | void | Actualiza el contador manualmente |
+| setIsOpen(open) | void | Abre o cierra el panel |
 
-// Verificar acceso a un módulo
-if (hasModule('legal')) { ... }
-```
+### toastStore
+
+Archivo: `store/toastStore.ts`
+
+Gestiona la cola de toasts flotantes. Máximo 3 toasts visibles al mismo tiempo — los siguientes esperan en cola.
+
+| Campo / Método | Tipo | Descripción |
+|---|---|---|
+| toasts | Toast[] | Cola de toasts activos |
+| addToast(toast) | void | Agrega un toast — descarta el más antiguo si hay 3 |
+| removeToast(id) | void | Elimina un toast por id |
 
 ---
 
@@ -141,18 +174,11 @@ if (hasModule('legal')) { ... }
 
 Instancia de Axios con dos interceptors:
 
-### Request interceptor
-Agrega automáticamente el `Authorization: Bearer <token>` en cada request desde las cookies.
+**Request interceptor** — agrega automáticamente el `Authorization: Bearer <token>` en cada request desde las cookies.
 
-### Response interceptor — Refresh automático
-Cuando un request falla con `401`:
-1. Intenta renovar el `access_token` usando el `refresh_token`
-2. Si hay múltiples requests fallando simultáneamente los encola y reintenta todos con el nuevo token
-3. Si el refresh falla, limpia las cookies y redirige a `/login`
+**Response interceptor** — cuando un request falla con 401, intenta renovar el `access_token` usando el `refresh_token`. Si hay múltiples requests fallando simultáneamente los encola y reintenta todos con el nuevo token. Si el refresh falla, limpia las cookies y redirige a `/login`.
 
-### Helpers exportados
-
-| Función | Descripción |
+| Función exportada | Descripción |
 |---|---|
 | saveSession(access, refresh) | Guarda ambos tokens en cookies |
 | clearSession() | Elimina cookies y redirige a /login |
@@ -178,6 +204,68 @@ Cuando un request falla con `401`:
 | logout(refreshToken) | POST /api/v1/auth/logout | Cerrar sesión |
 | getSessions() | GET /api/v1/auth/sessions | Listar sesiones activas |
 | revokeSession(id) | POST /api/v1/auth/sessions/revoke | Revocar sesión |
+
+### notificationService.ts
+
+| Función | Endpoint | Descripción |
+|---|---|---|
+| getNotifications(params) | GET /api/v1/notifications/ | Listar notificaciones del usuario |
+| getUnreadCount() | GET /api/v1/notifications/unread-count | Obtener contador de no leídas |
+| markAsRead(id) | PATCH /api/v1/notifications/{id}/read | Marcar una como leída |
+| markAllAsRead() | PATCH /api/v1/notifications/read-all | Marcar todas como leídas |
+
+---
+
+## Hooks
+
+### useWebSocket
+
+Archivo: `hooks/useWebSocket.ts`
+
+Gestiona la conexión WebSocket durante la sesión. Se inicializa en el `Header` y permanece activo mientras el usuario esté autenticado.
+
+Comportamiento:
+- Se conecta automáticamente al detectar un usuario en el authStore
+- Lee el token desde las cookies y la URL desde `NEXT_PUBLIC_WS_URL`
+- Envía ping cada 30 segundos para mantener la conexión viva
+- Reconecta automáticamente cada 5 segundos ante desconexiones inesperadas
+- Al recibir `notification.new` — normaliza el campo id, agrega al notificationStore y despacha un toast al toastStore
+- Al recibir `session.revoked` o código 4001 — limpia el authStore y redirige al login
+- Se desconecta automáticamente al cerrar sesión
+
+### useNotifications
+
+Archivo: `hooks/useNotifications.ts`
+
+Combina el notificationStore con el notificationService para gestionar la carga y actualización de notificaciones.
+
+Comportamiento:
+- Al montar refresca el contador de no leídas
+- Refresca el contador automáticamente cada 60 segundos (polling de respaldo)
+- Al abrir el panel carga la lista completa de notificaciones
+- markAsRead y markAllAsRead actualizan el store localmente primero y llaman al API en segundo plano
+
+---
+
+## Componentes de notificaciones
+
+### NotificationBell
+
+Archivo: `components/notifications/NotificationBell.tsx`
+
+Campana en el Header con badge de contador. Al hacer click abre el panel desplegable `NotificationList` que muestra las últimas 20 notificaciones. Desde el panel se puede marcar notificaciones como leídas individualmente o todas a la vez.
+
+El badge muestra el número de notificaciones no leídas. Si supera 99 muestra `99+`. El contador se actualiza en tiempo real via WebSocket sin necesidad de refrescar la página.
+
+### ToastContainer
+
+Archivo: `components/shared/ToastContainer.tsx`
+
+Contenedor de toasts flotantes anclado a la esquina inferior derecha de la pantalla. Los toasts aparecen con animación de entrada desde abajo y desaparecen hacia arriba al cerrarse. Cada toast se auto-cierra en 5 segundos o se puede cerrar manualmente con el botón X.
+
+El color del borde y el ícono varían según el tipo de notificación: azul para info, verde para success, amarillo para warning y rojo para error. Se renderizan máximo 3 toasts simultáneos — los siguientes esperan en la cola del toastStore.
+
+El ToastContainer se inicializa en `app/(private)/layout.tsx` y está disponible en todas las rutas privadas.
 
 ---
 
@@ -231,6 +319,7 @@ POST /api/v1/auth/login
                 |
                 v
         Redirect a /app
+        Header inicializa useWebSocket → conexión WebSocket activa
 ```
 
 ---
@@ -239,10 +328,11 @@ POST /api/v1/auth/login
 
 - **Layouts y páginas** → `export default function NombrePage()`
 - **Componentes medianos y pequeños** → función flecha `const Componente = () => {}`
-- **Formularios** → React Hook Form + Zod siempre
 - **Llamadas al API** → solo desde `services/`, nunca directamente en componentes
 - **Estado global** → solo Zustand, nunca useState para datos compartidos
 - **Permisos en UI** → siempre con helpers del authStore (`hasRole`, `hasModule`, etc.)
+- **WebSocket** → nunca instanciar WebSocket directamente — usar el hook `useWebSocket`
+- **Notificaciones** → siempre a través de `notificationService` y el store, nunca llamadas directas al API desde componentes
 
 ---
 
