@@ -75,3 +75,24 @@ Este archivo documenta mejoras pendientes que no son fallas críticas pero impac
 **Descripción:** El validador de tipos de Next.js `.next/dev/types/validator.ts` reporta que estas páginas no exportan un módulo válido. Las páginas dinámicas requieren un `export default` correctamente tipado con los props de params.
 **Cambio requerido:** Verificar que cada página dinámica tenga `export default function Page({ params }: { params: { id: string } })` o el tipo de params correspondiente.
 **Impacto:** TypeScript — no bloquea el build pero genera ruido en el output de `tsc --noEmit`.
+
+### Alertas de Grafana no configuradas
+**Archivos:** `infrastructure/prometheus/alerts.yml`, `infrastructure/grafana/`
+**Descripcion:** Grafana solo visualiza metricas actualmente — no envia alertas. El archivo alerts.yml esta vacio y Alertmanager no tiene canales configurados.
+**Cambio requerido:**
+- Configurar canal de notificacion en Grafana (Email via SMTP corporativo recomendado)
+- Definir reglas de alerta en alerts.yml: servicio caido >1min, latencia >1s sostenida, errores 5xx >1% del trafico, RAM >512MB
+- Conectar Alertmanager con el canal configurado
+**Impacto:** Operacion — sin alertas los problemas solo se detectan cuando un usuario los reporta.
+
+### Exporters de infraestructura no configurados
+**Archivo:** `infrastructure/docker/docker-compose.yml`
+**Descripcion:** PostgreSQL, Redis y Nginx aparecen como down en Prometheus porque no tienen exporters instalados. Solo se monitorean los servicios FastAPI.
+**Cambio requerido:** Agregar al docker-compose: postgres-exporter, redis-exporter, nginx-prometheus-exporter.
+**Impacto:** Monitoreo incompleto — no se puede ver conexiones activas a BD, uso de cache Redis ni trafico de Nginx.
+
+### Persistencia de dashboards de Grafana
+**Archivo:** `infrastructure/grafana/`
+**Descripcion:** Los dashboards de Grafana se guardan en el volumen Docker. Un docker compose down -v los borra. El JSON esta en infrastructure/grafana/avalanz-services-dashboard.json pero no se carga automaticamente.
+**Cambio requerido:** Configurar provisionamiento automatico de dashboards en Grafana apuntando a infrastructure/grafana/ para que el dashboard se cargue al levantar el contenedor sin importacion manual.
+**Impacto:** Operacion — en un reset del ambiente hay que reimportar el dashboard manualmente.
