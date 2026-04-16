@@ -48,8 +48,12 @@ backend/admin-service/
 │   ├── env.py                           → Configuración del entorno Alembic
 │   ├── script.py.mako                   → Template para archivos de migración
 │   └── versions/
-│       ├── 152e0764c443_initial_schema.py                     → Estado inicial de la BD
-│       └── 56a1e78b4518_add_matricula_puesto_departamento.py  → Campos de empleado
+│       ├── 152e0764c443_initial_schema.py
+│       ├── 56a1e78b4518_add_matricula_puesto_departamento.py
+│       ├── 26d54d059ca9_add_lock_reason_to_users.py
+│       ├── 951e0445379d_add_address_and_constancia_fields_to_.py
+│       ├── d47aff39e7ad_add_description_to_submodules.py
+│       └── e3350ebe1c8e_add_scope_to_module_roles_and_.py     → scope en module_roles, soft delete en global/submodule permissions
 ├── tests/
 ├── Dockerfile
 ├── requirements.txt
@@ -170,11 +174,16 @@ Group (Grupo Avalanz / Zignia)
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| module_id | UUID FK | Módulo al que pertenece el rol |
-| name | String(100) | Nombre del rol |
-| slug | String(100) | Identificador único dentro del módulo |
-| description | Text | Descripción |
-| is_active | Boolean | Si el rol está activo |
+| module_id | UUID FK | Modulo al que pertenece — nullable, null = catalogo general |
+| name | String(100) | Nombre del rol (Ej. Gerente, Supervisor, Operador) |
+| slug | String(100) | Identificador unico |
+| description | Text | Descripcion |
+| scope | String(20) | empresa o corporativo — default empresa |
+| is_active | Boolean | Si el rol esta activo |
+
+Scope empresa: el usuario ve solo datos de su company_id.
+Scope corporativo: el usuario ve datos de todas las empresas (Contraloria, Auditoria).
+module_id null: rol del catalogo general, asignable a cualquier modulo.
 
 #### global_permissions
 | Columna | Tipo | Descripción |
@@ -230,7 +239,7 @@ El `_serialize_user` en `user_service.py` combina datos de tres fuentes:
 |---|---|
 | user_id, email, full_name, matricula, puesto, departamento | admin-service BD |
 | company_name | JOIN con tabla companies |
-| roles | JOIN con user_global_roles + global_roles |
+| roles | JOIN con user_global_roles + global_roles. Si no tiene rol global, incluye nombre del rol operativo asignado |
 | is_locked, is_2fa_configured, last_login_at | auth-service (endpoint interno batch-info) |
 
 ---
@@ -276,12 +285,12 @@ El `_serialize_user` en `user_service.py` combina datos de tres fuentes:
    POST /api/v1/permissions/submodules/{submodule_id}
    Ejemplos: leer, crear, editar, eliminar
         |
-4. Crea los roles del módulo
-   POST /api/v1/roles/modules/{module_id}
-   Ejemplos: director_legal, abogado, asistente_legal
+4. Crea o asigna roles operativos del catalogo al modulo
+   POST /api/v1/roles/operational  (crear nuevo rol en el catalogo)
+   GET  /api/v1/roles/operational  (listar catalogo existente)
         |
-5. Asigna permisos a cada rol
-   POST /api/v1/roles/modules/{module_id}/{role_id}/permissions
+5. Asigna permisos a cada rol operativo
+   POST /api/v1/roles/operational/{role_id}/permissions
         |
 6. Asigna usuarios al módulo con su rol
    POST /api/v1/users/{user_id}/module-access
@@ -380,7 +389,7 @@ Las siguientes rutas están configuradas en `infrastructure/nginx/conf.d/intrane
 | GET | /{user_id}/permissions | super_admin, admin_empresa | Ver permisos del usuario |
 | GET | /{user_id}/sessions | super_admin, admin_empresa | Sesiones activas del usuario |
 | GET | /{user_id}/login-history | super_admin, admin_empresa | Historial de login del usuario |
-| POST | /{user_id}/lock | super_admin | Bloquear o desbloquear cuenta |
+| POST | /{user_id}/lock | super_admin, admin_empresa | Bloquear o desbloquear cuenta (admin_empresa no puede bloquear super_admin) |
 | POST | /{user_id}/reset-password | super_admin, admin_empresa | Resetear contraseña del usuario |
 
 ### Campos de creación de usuario (CreateUserRequest)
@@ -394,6 +403,8 @@ class CreateUserRequest(BaseModel):
     puesto: Optional[str]       # opcional — cargo
     departamento: Optional[str] # opcional — área
     is_super_admin: bool = False
+    global_role_id: Optional[str]           # opcional — rol global a asignar
+    module_accesses: Optional[List[dict]]   # opcional — lista de {module_id, role_id}
 ```
 
 ### Campos de actualización (UpdateUserRequest)
@@ -429,11 +440,13 @@ class UpdateUserRequest(BaseModel):
 | PATCH | /global/{role_id} | super_admin | Actualizar rol global |
 | DELETE | /global/{role_id} | super_admin | Eliminar rol global |
 | POST | /global/{role_id}/permissions | super_admin | Asignar permiso a rol global |
-| POST | /modules/{module_id} | super_admin | Crear rol de módulo |
-| GET | /modules/{module_id} | super_admin, admin_empresa | Listar roles del módulo |
-| PATCH | /modules/{module_id}/{role_id} | super_admin | Actualizar rol de módulo |
-| DELETE | /modules/{module_id}/{role_id} | super_admin | Eliminar rol de módulo |
-| POST | /modules/{module_id}/{role_id}/permissions | super_admin | Asignar permiso a rol de módulo |
+| DELETE | /global/{role_id}/permissions/{permission_id} | super_admin | Remover permiso de rol global |
+| POST | /operational | super_admin | Crear rol operativo del catalogo |
+| GET | /operational | super_admin, admin_empresa | Listar roles operativos (filtros: scope, module_id) |
+| PATCH | /operational/{role_id} | super_admin | Actualizar rol operativo |
+| DELETE | /operational/{role_id} | super_admin | Eliminar rol operativo |
+| POST | /operational/{role_id}/permissions | super_admin | Asignar permiso a rol operativo |
+| DELETE | /operational/{role_id}/permissions/{permission_id} | super_admin | Remover permiso de rol operativo |
 
 ### Permisos — `/api/v1/permissions`
 
@@ -459,10 +472,11 @@ class UpdateUserRequest(BaseModel):
 
 ```json
 {
-  "roles": ["super_admin", "legal:director_legal"],
-  "modules": ["legal", "boveda"],
-  "companies": ["uuid-corporativo", "uuid-dyce"],
-  "permissions": []
+  "roles": ["super_admin"],
+  "modules": [{"slug": "boveda", "icon": "archive", "submodules": [...]}],
+  "companies": ["uuid-corporativo"],
+  "permissions": [],
+  "cross_company": true
 }
 ```
 

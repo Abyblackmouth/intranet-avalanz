@@ -1,80 +1,98 @@
-# Política de Roles y Permisos — Guía de Referencia
+# Politica de Roles y Permisos - Guia de Referencia
 
-Ubicación: `docs/architecture/`
+Ubicacion: `docs/architecture/`
 
-Esta guía define las reglas de negocio que gobiernan el sistema de roles, permisos y restricciones de acceso de la plataforma Avalanz. Cualquier módulo nuevo que se construya debe respetar estas políticas.
-
----
-
-## Jerarquía de roles globales
-
-```
-super_admin
-    └── admin_empresa
-            └── Roles de módulo (director_legal, abogado, gestor_boveda, etc.)
-```
-
-Los roles globales aplican a toda la plataforma. Los roles de módulo aplican únicamente dentro del contexto de su módulo.
+Esta guia define las reglas de negocio que gobiernan el sistema de roles, permisos y restricciones de acceso de la plataforma Avalanz. Cualquier modulo nuevo que se construya debe respetar estas politicas.
 
 ---
 
-## Roles globales
+## Jerarquia de roles
 
-| Rol | Slug | Descripción |
+```
+super_admin              (TI Corporativo - control total)
+    admin_empresa        (TI Corporativo personal - gestion amplia con restricciones)
+        Roles operativos (Gerente, Supervisor, Operador, etc.)
+            Permisos de submodulo (leer, crear, editar, eliminar)
+```
+
+---
+
+## Tipos de roles
+
+### Roles globales
+
+Aplican a toda la plataforma. Solo existen dos y estan hardcodeados en el sistema.
+
+| Rol | Slug | Quien lo usa |
 |---|---|---|
-| Super Administrador | super_admin | Acceso total a toda la plataforma sin restricciones |
-| Administrador de Empresa | admin_empresa | Gestión dentro de su empresa — alcance limitado |
+| Super Administrador | super_admin | TI Corporativo - control total sin restricciones |
+| Administrador de Empresa | admin_empresa | Personal de TI - gestion amplia con restricciones |
+
+### Roles operativos
+
+Roles del catalogo general - reutilizables en cualquier modulo. Se crean desde `/admin/roles`.
+
+| Campo | Descripcion |
+|---|---|
+| name | Nombre visible (Ej. Gerente, Supervisor, Operador) |
+| slug | Identificador unico auto-generado |
+| scope | empresa o corporativo |
+| module_id | Null = catalogo general, UUID = exclusivo de ese modulo |
+
+- **Scope empresa** - el usuario solo ve datos de su company_id
+- **Scope corporativo** - el usuario ve datos de todas las empresas (Contraloria, Auditoria, Control Interno)
 
 ---
 
 ## Usuario protegido del sistema
 
-Existe un usuario de sistema que **no puede ser modificado, bloqueado ni eliminado bajo ninguna circunstancia**. Este usuario garantiza que siempre exista al menos un super administrador activo en la plataforma.
+Existe un usuario que no puede ser modificado, bloqueado ni eliminado bajo ninguna circunstancia.
 
-La protección se aplica por email — si el email del super admin inicial cambia en el futuro, debe actualizarse la constante `PROTECTED_SUPER_ADMIN_EMAIL` en `backend/admin-service/app/services/user_service.py`.
-
-Este usuario no puede ser:
-- Editado por nadie (ni por otros super admins)
-- Bloqueado
-- Eliminado
-
-Este usuario siempre tiene:
-- Rol `super_admin` permanente
-- Badge "Protegido" visible en la tabla de usuarios
-- Opciones de editar, bloquear y eliminar ocultas en el menú de acciones
+- Email: admin@avalanz.com
+- Constante: PROTECTED_SUPER_ADMIN_EMAIL en backend/admin-service/app/services/user_service.py
+- Badge Protegido visible en la tabla de usuarios
+- Opciones de editar, bloquear y eliminar ocultas en el menu de acciones
 
 ---
 
 ## Reglas del rol super_admin
 
-Un super admin puede:
-- Crear, editar y eliminar cualquier usuario (excepto el usuario protegido)
-- Bloquear y desbloquear cualquier cuenta (excepto el usuario protegido)
+Puede:
+- Crear, editar y eliminar cualquier usuario (excepto el protegido)
+- Bloquear y desbloquear cualquier cuenta incluyendo otros super_admin (excepto el protegido)
+- Modificar matricula / numero de empleado
 - Asignar y revocar roles globales
-- Asignar y revocar accesos a módulos
-- Gestionar grupos, empresas, módulos, submódulos, roles y permisos
-- Ver información de todas las empresas y grupos
-- Acceder a todos los módulos operativos sin necesidad de asignación explícita
+- Asignar y revocar accesos a modulos con rol operativo
+- Gestionar grupos, empresas, modulos, submodulos, roles y permisos
+- Ver informacion de todas las empresas y grupos
+- Acceder a todos los modulos operativos automaticamente sin asignacion explicita
+- Eliminar modulos, submodulos, empresas y grupos
 
-Un super admin no puede:
+No puede:
 - Modificar al usuario protegido del sistema
 
 ---
 
 ## Reglas del rol admin_empresa
 
-Un admin_empresa puede:
-- Ver usuarios de su propia empresa únicamente
-- Crear usuarios dentro de su empresa (pendiente de activación — ver nota)
-- Asignar accesos a módulos dentro de su empresa
+Puede:
+- Ver todos los usuarios de todas las empresas
+- Crear usuarios en cualquier empresa
+- Editar usuarios (campos basicos: nombre, email, puesto, departamento)
+- Bloquear y desbloquear usuarios que NO sean super_admin
+- Resetear contrasenas de cualquier usuario
+- Asignar y revocar accesos a modulos con rol operativo
+- Ver todas las empresas y grupos
 
-Un admin_empresa no puede:
-- Editar, bloquear ni eliminar usuarios (deshabilitado por política actual)
-- Ver usuarios de otras empresas
-- Gestionar grupos, empresas, módulos globales ni roles globales
-- Modificar nombre completo ni matrícula de ningún usuario
-
-> **Nota:** Las capacidades de edición del `admin_empresa` están deshabilitadas por decisión de diseño. Se habilitarán selectivamente en el módulo de roles cuando se defina el alcance exacto.
+No puede:
+- Modificar matricula / numero de empleado
+- Bloquear o desbloquear a un super_admin
+- Eliminar usuarios
+- Gestionar empresas (crear/editar/eliminar)
+- Gestionar grupos (crear/editar/eliminar)
+- Eliminar modulos o submodulos
+- Gestionar roles globales ni permisos globales
+- Asignar roles globales a usuarios
 
 ---
 
@@ -82,95 +100,81 @@ Un admin_empresa no puede:
 
 ### Bloqueo manual (por administrador)
 
-Solo un `super_admin` puede bloquear o desbloquear cuentas manualmente. El motivo es obligatorio en ambas acciones. El motivo se sobreescribe cada vez — no hay historial de motivos.
+super_admin y admin_empresa pueden bloquear y desbloquear cuentas. El motivo es obligatorio.
 
-El campo `lock_reason` se guarda en el `admin-service`. El estado `is_locked` se guarda en el `auth-service`. Ambos se actualizan en la misma operación.
+Restriccion: admin_empresa no puede bloquear ni desbloquear a un super_admin.
 
-### Bloqueo automático (por intentos fallidos)
+El campo lock_reason se guarda en el admin-service. El estado is_locked se guarda en el auth-service.
 
-El `auth-service` bloquea automáticamente una cuenta después de `MAX_FAILED_ATTEMPTS` intentos fallidos consecutivos (por defecto 5). Este bloqueo solo puede revertirse manualmente por un super admin.
+### Bloqueo automatico (por intentos fallidos)
+
+El auth-service bloquea automaticamente una cuenta despues de MAX_FAILED_ATTEMPTS intentos fallidos (por defecto 3).
+Solo un super_admin puede revertir este bloqueo, o el usuario puede recuperar su contrasena via /reset-password.
 
 ---
 
-## Acceso a módulos
+## Acceso a modulos
 
 ### Usuarios con rol super_admin
 
-Un super admin tiene acceso implícito a todos los módulos y submódulos de la plataforma sin necesidad de asignación explícita. Esto se aplica en el JWT al emitir el token — el payload incluye automáticamente todos los módulos activos.
+Acceso implicito a todos los modulos activos sin asignacion explicita. JWT incluye cross_company: true.
 
-> Esta funcionalidad está pendiente de implementación en el auth-service. Actualmente el super admin debe ser asignado manualmente a los módulos que necesite.
+### Usuarios con rol operativo
 
-### Usuarios con rol de módulo
+Solo acceden a los modulos asignados explicitamente via user_module_accesses.
 
-Un usuario con rol de módulo solo accede a los módulos que le fueron asignados explícitamente. El acceso se define en la tabla `user_module_accesses` con su rol correspondiente dentro del módulo.
+- Scope empresa: cross_company false, datos filtrados por company_id
+- Scope corporativo: cross_company true, datos de todas las empresas
 
-### Filtro de datos por empresa
+### Filtro de datos por empresa en modulos operativos
 
-Dentro de cada módulo operativo, los datos siempre se filtran por `company_id` del usuario autenticado:
-
-```python
-company_id = payload.get("company_id")
-query = select(Expediente).where(Expediente.company_id == company_id)
-```
-
-La única excepción son los usuarios con rol `super_admin` que pueden ver datos de todas las empresas.
-
----
-
-## Implementación técnica de las restricciones
-
-Las validaciones de roles se aplican en dos capas:
-
-**Capa 1 — Middleware de rutas** (`shared/middleware/jwt_validator.py`):
-Verifica que el token sea válido y que el usuario tenga el rol requerido para acceder al endpoint.
-
-**Capa 2 — Lógica de negocio** (`user_service.py`):
-Verifica reglas adicionales como la protección del usuario del sistema y el alcance por empresa.
-
-```python
-# Constante de protección en user_service.py
-PROTECTED_SUPER_ADMIN_EMAIL = "admin@avalanz.com"
-
-# Verificación en cada operación sensible
-if user.email == PROTECTED_SUPER_ADMIN_EMAIL:
-    raise ForbiddenException("Este usuario no puede ser modificado")
-```
+Cada modulo operativo debe filtrar sus consultas por company_id del JWT, excepto cuando cross_company es true.
 
 ---
 
 ## Tabla resumen de permisos
 
-| Acción | super_admin | admin_empresa | Usuario normal |
+| Accion | super_admin | admin_empresa | Rol operativo |
 |---|---|---|---|
-| Ver usuarios de su empresa | Si | Si | No |
-| Ver usuarios de otras empresas | Si | No | No |
-| Crear usuario | Si | Si* | No |
-| Editar usuario | Si | No | No |
-| Bloquear / Desbloquear | Si | No | No |
+| Ver todos los usuarios | Si | Si | No |
+| Crear usuario | Si | Si | No |
+| Editar usuario (campos basicos) | Si | Si | No |
+| Modificar matricula | Si | No | No |
+| Resetear contrasena | Si | Si | No |
+| Bloquear / Desbloquear usuario normal | Si | Si | No |
+| Bloquear / Desbloquear super_admin | Si | No | No |
 | Eliminar usuario | Si | No | No |
 | Asignar rol global | Si | No | No |
-| Asignar acceso a módulo | Si | Si* | No |
-| Gestionar grupos y empresas | Si | No | No |
-| Gestionar módulos y roles | Si | No | No |
-| Acceso a todos los módulos | Si** | No | No |
-| Modificar usuario protegido | Nadie | Nadie | Nadie |
+| Asignar acceso a modulo | Si | Si | No |
+| Gestionar empresas y grupos | Si | No | No |
+| Crear y editar modulos y submodulos | Si | No | No |
+| Eliminar modulos y submodulos | Si | No | No |
+| Gestionar roles y permisos | Si | No | No |
+| Ver panel de administracion | Si | Si | No |
+| Acceso a modulos operativos | Si (todos) | Por asignacion | Por asignacion |
+| Ver datos de todas las empresas | Si | Si (panel admin) | Solo scope corporativo |
+| Modificar usuario protegido | No | No | No |
 
-*Pendiente de activación
-**Pendiente de implementación automática en JWT
+---
+
+## JWT - campos relevantes
+
+El payload del access_token incluye: user_id, email, full_name, roles, modules, companies, permissions, cross_company.
+
+cross_company es true si el usuario es super_admin o tiene al menos un rol con scope corporativo.
+
+---
+
+## Implementacion tecnica
+
+Las validaciones se aplican en dos capas:
+
+Capa 1 - Middleware (shared/middleware/jwt_validator.py): verifica token y rol minimo requerido.
+
+Capa 2 - Logica de negocio (user_service.py): verifica reglas especificas como proteccion del usuario del sistema, restricciones de admin_empresa, y bloqueo de super_admin.
 
 ---
 
 ## Cambiar el email del usuario protegido
 
-Si en el futuro se necesita cambiar el email del usuario protegido del sistema, editar la constante en el servicio y reiniciar:
-
-```python
-# backend/admin-service/app/services/user_service.py
-PROTECTED_SUPER_ADMIN_EMAIL = "nuevo_email@avalanz.com"
-```
-
-```bash
-docker cp backend/admin-service/app/services/user_service.py avalanz-admin:/app/app/services/user_service.py
-docker compose -f infrastructure/docker/docker-compose.yml \
-  -f infrastructure/docker/docker-compose.dev.yml restart admin-service
-```
+Editar la constante PROTECTED_SUPER_ADMIN_EMAIL en backend/admin-service/app/services/user_service.py y reiniciar admin-service.
