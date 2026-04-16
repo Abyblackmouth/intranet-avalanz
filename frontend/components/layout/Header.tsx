@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, ChevronDown, LogOut, User, Shield, Clock } from 'lucide-react'
+import { ChevronDown, LogOut, User, Shield, Clock } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { logout } from '@/services/authService'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { useWebSocket } from '@/hooks/useWebSocket'
 import Cookies from 'js-cookie'
 
 export default function Header() {
@@ -14,6 +16,8 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [now, setNow] = useState<Date | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  useWebSocket()
 
   useEffect(() => {
     setMounted(true)
@@ -36,21 +40,15 @@ export default function Header() {
     try {
       const refreshToken = Cookies.get('refresh_token')
       if (refreshToken) await logout(refreshToken)
-    } catch {
-      // Si falla el logout del servidor igual limpiamos localmente
-    } finally {
+    } catch {}
+    finally {
       clearStore()
       router.push('/login')
     }
   }
 
   const initials = mounted
-    ? (user?.full_name
-        ?.split(' ')
-        .slice(0, 2)
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase() || 'U')
+    ? (user?.full_name?.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() || 'U')
     : 'U'
 
   const role = mounted
@@ -92,11 +90,8 @@ export default function Header() {
       {/* Lado derecho — notificaciones y usuario */}
       <div className="flex items-center gap-3">
 
-        {/* Notificaciones */}
-        <button className="relative w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 transition">
-          <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-        </button>
+        {/* Campana de notificaciones */}
+        {mounted && <NotificationBell />}
 
         {/* Menu de usuario */}
         <div className="relative" ref={menuRef}>
@@ -104,33 +99,24 @@ export default function Header() {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition"
           >
-            {/* Avatar */}
             <div className="w-7 h-7 bg-sky-700 rounded-lg flex items-center justify-center shrink-0">
               <span className="text-white text-xs font-bold">{initials}</span>
             </div>
-
-            {/* Nombre y rol */}
             <div className="text-left hidden sm:block">
               <p className="text-sm font-medium text-slate-900 leading-tight">
                 {mounted ? (user?.full_name || 'Usuario') : 'Usuario'}
               </p>
-              <p className="text-xs text-slate-500 leading-tight">
-                {role}
-              </p>
+              <p className="text-xs text-slate-500 leading-tight">{role}</p>
             </div>
-
             <ChevronDown size={14} className="text-slate-400 hidden sm:block" />
           </button>
 
-          {/* Dropdown */}
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-50">
-
               <div className="px-4 py-3 border-b border-slate-100">
                 <p className="text-sm font-medium text-slate-900 truncate">{user?.full_name}</p>
                 <p className="text-xs text-slate-500 truncate">{user?.email}</p>
               </div>
-
               <div className="py-1">
                 <button
                   onClick={() => { setMenuOpen(false); router.push('/app/profile') }}
@@ -139,7 +125,6 @@ export default function Header() {
                   <User size={15} className="text-slate-400" />
                   Mi perfil
                 </button>
-
                 {mounted && isAdmin() && (
                   <button
                     onClick={() => { setMenuOpen(false); router.push('/admin') }}
@@ -150,7 +135,6 @@ export default function Header() {
                   </button>
                 )}
               </div>
-
               <div className="border-t border-slate-100 py-1">
                 <button
                   onClick={handleLogout}
