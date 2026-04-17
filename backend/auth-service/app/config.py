@@ -13,6 +13,7 @@ class AuthConfig(BaseConfig):
 
     # ── TOTP (Google / Microsoft Authenticator) ───────────────────────────────
     TOTP_ISSUER: str = "Avalanz"
+    FERNET_KEY: str = ""
     TOTP_ALGORITHM: str = "SHA1"
     TOTP_DIGITS: int = 6
     TOTP_INTERVAL: int = 30

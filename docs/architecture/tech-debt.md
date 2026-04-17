@@ -35,12 +35,6 @@ Este archivo documenta mejoras pendientes que no son fallas críticas pero impac
 **Cambio requerido:** Agregar fondo gris (`hover:bg-slate-100`) en el componente `MenuItem` para opciones no peligrosas, y `hover:bg-red-50` para las peligrosas ya lo tiene.
 **Impacto:** UX — falta feedback visual de posición del cursor.
 
-### Navegación hacia atrás en flujo de cambio de contraseña
-**Archivo:** `frontend/app/(auth)/change-password/page.tsx`
-**Descripción:** Al presionar el botón de atrás del navegador durante el flujo de cambio de contraseña temporal, el usuario puede acceder al dashboard sin haber completado el cambio. Esto ocurre porque el middleware solo valida que exista un token, no que el flujo de primer login esté completo.
-**Cambio requerido:** Verificar `is_temp_password` en el AuthProvider o middleware y forzar la redirección a `/change-password` si el usuario tiene contraseña temporal activa.
-**Impacto:** Seguridad — usuario puede acceder al sistema sin cambiar su contraseña temporal.
-
 ### Editar empresa del usuario desde el formulario de edición
 **Archivo:** `frontend/components/admin/users/UserEditForm.tsx`
 **Descripción:** El formulario de edición de usuario no incluye el campo de empresa (`company_id`). El super admin debería poder reasignar un usuario a una empresa diferente desde este formulario.

@@ -37,7 +37,7 @@ async def generate_totp_setup(db: AsyncSession, user: User) -> Dict[str, Any]:
     )
     existing = result.scalar_one_or_none()
 
-    encrypted_secret = encrypt_data(secret, config.JWT_SECRET_KEY[:32])
+    encrypted_secret = encrypt_data(secret, config.FERNET_KEY)
 
     if existing:
         await db.execute(
@@ -94,7 +94,7 @@ async def activate_totp(db: AsyncSession, user: User, totp_code: str) -> Dict[st
     if totp_config.is_active:
         raise ValidationException("El 2FA ya esta activado para este usuario")
 
-    secret = decrypt_data(totp_config.secret, config.JWT_SECRET_KEY[:32])
+    secret = decrypt_data(totp_config.secret, config.FERNET_KEY)
     if not secret:
         raise ValidationException("Error al recuperar configuracion TOTP")
 
@@ -136,7 +136,7 @@ async def verify_totp_code(db: AsyncSession, user: User, totp_code: str) -> bool
     if not totp_config:
         return False
 
-    secret = decrypt_data(totp_config.secret, config.JWT_SECRET_KEY[:32])
+    secret = decrypt_data(totp_config.secret, config.FERNET_KEY)
     if not secret:
         return False
 

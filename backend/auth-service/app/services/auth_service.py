@@ -209,7 +209,13 @@ async def change_temp_password(
         )
     )
     await db.commit()
-    return {"action": "setup_2fa", "user_id": str(user.id)}
+    tokens = await _issue_tokens(db, user, client_ip="127.0.0.1", user_agent="internal", corporate=True)
+    return {
+        "action": "setup_2fa",
+        "user_id": str(user.id),
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+    }
 
 
 # ── Refresh token ─────────────────────────────────────────────────────────────

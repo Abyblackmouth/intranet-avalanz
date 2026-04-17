@@ -26,6 +26,7 @@ async def get_user_info(user_id: str, db: AsyncSession = Depends(get_db)):
         "user_id": str(user.id),
         "is_locked": user.is_locked,
         "is_2fa_configured": user.is_2fa_configured,
+        "is_temp_password": user.is_temp_password,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
         "roles": [],
     }
