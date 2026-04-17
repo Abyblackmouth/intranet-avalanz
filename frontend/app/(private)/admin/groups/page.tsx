@@ -78,7 +78,7 @@ function GroupForm({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej. Grupo Avalanz"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
             />
           </div>
           <div>
@@ -90,7 +90,7 @@ function GroupForm({
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="Descripción opcional..."
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150 resize-none"
             />
           </div>
         </div>
@@ -346,7 +346,7 @@ export default function GroupsPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre..."
             autoComplete="off"
-            className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
           />
         </div>
         {error && (
@@ -371,7 +371,7 @@ export default function GroupsPage() {
             return (
               <div
                 key={group.group_id}
-                className="bg-white rounded-xl border-2 border-slate-300 shadow-md hover:shadow-xl hover:border-[#1a4fa0] transition-all duration-200 px-5 py-4 cursor-pointer relative"
+                className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-[#1a4fa0]/30 hover:-translate-y-0.5 transition-all duration-200 px-5 py-4 cursor-pointer relative"
               >
                 {/* Boton 3 puntos */}
                 {mounted && isSuperAdmin() && (

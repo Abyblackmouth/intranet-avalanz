@@ -208,7 +208,7 @@ export default function CompaniesPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o RFC..."
             autoComplete="off"
-            className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
           />
         </div>
 
@@ -252,7 +252,7 @@ export default function CompaniesPage() {
                   {group.companies.map((company) => (
                     <div
                       key={company.company_id}
-                      className="bg-white rounded-xl border-2 border-slate-300 shadow-md hover:shadow-xl hover:border-[#1a4fa0] transition-all duration-200 px-4 py-3 cursor-pointer relative"
+                      className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-[#1a4fa0]/30 hover:-translate-y-0.5 transition-all duration-200 px-4 py-3 cursor-pointer relative flex flex-col min-h-[120px]"
                     >
                       {/* Boton 3 puntos esquina superior derecha */}
                       {mounted && isSuperAdmin() && (
@@ -284,10 +284,13 @@ export default function CompaniesPage() {
                       </p>
 
                       {mounted && isSuperAdmin() && (
-                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100">
-                          <span className={`text-xs font-medium transition-colors duration-300 ${
-                            company.is_active ? 'text-emerald-600' : 'text-red-400'
+                        <div className="flex items-center justify-between mt-auto pt-2.5 border-t border-slate-100">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                            company.is_active
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-red-50 text-red-600 border-red-200'
                           }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${company.is_active ? 'bg-emerald-500' : 'bg-red-500'}`} />
                             {company.is_active ? 'Activa' : 'Inactiva'}
                           </span>
                           <div className="flex items-center gap-2">

@@ -7,13 +7,11 @@ interface PageWrapperProps {
 
 const PageWrapper = ({ title, description, actions, children }: PageWrapperProps) => (
   <div className="flex flex-col flex-1 min-h-0">
-
-    {/* Page header */}
-    <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200 bg-white shrink-0">
+    <div className="flex items-center justify-between px-6 py-5 shrink-0">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+        <h1 className="text-xl font-semibold text-slate-800" style={{ fontFamily: "var(--font-jakarta)" }}>{title}</h1>
         {description && (
-          <p className="text-sm text-slate-500 mt-0.5">{description}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{description}</p>
         )}
       </div>
       {actions && (
@@ -22,12 +20,9 @@ const PageWrapper = ({ title, description, actions, children }: PageWrapperProps
         </div>
       )}
     </div>
-
-    {/* Page content */}
-    <div className="flex-1 overflow-auto p-6">
+    <div className="flex-1 overflow-auto px-6 pb-6">
       {children}
     </div>
-
   </div>
 )
 

@@ -201,7 +201,7 @@ function ModuleForm({
               value={form.name}
               onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Ej. Legal"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
             />
           </div>
 
@@ -212,7 +212,7 @@ function ModuleForm({
               onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))}
               rows={2}
               placeholder="Descripción opcional..."
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150 resize-none"
             />
           </div>
 
@@ -403,7 +403,7 @@ function SubmoduleForm({
               value={form.name}
               onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Ej. Expedientes"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
             />
           </div>
           <div>
@@ -413,7 +413,7 @@ function SubmoduleForm({
               onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))}
               rows={2}
               placeholder="Descripción opcional..."
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150 resize-none"
             />
           </div>
           {/* Selector de icono */}
@@ -719,7 +719,7 @@ export default function ModulesPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o empresa..."
             autoComplete="off"
-            className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
           />
         </div>
         {error && (
@@ -739,7 +739,7 @@ export default function ModulesPage() {
             const submodules = module.submodules ?? []
 
             return (
-              <div key={module.module_id} className="bg-white rounded-xl border-2 border-slate-300 shadow-md overflow-hidden">
+              <div key={module.module_id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-[#1a4fa0]/30 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
 
                 {/* Header del módulo */}
                 <div

@@ -92,7 +92,7 @@ export default function UsersPage() {
                   placeholder="Nombre, correo o matrícula..." autoComplete="new-password"
                   value={search}
                   onChange={handleSearch}
-                  className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
                 />
               </div>
             </div>

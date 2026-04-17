@@ -90,7 +90,7 @@ function GlobalPermissionModal({
               value={form.name}
               onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Ej. Ver usuarios"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
             />
           </div>
           <div>
@@ -102,7 +102,7 @@ function GlobalPermissionModal({
               value={form.category}
               onChange={(e) => setForm(p => ({ ...p, category: e.target.value }))}
               placeholder="Ej. Usuarios, Reportes"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
             />
           </div>
           <div>
@@ -114,7 +114,7 @@ function GlobalPermissionModal({
               onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))}
               rows={2}
               placeholder="Descripción opcional..."
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150 resize-none"
             />
           </div>
         </div>
@@ -212,7 +212,7 @@ function SubmodulePermissionModal({
               value={form.name}
               onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Ej. leer, crear, editar, eliminar"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
             />
           </div>
           <div>
@@ -224,7 +224,7 @@ function SubmodulePermissionModal({
               onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))}
               rows={2}
               placeholder="Descripción opcional..."
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150 resize-none"
             />
           </div>
         </div>
@@ -524,7 +524,7 @@ export default function PermissionsPage() {
                 onChange={(e) => setSearchGlobal(e.target.value)}
                 placeholder="Buscar permiso..."
                 autoComplete="off"
-                className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
               />
             </div>
             {categories.length > 0 && (

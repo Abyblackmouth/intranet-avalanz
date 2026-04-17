@@ -98,7 +98,7 @@ function GlobalRoleModal({
               value={form.name}
               onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Ej. Administrador TI"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
             />
           </div>
           <div>
@@ -110,7 +110,7 @@ function GlobalRoleModal({
               onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))}
               rows={2}
               placeholder="Descripción opcional..."
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150 resize-none"
             />
           </div>
         </div>
@@ -206,7 +206,7 @@ function OperationalRoleModal({
               value={form.name}
               onChange={(e) => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="Ej. Gerente, Supervisor, Operador"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
             />
           </div>
           <div>
@@ -218,7 +218,7 @@ function OperationalRoleModal({
               onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))}
               rows={2}
               placeholder="Descripción opcional..."
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150 resize-none"
             />
           </div>
           <div>
@@ -344,7 +344,7 @@ function RoleCard({
   }
 
   return (
-    <div className="bg-white rounded-xl border-2 border-slate-300 shadow-md hover:shadow-xl hover:border-[#1a4fa0] transition-all p-5 flex flex-col gap-3">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-[#1a4fa0]/30 hover:-translate-y-0.5 transition-all duration-200 p-5 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -530,7 +530,7 @@ export default function RolesPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre..."
             autoComplete="off"
-            className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
           />
         </div>
         <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
