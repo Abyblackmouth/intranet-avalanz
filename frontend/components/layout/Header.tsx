@@ -67,22 +67,23 @@ export default function Header() {
     : null
 
   return (
-    <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
+    <header className="h-14 bg-white border-b-2 border-slate-300 flex items-center justify-between px-6 shrink-0">
 
       {/* Lado izquierdo — fecha, hora y conexion */}
       <div className="flex items-center gap-4 text-slate-500">
         {mounted && now && (
           <div className="flex items-center gap-1.5 text-xs">
             <Clock size={13} className="text-slate-400" />
-            <span className="font-mono text-slate-700">{formattedTime}</span>
+            <span className="font-mono text-slate-500">{formattedTime}</span>
             <span className="text-slate-400">—</span>
-            <span className="capitalize">{formattedDate}</span>
+            <span className="text-slate-400 lowercase">{formattedDate}</span>
           </div>
         )}
         {mounted && sessionStart && (
           <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400">
-            <span>Conexion:</span>
-            <span className="text-slate-600 font-medium">{sessionStart}</span>
+            <span className="text-slate-300">|</span>
+            <span className="text-slate-400">Conexion:</span>
+            <span className="text-slate-500">{sessionStart}</span>
           </div>
         )}
       </div>
