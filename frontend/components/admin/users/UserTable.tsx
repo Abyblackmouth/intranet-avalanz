@@ -1,4 +1,5 @@
 'use client'
+import React from 'react'
 
 import { useState, useRef, useEffect } from 'react'
 import {
@@ -66,10 +67,21 @@ const formatRelative = (dateStr: string | null) => {
   return `Hace ${days} dia${days > 1 ? 's' : ''}`
 }
 
+const avatarColors = [
+  'bg-[#1a4fa0]',
+  'bg-violet-500',
+  'bg-teal-500',
+  'bg-orange-400',
+  'bg-rose-500',
+  'bg-emerald-500',
+]
+
 const Avatar = ({ name }: { name: string }) => {
   const initials = name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
+  const colorIndex = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % avatarColors.length
+  const color = avatarColors[colorIndex]
   return (
-    <div className="w-8 h-8 rounded-lg bg-[#1a4fa0] flex items-center justify-center shrink-0">
+    <div className={`w-8 h-8 rounded-lg ${color} flex items-center justify-center shrink-0`}>
       <span className="text-white text-xs font-bold">{initials}</span>
     </div>
   )
@@ -248,7 +260,12 @@ const ActionMenu = ({
   const openMenu = () => {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
-      setMenuPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right })
+      const menuHeight = 280
+      const spaceBelow = window.innerHeight - rect.bottom
+      const top = spaceBelow < menuHeight
+        ? rect.top + window.scrollY - menuHeight - 4
+        : rect.bottom + window.scrollY + 4
+      setMenuPos({ top, right: window.innerWidth - rect.right })
     }
     setOpen(true)
   }
@@ -367,24 +384,25 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: "629px", display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1 }}>
         <table className="w-full">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Usuario</th>
-              <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Empresa</th>
-              <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Rol</th>
-              <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">2FA</th>
+            <tr className="border-b border-slate-200">
+              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Usuario</th>
+              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Empresa</th>
+              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Rol</th>
+              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">2FA</th>
               <th className="px-4 py-3 w-10"></th>
-              <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Estado</th>
-              <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Ultima conexion</th>
+              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Estado</th>
+              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Ultima conexion</th>
               <th className="px-4 py-3 w-10" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {users.map((user) => (
               <tr key={user.user_id} className="hover:bg-slate-50/60 transition">
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   <div className="flex items-center gap-3">
                     <Avatar name={user.full_name} />
                     <div>
@@ -392,22 +410,22 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
                         <p className="text-sm font-medium text-slate-900 leading-tight">{user.full_name}</p>
                         {user.is_protected && <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">Protegido</span>}
                       </div>
-                      <p className="text-xs text-slate-400 leading-tight">{user.email}</p>
+                      <p className="text-xs leading-tight" style={{ color: "#6b7280" }}>{user.email}</p>
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3"><p className="text-sm text-slate-700">{user.company_name || '—'}</p></td>
-                <td className="px-4 py-3"><RoleBadge roles={user.roles} /></td>
-                <td className="px-4 py-3"><TwoFABadge configured={user.is_2fa_configured} /></td>
+                <td className="px-4 py-2.5"><p className="text-sm text-slate-700">{user.company_name || '—'}</p></td>
+                <td className="px-4 py-2.5"><RoleBadge roles={user.roles} /></td>
+                <td className="px-4 py-2.5"><TwoFABadge configured={user.is_2fa_configured} /></td>
                 <td className="px-4 py-3 text-center">
                   {user.is_locked
                     ? <Lock size={18} className="text-red-500 mx-auto" />
                     : <Unlock size={18} className="text-green-500 mx-auto" />
                   }
                 </td>
-                <td className="px-4 py-3"><StatusBadge user={user} /></td>
-                <td className="px-4 py-3"><p className="text-xs text-slate-500">{formatRelative(user.last_login_at)}</p></td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5"><StatusBadge user={user} /></td>
+                <td className="px-4 py-2.5"><p className="text-xs text-slate-500">{formatRelative(user.last_login_at)}</p></td>
+                <td className="px-4 py-2.5">
                   <ActionMenu
                     user={user}
                     onRefresh={onRefresh}
@@ -420,6 +438,7 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
             ))}
           </tbody>
         </table>
+        </div>
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
@@ -427,10 +446,10 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
             <div className="flex items-center gap-1">
               <button onClick={() => onPageChange(page - 1)} disabled={page === 1} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"><ChevronLeft size={15} /></button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1).map((p, idx, arr) => (
-                <>
-                  {idx > 0 && arr[idx - 1] !== p - 1 && <span key={`dots-${p}`} className="text-slate-300 text-xs px-1">...</span>}
-                  <button key={p} onClick={() => onPageChange(p)} className={`w-8 h-8 rounded-lg text-sm transition ${p === page ? 'bg-[#1a4fa0] text-white font-medium' : 'text-slate-600 hover:bg-slate-100'}`}>{p}</button>
-                </>
+                <React.Fragment key={p}>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && <span className="text-slate-300 text-xs px-1">...</span>}
+                  <button onClick={() => onPageChange(p)} className={`w-8 h-8 rounded-lg text-sm transition ${p === page ? 'bg-[#1a4fa0] text-white font-medium' : 'text-slate-600 hover:bg-slate-100'}`}>{p}</button>
+                </React.Fragment>
               ))}
               <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"><ChevronRight size={15} /></button>
             </div>

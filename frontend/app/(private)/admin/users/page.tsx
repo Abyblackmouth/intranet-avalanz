@@ -17,7 +17,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [perPage] = useState(15)
+  const [perPage] = useState(10)
   const [isLoading, setIsLoading] = useState(false)
 
   const [search, setSearch] = useState('')
