@@ -1,14 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Eye, EyeOff, Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { changePassword } from '@/services/authService'
-
-// ── Schema ────────────────────────────────────────────────────────────────────
 
 const schema = z.object({
   new_password: z
@@ -26,8 +24,6 @@ const schema = z.object({
 
 type ChangePasswordForm = z.infer<typeof schema>
 
-// ── Reglas de contrasena ──────────────────────────────────────────────────────
-
 const rules = [
   { label: 'Minimo 8 caracteres', test: (v: string) => v.length >= 8 },
   { label: 'Una letra mayuscula', test: (v: string) => /[A-Z]/.test(v) },
@@ -36,7 +32,49 @@ const rules = [
   { label: 'Un caracter especial', test: (v: string) => /[!@#$%^&*(),.?":{}|<>]/.test(v) },
 ]
 
-// ── Componente ────────────────────────────────────────────────────────────────
+const cardStyle: React.CSSProperties = {
+  background: 'white',
+  borderRadius: '20px',
+  boxShadow: '0 4px 6px rgba(0,0,0,0.04), 0 12px 40px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',
+  padding: '40px 36px 36px',
+}
+
+const inputBase: React.CSSProperties = {
+  width: '100%', padding: '10px 14px',
+  border: '1.5px solid #e2e8f0', borderRadius: '10px',
+  fontSize: '14px', color: '#0f172a', background: '#ffffff',
+  outline: 'none', boxSizing: 'border-box',
+}
+
+const btnStyle: React.CSSProperties = {
+  width: '100%', background: '#1a4fa0', color: 'white',
+  padding: '11px 0', borderRadius: '10px',
+  fontSize: '14px', fontWeight: 600, letterSpacing: '0.01em',
+  border: 'none', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+  boxShadow: '0 2px 8px rgba(26,79,160,0.18)',
+}
+
+const eyeBtnStyle: React.CSSProperties = {
+  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+  background: 'none', border: 'none', cursor: 'pointer',
+  color: '#94a3b8', padding: '4px', display: 'flex', alignItems: 'center',
+}
+
+
+const useInputFocus = () => {
+  const [focused, setFocused] = useState(false)
+  return {
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+    style: (base: React.CSSProperties): React.CSSProperties => ({
+      ...base,
+      borderColor: focused ? '#1a4fa0' : '#e2e8f0',
+      boxShadow: focused ? '0 0 0 3.5px rgba(26,79,160,0.10)' : 'none',
+      background: focused ? '#fafcff' : '#ffffff',
+    }),
+  }
+}
 
 export default function ChangePasswordPage() {
   const router = useRouter()
@@ -44,7 +82,22 @@ export default function ChangePasswordPage() {
   const userId = searchParams.get('user_id') || ''
 
   const [showNew, setShowNew] = useState(false)
+  const [alreadyUsed, setAlreadyUsed] = useState(false)
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    if (!userId) { setAlreadyUsed(true); setChecking(false); return }
+    fetch(`/api/v1/auth/internal/users/${userId}/info`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.is_temp_password) setAlreadyUsed(true)
+      })
+      .catch(() => setAlreadyUsed(true))
+      .finally(() => setChecking(false))
+  }, [userId])
   const [showConfirm, setShowConfirm] = useState(false)
+  const [focusNew, setFocusNew] = useState(false)
+  const [focusConfirm, setFocusConfirm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,141 +108,138 @@ export default function ChangePasswordPage() {
   const passwordValue = watch('new_password') || ''
 
   const onSubmit = async (data: ChangePasswordForm) => {
-    if (!userId) {
-      setError('Usuario no identificado. Vuelve a iniciar sesion.')
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
+    if (!userId) { setError('Usuario no identificado. Vuelve a iniciar sesion.'); return }
+    setIsLoading(true); setError(null)
     try {
       const res = await changePassword({ user_id: userId, new_password: data.new_password })
-
-      if (!res.success) {
-        setError(res.message)
-        return
-      }
-
-      // Redirigir a configuracion de 2FA
+      if (!res.success) { setError(res.message); return }
+      sessionStorage.setItem(`pwd_changed_${userId}`, 'true')
       if (res.data?.action === 'setup_2fa') {
+        const d = res.data as any
+        if (d.access_token && d.refresh_token) {
+          const { saveSession } = await import('@/services/api')
+          saveSession(d.access_token, d.refresh_token)
+        }
         router.push(`/setup-2fa?user_id=${userId}&mode=setup`)
       }
-
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { message?: string } } }
       setError(axiosError?.response?.data?.message || 'Error al cambiar la contrasena')
-    } finally {
-      setIsLoading(false)
-    }
+    } finally { setIsLoading(false) }
   }
 
   return (
     <div className="w-full max-w-md">
-      <div className="bg-white rounded-2xl shadow-lg p-8">
-
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">A</span>
+      {checking ? null : alreadyUsed ? (
+        <div style={cardStyle}>
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+              Link expirado
+            </h1>
+            <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '8px' }}>
+              Este link ya fue utilizado. Si necesitas cambiar tu contrasena puedes:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+              <button onClick={() => router.push('/reset-password')} style={{ background: 'none', border: '1.5px solid #1a4fa0', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', color: '#1a4fa0', padding: '10px', fontWeight: 500 }}>
+                Olvide mi contrasena
+              </button>
+              <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>o contacta al administrador</p>
+            </div>
+            <button onClick={() => router.push('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: '#1a4fa0' }}>
+              Ir al login
+            </button>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Crea tu contrasena</h1>
-          <p className="text-slate-500 text-sm mt-1">
+        </div>
+      ) : (
+      <div style={cardStyle}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.3px' }}>
+            Crea tu contrasena
+          </h1>
+          <p style={{ fontSize: '13.5px', color: '#64748b', marginTop: '8px' }}>
             Tu contrasena temporal ha expirado. Crea una nueva contrasena segura.
           </p>
         </div>
 
-        {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-6">
-            {error}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: '10px', padding: '12px 14px', fontSize: '13.5px', marginBottom: '20px', lineHeight: '1.4' }}>
+            <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '1px' }} />
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
 
-          {/* Nueva contrasena */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>
               Nueva contrasena
             </label>
-            <div className="relative">
+            <div style={{ position: 'relative' }}>
               <input
                 {...register('new_password')}
                 type={showNew ? 'text' : 'password'}
                 placeholder="••••••••"
-                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition pr-10"
+                style={{ ...inputBase, paddingRight: '40px', borderColor: focusNew ? '#1a4fa0' : '#e2e8f0', boxShadow: focusNew ? '0 0 0 3.5px rgba(26,79,160,0.10)' : 'none', background: focusNew ? '#fafcff' : '#ffffff' }}
+                onFocus={() => setFocusNew(true)}
+                onBlur={() => setFocusNew(false)}
               />
-              <button
-                type="button"
-                onClick={() => setShowNew(!showNew)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
+              <button type="button" onClick={() => setShowNew(!showNew)} style={eyeBtnStyle}>
+                {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
             {errors.new_password && (
-              <p className="text-red-500 text-xs mt-1">{errors.new_password.message}</p>
+              <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '5px' }}>{errors.new_password.message}</p>
             )}
           </div>
 
-          {/* Reglas de contrasena */}
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>
+              Confirmar contrasena
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                {...register('confirm_password')}
+                type={showConfirm ? 'text' : 'password'}
+                placeholder="••••••••"
+                style={{ ...inputBase, paddingRight: '40px', borderColor: focusConfirm ? '#1a4fa0' : '#e2e8f0', boxShadow: focusConfirm ? '0 0 0 3.5px rgba(26,79,160,0.10)' : 'none', background: focusConfirm ? '#fafcff' : '#ffffff' }}
+                onFocus={() => setFocusConfirm(true)}
+                onBlur={() => setFocusConfirm(false)}
+              />
+              <button type="button" onClick={() => setShowConfirm(!showConfirm)} style={eyeBtnStyle}>
+                {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            {errors.confirm_password && (
+              <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '5px' }}>{errors.confirm_password.message}</p>
+            )}
+          </div>
+
           {passwordValue.length > 0 && (
-            <div className="bg-slate-50 rounded-lg p-3 space-y-1.5">
+            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
               {rules.map((rule) => (
-                <div key={rule.label} className="flex items-center gap-2 text-xs">
+                <div key={rule.label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {rule.test(passwordValue)
-                    ? <CheckCircle2 size={14} className="text-green-500 shrink-0" />
-                    : <XCircle size={14} className="text-slate-300 shrink-0" />
-                  }
-                  <span className={rule.test(passwordValue) ? 'text-green-700' : 'text-slate-400'}>
-                    {rule.label}
-                  </span>
+                    ? <CheckCircle2 size={13} style={{ color: '#22c55e', flexShrink: 0 }} />
+                    : <XCircle size={13} style={{ color: '#cbd5e1', flexShrink: 0 }} />}
+                  <span style={{ fontSize: '11.5px', color: rule.test(passwordValue) ? '#15803d' : '#94a3b8' }}>{rule.label}</span>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Confirmar contrasena */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Confirmar contrasena
-            </label>
-            <div className="relative">
-              <input
-                {...register('confirm_password')}
-                type={showConfirm ? 'text' : 'password'}
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirm(!showConfirm)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            {errors.confirm_password && (
-              <p className="text-red-500 text-xs mt-1">{errors.confirm_password.message}</p>
-            )}
-          </div>
-
-          {/* Submit */}
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-slate-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{ ...btnStyle, marginTop: '4px', opacity: isLoading ? 0.65 : 1, cursor: isLoading ? 'not-allowed' : 'pointer' }}
           >
-            {isLoading && <Loader2 size={16} className="animate-spin" />}
+            {isLoading && <Loader2 size={15} className="animate-spin" />}
             {isLoading ? 'Guardando...' : 'Guardar contrasena'}
           </button>
-
         </form>
       </div>
-
-      <p className="text-center text-xs text-slate-400 mt-6">
-        &copy; {new Date().getFullYear()} Avalanz. Todos los derechos reservados.
+      )}
+      <p style={{ textAlign: 'center', fontSize: '12px', color: '#94a3b8', marginTop: '20px' }}>
+        &copy; 2026 Avalanz. Todos los derechos reservados.
       </p>
     </div>
   )

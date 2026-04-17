@@ -26,7 +26,13 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const res = await getMe()
         if (res.success && res.data) {
-          setUser(res.data)
+          const user = res.data
+          // Si tiene contraseña temporal activa, forzar cambio
+          if ((user as any).is_temp_password) {
+            router.push(`/change-password?user_id=${user.user_id}`)
+            return
+          }
+          setUser(user)
         } else {
           logout()
           router.push('/login')
