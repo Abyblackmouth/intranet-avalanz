@@ -20,6 +20,7 @@ Interfaz web de la Intranet Avalanz construida con Next.js 16, Tailwind CSS y sh
 | Iconos UI | Lucide React | — |
 | Iconos marcas | React Icons | 5.x |
 | Cookies | js-cookie | — |
+| Fuentes | Geist Sans, Geist Mono, Plus Jakarta Sans, Roboto (Google Fonts via Next.js) | — |
 
 ---
 
@@ -49,18 +50,29 @@ frontend/
 │   │   │   ├── page.tsx
 │   │   │   └── [module]/[submodule]/
 │   │   └── layout.tsx            → Incluye ToastContainer
-│   ├── layout.tsx                → Layout raíz global
+│   ├── layout.tsx                → Layout raíz global con fuentes Google
 │   ├── page.tsx                  → Redirect a /login
 │   └── not-found.tsx
 │
 ├── components/
 │   ├── ui/                       → Componentes shadcn/ui
-│   ├── layout/                   → Sidebar, Header, Breadcrumb
-│   │   └── Header.tsx            → Inicializa useWebSocket y renderiza NotificationBell
+│   ├── layout/
+│   │   ├── Sidebar.tsx           → Sidebar colapsable con navegación dinámica
+│   │   ├── Header.tsx            → Header con reloj, notificaciones y menú usuario
+│   │   └── PageWrapper.tsx       → Wrapper de páginas con título, descripción y acciones
 │   ├── auth/                     → Formularios de autenticación
+│   │   └── AuthProvider.tsx      → Valida sesión y redirige según is_temp_password
 │   ├── admin/                    → Componentes del panel admin
+│   │   ├── users/
+│   │   │   └── UserTable.tsx     → Tabla de usuarios con paginación y menú flotante
+│   │   └── companies/
+│   │       ├── CompanyForm.tsx
+│   │       ├── CompanyEditForm.tsx
+│   │       └── CompanyDetail.tsx
 │   ├── shared/
-│   │   └── ToastContainer.tsx    → Toasts flotantes esquina inferior derecha
+│   │   ├── ToastContainer.tsx    → Toasts flotantes esquina inferior derecha
+│   │   ├── AdminInput.tsx        → Input reutilizable para páginas admin
+│   │   └── AdminCard.tsx         → Card reutilizable con hover elegante
 │   └── notifications/
 │       └── NotificationBell.tsx  → Campana con contador y panel desplegable
 │
@@ -116,74 +128,294 @@ if (token && pathname === '/login') → redirect('/app')
 
 ---
 
+## Convenciones de UI
+
+### Colores y tokens
+
+| Token | Valor | Uso |
+|---|---|---|
+| Azul corporativo | `#1a4fa0` | Botones primarios, items activos, focus |
+| Fondo layout | `bg-slate-50` | Fondo general de páginas privadas |
+| Fondo sidebar/header | `bg-white` | Siempre blanco |
+| Borde sidebar | `border-r-2 border-slate-300` | Separador sidebar-contenido |
+| Borde header | `border-b-2 border-slate-300` | Consistente con sidebar |
+
+### Cards
+
+```
+bg-white rounded-xl border border-slate-200 shadow-sm
+hover:shadow-md hover:border-[#1a4fa0]/30 hover:-translate-y-0.5
+transition-all duration-200
+```
+
+### Inputs en páginas admin (sobre fondo slate-50)
+
+```
+border border-slate-200 rounded-lg text-sm text-slate-900
+placeholder:text-slate-400 bg-white outline-none
+hover:border-slate-300
+focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10
+transition-all duration-150
+```
+
+Usar el componente `AdminInput` de `components/shared/AdminInput.tsx` — soporta prop `icon` para íconos a la izquierda.
+
+### Inputs en páginas auth (sobre fondo blanco)
+
+```css
+border: 1.5px solid #e2e8f0; border-radius: 10px;
+focus: border-color #1a4fa0; box-shadow: 0 0 0 3.5px rgba(26,79,160,0.10);
+```
+
+### Botones primarios
+
+```
+bg-[#1a4fa0] text-white rounded-lg hover:bg-blue-700
+font-medium px-4 py-2 text-sm transition
+```
+
+### Badges de estado
+
+```
+// Activo
+bg-emerald-50 text-emerald-700 border border-emerald-200
+
+// Inactivo/Bloqueado
+bg-red-50 text-red-600 border border-red-200
+```
+
+Siempre incluir punto de color: `<span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />`
+
+### Menús flotantes (3 puntos)
+
+- Detección de espacio: `menuHeight = 280` para decidir si abrir hacia arriba o hacia abajo
+- Borde: `border border-slate-200 shadow-lg rounded-xl`
+- Items hover gris: `hover:bg-slate-100`
+- Items destructivos: `text-red-600 hover:bg-red-50`
+
+### Avatares con iniciales
+
+6 colores determinísticos por hash del nombre del usuario:
+
+```typescript
+const avatarColors = [
+  'bg-[#1a4fa0]', 'bg-violet-500', 'bg-teal-500',
+  'bg-orange-400', 'bg-rose-500', 'bg-emerald-500',
+]
+const colorIndex = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % avatarColors.length
+```
+
+### Fuentes
+
+| Fuente | Variable CSS | Uso |
+|---|---|---|
+| Geist Sans | `--font-geist-sans` | Cuerpo general |
+| Geist Mono | `--font-geist-mono` | Código y monoespaciado |
+| Plus Jakarta Sans | `--font-jakarta` | Títulos del sidebar y PageWrapper |
+| Roboto | `--font-roboto` | Disponible, no usado actualmente |
+
+Todas las fuentes se importan en `app/layout.tsx` y se aplican como variables CSS al elemento `<html>`.
+
+---
+
+## Layout — Sidebar
+
+Archivo: `components/layout/Sidebar.tsx`
+
+Sidebar colapsable con dos estados: expandido (`w-60`) y colapsado (`w-16`). El estado se controla con `mounted` para evitar hydration mismatch.
+
+**Estructura:**
+- Logo `w-10 h-10` con `object-contain` + nombre "Intranet Avalanz" en Plus Jakarta Sans
+- Sección "Administración" — solo visible para admins. Super admin ve todos los items; admin_empresa solo ve Usuarios y Empresas
+- Sección "Mis Módulos" — módulos dinámicos del JWT con submódulos colapsables
+- Footer con avatar azul + iniciales + nombre + rol + punto verde de conexión
+
+**Submódulos desplegables:**
+- Línea vertical izquierda: `border-l-2 border-slate-100`
+- Item activo: `bg-blue-50 text-[#1a4fa0]`
+- Item inactivo: `text-slate-500 hover:bg-slate-100`
+
+**Items de navegación activos:** `bg-[#1a4fa0] text-white`
+**Items de navegación hover:** `hover:bg-slate-100`
+
+---
+
+## Layout — Header
+
+Archivo: `components/layout/Header.tsx`
+
+Altura fija `h-14`. Contiene:
+- Lado izquierdo: reloj en tiempo real (`font-mono text-slate-500`) + fecha + separador + hora de conexión
+- Lado derecho: `NotificationBell` + menú de usuario con iniciales, nombre y rol
+
+El reloj se actualiza cada segundo via `setInterval`. La fecha usa `toLocaleDateString('es-MX')` y se muestra en minúsculas con la clase `lowercase`.
+
+El menú de usuario contiene: Mi perfil, Panel admin (solo admins), Cerrar sesión.
+
+---
+
+## Layout — PageWrapper
+
+Archivo: `components/layout/PageWrapper.tsx`
+
+Wrapper sin fondo propio — se integra directamente con el `bg-slate-50` del layout. No tiene `border-b` ni `bg-white`.
+
+```tsx
+<PageWrapper
+  title="Usuarios"
+  description="Gestiona los usuarios de la plataforma"
+  actions={<button>+ Nuevo usuario</button>}
+>
+  {/* contenido */}
+</PageWrapper>
+```
+
+El título usa Plus Jakarta Sans (`font-semibold text-xl text-slate-800`). La descripción usa `text-xs text-slate-400`.
+
+---
+
+## Componentes compartidos
+
+### AdminInput
+
+Archivo: `components/shared/AdminInput.tsx`
+
+Input reutilizable para páginas admin. Aplica el estilo estándar sobre `bg-slate-50` automáticamente.
+
+```tsx
+<AdminInput
+  icon={<Search size={14} />}
+  placeholder="Buscar..."
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+/>
+```
+
+### AdminCard
+
+Archivo: `components/shared/AdminCard.tsx`
+
+Card reutilizable con hover elegante. Props: `children`, `className`, `onClick`, `hover` (default true).
+
+---
+
+## AuthProvider
+
+Archivo: `components/auth/AuthProvider.tsx`
+
+Se ejecuta en cada ruta privada. Valida el token con `GET /api/v1/auth/me`. Si el usuario tiene `is_temp_password: true` redirige a `/change-password?user_id=xxx`. Si el token es inválido hace logout y redirige a `/login`.
+
+---
+
+## Tabla de usuarios — UserTable
+
+Archivo: `components/admin/users/UserTable.tsx`
+
+Tabla con las siguientes características:
+- Altura fija del contenedor: `629px` con `display: flex, flexDirection: column`
+- Paginación de 10 registros por página
+- Avatares con 6 colores determinísticos por hash del nombre
+- Menú flotante con detección de espacio (`menuHeight = 280`) — se abre hacia arriba si no hay espacio abajo
+- Footer de paginación siempre al fondo del contenedor via `marginTop: auto`
+- Correo del usuario: `text-slate-400`
+
+---
+
+## Flujo de autenticación
+
+```
+Usuario entra a /login
+        |
+        v
+Ingresa email y password
+        |
+        v
+POST /api/v1/auth/login
+        |
+        ├── action: change_password → /change-password?user_id=xxx
+        │         change-password verifica is_temp_password via /internal/users/{id}/info
+        │         Si is_temp_password=false → muestra "Link expirado"
+        │
+        ├── action: 2fa_required → /setup-2fa?temp_token=xxx&mode=verify
+        │
+        ├── action: setup_2fa → /setup-2fa?mode=setup&... (primer login con 2FA)
+        │         Al activar 2FA llama clearSession() antes de redirigir al login
+        │
+        └── access_token + refresh_token
+                |
+                v
+        Guarda tokens en cookies
+        GET /api/v1/auth/me → guarda user en Zustand
+        AuthProvider verifica is_temp_password → redirige si aplica
+                |
+                v
+        Redirect a /app
+        Header inicializa useWebSocket → conexión WebSocket activa
+```
+
+---
+
+## Flujo de recuperación de contraseña
+
+```
+Usuario solicita recuperación → POST /api/v1/auth/password-reset/request
+        |
+        v
+Recibe correo con link /reset-password?token=xxx
+        |
+        v
+Ingresa nueva contraseña → POST /api/v1/auth/password-reset/confirm
+        |
+        ├── success → token marcado is_used=True en BD → redirect /login
+        └── error → INVALID_TOKEN (token ya usado o expirado) → muestra error
+```
+
+---
+
 ## Estado global — Zustand
 
 ### authStore
-
-Archivo: `store/authStore.ts`
-
-Persiste `user` e `isAuthenticated` en `localStorage` automáticamente.
 
 | Campo / Método | Tipo | Descripción |
 |---|---|---|
 | user | AuthUser \| null | Datos del usuario autenticado |
 | isAuthenticated | boolean | Si hay sesión activa |
-| isLoading | boolean | Estado de carga |
 | setUser(user) | void | Guarda el usuario en el store |
 | setTokens(tokens) | void | Guarda tokens en cookies |
 | logout() | void | Limpia cookies y store |
-| hasRole(role) | boolean | Verifica si el usuario tiene el rol |
-| hasModule(slug) | boolean | Verifica acceso a un módulo |
-| hasPermission(perm) | boolean | Verifica un permiso específico |
 | isAdmin() | boolean | Si es super_admin o admin_empresa |
 | isSuperAdmin() | boolean | Si es super_admin |
 
 ### notificationStore
 
-Archivo: `store/notificationStore.ts`
-
-Gestiona la lista de notificaciones del usuario y el contador de no leídas en memoria durante la sesión.
-
 | Campo / Método | Tipo | Descripción |
 |---|---|---|
 | notifications | Notification[] | Lista de notificaciones cargadas |
 | unreadCount | number | Contador de notificaciones no leídas |
-| isOpen | boolean | Si el panel de notificaciones está abierto |
-| setNotifications(list) | void | Reemplaza la lista completa |
-| addNotification(n) | void | Agrega una notificación al inicio — máximo 50 en memoria |
-| markAsRead(id) | void | Marca una notificación como leída localmente |
+| addNotification(n) | void | Agrega al inicio — máximo 50 en memoria |
+| markAsRead(id) | void | Marca como leída localmente |
 | markAllAsRead() | void | Marca todas como leídas localmente |
-| setUnreadCount(n) | void | Actualiza el contador manualmente |
-| setIsOpen(open) | void | Abre o cierra el panel |
 
 ### toastStore
-
-Archivo: `store/toastStore.ts`
-
-Gestiona la cola de toasts flotantes. Máximo 3 toasts visibles al mismo tiempo — los siguientes esperan en cola.
 
 | Campo / Método | Tipo | Descripción |
 |---|---|---|
 | toasts | Toast[] | Cola de toasts activos |
-| addToast(toast) | void | Agrega un toast — descarta el más antiguo si hay 3 |
-| removeToast(id) | void | Elimina un toast por id |
+| addToast(toast) | void | Agrega — descarta el más antiguo si hay 3 |
+| removeToast(id) | void | Elimina por id |
 
 ---
 
 ## HTTP Client — services/api.ts
 
-Instancia de Axios con dos interceptors:
-
-**Request interceptor** — agrega automáticamente el `Authorization: Bearer <token>` en cada request desde las cookies.
-
-**Response interceptor** — cuando un request falla con 401, intenta renovar el `access_token` usando el `refresh_token`. Si hay múltiples requests fallando simultáneamente los encola y reintenta todos con el nuevo token. Si el refresh falla, limpia las cookies y redirige a `/login`.
+Instancia de Axios con interceptors automáticos de token y refresh.
 
 | Función exportada | Descripción |
 |---|---|
-| saveSession(access, refresh) | Guarda ambos tokens en cookies |
+| saveSession(access, refresh) | Guarda tokens en cookies |
 | clearSession() | Elimina cookies y redirige a /login |
-| getAccessToken() | Obtiene el access token de cookies |
-| getRefreshToken() | Obtiene el refresh token de cookies |
+| getAccessToken() | Obtiene access token de cookies |
+| getRefreshToken() | Obtiene refresh token de cookies |
 
 ---
 
@@ -202,125 +434,6 @@ Instancia de Axios con dos interceptors:
 | confirmPasswordReset(data) | POST /api/v1/auth/password-reset/confirm | Confirmar nueva contraseña |
 | getMe() | GET /api/v1/auth/me | Obtener usuario autenticado |
 | logout(refreshToken) | POST /api/v1/auth/logout | Cerrar sesión |
-| getSessions() | GET /api/v1/auth/sessions | Listar sesiones activas |
-| revokeSession(id) | POST /api/v1/auth/sessions/revoke | Revocar sesión |
-
-### notificationService.ts
-
-| Función | Endpoint | Descripción |
-|---|---|---|
-| getNotifications(params) | GET /api/v1/notifications/ | Listar notificaciones del usuario |
-| getUnreadCount() | GET /api/v1/notifications/unread-count | Obtener contador de no leídas |
-| markAsRead(id) | PATCH /api/v1/notifications/{id}/read | Marcar una como leída |
-| markAllAsRead() | PATCH /api/v1/notifications/read-all | Marcar todas como leídas |
-
----
-
-## Hooks
-
-### useWebSocket
-
-Archivo: `hooks/useWebSocket.ts`
-
-Gestiona la conexión WebSocket durante la sesión. Se inicializa en el `Header` y permanece activo mientras el usuario esté autenticado.
-
-Comportamiento:
-- Se conecta automáticamente al detectar un usuario en el authStore
-- Lee el token desde las cookies y la URL desde `NEXT_PUBLIC_WS_URL`
-- Envía ping cada 30 segundos para mantener la conexión viva
-- Reconecta automáticamente cada 5 segundos ante desconexiones inesperadas
-- Al recibir `notification.new` — normaliza el campo id, agrega al notificationStore y despacha un toast al toastStore
-- Al recibir `session.revoked` o código 4001 — limpia el authStore y redirige al login
-- Se desconecta automáticamente al cerrar sesión
-
-### useNotifications
-
-Archivo: `hooks/useNotifications.ts`
-
-Combina el notificationStore con el notificationService para gestionar la carga y actualización de notificaciones.
-
-Comportamiento:
-- Al montar refresca el contador de no leídas
-- Refresca el contador automáticamente cada 60 segundos (polling de respaldo)
-- Al abrir el panel carga la lista completa de notificaciones
-- markAsRead y markAllAsRead actualizan el store localmente primero y llaman al API en segundo plano
-
----
-
-## Componentes de notificaciones
-
-### NotificationBell
-
-Archivo: `components/notifications/NotificationBell.tsx`
-
-Campana en el Header con badge de contador. Al hacer click abre el panel desplegable `NotificationList` que muestra las últimas 20 notificaciones. Desde el panel se puede marcar notificaciones como leídas individualmente o todas a la vez.
-
-El badge muestra el número de notificaciones no leídas. Si supera 99 muestra `99+`. El contador se actualiza en tiempo real via WebSocket sin necesidad de refrescar la página.
-
-### ToastContainer
-
-Archivo: `components/shared/ToastContainer.tsx`
-
-Contenedor de toasts flotantes anclado a la esquina inferior derecha de la pantalla. Los toasts aparecen con animación de entrada desde abajo y desaparecen hacia arriba al cerrarse. Cada toast se auto-cierra en 5 segundos o se puede cerrar manualmente con el botón X.
-
-El color del borde y el ícono varían según el tipo de notificación: azul para info, verde para success, amarillo para warning y rojo para error. Se renderizan máximo 3 toasts simultáneos — los siguientes esperan en la cola del toastStore.
-
-El ToastContainer se inicializa en `app/(private)/layout.tsx` y está disponible en todas las rutas privadas.
-
----
-
-## Types — types/
-
-### auth.types.ts
-
-| Interface | Descripción |
-|---|---|
-| LoginRequest | Email y password para login |
-| LoginResponse | Respuesta del login con action, tokens o temp_token |
-| TwoFARequest | temp_token y code para verificar 2FA |
-| TwoFASetupResponse | QR SVG, secret y backup codes |
-| ChangePasswordRequest | user_id y new_password |
-| AuthUser | Datos completos del usuario en el JWT |
-| UserSession | Datos de una sesión activa |
-| TokenPair | access_token, refresh_token y token_type |
-
-### api.types.ts
-
-| Interface | Descripción |
-|---|---|
-| ApiResponse\<T\> | Respuesta estándar del API |
-| PaginationMeta | Metadata de paginación |
-| PaginatedResponse\<T\> | Respuesta con lista paginada |
-| ErrorResponse | Respuesta de error estándar |
-| PaginationParams | Parámetros page y per_page |
-
----
-
-## Flujo de autenticación
-
-```
-Usuario entra a /login
-        |
-        v
-Ingresa email y password
-        |
-        v
-POST /api/v1/auth/login
-        |
-        ├── action: change_password → /change-password?user_id=xxx
-        │
-        ├── action: 2fa_required → /setup-2fa?temp_token=xxx&mode=verify
-        │
-        └── access_token + refresh_token
-                |
-                v
-        Guarda tokens en cookies
-        GET /api/v1/auth/me → guarda user en Zustand
-                |
-                v
-        Redirect a /app
-        Header inicializa useWebSocket → conexión WebSocket activa
-```
 
 ---
 
@@ -330,9 +443,9 @@ POST /api/v1/auth/login
 - **Componentes medianos y pequeños** → función flecha `const Componente = () => {}`
 - **Llamadas al API** → solo desde `services/`, nunca directamente en componentes
 - **Estado global** → solo Zustand, nunca useState para datos compartidos
-- **Permisos en UI** → siempre con helpers del authStore (`hasRole`, `hasModule`, etc.)
+- **Hydration** → todo lo que dependa de Zustand o del DOM protegido con `mounted &&` + `useEffect(() => setMounted(true), [])`
+- **Permisos en UI** → siempre con helpers del authStore (`isAdmin()`, `isSuperAdmin()`)
 - **WebSocket** → nunca instanciar WebSocket directamente — usar el hook `useWebSocket`
-- **Notificaciones** → siempre a través de `notificationService` y el store, nunca llamadas directas al API desde componentes
 
 ---
 
@@ -344,16 +457,3 @@ npm run dev
 ```
 
 El frontend queda disponible en `http://localhost:3000`
-
-En producción Nginx sirve el frontend en `http://intranet.avalanz.com`
-
----
-
-## Instalación desde cero
-
-```bash
-cd frontend
-npm install
-cp .env.local.example .env.local
-npm run dev
-```

@@ -165,6 +165,19 @@ export default function ResetPasswordPage() {
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [tokenExpired, setTokenExpired] = useState(false)
+  const [tokenChecking, setTokenChecking] = useState(!!token)
+
+  useEffect(() => {
+    if (!token) return
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/password-reset/validate?token=${token}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) setTokenExpired(true)
+      })
+      .catch(() => setTokenExpired(true))
+      .finally(() => setTokenChecking(false))
+  }, [token])
 
   const requestForm = useForm<RequestForm>({ resolver: zodResolver(requestSchema) })
   const confirmForm = useForm<ConfirmForm>({ resolver: zodResolver(confirmSchema) })
@@ -187,8 +200,10 @@ export default function ResetPasswordPage() {
       await confirmPasswordReset({ token, new_password: data.new_password })
       setSuccess(true)
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { message?: string } } }
-      setError(axiosError?.response?.data?.message || 'Error al restablecer la contrasena')
+      const axiosError = err as { response?: { data?: { message?: string; error_code?: string } } }
+      const code = axiosError?.response?.data?.error_code
+      if (code === 'INVALID_TOKEN') { setTokenExpired(true); return }
+      setError(axiosError?.response?.data?.message || 'Token invalido o expirado')
     } finally { setIsLoading(false) }
   }
 
@@ -220,7 +235,47 @@ export default function ResetPasswordPage() {
     )
   }
 
-  // Nueva contrasena con token
+  if (tokenChecking) return (
+    <div className="w-full max-w-md">
+      <style>{sharedStyles}</style>
+      <Card>
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <Loader2 size={24} className="animate-spin" style={{ color: '#94a3b8', margin: '0 auto' }} />
+          <p style={{ fontSize: '13.5px', color: '#64748b', marginTop: '12px' }}>Verificando enlace...</p>
+        </div>
+      </Card>
+    </div>
+  )
+
+  // Token expirado o ya usado
+  if (token && tokenExpired) {
+    return (
+      <div className="w-full max-w-md">
+        <style>{sharedStyles}</style>
+        <Card>
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ width: '52px', height: '52px', background: '#fef2f2', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <XCircle size={24} style={{ color: '#ef4444' }} />
+            </div>
+            <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+              Enlace expirado
+            </h1>
+            <p style={{ fontSize: '13.5px', color: '#64748b', marginBottom: '24px', lineHeight: '1.5' }}>
+              Este enlace ya fue utilizado o ha expirado. Solicita uno nuevo.
+            </p>
+            <button className="auth-btn" onClick={() => router.push('/reset-password')} style={{ marginBottom: '12px' }}>
+              Solicitar nuevo enlace
+            </button>
+            <button className="back-btn" onClick={() => router.push('/login')}>
+              Volver al login
+            </button>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  // Formulario nueva contrasena con token
   if (token) {
     return (
       <>
@@ -244,6 +299,16 @@ export default function ResetPasswordPage() {
                 {confirmForm.formState.errors.new_password && <p className="field-error" style={{ color: '#ef4444', fontSize: '12px', marginTop: '5px' }}>{confirmForm.formState.errors.new_password.message}</p>}
               </div>
 
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Confirmar contrasena</label>
+                <div style={{ position: 'relative' }}>
+                  <input {...confirmForm.register('confirm_password')} type={showConfirm ? 'text' : 'password'} placeholder="••••••••" className={`auth-input${confirmForm.formState.errors.confirm_password ? ' has-error' : ''}`} style={{ paddingRight: '40px' }} />
+                  <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="eye-btn">{showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                </div>
+                {confirmForm.formState.errors.confirm_password && <p className="field-error" style={{ color: '#ef4444', fontSize: '12px', marginTop: '5px' }}>{confirmForm.formState.errors.confirm_password.message}</p>}
+              </div>
+
               {passwordValue.length > 0 && (
                 <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                   {rules.map((rule) => (
@@ -257,14 +322,6 @@ export default function ResetPasswordPage() {
                 </div>
               )}
 
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Confirmar contrasena</label>
-                <div style={{ position: 'relative' }}>
-                  <input {...confirmForm.register('confirm_password')} type={showConfirm ? 'text' : 'password'} placeholder="••••••••" className={`auth-input${confirmForm.formState.errors.confirm_password ? ' has-error' : ''}`} style={{ paddingRight: '40px' }} />
-                  <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="eye-btn">{showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-                </div>
-                {confirmForm.formState.errors.confirm_password && <p className="field-error" style={{ color: '#ef4444', fontSize: '12px', marginTop: '5px' }}>{confirmForm.formState.errors.confirm_password.message}</p>}
-              </div>
 
               <button type="submit" disabled={isLoading} className="auth-btn" style={{ marginTop: '4px' }}>
                 {isLoading && <Loader2 size={15} className="animate-spin" />}

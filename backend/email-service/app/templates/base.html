@@ -5,36 +5,204 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ subject }}</title>
   <style>
-    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; }
-    .wrapper { width: 100%; background-color: #f4f4f4; padding: 40px 0; }
-    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-    .header { background-color: #1a1a2e; padding: 32px 40px; text-align: center; }
-    .header h1 { color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 1px; }
-    .body { padding: 40px; color: #333333; line-height: 1.6; }
-    .body h2 { color: #1a1a2e; font-size: 20px; margin-top: 0; }
-    .body p { margin: 0 0 16px; }
-    .btn { display: inline-block; padding: 12px 32px; background-color: #1a1a2e; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 16px 0; }
-    .divider { border: none; border-top: 1px solid #eeeeee; margin: 24px 0; }
-    .footer { background-color: #f9f9f9; padding: 24px 40px; text-align: center; color: #999999; font-size: 12px; }
-    .footer a { color: #999999; }
-    .alert-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; border-radius: 4px; margin: 16px 0; }
-    .alert-box.danger { background-color: #f8d7da; border-color: #dc3545; }
-    .alert-box.success { background-color: #d4edda; border-color: #28a745; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      margin: 0; padding: 0;
+      background-color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper { width: 100%; background-color: #f1f5f9; padding: 48px 16px; }
+    .container {
+      max-width: 580px; margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.08);
+    }
+
+    /* Header */
+    .header {
+      background-color: #ffffff;
+      padding: 28px 40px 20px;
+      text-align: center;
+
+    }
+    .header-logo {
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    .header-logo img {
+      height: 110px;
+      width: auto;
+      display: block;
+    }
+    .header h1 {
+      color: #0f172a;
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      opacity: 0.95;
+    }
+
+    /* Body */
+    .body { padding: 36px 40px; color: #374151; line-height: 1.65; }
+    .body h2 {
+      color: #0f172a;
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 16px;
+      letter-spacing: -0.3px;
+    }
+    .body p { margin: 0 0 14px; font-size: 15px; color: #4b5563; }
+    .body strong { color: #1f2937; }
+
+    /* Button */
+    .btn-wrap { text-align: center; margin: 24px 0; }
+    .btn {
+      display: inline-block;
+      padding: 13px 32px;
+      background-color: #1a4fa0;
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.2px;
+      box-shadow: 0 2px 8px rgba(26,79,160,0.25);
+    }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+
+    /* Alert boxes */
+    .alert-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background-color: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-left: 4px solid #f59e0b;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin: 16px 0;
+      font-size: 14px;
+      color: #78350f;
+    }
+    .alert-box .alert-icon {
+      font-size: 18px;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .alert-box .alert-content { flex: 1; }
+    .alert-box .alert-content strong { color: #92400e; display: block; margin-bottom: 4px; }
+
+    .alert-box.danger {
+      background-color: #fef2f2;
+      border-color: #fca5a5;
+      border-left-color: #ef4444;
+      color: #7f1d1d;
+    }
+    .alert-box.danger .alert-content strong { color: #991b1b; }
+
+    .alert-box.success {
+      background-color: #f0fdf4;
+      border-color: #86efac;
+      border-left-color: #22c55e;
+      color: #14532d;
+    }
+    .alert-box.success .alert-content strong { color: #166534; }
+
+    .alert-box.info {
+      background-color: #eff6ff;
+      border-color: #bfdbfe;
+      border-left-color: #3b82f6;
+      color: #1e3a5f;
+    }
+    .alert-box.info .alert-content strong { color: #1e40af; }
+
+    /* Credentials box */
+    .credentials {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .credentials-row {
+      display: flex;
+      padding: 6px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .credentials-row:last-child { border-bottom: none; }
+    .credentials-label {
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      width: 120px;
+      flex-shrink: 0;
+      padding-top: 2px;
+    }
+    .credentials-value {
+      color: #1e293b;
+      font-weight: 500;
+      word-break: break-all;
+    }
+    .credentials-value.mono {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      background: #e2e8f0;
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: #1a4fa0;
+    }
+
+    /* Note */
+    .note {
+      font-size: 12px !important;
+      color: #94a3b8 !important;
+      margin-top: 8px !important;
+    }
+
+    /* Footer */
+    .footer {
+      background-color: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      padding: 20px 40px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .footer p { margin: 0 0 4px; }
+    .footer a { color: #94a3b8; text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="wrapper">
     <div class="container">
+
       <div class="header">
+        <div class="header-logo">
+          <img src="{{ frontend_url }}/logo_200.png" alt="{{ company_name }}" />
+        </div>
         <h1>{{ company_name }}</h1>
       </div>
+
       <div class="body">
         {{ content }}
       </div>
+
       <div class="footer">
-        <p>Este correo fue enviado por {{ company_name }}. Por favor no respondas a este mensaje.</p>
+        <p>Este correo fue enviado por <strong>{{ company_name }}</strong>. Por favor no respondas a este mensaje.</p>
         <p>&copy; {{ year }} {{ company_name }}. Todos los derechos reservados.</p>
       </div>
+
     </div>
   </div>
 </body>

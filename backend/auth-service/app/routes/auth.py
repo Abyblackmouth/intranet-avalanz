@@ -135,6 +135,27 @@ async def request_password_reset(
     )
 
 
+@router.get("/password-reset/validate", response_model=BaseResponse)
+async def validate_password_reset_token(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.auth_models import PasswordReset
+    from shared.utils.encryption import hash_sha256
+    from shared.utils.helpers import is_expired
+    from sqlalchemy import select
+    token_hash = hash_sha256(token)
+    result = await db.execute(
+        select(PasswordReset).where(
+            PasswordReset.token_hash == token_hash,
+            PasswordReset.is_used == False,
+        )
+    )
+    reset = result.scalar_one_or_none()
+    if not reset or is_expired(reset.expires_at):
+        return BaseResponse(success=False, message="Token invalido o expirado")
+    return BaseResponse(success=True, message="Token valido")
+
 @router.post("/password-reset/confirm", response_model=BaseResponse)
 async def confirm_password_reset(
     body: PasswordResetConfirmRequest,

@@ -65,7 +65,7 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(twofa_router, prefix="/api/v1")
-app.include_router(internal_router)
+app.include_router(internal_router, prefix="/api/v1/auth")
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

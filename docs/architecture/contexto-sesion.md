@@ -58,7 +58,7 @@ Copy-Item $src "\\wsl$\Ubuntu\home\abyblackmouth\code\avalanz\intranet-avalanz\r
 ## Estado actual del proyecto
 
 **Rama activa:** `develop`
-**Última actividad:** 2026-04-16
+**Última actividad:** 2026-04-17
 
 ---
 
@@ -66,13 +66,16 @@ Copy-Item $src "\\wsl$\Ubuntu\home\abyblackmouth\code\avalanz\intranet-avalanz\r
 
 ### Autenticación
 - Login con 2FA condicional por red (corporativa = sin 2FA, externa = con 2FA)
-- Cambio de contraseña temporal en primer login
-- Configuración y verificación de TOTP (Google Authenticator)
-- Recuperación de contraseña con desbloqueo automático
+- Cambio de contraseña temporal en primer login con verificación de `is_temp_password` antes de mostrar formulario
+- Configuración y verificación de TOTP (Microsoft Authenticator) con QR via api.qrserver.com
+- Recuperación de contraseña con desbloqueo automático — token invalida con `is_used=True` tras uso
 - Bloqueo automático por intentos fallidos (MAX_FAILED_ATTEMPTS = 3)
 - Bloqueo manual por administrador con motivo obligatorio
-- lock_type diferencia bloqueo manual vs intentos fallidos
+- `lock_type` diferencia bloqueo manual vs intentos fallidos
 - Refresh automático de JWT en el frontend
+- `AuthProvider` verifica `is_temp_password` y redirige a `/change-password` si aplica
+- Link de cambio de contraseña verifica `is_temp_password` via `/internal/users/{id}/info` — si ya es false muestra pantalla de "link expirado"
+- `clearSession` en setup-2fa limpia tokens antes de redirigir al login tras activar 2FA
 
 ### Panel de administración
 - **Usuarios** — tabla completa, alta, edición, detalle con pestañas, bloqueo/desbloqueo, reset contraseña, revocar sesiones, eliminar, badge Protegido
@@ -100,6 +103,40 @@ Copy-Item $src "\\wsl$\Ubuntu\home\abyblackmouth\code\avalanz\intranet-avalanz\r
 - Cron de limpieza: login_history (90 días) y user_sessions (30 días) con CSV backup y rotación semanal
 - Mailpit para captura de correos en desarrollo (restart unless-stopped)
 - Scaffold automático genera estructura frontend y backend al crear módulo
+- Nginx expone puerto 80, Grafana 3001, Prometheus 9090 — definidos en docker-compose.yml
+
+---
+
+## UI/UX — Estado actual
+
+### Ramas mergeadas a develop
+- `feature/ui-login` — animaciones fadeSlideUp, logo, inputs con focus azul, flujos completos
+- `feature/ui-sidebar-header` — sidebar compacto con logo 40px + nombre en fila, Plus Jakarta Sans, colores armonizados, header con `border-b-2 border-slate-300`
+- `feature/ui-usertable` — avatares con 6 colores determinísticos por hash, paginación 10 registros, altura fija 629px, menú flotante con detección de espacio
+
+### En progreso
+- `feature/ui-email-templates` — plantillas rediseñadas con branding Avalanz, header blanco con logo 110px, credenciales box, alert boxes con íconos Unicode
+
+### Pendiente
+- `feature/ui-modals` — modales de detalle, edición y confirmación
+- Dashboard principal
+
+---
+
+## Convenciones de UI establecidas
+
+- **Azul corporativo:** `#1a4fa0`
+- **Cards:** `border border-slate-200 shadow-sm hover:shadow-md hover:border-[#1a4fa0]/30 hover:-translate-y-0.5 transition-all duration-200`
+- **Inputs admin:** `border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150`
+- **Sidebar:** blanco con `border-r-2 border-slate-300` + `shadow-[4px_0_20px_rgba(0,0,0,0.08)]`, ancho `w-60` expandido / `w-16` colapsado
+- **Header:** `border-b-2 border-slate-300`
+- **Fuente título sidebar:** Plus Jakarta Sans via `var(--font-jakarta)`
+- **Fuente general:** Geist Sans + Geist Mono (Next.js por defecto)
+- **PageWrapper:** sin fondo blanco ni borde — integrado con `bg-slate-50` del layout
+- **Avatares tabla:** 6 colores determinísticos por hash del nombre: `#1a4fa0`, violet-500, teal-500, orange-400, rose-500, emerald-500
+- **Badges de estado:** pill con punto de color — `bg-emerald-50 text-emerald-700 border-emerald-200` / `bg-red-50 text-red-600 border-red-200`
+- **Botones primarios:** `bg-[#1a4fa0] hover:bg-blue-700`
+- **Menús flotantes:** detección de espacio con `menuHeight = 280` para abrir hacia arriba cuando está cerca del borde inferior
 
 ---
 
@@ -132,20 +169,10 @@ La tabla `user_table` muestra: rol global si existe, rol operativo si no hay rol
 
 ## Próximos pasos
 
-1. **Release UI/UX** — pulir todas las pantallas del panel de administración
+1. **Merge feature/ui-email-templates** — verificar correos y mergear a develop
 2. **Dashboard principal** — pantalla de inicio con métricas de negocio, accesos rápidos y notificaciones recientes
 3. **Primer módulo operativo** — según lo que defina el negocio (Bóveda DYCE o Legal)
 4. **Configuración para producción** — HTTPS, servidor real, backups reales, alertas Grafana
-
----
-
-## Convenciones de UI
-
-- Bordes siempre `border-slate-300`, cards con `shadow-md hover:shadow-xl hover:border-[#1a4fa0]`
-- Botones primarios: `bg-[#1a4fa0] hover:bg-blue-700`
-- Hover menús: gris `slate-300`, rojo `red-200`
-- Menús flotantes: `border-2 border-slate-300 shadow-2xl`
-- `MoreHorizontal size={20}` en todos los menús de 3 puntos
 
 ---
 
@@ -169,6 +196,17 @@ La tabla `user_table` muestra: rol global si existe, rol operativo si no hay rol
 - Clave eliminación módulos: TF9DX4-2JAQSJ-61FVM6-0QB1AK (ver claves-admin.md)
 - `turbopack.root` configurado en next.config.ts para resolver Tailwind en WSL2
 - Al modificar backend: copiar al contenedor con docker cp y reiniciar el servicio
+- `internal_router` en auth-service registrado con prefix `/api/v1/auth` en main.py
+- FERNET_KEY definida en auth-service config.py y .env para encriptación de secrets 2FA
+- Los archivos del auth-service se pierden al recrear el contenedor — siempre copiar después de reiniciar:
+  ```bash
+  docker cp backend/auth-service/app/services/auth_service.py avalanz-auth:/app/app/services/auth_service.py
+  docker cp backend/auth-service/app/services/twofa_service.py avalanz-auth:/app/app/services/twofa_service.py
+  docker cp backend/auth-service/app/config.py avalanz-auth:/app/app/config.py
+  docker cp backend/auth-service/app/routes/internal.py avalanz-auth:/app/app/routes/internal.py
+  docker cp backend/auth-service/app/main.py avalanz-auth:/app/app/main.py
+  docker restart avalanz-auth
+  ```
 
 ---
 
@@ -196,7 +234,7 @@ intranet-avalanz/
 │   │   ├── auth/                → AuthProvider, formularios de autenticación
 │   │   ├── layout/              → Sidebar, Header, Breadcrumb, PageWrapper
 │   │   ├── notifications/       → NotificationBell (campana + panel)
-│   │   └── shared/              → ToastContainer, componentes reutilizables
+│   │   └── shared/              → ToastContainer, AdminInput, AdminCard, componentes reutilizables
 │   ├── hooks/                   → useWebSocket, useNotifications, useAuth, usePagination
 │   ├── store/                   → authStore, notificationStore, toastStore
 │   ├── services/                → api, authService, adminService, notificationService, roleService

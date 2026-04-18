@@ -186,7 +186,7 @@ async def reset_password(db, user_id, new_password, requested_by=None):
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
-                f"http://auth-service:8000/internal/users/{user_id}/reset-password",
+                f"http://auth-service:8000/api/v1/auth/internal/users/{user_id}/reset-password",
                 json={"new_password": new_password},
             )
             if resp.status_code != 200 or not resp.json().get("success"):

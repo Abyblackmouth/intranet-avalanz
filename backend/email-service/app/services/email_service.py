@@ -48,6 +48,7 @@ def _render(content: str, subject: str) -> str:
         .replace("{{ subject }}", subject)
         .replace("{{ company_name }}", config.EMAIL_FROM_NAME)
         .replace("{{ year }}", str(datetime.now().year))
+        .replace("{{ frontend_url }}", config.FRONTEND_URL)
         .replace("{{ content }}", content)
     )
 
@@ -62,18 +63,32 @@ async def send_welcome_email(
     subject = f"Bienvenido a {config.EMAIL_FROM_NAME}"
     content = f"""
         <h2>Bienvenido, {full_name}</h2>
-        <p>Tu cuenta ha sido creada exitosamente en la plataforma <strong>{config.EMAIL_FROM_NAME}</strong>.</p>
-        <p>Tus credenciales de acceso son:</p>
-        <div class="alert-box">
-            <strong>Correo:</strong> {to_email}<br>
-            <strong>Contrasena temporal:</strong> {temp_password}
+        <p>Tu cuenta ha sido creada exitosamente en la plataforma <strong>{config.EMAIL_FROM_NAME}</strong>. A continuación encontrarás tus credenciales de acceso.</p>
+
+        <div class="credentials">
+          <div class="credentials-row">
+            <span class="credentials-label">Correo</span>
+            <span class="credentials-value">{to_email}</span>
+          </div>
+          <div class="credentials-row">
+            <span class="credentials-label">Contraseña</span>
+            <span class="credentials-value mono">{temp_password}</span>
+          </div>
         </div>
-        <p>Por seguridad, debes cambiar tu contrasena en tu primer inicio de sesion. Esta contrasena temporal es valida por <strong>24 horas</strong>.</p>
-        <p style="text-align:center;">
-            <a href="{config.FRONTEND_URL}/login" class="btn">Iniciar sesion</a>
-        </p>
-        <hr class="divider">
-        <p style="color:#999;font-size:13px;">Si no solicitaste esta cuenta, ignora este correo o contacta al administrador.</p>
+
+        <div class="alert-box info">
+          <span class="alert-icon">&#9432;</span>
+          <div class="alert-content">
+            <strong>Contraseña temporal</strong>
+            Debes cambiar tu contraseña en tu primer inicio de sesión. Esta contraseña es válida por <strong>24 horas</strong>.
+          </div>
+        </div>
+
+        <div class="btn-wrap">
+          <a href="{config.FRONTEND_URL}/login" class="btn">Iniciar sesión</a>
+        </div>
+
+        <p class="note">Si no solicitaste esta cuenta, ignora este correo o contacta al administrador.</p>
     """
     await send_email(to_email, subject, _render(content, subject), full_name)
 
@@ -86,17 +101,26 @@ async def send_password_reset_email(
     reset_token: str,
 ) -> None:
     reset_link = f"{config.FRONTEND_URL}/reset-password?token={reset_token}"
-    subject = "Recuperacion de contrasena"
+    subject = "Recuperación de contraseña"
     content = f"""
-        <h2>Recuperacion de contrasena</h2>
-        <p>Hola {full_name}, recibimos una solicitud para restablecer la contrasena de tu cuenta.</p>
-        <p>Haz clic en el siguiente boton para crear una nueva contrasena. Este enlace es valido por <strong>30 minutos</strong>.</p>
-        <p style="text-align:center;">
-            <a href="{reset_link}" class="btn">Restablecer contrasena</a>
-        </p>
+        <h2>Recuperación de contraseña</h2>
+        <p>Hola <strong>{full_name}</strong>, recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
+        <p>Haz clic en el siguiente botón para crear una nueva contraseña.</p>
+
+        <div class="alert-box">
+          <span class="alert-icon">&#9203;</span>
+          <div class="alert-content">
+            <strong>Enlace válido por 30 minutos</strong>
+            Si no solicitaste este cambio, ignora este correo. Tu contraseña actual no será modificada.
+          </div>
+        </div>
+
+        <div class="btn-wrap">
+          <a href="{reset_link}" class="btn">Restablecer contraseña</a>
+        </div>
+
         <hr class="divider">
-        <p style="color:#999;font-size:13px;">Si no solicitaste este cambio, ignora este correo. Tu contrasena actual no sera modificada.</p>
-        <p style="color:#999;font-size:13px;">Si el boton no funciona, copia y pega este enlace en tu navegador:<br>{reset_link}</p>
+        <p class="note">Si el botón no funciona, copia y pega este enlace en tu navegador:<br>{reset_link}</p>
     """
     await send_email(to_email, subject, _render(content, subject), full_name)
 
@@ -112,15 +136,25 @@ async def send_account_locked_email(
     subject = "Tu cuenta ha sido bloqueada"
     content = f"""
         <h2>Cuenta bloqueada</h2>
-        <p>Hola {full_name}, tu cuenta ha sido bloqueada temporalmente debido a <strong>{failed_attempts} intentos fallidos</strong> de inicio de sesion.</p>
+        <p>Hola <strong>{full_name}</strong>, tu cuenta ha sido bloqueada temporalmente por seguridad.</p>
+
         <div class="alert-box danger">
-            <strong>IP de origen:</strong> {locked_from_ip}<br>
-            <strong>Fecha:</strong> {datetime.now().strftime("%d/%m/%Y %H:%M")} UTC
+          <span class="alert-icon">&#9888;</span>
+          <div class="alert-content">
+            <strong>{failed_attempts} intentos fallidos detectados</strong>
+            IP de origen: <strong>{locked_from_ip}</strong><br>
+            Fecha: <strong>{datetime.now().strftime("%d/%m/%Y %H:%M")} UTC</strong>
+          </div>
         </div>
-        <p>Para desbloquear tu cuenta, contacta al administrador del sistema.</p>
+
+        <p>Para desbloquear tu cuenta puedes restablecer tu contraseña o contactar al administrador del sistema.</p>
+
+        <div class="btn-wrap">
+          <a href="{config.FRONTEND_URL}/reset-password" class="btn">Restablecer contraseña</a>
+        </div>
+
         <hr class="divider">
-        <p style="color:#999;font-size:13px;">Si fuiste tu quien intento acceder, contacta al administrador para que desbloquee tu cuenta.</p>
-        <p style="color:#999;font-size:13px;">Si no reconoces estos intentos, te recomendamos informar al administrador inmediatamente.</p>
+        <p class="note">Si no reconoces estos intentos, te recomendamos informar al administrador de inmediato.</p>
     """
     await send_email(to_email, subject, _render(content, subject), full_name)
 
@@ -138,14 +172,20 @@ async def send_system_notification_email(
 ) -> None:
     action_btn = ""
     if action_label and action_url:
-        action_btn = f'<p style="text-align:center;"><a href="{action_url}" class="btn">{action_label}</a></p>'
+        action_btn = f'<div class="btn-wrap"><a href="{action_url}" class="btn">{action_label}</a></div>'
 
-    alert_class = f"alert-box {alert_type}" if alert_type else ""
-    message_block = f'<div class="{alert_class}">{message}</div>' if alert_type else f"<p>{message}</p>"
+    if alert_type:
+        message_block = f"""
+        <div class="alert-box {alert_type}">
+          <span class="alert-icon">{'&#9888;' if alert_type == 'danger' else '&#9432;' if alert_type == 'info' else '&#9432;'}</span>
+          <div class="alert-content">{message}</div>
+        </div>"""
+    else:
+        message_block = f"<p>{message}</p>"
 
     content = f"""
         <h2>{subject}</h2>
-        <p>Hola {full_name},</p>
+        <p>Hola <strong>{full_name}</strong>,</p>
         {message_block}
         {action_btn}
     """

@@ -87,7 +87,7 @@ export default function ChangePasswordPage() {
 
   useEffect(() => {
     if (!userId) { setAlreadyUsed(true); setChecking(false); return }
-    fetch(`/api/v1/auth/internal/users/${userId}/info`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/internal/users/${userId}/info`)
       .then(r => r.json())
       .then(data => {
         if (!data.is_temp_password) setAlreadyUsed(true)
