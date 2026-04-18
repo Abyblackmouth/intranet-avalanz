@@ -9,8 +9,8 @@ El `email-service` es el servicio de envío de correos transaccionales de la pla
 ## Responsabilidades
 
 - Envío de correos transaccionales usando SMTP
-- Renderizado de plantillas HTML corporativas
-- Soporte para SMTP local (Postfix) y externo (Gmail, Outlook)
+- Renderizado de plantillas HTML con branding Avalanz
+- Soporte para SMTP local (Mailpit) y externo (Gmail, Outlook)
 - Plantilla genérica reutilizable para módulos futuros
 
 ---
@@ -21,7 +21,7 @@ El `email-service` es el servicio de envío de correos transaccionales de la pla
 email-service/
 ├── app/
 │   ├── main.py                  → Punto de entrada
-│   ├── config.py                → Configuración SMTP y remitente
+│   ├── config.py                → Configuración SMTP, remitente y FRONTEND_URL
 │   ├── routes/
 │   │   └── email.py             → Endpoints internos de envío
 │   ├── services/
@@ -63,13 +63,29 @@ Todos los endpoints tienen `include_in_schema=False` — no aparecen en `/docs` 
 
 ## Plantilla corporativa base
 
-Todos los correos se renderizan usando `base.html` que incluye:
+Todos los correos se renderizan usando `base.html`. El diseño:
 
-- Header con nombre de la empresa sobre fondo oscuro
-- Cuerpo con tipografía limpia y espaciado correcto
-- Botón de acción estilizado
-- Footer con año y nombre de la empresa
-- Estilos de alerta: `alert-box`, `alert-box danger`, `alert-box success`
+- **Header:** fondo blanco, logo de Avalanz (110px de alto via `{{ frontend_url }}/logo_200.png`), nombre "Intranet Avalanz" debajo
+- **Tipografía:** system fonts stack (`-apple-system, BlinkMacSystemFont, Segoe UI, Roboto`)
+- **Botones:** `#1a4fa0` con `border-radius: 10px` — mismo azul corporativo del sistema
+- **Credenciales box:** fondo gris claro con filas label/valor separadas por línea
+- **Alert boxes:** cuatro variantes con ícono Unicode inline y borde lateral de color
+  - Default/warning: amarillo `#f59e0b`
+  - Danger: rojo `#ef4444`
+  - Success: verde `#22c55e`
+  - Info: azul `#3b82f6`
+- **Footer:** fondo slate claro con aviso de no responder y copyright
+
+El render inyecta estas variables:
+
+```python
+base
+  .replace("{{ subject }}", subject)
+  .replace("{{ company_name }}", config.EMAIL_FROM_NAME)
+  .replace("{{ year }}", str(datetime.now().year))
+  .replace("{{ frontend_url }}", config.FRONTEND_URL)
+  .replace("{{ content }}", content)
+```
 
 ---
 
@@ -83,6 +99,7 @@ Todos los correos se renderizan usando `base.html` que incluye:
   "temp_password": "Xk9#mP2qLw"
 }
 ```
+Muestra credenciales en un `credentials box` y un alert box info con el aviso de 24 horas de validez.
 
 ### POST /api/v1/email/password-reset
 ```json
@@ -94,7 +111,9 @@ Todos los correos se renderizan usando `base.html` que incluye:
 ```
 El link generado apunta a: `{FRONTEND_URL}/reset-password?token={reset_token}`
 
-> **Importante:** El auth-service debe mandar solo el token, no la URL completa. El email-service construye la URL internamente.
+> **Importante:** El auth-service manda solo el token, no la URL completa. El email-service construye la URL internamente.
+
+El token se invalida con `is_used=True` al usarse. El frontend verifica el token al cargar via `GET /api/v1/auth/password-reset/validate` antes de mostrar el formulario.
 
 ### POST /api/v1/email/account-locked
 ```json
@@ -105,6 +124,7 @@ El link generado apunta a: `{FRONTEND_URL}/reset-password?token={reset_token}`
   "locked_from_ip": "201.100.45.23"
 }
 ```
+Muestra un alert box danger con IP, intentos y fecha. Incluye botón para restablecer contraseña.
 
 ### POST /api/v1/email/system-notification
 ```json
@@ -118,8 +138,7 @@ El link generado apunta a: `{FRONTEND_URL}/reset-password?token={reset_token}`
   "alert_type": "warning"
 }
 ```
-
-Valores de `alert_type`: `warning`, `danger`, `success` o `null` para mensaje simple.
+Valores de `alert_type`: `warning`, `danger`, `success`, `info` o `null` para mensaje simple.
 
 ### POST /api/v1/email/module
 ```json
@@ -130,8 +149,7 @@ Valores de `alert_type`: `warning`, `danger`, `success` o `null` para mensaje si
   "html_content": "<h2>Nuevo expediente</h2><p>Se te ha asignado EXP-2026-001.</p>"
 }
 ```
-
-El `html_content` se inserta dentro de la plantilla corporativa base automáticamente.
+El `html_content` se inserta dentro de la plantilla base automáticamente.
 
 ---
 
@@ -139,7 +157,7 @@ El `html_content` se inserta dentro de la plantilla corporativa base automática
 
 | Evento | Servicio que lo dispara | Endpoint | Correo enviado |
 |---|---|---|---|
-| Usuario creado | admin-service → `_send_welcome_email()` | /welcome | Bienvenida con contraseña temporal |
+| Usuario creado | admin-service → `_send_welcome_email()` | /welcome | Bienvenida con credenciales temporales |
 | Contraseña reseteada por admin | admin-service → `_send_reset_password_email()` | /system-notification | Aviso de reset con link a /change-password |
 | Cuenta bloqueada por intentos | auth-service → `_send_account_locked_email()` | /account-locked | Notificación con IP y fecha |
 | Recuperación de contraseña | auth-service → `_send_password_reset_email()` | /password-reset | Link de recuperación válido 30 min |
@@ -164,7 +182,7 @@ async def send_welcome(email: str, name: str, password: str):
         )
 ```
 
-> Los errores del email-service se capturan silenciosamente con `except Exception: pass` — un fallo en el correo no interrumpe el flujo principal.
+Los errores del email-service se capturan silenciosamente con `except Exception: pass` — un fallo en el correo no interrumpe el flujo principal.
 
 ---
 
@@ -174,20 +192,13 @@ async def send_welcome(email: str, name: str, password: str):
 
 Mailpit intercepta todos los correos sin enviarlos a internet. UI disponible en `http://localhost:8025`.
 
-```bash
-# Levantar Mailpit
-docker run -d --name mailpit -p 8025:8025 -p 1025:1025 axllent/mailpit
-
-# Conectar a la red Docker de Avalanz
-docker network connect docker_avalanz-network mailpit
-```
-
 Configuración en `backend/email-service/.env`:
 ```bash
 SMTP_HOST=mailpit
 SMTP_PORT=1025
 SMTP_USE_TLS=False
 SMTP_USE_SSL=False
+FRONTEND_URL=http://localhost:3000
 ```
 
 ### Gmail
@@ -200,7 +211,7 @@ SMTP_USE_TLS=True
 SMTP_USE_SSL=False
 ```
 
-Para Gmail se debe usar una **App Password**, no la contraseña de la cuenta. Se genera en: Cuenta de Google → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones.
+Para Gmail usar una **App Password** — Cuenta de Google → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones.
 
 ### Outlook / Office 365
 ```bash
@@ -226,7 +237,7 @@ SMTP_USE_SSL=False
 | SMTP_USE_SSL | Usar SSL directo | False |
 | EMAIL_FROM_NAME | Nombre del remitente | Avalanz |
 | EMAIL_FROM_ADDRESS | Correo del remitente | noreply@avalanz.com |
-| FRONTEND_URL | URL base del frontend para links | http://localhost:3000 |
+| FRONTEND_URL | URL base del frontend para links y logo | http://localhost:3000 |
 
 ---
 

@@ -23,6 +23,7 @@ class WelcomeEmailRequest(BaseModel):
     to_email: EmailStr
     full_name: str
     temp_password: str
+    user_id: str = ""
 
 
 class PasswordResetEmailRequest(BaseModel):
@@ -63,6 +64,7 @@ async def welcome_email(body: WelcomeEmailRequest):
         to_email=body.to_email,
         full_name=body.full_name,
         temp_password=body.temp_password,
+        user_id=body.user_id,
     )
     return BaseResponse(success=True, message="Correo de bienvenida enviado")
 

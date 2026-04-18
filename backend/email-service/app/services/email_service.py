@@ -59,6 +59,7 @@ async def send_welcome_email(
     to_email: str,
     full_name: str,
     temp_password: str,
+    user_id: str = "",
 ) -> None:
     subject = f"Bienvenido a {config.EMAIL_FROM_NAME}"
     content = f"""
@@ -85,7 +86,7 @@ async def send_welcome_email(
         </div>
 
         <div class="btn-wrap">
-          <a href="{config.FRONTEND_URL}/login" class="btn">Iniciar sesión</a>
+          <a href="{config.FRONTEND_URL}/change-password?user_id={user_id}" class="btn">Cambiar contraseña</a>
         </div>
 
         <p class="note">Si no solicitaste esta cuenta, ignora este correo o contacta al administrador.</p>

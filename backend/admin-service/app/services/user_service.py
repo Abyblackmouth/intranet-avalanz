@@ -148,7 +148,7 @@ async def toggle_lock_user(db, user_id, lock, reason, requested_by=None):
     await db.commit()
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(f"http://auth-service:8000/internal/users/{user_id}/lock", json={"lock": lock, "reason": reason.strip()})
+            await client.post(f"http://auth-service:8000/api/v1/auth/internal/users/{user_id}/lock", json={"lock": lock, "reason": reason.strip()})
     except Exception:
         raise ValidationException("Error al comunicarse con el servicio de autenticacion")
     return await get_user_by_id(db, user_id)
@@ -390,7 +390,7 @@ async def _get_user_roles(db, user_id, is_super_admin):
 async def _get_auth_data(user_id):
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"http://auth-service:8000/internal/users/{user_id}/info")
+            resp = await client.get(f"http://auth-service:8000/api/v1/auth/internal/users/{user_id}/info")
             if resp.status_code == 200:
                 return resp.json()
     except Exception:
@@ -401,7 +401,7 @@ async def _get_auth_data(user_id):
 async def _get_auth_data_batch(user_ids):
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.post("http://auth-service:8000/internal/users/batch-info", json={"user_ids": user_ids})
+            resp = await client.post("http://auth-service:8000/api/v1/auth/internal/users/batch-info", json={"user_ids": user_ids})
             if resp.status_code == 200:
                 return resp.json()
     except Exception:
@@ -412,7 +412,7 @@ async def _get_auth_data_batch(user_ids):
 async def _sync_user_to_auth(user_id, email, full_name, temp_password, temp_password_expires_at):
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post("http://auth-service:8000/internal/users", json={"user_id": user_id, "email": email, "full_name": full_name, "temp_password": temp_password, "temp_password_expires_at": temp_password_expires_at})
+            await client.post("http://auth-service:8000/api/v1/auth/internal/users", json={"user_id": user_id, "email": email, "full_name": full_name, "temp_password": temp_password, "temp_password_expires_at": temp_password_expires_at})
     except Exception:
         raise ValidationException("Error al sincronizar usuario con el servicio de autenticacion")
 
@@ -422,7 +422,7 @@ async def _send_welcome_email(email: str, full_name: str, temp_password: str, us
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
                 "http://email-service:8000/api/v1/email/welcome",
-                json={"to_email": email, "full_name": full_name, "temp_password": temp_password},
+                json={"to_email": email, "full_name": full_name, "temp_password": temp_password, "user_id": user_id},
             )
     except Exception:
         pass
