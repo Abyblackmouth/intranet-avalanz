@@ -305,10 +305,10 @@ El `_serialize_user` en `user_service.py` combina datos de tres fuentes:
         |
 2. admin-service crea el usuario en su BD
         |
-3. admin-service llama a auth-service POST /internal/users
+3. admin-service llama a auth-service POST /api/v1/auth/internal/users
    para crear las credenciales (contraseña temporal)
         |
-4. auth-service envía correo de bienvenida via email-service
+4. email-service envía correo de bienvenida con link a /change-password?user_id=xxx
         |
 5. Usuario recibe correo con contraseña temporal
         |
@@ -486,10 +486,13 @@ class UpdateUserRequest(BaseModel):
 
 | Servicio | Tipo | Endpoint | Propósito |
 |---|---|---|---|
-| auth-service | HTTP interno | POST /internal/users | Crear credenciales al crear usuario |
-| auth-service | HTTP interno | GET /internal/users/{id}/info | Obtener is_locked, is_2fa_configured, last_login_at |
-| auth-service | HTTP interno | POST /internal/users/batch-info | Obtener datos de auth para múltiples usuarios en un query |
-| auth-service | HTTP interno | POST /internal/users/{id}/reset-password | Resetear contraseña del usuario |
+| auth-service | HTTP interno | POST /api/v1/auth/internal/users | Crear credenciales al crear usuario |
+| auth-service | HTTP interno | GET /api/v1/auth/internal/users/{id}/info | Obtener is_locked, is_2fa_configured, is_temp_password, last_login_at |
+| auth-service | HTTP interno | POST /api/v1/auth/internal/users/batch-info | Obtener datos de auth para múltiples usuarios en un query |
+| auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/reset-password | Resetear contraseña del usuario |
+| auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/lock | Bloquear o desbloquear cuenta |
+
+> Todas las URLs internas usan el formato completo `http://auth-service:8000/api/v1/auth/internal/...`
 
 ---
 
