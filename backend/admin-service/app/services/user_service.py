@@ -340,6 +340,29 @@ async def remove_global_role(db, user_id, role_id, requested_by=None):
 
 
 async def _get_module_accesses_for_report(db, user_id, is_super_admin):
+    if is_super_admin:
+        all_modules_result = await db.execute(
+            select(Module).where(Module.is_active == True, Module.is_deleted == False)
+        )
+        all_modules = all_modules_result.scalars().all()
+        result = []
+        for m in all_modules:
+            subs_result = await db.execute(
+                select(Submodule).where(
+                    Submodule.module_id == m.id,
+                    Submodule.is_active == True,
+                    Submodule.is_deleted == False,
+                ).order_by(Submodule.order.asc())
+            )
+            subs = subs_result.scalars().all()
+            result.append({
+                "module_id": str(m.id),
+                "module_name": m.name,
+                "module_slug": m.slug,
+                "role_name": "Super Administrador",
+                "submodules": [{"slug": s.slug, "name": s.name} for s in subs],
+            })
+        return result
     accesses_result = await db.execute(
         select(UserModuleAccess, Module, ModuleRole)
         .join(Module, UserModuleAccess.module_id == Module.id)

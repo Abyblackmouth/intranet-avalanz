@@ -301,7 +301,20 @@ export default function UserAuditReport({ user }: UserAuditReportProps) {
       // ── Módulos y Submódulos ──
       y = sectionTitle('Accesos a Módulos y Submódulos', y)
 
-      if (detail.module_accesses && detail.module_accesses.length > 0) {
+      const isSuperAdmin = detail.roles && detail.roles.includes('super_admin')
+
+      if (isSuperAdmin) {
+        doc.setFillColor(...BLUE_LIGHT)
+        doc.roundedRect(col1, y, fullW, 11, 1.5, 1.5, 'F')
+        doc.setDrawColor(...BLUE)
+        doc.setLineWidth(0.3)
+        doc.roundedRect(col1, y, fullW, 11, 1.5, 1.5, 'S')
+        doc.setTextColor(...BLUE)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8.5)
+        doc.text('Acceso total a todos los módulos y submódulos de la plataforma', pageW / 2, y + 7, { align: 'center' })
+        y += 18
+      } else if (detail.module_accesses && detail.module_accesses.length > 0) {
         autoTable(doc, {
           startY: y,
           head: [['Módulo', 'Rol Asignado', 'Submódulos']],
