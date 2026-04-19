@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, Integer, BigInteger, DateTime, JSON, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
@@ -163,3 +163,45 @@ class ModuleRolePermission(BaseModel):
     id            = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     role_id       = Column(UUID(as_uuid=True), ForeignKey("module_roles.id", ondelete="CASCADE"), nullable=False)
     permission_id = Column(UUID(as_uuid=True), ForeignKey("submodule_permissions.id", ondelete="CASCADE"), nullable=False)
+
+
+class UserFile(BaseModel):
+    __tablename__ = "user_files"
+
+    id                = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id           = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    company_id        = Column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False)
+    original_name     = Column(String(255), nullable=False)
+    stored_name       = Column(String(255), nullable=False)
+    object_key        = Column(String(500), nullable=False)
+    bucket            = Column(String(100), nullable=False, default="dirdoc")
+    mime_type         = Column(String(100), nullable=False)
+    extension         = Column(String(20), nullable=False)
+    size_bytes        = Column(BigInteger, nullable=False)
+    checksum          = Column(String(64), nullable=False)
+    description       = Column(Text, nullable=True)
+    is_deleted        = Column(Boolean, default=False, nullable=False)
+    deleted_at        = Column(DateTime(timezone=True), nullable=True)
+    deleted_by        = Column(UUID(as_uuid=True), nullable=True)
+    deleted_reason    = Column(String(255), nullable=True)
+    uploaded_by       = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    uploaded_at       = Column(DateTime(timezone=True), nullable=False)
+    last_modified_by  = Column(UUID(as_uuid=True), nullable=True)
+    last_modified_at  = Column(DateTime(timezone=True), nullable=True)
+
+
+class UserFileAuditLog(BaseModel):
+    __tablename__ = "user_file_audit_log"
+
+    id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    file_id             = Column(UUID(as_uuid=True), ForeignKey("user_files.id", ondelete="RESTRICT"), nullable=False, index=True)
+    action              = Column(String(50), nullable=False)
+    performed_by        = Column(UUID(as_uuid=True), nullable=False)
+    performed_by_name   = Column(String(255), nullable=False)
+    performed_by_role   = Column(String(100), nullable=False)
+    performed_at        = Column(DateTime(timezone=True), nullable=False)
+    ip_address          = Column(String(45), nullable=True)
+    user_agent          = Column(String(255), nullable=True)
+    company_id          = Column(UUID(as_uuid=True), nullable=False)
+    module_slug         = Column(String(100), nullable=False, default="admin")
+    detail              = Column(JSON, nullable=True)

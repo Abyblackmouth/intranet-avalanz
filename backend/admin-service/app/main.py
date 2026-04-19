@@ -12,6 +12,7 @@ from app.routes.roles import router as roles_router
 from app.routes.permissions import router as permissions_router
 from app.routes.groups import router as groups_router
 from app.routes.companies import router as companies_router
+from app.routes.user_files import router as user_files_router
 
 from shared.exceptions.http_exceptions import (
     AppException,
@@ -74,6 +75,7 @@ app.include_router(roles_router, prefix="/api/v1")
 app.include_router(permissions_router, prefix="/api/v1")
 app.include_router(groups_router, prefix="/api/v1")
 app.include_router(companies_router, prefix="/api/v1")
+app.include_router(user_files_router, prefix="/api/v1")
 
 
 # ── Endpoint interno para auth-service ───────────────────────────────────────
