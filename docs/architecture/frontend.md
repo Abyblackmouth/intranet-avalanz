@@ -20,6 +20,7 @@ Interfaz web de la Intranet Avalanz construida con Next.js 16, Tailwind CSS y sh
 | Iconos UI | Lucide React | — |
 | Iconos marcas | React Icons | 5.x |
 | Cookies | js-cookie | — |
+| Excel | SheetJS (xlsx) | 0.18.x |
 | Fuentes | Geist Sans, Geist Mono, Plus Jakarta Sans, Roboto (Google Fonts via Next.js) | — |
 
 ---
@@ -41,7 +42,7 @@ frontend/
 │   │   │   ├── page.tsx
 │   │   │   ├── groups/
 │   │   │   ├── companies/
-│   │   │   ├── users/
+│   │   │   ├── users/            → Incluye Exportar Excel y filtro de bloqueados
 │   │   │   ├── modules/
 │   │   │   ├── roles/
 │   │   │   └── permissions/
@@ -64,7 +65,11 @@ frontend/
 │   │   └── AuthProvider.tsx      → Valida sesión y redirige según is_temp_password
 │   ├── admin/                    → Componentes del panel admin
 │   │   ├── users/
-│   │   │   └── UserTable.tsx     → Tabla de usuarios con paginación y menú flotante
+│   │   │   ├── UserTable.tsx     → Tabla de usuarios con paginación y menú flotante
+│   │   │   ├── UserDetail.tsx    → Panel lateral con 4 tabs incluyendo Documentos
+│   │   │   ├── UserForm.tsx
+│   │   │   ├── UserEditForm.tsx
+│   │   │   └── UserModuleAccess.tsx
 │   │   └── companies/
 │   │       ├── CompanyForm.tsx
 │   │       ├── CompanyEditForm.tsx
@@ -89,6 +94,7 @@ frontend/
 │   ├── api.ts                    → Axios con interceptors y refresh automático
 │   ├── authService.ts            → Endpoints de autenticación
 │   ├── adminService.ts           → Endpoints del panel de administración
+│   ├── uploadService.ts          → Endpoints de archivos de usuario y storage
 │   ├── notificationService.ts    → Endpoints del notify-service
 │   └── roleService.ts            → Endpoints de roles y permisos
 │
@@ -135,6 +141,7 @@ if (token && pathname === '/login') → redirect('/app')
 | Token | Valor | Uso |
 |---|---|---|
 | Azul corporativo | `#1a4fa0` | Botones primarios, items activos, focus |
+| Verde Excel | `emerald-600` | Botón de exportar Excel |
 | Fondo layout | `bg-slate-50` | Fondo general de páginas privadas |
 | Fondo sidebar/header | `bg-white` | Siempre blanco |
 | Borde sidebar | `border-r-2 border-slate-300` | Separador sidebar-contenido |
@@ -172,6 +179,13 @@ focus: border-color #1a4fa0; box-shadow: 0 0 0 3.5px rgba(26,79,160,0.10);
 ```
 bg-[#1a4fa0] text-white rounded-lg hover:bg-blue-700
 font-medium px-4 py-2 text-sm transition
+```
+
+### Botón Excel
+
+```
+bg-emerald-600 text-white rounded-lg hover:bg-emerald-700
+font-medium px-4 py-2 text-sm transition disabled:opacity-50
 ```
 
 ### Badges de estado
@@ -307,6 +321,44 @@ Se ejecuta en cada ruta privada. Valida el token con `GET /api/v1/auth/me`. Si e
 
 ---
 
+## Página de usuarios — `/admin/users`
+
+Archivo: `app/(private)/admin/users/page.tsx`
+
+### Filtros disponibles
+
+| Filtro | Parámetro backend | Descripción |
+|---|---|---|
+| Buscar | `search` | Por nombre, email o matrícula |
+| Estado — Activos | `is_active=true` | Usuarios activos y no bloqueados |
+| Estado — Inactivos | `is_active=false` | Usuarios desactivados |
+| Estado — Bloqueados | `is_locked=true` | Usa columna cache `is_locked` en BD del admin-service |
+| Empresa | `company_id` | Solo visible para super_admin |
+
+### Exportar Excel
+
+Botón verde "Exportar Excel" junto al botón de nuevo usuario. Genera un archivo `.xlsx` con todos los usuarios de la plataforma (paginando de 100 en 100 para respetar el límite del backend).
+
+Columnas del reporte:
+
+| Columna | Formato |
+|---|---|
+| Matricula | Número de empleado o — |
+| Nombre | Nombre completo |
+| Email | Correo electrónico |
+| Puesto | Cargo o — |
+| Departamento | Área o — |
+| Empresa | Nombre comercial |
+| Roles | Separados por ` \| ` |
+| Estado | Activo / Inactivo / Bloqueado |
+| 2FA | Configurado / Sin configurar |
+| Ultimo acceso | DD/MM/YYYY HH:mm en 24h |
+| Fecha creacion | DD/MM/YYYY |
+
+El usuario protegido (`admin@avalanz.com`) no aparece en el reporte. El archivo se nombra `concentrado_usuarios_YYYY-MM-DD.xlsx`.
+
+---
+
 ## Tabla de usuarios — UserTable
 
 Archivo: `components/admin/users/UserTable.tsx`
@@ -318,6 +370,69 @@ Tabla con las siguientes características:
 - Menú flotante con detección de espacio (`menuHeight = 280`) — se abre hacia arriba si no hay espacio abajo
 - Footer de paginación siempre al fondo del contenedor via `marginTop: auto`
 - Correo del usuario: `text-slate-400`
+
+### Opciones del menú de 3 puntos
+
+| Opción | Acción |
+|---|---|
+| Ver detalle | Abre UserDetail en tab Información |
+| Documentos | Abre UserDetail directo en tab Documentos |
+| Editar | Abre formulario de edición |
+| Resetear contraseña | Modal de reset |
+| Bloquear / Desbloquear | Modal con motivo obligatorio |
+| Revocar sesiones | Modal de confirmación |
+| Eliminar usuario | Modal de confirmación — solo super_admin, no aparece en usuario protegido |
+
+---
+
+## Panel de detalle — UserDetail
+
+Archivo: `components/admin/users/UserDetail.tsx`
+
+Panel lateral derecho con 4 tabs:
+
+| Tab | Descripción |
+|---|---|
+| Información | Datos personales, estado de cuenta y roles |
+| Sesiones | Sesiones activas con opción de revocar individualmente |
+| Historial | Historial de intentos de acceso con IP y resultado |
+| Documentos | Archivos del expediente del empleado |
+
+### Prop `initialTab`
+
+Permite abrir el panel directo en un tab específico:
+
+```tsx
+<UserDetail
+  userId={userId}
+  initialTab="documents"
+  onClose={handleClose}
+  onRefresh={handleRefresh}
+/>
+```
+
+### Tab Documentos
+
+- Lista todos los archivos activos del empleado ordenados por fecha de subida
+- Muestra la descripción como título principal y el nombre del archivo como subtítulo
+- Muestra tamaño formateado y fecha relativa de subida
+- Botón de descarga — genera URL firmada temporal (15 min) y abre en nueva pestaña
+- Botón de eliminar con confirmación — hace soft delete (el archivo sigue en MinIO)
+- Formulario de subida con campo de descripción opcional
+- Validación en frontend antes de enviar — tipos y tamaño
+
+### Validación de archivos en frontend
+
+```typescript
+const ALLOWED_TYPES = [
+  'application/pdf', 'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+]
+const MAX_SIZE_MB = 50
+```
 
 ---
 
@@ -434,6 +549,19 @@ Instancia de Axios con interceptors automáticos de token y refresh.
 | confirmPasswordReset(data) | POST /api/v1/auth/password-reset/confirm | Confirmar nueva contraseña |
 | getMe() | GET /api/v1/auth/me | Obtener usuario autenticado |
 | logout(refreshToken) | POST /api/v1/auth/logout | Cerrar sesión |
+
+### uploadService.ts
+
+| Función | Endpoint | Descripción |
+|---|---|---|
+| getUserFiles(userId) | GET /api/v1/users/{id}/files | Listar archivos del empleado |
+| uploadUserFile(userId, formData) | POST /api/v1/users/{id}/files | Subir archivo |
+| downloadUserFile(userId, fileId) | GET /api/v1/users/{id}/files/{fileId}/download | Obtener URL firmada |
+| deleteUserFile(userId, fileId, reason) | DELETE /api/v1/users/{id}/files/{fileId} | Soft delete |
+| getFileAudit(userId, fileId) | GET /api/v1/users/{id}/files/{fileId}/audit | Ver auditoría |
+| uploadToStorage(formData) | POST /api/v1/upload/ | Subida directa al upload-service |
+| getSignedUrl(objectKey, bucket) | GET /api/v1/upload/signed-url | URL firmada directa |
+| deleteFromStorage(objectKey, bucket) | DELETE /api/v1/upload/ | Eliminar de MinIO |
 
 ---
 

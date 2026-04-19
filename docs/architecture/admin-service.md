@@ -14,6 +14,7 @@ El `admin-service` es el servicio de administración centralizada de la platafor
 - Definición de roles globales y roles por módulo
 - Definición y asignación de permisos globales y por submódulo
 - Asignación de accesos de usuarios a módulos con su rol correspondiente
+- Gestión de archivos de empleados con trazabilidad completa
 - Endpoint interno para que el `auth-service` consulte permisos al emitir tokens
 
 ---
@@ -22,7 +23,7 @@ El `admin-service` es el servicio de administración centralizada de la platafor
 
 ```
 backend/admin-service/
-├── alembic.ini                          → Configuración de Alembic (migraciones)
+├── alembic.ini
 ├── app/
 │   ├── main.py                          → Punto de entrada, middlewares, routers, endpoint interno
 │   ├── config.py                        → Configuración del servicio
@@ -31,6 +32,7 @@ backend/admin-service/
 │   │   ├── groups.py                    → Endpoints de grupos
 │   │   ├── companies.py                 → Endpoints de empresas
 │   │   ├── users.py                     → Endpoints de usuarios y accesos
+│   │   ├── user_files.py                → Endpoints de archivos de empleados
 │   │   ├── modules.py                   → Endpoints de módulos y submódulos
 │   │   ├── roles.py                     → Endpoints de roles globales y por módulo
 │   │   └── permissions.py              → Endpoints de permisos globales y por submódulo
@@ -38,6 +40,7 @@ backend/admin-service/
 │   │   ├── group_service.py             → Lógica de negocio de grupos
 │   │   ├── company_service.py           → Lógica de negocio de empresas
 │   │   ├── user_service.py              → Lógica de negocio de usuarios
+│   │   ├── user_file_service.py         → Lógica de archivos y auditoría de empleados
 │   │   ├── module_service.py            → Lógica de negocio de módulos y submódulos
 │   │   ├── role_service.py              → Lógica de negocio de roles
 │   │   └── permission_service.py       → Lógica de negocio de permisos
@@ -45,15 +48,17 @@ backend/admin-service/
 │   │   └── admin_models.py             → Modelos SQLAlchemy
 │   └── middleware/
 ├── migrations/
-│   ├── env.py                           → Configuración del entorno Alembic
-│   ├── script.py.mako                   → Template para archivos de migración
+│   ├── env.py
+│   ├── script.py.mako
 │   └── versions/
 │       ├── 152e0764c443_initial_schema.py
 │       ├── 56a1e78b4518_add_matricula_puesto_departamento.py
 │       ├── 26d54d059ca9_add_lock_reason_to_users.py
 │       ├── 951e0445379d_add_address_and_constancia_fields_to_.py
 │       ├── d47aff39e7ad_add_description_to_submodules.py
-│       └── e3350ebe1c8e_add_scope_to_module_roles_and_.py     → scope en module_roles, soft delete en global/submodule permissions
+│       ├── e3350ebe1c8e_add_scope_to_module_roles_and_.py
+│       ├── e99cf1bc4cf6_add_user_files_and_audit_log.py
+│       └── e1642a0e0227_add_is_locked_cache_to_users.py
 ├── tests/
 ├── Dockerfile
 ├── requirements.txt
@@ -83,6 +88,8 @@ backend/admin-service/
 Group (Grupo Avalanz / Zignia)
 └── Company (AGIM, DYCE, TODITO, CNCI, etc.)
     ├── User          → pertenece a una empresa
+    │   ├── UserFile  → documentos del expediente del empleado
+    │   └── UserFileAuditLog → auditoría de cada acción sobre archivos
     └── Module        → fue solicitado por una empresa
         └── Submodule → parte operativa del módulo
 ```
@@ -121,7 +128,7 @@ Group (Grupo Avalanz / Zignia)
 | constancia_fecha_emision | String(50) | Fecha de emisión de la constancia SAT |
 | constancia_fecha_vigencia | String(50) | Fecha de vigencia calculada (+1 mes desde emisión) |
 
-#### users (actualizada)
+#### users
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria — mismo UUID que en auth-service |
@@ -134,8 +141,53 @@ Group (Grupo Avalanz / Zignia)
 | lock_reason | String(255) | Motivo del último bloqueo o desbloqueo — opcional |
 | is_active | Boolean | Si el usuario está activo |
 | is_super_admin | Boolean | Bandera de super administrador global |
+| is_locked | Boolean | Cache del estado de bloqueo sincronizado desde auth-service |
+
+> `is_locked` es una columna cache que se sincroniza automáticamente cada vez que un admin bloquea o desbloquea una cuenta desde el panel. Permite filtrar usuarios bloqueados directamente en SQL sin consultar el auth-service. Si se bloquea directamente en auth-service sin pasar por el admin-service, hay que sincronizar manualmente con `UPDATE users SET is_locked = true WHERE id = 'uuid'`.
 
 > Para agregar más campos a esta tabla ver: `docs/architecture/agregar-campos-usuario.md`
+
+#### user_files
+| Columna | Tipo | Descripción |
+|---|---|---|
+| id | UUID | Llave primaria |
+| user_id | UUID FK | Empleado al que pertenece el archivo |
+| company_id | UUID FK | Empresa del empleado |
+| original_name | String(255) | Nombre descriptivo — formato: `user_{matricula}_{company}_{folio}.{ext}` |
+| stored_name | String(255) | Nombre físico en MinIO con UUID prefix |
+| object_key | String(500) | Ruta relativa en MinIO — `admin/employees/documents/archivo.pdf` |
+| bucket | String(100) | Bucket de MinIO — siempre `dirdoc` |
+| mime_type | String(100) | Tipo MIME del archivo |
+| extension | String(20) | Extensión del archivo |
+| size_bytes | BigInteger | Tamaño en bytes |
+| checksum | String(64) | Hash SHA256 para verificar integridad |
+| description | Text | Descripción opcional del documento |
+| is_deleted | Boolean | Soft delete — el archivo sigue en MinIO |
+| deleted_at | DateTime | Fecha de eliminación |
+| deleted_by | UUID | Usuario que eliminó |
+| deleted_reason | String(255) | Motivo de eliminación |
+| uploaded_by | UUID | Usuario que subió el archivo |
+| uploaded_at | DateTime | Fecha de subida |
+| last_modified_by | UUID | Último usuario que lo modificó |
+| last_modified_at | DateTime | Fecha de última modificación |
+
+#### user_file_audit_log
+| Columna | Tipo | Descripción |
+|---|---|---|
+| id | UUID | Llave primaria |
+| file_id | UUID FK | Referencia a user_files |
+| action | String(50) | uploaded, downloaded, replaced, deleted, restored |
+| performed_by | UUID | Usuario que realizó la acción |
+| performed_by_name | String(255) | Nombre del usuario en el momento del evento |
+| performed_by_role | String(100) | Rol del usuario en el momento del evento |
+| performed_at | DateTime | Fecha y hora exacta del evento |
+| ip_address | String(45) | IP desde donde se realizó la acción |
+| user_agent | String(255) | Navegador o cliente |
+| company_id | UUID | Empresa del usuario que realizó la acción |
+| module_slug | String(100) | Módulo donde ocurrió — siempre `admin` para archivos de empleados |
+| detail | JSONB | Datos extra según la acción |
+
+> `performed_by_name` y `performed_by_role` se guardan directamente en el log para preservar el estado exacto del usuario en el momento del evento, independientemente de cambios posteriores en su perfil o rol.
 
 #### modules
 | Columna | Tipo | Descripción |
@@ -323,16 +375,19 @@ Cada módulo operativo que se construya en el futuro **debe** filtrar sus consul
 
 ```python
 company_id = payload.get("company_id")
-query = select(Expediente).where(Expediente.company_id == company_id)
+cross_company = payload.get("cross_company", False)
+
+if cross_company:
+    query = select(Expediente)
+else:
+    query = select(Expediente).where(Expediente.company_id == company_id)
 ```
 
-**Excepción:** usuarios con rol `super_admin` pueden omitir este filtro.
+**Excepción:** usuarios con `cross_company: true` (super_admin o scope corporativo) pueden ver datos de todas las empresas.
 
 ---
 
 ## Nginx — Rutas expuestas
-
-Las siguientes rutas están configuradas en `infrastructure/nginx/conf.d/intranet.conf`:
 
 | Ruta | Servicio |
 |---|---|
@@ -348,30 +403,6 @@ Las siguientes rutas están configuradas en `infrastructure/nginx/conf.d/intrane
 ---
 
 ## Endpoints
-
-### Grupos — `/api/v1/groups`
-
-| Método | Ruta | Roles | Descripción |
-|---|---|---|---|
-| POST | / | super_admin | Crear grupo |
-| GET | / | super_admin, admin_empresa | Listar grupos |
-| GET | /{group_id} | super_admin, admin_empresa | Obtener grupo |
-| PATCH | /{group_id} | super_admin | Actualizar grupo |
-| PATCH | /{group_id}/enable | super_admin | Habilitar grupo |
-| PATCH | /{group_id}/disable | super_admin | Deshabilitar grupo |
-| DELETE | /{group_id} | super_admin | Eliminar grupo |
-
-### Empresas — `/api/v1/companies`
-
-| Método | Ruta | Roles | Descripción |
-|---|---|---|---|
-| POST | / | super_admin | Crear empresa |
-| GET | / | super_admin, admin_empresa | Listar empresas |
-| GET | /{company_id} | super_admin, admin_empresa | Obtener empresa |
-| PATCH | /{company_id} | super_admin | Actualizar empresa |
-| PATCH | /{company_id}/enable | super_admin | Habilitar empresa |
-| PATCH | /{company_id}/disable | super_admin | Deshabilitar empresa |
-| DELETE | /{company_id} | super_admin | Eliminar empresa |
 
 ### Usuarios — `/api/v1/users`
 
@@ -391,6 +422,17 @@ Las siguientes rutas están configuradas en `infrastructure/nginx/conf.d/intrane
 | GET | /{user_id}/login-history | super_admin, admin_empresa | Historial de login del usuario |
 | POST | /{user_id}/lock | super_admin, admin_empresa | Bloquear o desbloquear cuenta (admin_empresa no puede bloquear super_admin) |
 | POST | /{user_id}/reset-password | super_admin, admin_empresa | Resetear contraseña del usuario |
+
+### Query parameters de listado — `GET /api/v1/users/`
+
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| page | int | Número de página (default: 1) |
+| per_page | int | Resultados por página (default: 20, max: 100) |
+| search | string | Buscar por nombre, email o matrícula |
+| company_id | UUID | Filtrar por empresa |
+| is_active | bool | Filtrar por estado activo/inactivo |
+| is_locked | bool | Filtrar por estado bloqueado — usa columna cache local |
 
 ### Campos de creación de usuario (CreateUserRequest)
 
@@ -417,6 +459,60 @@ class UpdateUserRequest(BaseModel):
     departamento: Optional[str]
     is_active: Optional[bool]
 ```
+
+### Archivos de usuario — `/api/v1/users/{user_id}/files`
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| POST | /{user_id}/files | super_admin, admin_empresa | Subir archivo al expediente del empleado |
+| GET | /{user_id}/files | super_admin, admin_empresa | Listar archivos activos del empleado |
+| GET | /{user_id}/files/{file_id}/download | super_admin, admin_empresa | Obtener URL firmada de descarga (15 min) |
+| DELETE | /{user_id}/files/{file_id} | super_admin, admin_empresa | Soft delete del archivo |
+| GET | /{user_id}/files/{file_id}/audit | super_admin, admin_empresa | Ver auditoría completa del archivo |
+
+#### POST /{user_id}/files — multipart/form-data
+
+| Campo | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| file | File | Si | Archivo a subir |
+| company_slug | string | Si | Slug de la empresa del empleado |
+| description | string | No | Descripción del documento |
+
+El nombre del archivo se genera automáticamente: `user_{matricula}_{company_slug}_{folio}.{ext}`
+
+Todos los archivos de empleados se guardan en MinIO bajo: `dirdoc/admin/employees/documents/`
+
+#### Acciones registradas en auditoría
+
+| Acción | Cuándo |
+|---|---|
+| uploaded | Al subir el archivo |
+| downloaded | Al generar URL firmada de descarga |
+| deleted | Al hacer soft delete |
+
+### Grupos — `/api/v1/groups`
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| POST | / | super_admin | Crear grupo |
+| GET | / | super_admin, admin_empresa | Listar grupos |
+| GET | /{group_id} | super_admin, admin_empresa | Obtener grupo |
+| PATCH | /{group_id} | super_admin | Actualizar grupo |
+| PATCH | /{group_id}/enable | super_admin | Habilitar grupo |
+| PATCH | /{group_id}/disable | super_admin | Deshabilitar grupo |
+| DELETE | /{group_id} | super_admin | Eliminar grupo |
+
+### Empresas — `/api/v1/companies`
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| POST | / | super_admin | Crear empresa |
+| GET | / | super_admin, admin_empresa | Listar empresas |
+| GET | /{company_id} | super_admin, admin_empresa | Obtener empresa |
+| PATCH | /{company_id} | super_admin | Actualizar empresa |
+| PATCH | /{company_id}/enable | super_admin | Habilitar empresa |
+| PATCH | /{company_id}/disable | super_admin | Deshabilitar empresa |
+| DELETE | /{company_id} | super_admin | Eliminar empresa |
 
 ### Módulos — `/api/v1/modules`
 
@@ -491,8 +587,10 @@ class UpdateUserRequest(BaseModel):
 | auth-service | HTTP interno | POST /api/v1/auth/internal/users/batch-info | Obtener datos de auth para múltiples usuarios en un query |
 | auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/reset-password | Resetear contraseña del usuario |
 | auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/lock | Bloquear o desbloquear cuenta |
+| upload-service | HTTP interno | POST /api/v1/upload/ | Subir archivo de empleado a MinIO |
+| upload-service | HTTP interno | GET /api/v1/upload/signed-url | Obtener URL firmada para descarga |
 
-> Todas las URLs internas usan el formato completo `http://auth-service:8000/api/v1/auth/internal/...`
+> Todas las URLs internas usan el formato completo con puerto: `http://auth-service:8000/...`, `http://upload-service:8000/...`
 
 ---
 
@@ -500,7 +598,6 @@ class UpdateUserRequest(BaseModel):
 
 Ver guía completa en: `docs/architecture/alembic-guia.md`
 
-Comandos rápidos:
 ```bash
 # Generar migración
 docker exec avalanz-admin bash -c "cd /app && alembic revision --autogenerate -m 'descripcion'"
@@ -588,5 +685,3 @@ uvicorn app.main:app --reload --port 8002
 
 El servicio queda disponible en `http://localhost:8002`
 La documentación interactiva en `http://localhost:8002/docs` (solo en DEBUG=True)
-
-
