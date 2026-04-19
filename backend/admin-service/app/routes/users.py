@@ -245,7 +245,7 @@ async def get_user_sessions(
 ):
     import httpx
     async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"http://auth-service:8000/internal/users/{user_id}/sessions")
+        resp = await client.get(f"http://auth-service:8000/api/v1/auth/internal/users/{user_id}/sessions")
     return DataResponse(success=True, message="Sesiones obtenidas", data=resp.json())
 
 
@@ -257,7 +257,7 @@ async def get_user_login_history(
 ):
     import httpx
     async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"http://auth-service:8000/internal/users/{user_id}/login-history")
+        resp = await client.get(f"http://auth-service:8000/api/v1/auth/internal/users/{user_id}/login-history")
     return DataResponse(success=True, message="Historial obtenido", data=resp.json())
 
 
