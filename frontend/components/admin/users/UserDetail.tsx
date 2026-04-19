@@ -1,11 +1,12 @@
 'use client'
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   X, User, Mail, Hash, Briefcase, Building2, Shield, ShieldCheck, ShieldOff,
-  Globe, Lock, Clock, Monitor, Wifi, WifiOff, ChevronDown, ChevronUp, LogOut
+  Globe, Lock, Clock, Monitor, Wifi, WifiOff, ChevronDown, ChevronUp, LogOut,
+  FileText, Upload, Download, Trash2, Eye, AlertCircle, CheckCircle2
 } from 'lucide-react'
 import { getUser, getUserSessions, getUserLoginHistory } from '@/services/adminService'
+import { getUserFiles, uploadUserFile, downloadUserFile, deleteUserFile } from '@/services/uploadService'
 import { UserRow } from '@/types/user.types'
 import api from '@/services/api'
 
@@ -37,6 +38,26 @@ interface LoginEntry {
   created_at: string
 }
 
+interface UserFile {
+  id: string
+  user_id: string
+  original_name: string
+  stored_name: string
+  object_key: string
+  bucket: string
+  mime_type: string
+  extension: string
+  size_bytes: number
+  size_mb: number
+  checksum: string
+  description: string
+  is_deleted: boolean
+  uploaded_by: string
+  uploaded_at: string
+  last_modified_by: string | null
+  last_modified_at: string | null
+}
+
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr)
   return date.toLocaleString('es-MX', {
@@ -54,6 +75,12 @@ const formatRelative = (dateStr: string) => {
   if (hrs < 24) return `Hace ${hrs} hr`
   const days = Math.floor(hrs / 24)
   return `Hace ${days} dia${days > 1 ? 's' : ''}`
+}
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 const parseUA = (ua: string) => {
@@ -81,22 +108,35 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
   const [user, setUser] = useState<UserRow | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [history, setHistory] = useState<LoginEntry[]>([])
+  const [files, setFiles] = useState<UserFile[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'history'>('info')
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'history' | 'documents'>('info')
   const [revokingSession, setRevokingSession] = useState<string | null>(null)
+
+  // Documents state
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadDescription, setUploadDescription] = useState('')
+  const [showUploadForm, setShowUploadForm] = useState(false)
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null)
+  const [fileError, setFileError] = useState('')
+  const [fileSuccess, setFileSuccess] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const load = async () => {
       setIsLoading(true)
       try {
-        const [userRes, sessionsRes, historyRes] = await Promise.all([
+        const [userRes, sessionsRes, historyRes, filesRes] = await Promise.all([
           getUser(userId),
           getUserSessions(userId),
           getUserLoginHistory(userId),
+          getUserFiles(userId),
         ])
         setUser(userRes.data.data)
         setSessions(sessionsRes.data.data || [])
         setHistory(historyRes.data.data || [])
+        setFiles(filesRes.data.data || [])
       } catch {
         // silencioso
       } finally {
@@ -118,10 +158,67 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
     }
   }
 
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    setFileError('')
+    setFileSuccess('')
+    setIsUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('company_slug', user.company_name.toLowerCase().replace(/\s+/g, '-'))
+      formData.append('description', uploadDescription || 'Sin descripción')
+
+      const res = await uploadUserFile(userId, formData)
+      setFiles(prev => [res.data.data, ...prev])
+      setShowUploadForm(false)
+      setUploadDescription('')
+      setFileSuccess('Archivo subido correctamente')
+      setTimeout(() => setFileSuccess(''), 3000)
+    } catch {
+      setFileError('Error al subir el archivo. Verifica el tipo y tamaño.')
+    } finally {
+      setIsUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDownload = async (file: UserFile) => {
+    setDownloadingFileId(file.id)
+    try {
+      const res = await downloadUserFile(userId, file.id)
+      const url = res.data.data.url
+      window.open(url, '_blank')
+    } catch {
+      setFileError('Error al generar el enlace de descarga.')
+      setTimeout(() => setFileError(''), 3000)
+    } finally {
+      setDownloadingFileId(null)
+    }
+  }
+
+  const handleDeleteFile = async (fileId: string) => {
+    if (!confirm('¿Eliminar este archivo? Esta acción no se puede deshacer.')) return
+    setDeletingFileId(fileId)
+    try {
+      await deleteUserFile(userId, fileId, 'Eliminado por administrador')
+      setFiles(prev => prev.filter(f => f.id !== fileId))
+      setFileSuccess('Archivo eliminado correctamente')
+      setTimeout(() => setFileSuccess(''), 3000)
+    } catch {
+      setFileError('Error al eliminar el archivo.')
+      setTimeout(() => setFileError(''), 3000)
+    } finally {
+      setDeletingFileId(null)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-end">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-
       <div className="relative w-full max-w-xl h-full bg-white shadow-2xl flex flex-col overflow-hidden">
 
         {/* Header */}
@@ -152,11 +249,12 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
             { id: 'info', label: 'Informacion' },
             { id: 'sessions', label: `Sesiones${sessions.length ? ` (${sessions.length})` : ''}` },
             { id: 'history', label: 'Historial' },
+            { id: 'documents', label: `Documentos${files.length ? ` (${files.length})` : ''}` },
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 py-3 text-sm font-medium transition border-b-2 ${
+              className={`flex-1 py-3 text-xs font-medium transition border-b-2 ${
                 activeTab === tab.id
                   ? 'border-[#1a4fa0] text-[#1a4fa0]'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -176,13 +274,10 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
               ))}
             </div>
           ) : (
-
             <>
               {/* Tab: Informacion */}
               {activeTab === 'info' && user && (
                 <div className="p-6 space-y-6">
-
-                  {/* Datos personales */}
                   <div>
                     <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
                       Datos personales
@@ -197,7 +292,6 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
                     </div>
                   </div>
 
-                  {/* Estado de la cuenta */}
                   <div>
                     <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
                       Estado de la cuenta
@@ -254,7 +348,6 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
                     </div>
                   </div>
 
-                  {/* Roles */}
                   {user.roles && user.roles.length > 0 && (
                     <div>
                       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
@@ -267,7 +360,6 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
                       </div>
                     </div>
                   )}
-
                 </div>
               )}
 
@@ -338,9 +430,7 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
                         <div
                           key={entry.id}
                           className={`flex items-start gap-3 p-3 rounded-lg border ${
-                            entry.success
-                              ? 'border-slate-100 bg-white'
-                              : 'border-red-100 bg-red-50'
+                            entry.success ? 'border-slate-100 bg-white' : 'border-red-100 bg-red-50'
                           }`}
                         >
                           <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
@@ -386,6 +476,127 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
                   )}
                 </div>
               )}
+
+              {/* Tab: Documentos */}
+              {activeTab === 'documents' && (
+                <div className="p-6 space-y-4">
+
+                  {/* Alertas */}
+                  {fileError && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
+                      <AlertCircle size={14} className="shrink-0" />
+                      {fileError}
+                    </div>
+                  )}
+                  {fileSuccess && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-xs">
+                      <CheckCircle2 size={14} className="shrink-0" />
+                      {fileSuccess}
+                    </div>
+                  )}
+
+                  {/* Formulario de subida */}
+                  {showUploadForm ? (
+                    <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+                      <p className="text-xs font-semibold text-slate-700">Subir nuevo documento</p>
+                      <input
+                        type="text"
+                        placeholder="Descripción del documento (opcional)"
+                        value={uploadDescription}
+                        onChange={e => setUploadDescription(e.target.value)}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
+                      />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                        onChange={handleUploadFile}
+                        disabled={isUploading}
+                        className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-[#1a4fa0] file:text-white hover:file:bg-blue-700 cursor-pointer"
+                      />
+                      <p className="text-xs text-slate-400">
+                        Formatos permitidos: PDF, Word, Excel, JPG, PNG — Máximo 50 MB
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setShowUploadForm(false); setUploadDescription('') }}
+                          className="flex-1 py-2 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowUploadForm(true)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium text-white bg-[#1a4fa0] rounded-xl hover:bg-blue-700 transition"
+                    >
+                      <Upload size={15} />
+                      Subir documento
+                    </button>
+                  )}
+
+                  {/* Lista de archivos */}
+                  {files.length === 0 ? (
+                    <div className="text-center py-10">
+                      <FileText size={32} className="text-slate-300 mx-auto mb-3" />
+                      <p className="text-sm text-slate-400">Sin documentos registrados</p>
+                      <p className="text-xs text-slate-300 mt-1">
+                        Sube el formato de alta u otros documentos del empleado
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {files.map(file => (
+                        <div key={file.id} className="border border-slate-200 rounded-xl p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                <FileText size={14} className="text-[#1a4fa0]" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-slate-800 truncate">
+                                  {file.original_name}
+                                </p>
+                                {file.description && (
+                                  <p className="text-xs text-slate-500 truncate">{file.description}</p>
+                                )}
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-slate-400">
+                                    {formatBytes(file.size_bytes)}
+                                  </span>
+                                  <span className="text-xs text-slate-300">·</span>
+                                  <span className="text-xs text-slate-400">
+                                    {formatRelative(file.uploaded_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => handleDownload(file)}
+                                disabled={downloadingFileId === file.id}
+                                title="Descargar"
+                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-[#1a4fa0] transition disabled:opacity-50"
+                              >
+                                <Download size={13} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFile(file.id)}
+                                disabled={deletingFileId === file.id}
+                                title="Eliminar"
+                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-50"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -400,6 +611,6 @@ const InfoRow = ({ icon, label, value }: { icon: React.ReactNode; label: string;
       <span className="text-slate-400">{icon}</span>
       {label}
     </div>
-    <span className="text-sm text-slate-800 font-medium text-right max-w-[60%] truncate">{value}</span>
+    <span className="text-sm text-slate-800 font-medium text-right max-w-[200px] truncate">{value}</span>
   </div>
 )

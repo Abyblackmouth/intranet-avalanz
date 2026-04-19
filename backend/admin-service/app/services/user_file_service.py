@@ -1,10 +1,10 @@
+import uuid
 import httpx
-from datetime import datetime, timezone
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin_models import UserFile, UserFileAuditLog, User
-from shared.exceptions.http_exceptions import NotFoundException, ForbiddenException
+from shared.exceptions.http_exceptions import NotFoundException
 from shared.utils.helpers import now_utc
 
 UPLOAD_SERVICE_URL = "http://upload-service:8000/api/v1/upload"
@@ -33,16 +33,23 @@ async def upload_user_file(
     if not user:
         raise NotFoundException("Usuario")
 
+    # Construir nombre descriptivo del archivo
+    matricula = getattr(user, "matricula", None) or str(user.id)[:8]
+    ext = filename.rsplit(".", 1)[-1] if "." in filename else "pdf"
+    company = company_slug.lower().replace(" ", "-")
+    folio = str(uuid.uuid4())[:8]
+    custom_filename = f"user_{matricula}_{company}_{folio}.{ext}"
+
     # Subir archivo al upload-service
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             f"{UPLOAD_SERVICE_URL}/",
             headers={"Authorization": f"Bearer {token}"},
-            files={"file": (filename, file_data, content_type)},
+            files={"file": (custom_filename, file_data, content_type)},
             data={
-                "company_slug": company_slug,
-                "module_slug": "admin",
-                "submodule_slug": "usuarios",
+                "company_slug": "admin",
+                "module_slug": "employees",
+                "submodule_slug": "documents",
             },
         )
         if response.status_code != 200:
