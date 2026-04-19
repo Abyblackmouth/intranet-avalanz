@@ -32,7 +32,7 @@ export default function UsersPage() {
     try {
       const params: Record<string, string | number> = { page, per_page: perPage }
       if (search) params.search = search
-      if (filterStatus === 'active') params.is_active = 'true'
+      if (filterStatus === 'active') { params.is_active = 'true'; params.is_locked = 'false' }
       if (filterStatus === 'inactive') params.is_active = 'false'
       if (filterStatus === 'locked') params.is_locked = 'true'
       if (filterCompany !== 'all') params.company_id = filterCompany
