@@ -630,7 +630,7 @@ const InfoRow = ({ icon, label, value }: { icon: React.ReactNode; label: string;
       <span className="text-slate-400">{icon}</span>
       {label}
     </div>
-    <span className="text-sm text-slate-800 font-medium text-right max-w-[200px] truncate">{value}</span>
+    <span className="text-sm text-slate-800 font-medium text-right max-w-50 truncate">{value}</span>
   </div>
 )
 
