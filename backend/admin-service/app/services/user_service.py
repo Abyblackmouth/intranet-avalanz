@@ -44,7 +44,8 @@ async def get_user_by_id(db, user_id):
     user, company = row
     auth_data = await _get_auth_data(str(user.id))
     roles = await _get_user_roles(db, str(user.id), user.is_super_admin)
-    return _serialize_user(user, company.nombre_comercial, auth_data, roles)
+    module_accesses = await _get_module_accesses_for_report(db, str(user.id), user.is_super_admin)
+    return _serialize_user(user, company.nombre_comercial, company.name, company.rfc, auth_data, roles, module_accesses)
 
 
 async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, is_locked=None, search=None, requested_by=None):
@@ -100,7 +101,7 @@ async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, i
                     roles_map[uid] = []
                 if "super_admin" not in roles_map[uid]:
                     roles_map[uid].append("super_admin")
-    return {"data": [_serialize_user(row.User, row.Company.nombre_comercial, auth_data_map.get(str(row.User.id), {}), roles_map.get(str(row.User.id), [])) for row in rows], "meta": paginate(total, page, per_page)}
+    return {"data": [_serialize_user(row.User, row.Company.nombre_comercial, row.Company.name, row.Company.rfc, auth_data_map.get(str(row.User.id), {}), roles_map.get(str(row.User.id), [])) for row in rows], "meta": paginate(total, page, per_page)}
 
 
 async def update_user(db, user_id, full_name=None, email=None, matricula=None, puesto=None, departamento=None, is_active=None, requested_by=None):
@@ -338,11 +339,46 @@ async def remove_global_role(db, user_id, role_id, requested_by=None):
     await db.commit()
 
 
-def _serialize_user(user, company_name="", auth_data={}, roles=[]):
+async def _get_module_accesses_for_report(db, user_id, is_super_admin):
+    accesses_result = await db.execute(
+        select(UserModuleAccess, Module, ModuleRole)
+        .join(Module, UserModuleAccess.module_id == Module.id)
+        .join(ModuleRole, UserModuleAccess.role_id == ModuleRole.id)
+        .where(
+            UserModuleAccess.user_id == user_id,
+            UserModuleAccess.is_active == True,
+            Module.is_active == True,
+            Module.is_deleted == False,
+        )
+    )
+    accesses = accesses_result.all()
+    result = []
+    for a in accesses:
+        subs_result = await db.execute(
+            select(Submodule).where(
+                Submodule.module_id == a.Module.id,
+                Submodule.is_active == True,
+                Submodule.is_deleted == False,
+            ).order_by(Submodule.order.asc())
+        )
+        subs = subs_result.scalars().all()
+        result.append({
+            "module_id": str(a.Module.id),
+            "module_name": a.Module.name,
+            "module_slug": a.Module.slug,
+            "role_name": a.ModuleRole.name,
+            "submodules": [{"slug": s.slug, "name": s.name} for s in subs],
+        })
+    return result
+
+
+def _serialize_user(user, company_name="", company_razon_social="", company_rfc="", auth_data={}, roles=[], module_accesses=[]):
     return {
         "user_id": str(user.id),
         "company_id": str(user.company_id),
         "company_name": company_name,
+        "company_razon_social": company_razon_social,
+        "company_rfc": company_rfc,
         "email": user.email,
         "full_name": user.full_name,
         "matricula": user.matricula,
@@ -357,6 +393,7 @@ def _serialize_user(user, company_name="", auth_data={}, roles=[]):
         "is_2fa_configured": auth_data.get("is_2fa_configured", False),
         "last_login_at": auth_data.get("last_login_at", None),
         "created_at": user.created_at.isoformat(),
+        "module_accesses": module_accesses,
     }
 
 

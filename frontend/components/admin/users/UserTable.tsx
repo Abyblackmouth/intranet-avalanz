@@ -3,13 +3,14 @@ import React from 'react'
 
 import { useState, useRef, useEffect } from 'react'
 import {
-  MoreHorizontal, Eye, Pencil, Lock, Unlock, KeyRound,
+  MoreHorizontal, Eye, Pencil, Lock, Unlock, KeyRound, FileDown,
   LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight, X, FileText,
 } from 'lucide-react'
 import { toggleLockUser, revokeAllSessions, deleteUser, resetUserPassword } from '@/services/adminService'
 import { UserRow } from '@/types/user.types'
 import UserDetail from '@/components/admin/users/UserDetail'
 import UserEditForm from '@/components/admin/users/UserEditForm'
+import UserAuditReport from '@/components/admin/users/UserAuditReport'
 
 const StatusBadge = ({ user }: { user: UserRow }) => {
   if (user.is_locked) return (
@@ -311,6 +312,7 @@ const ActionMenu = ({
           <div className="fixed z-50 w-52 bg-white border-2 border-slate-300 rounded-xl shadow-2xl py-1.5" style={{ top: menuPos.top, right: menuPos.right }}>
             <MenuItem icon={<Eye size={14} />} label="Ver detalle" onClick={() => { setOpen(false); onViewDetail() }} />
             <MenuItem icon={<FileText size={14} />} label="Documentos" onClick={() => { setOpen(false); onViewDocuments() }} />
+            <UserAuditReport user={user} />
             {!user.is_protected && <MenuItem icon={<Pencil size={14} />} label="Editar" onClick={() => { setOpen(false); onEdit() }} />}
             <MenuItem icon={<KeyRound size={14} />} label="Resetear contrasena" onClick={() => { setOpen(false); onResetPassword() }} />
             <div className="h-px bg-slate-100 my-1" />

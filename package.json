@@ -1,5 +1,4 @@
 {
   "name": "intranet-avalanz-root",
-  "private": true,
-  "workspaces": ["frontend"]
+  "private": true
 }
