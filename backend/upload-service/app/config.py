@@ -4,7 +4,6 @@ from shared.config.base_config import BaseConfig
 
 
 class UploadConfig(BaseConfig):
-
     # ── Identificacion del servicio ───────────────────────────────────────────
     SERVICE_NAME: str = "upload-service"
     SERVICE_VERSION: str = "1.0.0"
@@ -33,9 +32,14 @@ class UploadConfig(BaseConfig):
         ".pdf", ".doc", ".docx", ".xls", ".xlsx",
     ]
 
-    # ── Buckets por categoria ─────────────────────────────────────────────────
+    # ── Buckets ───────────────────────────────────────────────────────────────
     BUCKET_IMAGES: str = "avalanz-images"
     BUCKET_DOCUMENTS: str = "avalanz-documents"
+    BUCKET_DIRDOC: str = "dirdoc"
+
+    # ── URLs firmadas ─────────────────────────────────────────────────────────
+    SIGNED_URL_EXPIRATION: int = 900  # 15 minutos en segundos
+    SIGNED_URL_HOST: str = "http://localhost:9000"
 
     class Config:
         env_file = ".env"

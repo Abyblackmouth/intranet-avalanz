@@ -2,11 +2,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
-
 from app.config import config
 from app.routes.upload import router as upload_router
 from app.services.storage_service import ensure_bucket
-
 from shared.exceptions.http_exceptions import (
     AppException,
     app_exception_handler,
@@ -25,6 +23,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await ensure_bucket(config.BUCKET_DIRDOC)
     await ensure_bucket(config.BUCKET_IMAGES)
     await ensure_bucket(config.BUCKET_DOCUMENTS)
     yield
@@ -41,15 +40,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── Metricas Prometheus ───────────────────────────────────────────────────────
 
-# ── Metricas Prometheus ──────────────────────────────────────────────────────
 Instrumentator().instrument(app).expose(app)
+
 # ── Middlewares ───────────────────────────────────────────────────────────────
 
 setup_logging(app, service_name=config.SERVICE_NAME, log_level=config.LOG_LEVEL, log_format=config.LOG_FORMAT)
 setup_cors(app, origins=config.CORS_ORIGINS, allow_credentials=config.CORS_ALLOW_CREDENTIALS, allow_methods=config.CORS_ALLOW_METHODS, allow_headers=config.CORS_ALLOW_HEADERS)
 setup_rate_limit(app, max_requests=config.RATE_LIMIT_REQUESTS, window_seconds=config.RATE_LIMIT_WINDOW_SECONDS)
-
 
 # ── Exception handlers ────────────────────────────────────────────────────────
 
@@ -58,11 +57,9 @@ app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
-
 # ── Routers ───────────────────────────────────────────────────────────────────
 
 app.include_router(upload_router, prefix="/api/v1")
-
 
 # ── Health check ──────────────────────────────────────────────────────────────
 

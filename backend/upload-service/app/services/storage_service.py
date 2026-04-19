@@ -1,6 +1,8 @@
+import hashlib
 import aioboto3
 from botocore.exceptions import ClientError
-from typing import Optional, BinaryIO
+from typing import Optional
+
 from app.config import config
 from shared.exceptions.http_exceptions import StorageException
 
@@ -16,8 +18,6 @@ def _get_session():
 
 
 def _get_endpoint() -> Optional[str]:
-    # On-premise: apunta a MinIO
-    # Nube: None (usa el endpoint nativo de S3)
     if config.STORAGE_ENDPOINT and "amazonaws" not in config.STORAGE_ENDPOINT:
         return config.STORAGE_ENDPOINT
     return None
@@ -65,7 +65,6 @@ async def upload_file(
                 **extra_args,
             )
 
-            # Construir URL publica del archivo
             endpoint = config.STORAGE_ENDPOINT.rstrip("/")
             return f"{endpoint}/{bucket}/{object_key}"
 
@@ -86,6 +85,35 @@ async def delete_file(object_key: str, bucket: str) -> None:
             await s3.delete_object(Bucket=bucket, Key=object_key)
         except ClientError as e:
             raise StorageException(f"Error al eliminar archivo: {str(e)}")
+
+
+# ── Generar URL firmada temporal ──────────────────────────────────────────────
+
+async def generate_signed_url(
+    object_key: str,
+    bucket: str,
+    expiration_seconds: int = None,
+) -> str:
+    expiration_seconds = expiration_seconds or config.SIGNED_URL_EXPIRATION
+    session = _get_session()
+    async with session.client(
+        "s3",
+        endpoint_url=_get_endpoint(),
+        use_ssl=config.STORAGE_USE_SSL,
+    ) as s3:
+        try:
+            url = await s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket, "Key": object_key},
+                ExpiresIn=expiration_seconds,
+            )
+            # Reemplazar host interno de Docker por host publico
+            if config.SIGNED_URL_HOST:
+                import re
+                url = re.sub(r"http://[^/]+", config.SIGNED_URL_HOST, url)
+            return url
+        except ClientError as e:
+            raise StorageException(f"Error al generar URL firmada: {str(e)}")
 
 
 # ── Verificar existencia ──────────────────────────────────────────────────────
@@ -123,3 +151,22 @@ async def get_file_metadata(object_key: str, bucket: str) -> dict:
             }
         except ClientError as e:
             raise StorageException(f"Error al obtener metadata: {str(e)}")
+
+
+# ── Checksum SHA256 ───────────────────────────────────────────────────────────
+
+def compute_checksum(file_data: bytes) -> str:
+    return hashlib.sha256(file_data).hexdigest()
+
+
+# ── Construir object key ──────────────────────────────────────────────────────
+
+def build_object_key(
+    company_slug: str,
+    module_slug: str,
+    submodule_slug: str,
+    unique_id: str,
+    safe_name: str,
+    ext: str,
+) -> str:
+    return f"{company_slug}/{module_slug}/{submodule_slug}/{unique_id}_{safe_name}{ext}"
