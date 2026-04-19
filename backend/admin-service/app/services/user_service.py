@@ -47,7 +47,7 @@ async def get_user_by_id(db, user_id):
     return _serialize_user(user, company.nombre_comercial, auth_data, roles)
 
 
-async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, search=None, requested_by=None):
+async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, is_locked=None, search=None, requested_by=None):
     per_page = min(per_page, config.MAX_PAGE_SIZE)
     query = select(User, Company).join(Company, User.company_id == Company.id).where(User.is_deleted == False)
 
@@ -57,6 +57,8 @@ async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, s
 
     if is_active is not None:
         query = query.where(User.is_active == is_active)
+    if is_locked is not None:
+        query = query.where(User.is_locked == is_locked)
     if search:
         query = query.where(User.full_name.ilike(f"%{search}%") | User.email.ilike(f"%{search}%") | User.matricula.ilike(f"%{search}%"))
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
@@ -144,7 +146,7 @@ async def toggle_lock_user(db, user_id, lock, reason, requested_by=None):
         raise ForbiddenException("No tienes permisos para bloquear usuarios")
     if not reason or not reason.strip():
         raise ValidationException("El motivo es requerido")
-    await db.execute(update(User).where(User.id == user.id).values(lock_reason=reason.strip()))
+    await db.execute(update(User).where(User.id == user.id).values(lock_reason=reason.strip(), is_locked=lock))
     await db.commit()
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:

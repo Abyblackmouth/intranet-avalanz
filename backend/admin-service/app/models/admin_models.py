@@ -50,6 +50,7 @@ class User(BaseModelWithSoftDelete):
     lock_reason     = Column(String(255), nullable=True)
     is_active       = Column(Boolean, default=True, nullable=False)
     is_super_admin  = Column(Boolean, default=False, nullable=False)
+    is_locked       = Column(Boolean, default=False, nullable=False)
 
 
 class GlobalRole(BaseModelWithSoftDelete):

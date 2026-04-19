@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, SlidersHorizontal } from 'lucide-react'
+import { Plus, Search, SlidersHorizontal, FileSpreadsheet } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import UserTable from '@/components/admin/users/UserTable'
 import UserForm from '@/components/admin/users/UserForm'
@@ -34,6 +34,7 @@ export default function UsersPage() {
       if (search) params.search = search
       if (filterStatus === 'active') params.is_active = 'true'
       if (filterStatus === 'inactive') params.is_active = 'false'
+      if (filterStatus === 'locked') params.is_locked = 'true'
       if (filterCompany !== 'all') params.company_id = filterCompany
 
       const res = await api.get('/api/v1/users/', { params })
@@ -56,6 +57,57 @@ export default function UsersPage() {
   }, [])
 
   useEffect(() => { fetchCompanies() }, [fetchCompanies])
+
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExportExcel = async () => {
+    setIsExporting(true)
+    try {
+      let allUsers: UserRow[] = []
+      let currentPage = 1
+      let hasMore = true
+      while (hasMore) {
+        const res = await api.get('/api/v1/users/', { params: { page: currentPage, per_page: 100 } })
+        const data = res.data.data.data || []
+        allUsers = [...allUsers, ...data]
+        const meta = res.data.data.meta
+        hasMore = currentPage * 100 < (meta?.total || 0)
+        currentPage++
+      }
+
+      const XLSX = await import('xlsx')
+      const rows = allUsers.filter(u => !u.is_protected).map(u => ({
+        'Matricula': u.matricula || '—',
+        'Nombre': u.full_name,
+        'Email': u.email,
+        'Puesto': u.puesto || '—',
+        'Departamento': u.departamento || '—',
+        'Empresa': u.company_name,
+        'Roles': u.roles?.join(' | ') || '—',
+        'Estado': u.is_locked ? 'Bloqueado' : u.is_active ? 'Activo' : 'Inactivo',
+        '2FA': u.is_2fa_configured ? 'Configurado' : 'Sin configurar',
+        'Ultimo acceso': u.last_login_at ? new Date(u.last_login_at).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'Nunca',
+        'Fecha creacion': new Date(u.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      }))
+
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Usuarios')
+
+      // Ajustar ancho de columnas
+      ws['!cols'] = [
+        { wch: 12 }, { wch: 30 }, { wch: 35 }, { wch: 20 }, { wch: 20 },
+        { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 15 },
+      ]
+
+      const fecha = new Date().toISOString().split('T')[0]
+      XLSX.writeFile(wb, `concentrado_usuarios_${fecha}.xlsx`)
+    } catch (err) {
+      console.error('Export error:', err)
+    } finally {
+      setIsExporting(false)
+    }
+  }
   useEffect(() => { fetchUsers() }, [page, search, filterStatus, filterCompany])
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,13 +122,23 @@ export default function UsersPage() {
         description="Gestiona los usuarios de la plataforma"
         actions={
           mounted && isSuperAdmin() ? (
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              <Plus size={16} />
-              Nuevo usuario
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportExcel}
+                disabled={isExporting}
+                className="flex items-center gap-2 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
+              >
+                <FileSpreadsheet size={16} />
+                {isExporting ? 'Generando...' : 'Exportar Excel'}
+              </button>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+              >
+                <Plus size={16} />
+                Nuevo usuario
+              </button>
+            </div>
           ) : undefined
         }
       >

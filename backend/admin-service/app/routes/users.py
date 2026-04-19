@@ -105,6 +105,7 @@ async def list_users(
     per_page: int = Query(20, ge=1, le=100),
     company_id: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
+    is_locked: Optional[bool] = Query(None),
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     payload=Depends(validator.require_roles(["super_admin", "admin_empresa"])),
@@ -115,6 +116,7 @@ async def list_users(
         per_page=per_page,
         company_id=company_id,
         is_active=is_active,
+        is_locked=is_locked,
         search=search,
         requested_by=payload,
     )
