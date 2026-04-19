@@ -106,10 +106,10 @@ const LockModal = ({ user, onConfirm, onClose, isLoading }: { user: UserRow; onC
         </p>
         <div className="mb-5">
           <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Motivo <span className="text-red-500">*</span></label>
-          <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder={`Escribe el motivo para ${action} esta cuenta...`} rows={3} className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+          <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder={`Escribe el motivo para ${action} esta cuenta...`} rows={3} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4fa0] resize-none" />
         </div>
         <div className="flex items-center justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100">Cancelar</button>
           <button onClick={() => onConfirm(reason)} disabled={!reason.trim() || isLoading} className={`px-5 py-2 text-sm font-medium rounded-lg disabled:opacity-50 flex items-center gap-2 ${user.is_locked ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-red-600 text-white hover:bg-red-700'}`}>
             {isLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {action.charAt(0).toUpperCase() + action.slice(1)}
@@ -130,7 +130,7 @@ const ConfirmModal = ({ title, message, confirmLabel, onConfirm, onClose, isLoad
       </div>
       <p className="text-sm text-slate-600 mb-6">{message}</p>
       <div className="flex items-center justify-end gap-3">
-        <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
+        <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100">Cancelar</button>
         <button onClick={onConfirm} disabled={isLoading} className={`px-5 py-2 text-sm font-medium rounded-lg disabled:opacity-50 flex items-center gap-2 ${danger ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-[#1a4fa0] text-white hover:bg-blue-700'}`}>
           {isLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
           {confirmLabel}
@@ -185,7 +185,7 @@ const ResetPasswordModal = ({
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Minimo 8 caracteres"
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4fa0]"
             />
           </div>
           <div>
@@ -197,7 +197,7 @@ const ResetPasswordModal = ({
               value={confirm}
               onChange={e => setConfirm(e.target.value)}
               placeholder="Repite la contrasena"
-              className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4fa0] ${
                 confirm.length > 0
                   ? matches ? 'border-green-400' : 'border-red-400'
                   : 'border-slate-300'
@@ -219,7 +219,7 @@ const ResetPasswordModal = ({
           ))}
         </div>
         <div className="flex items-center justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100">
             Cancelar
           </button>
           <button

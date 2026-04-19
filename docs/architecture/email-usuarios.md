@@ -98,8 +98,8 @@ SMTP_USE_TLS=False
 
 | Evento | Servicio | Estado |
 |---|---|---|
-| Sesión revocada remotamente | auth-service | Pendiente |
-| Bloqueo manual por administrador | admin-service | Pendiente |
+| Sesión revocada remotamente | auth-service | Activo |
+| Bloqueo manual por administrador | admin-service | No aplica — decisión de negocio |
 
 ---
 
