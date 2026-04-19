@@ -4,7 +4,7 @@ import React from 'react'
 import { useState, useRef, useEffect } from 'react'
 import {
   MoreHorizontal, Eye, Pencil, Lock, Unlock, KeyRound,
-  LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight, X,
+  LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight, X, FileText,
 } from 'lucide-react'
 import { toggleLockUser, revokeAllSessions, deleteUser, resetUserPassword } from '@/services/adminService'
 import { UserRow } from '@/types/user.types'
@@ -240,12 +240,14 @@ const ActionMenu = ({
   onViewDetail,
   onEdit,
   onResetPassword,
+  onViewDocuments,
 }: {
   user: UserRow
   onRefresh: () => void
   onViewDetail: () => void
   onEdit: () => void
   onResetPassword: () => void
+  onViewDocuments: () => void
 }) => {
   const [open, setOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
@@ -308,6 +310,7 @@ const ActionMenu = ({
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="fixed z-50 w-52 bg-white border-2 border-slate-300 rounded-xl shadow-2xl py-1.5" style={{ top: menuPos.top, right: menuPos.right }}>
             <MenuItem icon={<Eye size={14} />} label="Ver detalle" onClick={() => { setOpen(false); onViewDetail() }} />
+            <MenuItem icon={<FileText size={14} />} label="Documentos" onClick={() => { setOpen(false); onViewDocuments() }} />
             {!user.is_protected && <MenuItem icon={<Pencil size={14} />} label="Editar" onClick={() => { setOpen(false); onEdit() }} />}
             <MenuItem icon={<KeyRound size={14} />} label="Resetear contrasena" onClick={() => { setOpen(false); onResetPassword() }} />
             <div className="h-px bg-slate-100 my-1" />
@@ -351,6 +354,8 @@ interface UserTableProps {
 export default function UserTable({ users, isLoading, onRefresh, page, perPage, total, onPageChange }: UserTableProps) {
   const totalPages = Math.ceil(total / perPage)
   const [detailUserId, setDetailUserId] = useState<string | null>(null)
+  const [detailInitialTab, setDetailInitialTab] = useState<string>("info")
+  const [documentsUserId, setDocumentsUserId] = useState<string | null>(null)
   const [editUserId, setEditUserId] = useState<string | null>(null)
   const [resetUser, setResetUser] = useState<UserRow | null>(null)
   const [loadingReset, setLoadingReset] = useState(false)
@@ -432,6 +437,7 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
                     onViewDetail={() => setDetailUserId(user.user_id)}
                     onEdit={() => setEditUserId(user.user_id)}
                     onResetPassword={() => setResetUser(user)}
+                    onViewDocuments={() => { setDetailUserId(user.user_id); setDetailInitialTab("documents") }}
                   />
                 </td>
               </tr>
@@ -457,7 +463,7 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
         )}
       </div>
 
-      {detailUserId && <UserDetail userId={detailUserId} onClose={() => setDetailUserId(null)} onRefresh={onRefresh} />}
+      {detailUserId && <UserDetail userId={detailUserId} initialTab={detailInitialTab} onClose={() => { setDetailUserId(null); setDetailInitialTab("info") }} onRefresh={onRefresh} />}
       {editUserId && <UserEditForm userId={editUserId} onClose={() => setEditUserId(null)} onSuccess={onRefresh} />}
       {resetUser && <ResetPasswordModal user={resetUser} onConfirm={handleReset} onClose={() => setResetUser(null)} isLoading={loadingReset} />}
     </>

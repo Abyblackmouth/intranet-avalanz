@@ -12,6 +12,7 @@ import api from '@/services/api'
 
 interface UserDetailProps {
   userId: string
+  initialTab?: string
   onClose: () => void
   onRefresh: () => void
 }
@@ -104,13 +105,13 @@ const RoleBadge = ({ role }: { role: string }) => {
   )
 }
 
-export default function UserDetail({ userId, onClose, onRefresh }: UserDetailProps) {
+export default function UserDetail({ userId, initialTab = 'info', onClose, onRefresh }: UserDetailProps) {
   const [user, setUser] = useState<UserRow | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [history, setHistory] = useState<LoginEntry[]>([])
   const [files, setFiles] = useState<UserFile[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'history' | 'documents'>('info')
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'history' | 'documents'>(initialTab as any)
   const [revokingSession, setRevokingSession] = useState<string | null>(null)
 
   // Documents state
@@ -158,12 +159,32 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
     }
   }
 
+  const ALLOWED_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  ]
+  const MAX_SIZE_MB = 50
+
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user) return
 
     setFileError('')
     setFileSuccess('')
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setFileError('Tipo de archivo no permitido. Usa PDF, Word, Excel, JPG o PNG.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      setFileError('El archivo supera el limite de 50 MB.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
     setIsUploading(true)
 
     try {
@@ -556,11 +577,9 @@ export default function UserDetail({ userId, onClose, onRefresh }: UserDetailPro
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-slate-800 truncate">
-                                  {file.original_name}
+                                  {file.description || file.original_name}
                                 </p>
-                                {file.description && (
-                                  <p className="text-xs text-slate-500 truncate">{file.description}</p>
-                                )}
+                                <p className="text-xs text-slate-400 truncate">{file.original_name}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                   <span className="text-xs text-slate-400">
                                     {formatBytes(file.size_bytes)}
