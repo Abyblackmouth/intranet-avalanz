@@ -187,12 +187,7 @@ add_header Referrer-Policy "strict-origin-when-cross-origin";
 
 ## Backend
 
-### Mensaje de cuenta bloqueada no diferencia tipo de bloqueo
-**Archivo:** `backend/auth-service/app/services/auth_service.py`
-**Cambio requerido:**
-- Bloqueo manual → `"Tu cuenta ha sido bloqueada. Contacta al administrador."`
-- Bloqueo por intentos fallidos → `"Cuenta bloqueada por múltiples intentos fallidos. Contacta al administrador."`
-**Impacto:** UX — el usuario no sabe por qué fue bloqueado ni qué hacer.
+
 
 ---
 

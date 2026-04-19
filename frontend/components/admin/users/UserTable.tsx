@@ -7,6 +7,7 @@ import {
   LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight, X, FileText,
 } from 'lucide-react'
 import { toggleLockUser, revokeAllSessions, deleteUser, resetUserPassword } from '@/services/adminService'
+import { useAuthStore } from '@/store/authStore'
 import { UserRow } from '@/types/user.types'
 import UserDetail from '@/components/admin/users/UserDetail'
 import UserEditForm from '@/components/admin/users/UserEditForm'
@@ -250,6 +251,7 @@ const ActionMenu = ({
   onResetPassword: () => void
   onViewDocuments: () => void
 }) => {
+  const { user: adminUser } = useAuthStore()
   const [open, setOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
   const [showLockModal, setShowLockModal] = useState(false)
@@ -288,7 +290,7 @@ const ActionMenu = ({
 
   const handleRevoke = async () => {
     setLoadingRevoke(true)
-    try { await revokeAllSessions(user.user_id); setShowRevokeModal(false); onRefresh() }
+    try { await revokeAllSessions(user.user_id, adminUser?.full_name || 'Administrador', adminUser?.email || ''); setShowRevokeModal(false); onRefresh() }
     catch (e) { console.error('Revoke error', e) } finally { setLoadingRevoke(false) }
   }
 

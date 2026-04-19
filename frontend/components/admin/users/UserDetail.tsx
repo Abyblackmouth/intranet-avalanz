@@ -150,7 +150,7 @@ export default function UserDetail({ userId, initialTab = 'info', onClose, onRef
   const handleRevokeSession = async (sessionId: string) => {
     setRevokingSession(sessionId)
     try {
-      await api.post('/api/v1/auth/sessions/revoke', { session_id: sessionId })
+      await api.post(`/api/v1/auth/internal/users/${userId}/revoke-session`, { session_id: sessionId })
       setSessions(prev => prev.filter(s => s.session_id !== sessionId))
     } catch {
       // silencioso

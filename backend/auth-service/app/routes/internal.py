@@ -215,3 +215,90 @@ async def reset_user_password(
     )
     await db.commit()
     return {"success": True, "message": "Contrasena reseteada"}
+
+class RevokeSessionsRequest(BaseModel):
+    revoked_by_name: str
+    revoked_by_email: str
+
+
+@router.post("/users/{user_id}/revoke-sessions")
+async def revoke_all_user_sessions(
+    user_id: str,
+    body: RevokeSessionsRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import update
+    from shared.utils.helpers import now_utc
+
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.is_deleted == False)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        return {"success": False, "message": "Usuario no encontrado"}
+
+    await db.execute(
+        update(UserSession).where(
+            UserSession.user_id == user_id,
+            UserSession.is_revoked == False,
+        ).values(
+            is_revoked=True,
+            revoked_at=now_utc(),
+            revoked_reason="revocado por administrador",
+        )
+    )
+    await db.commit()
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://email-service:8000/api/v1/email/system-notification",
+                json={
+                    "to_email": user.email,
+                    "full_name": user.full_name,
+                    "subject": "Tus sesiones han sido cerradas",
+                    "message": f"Un administrador ({body.revoked_by_name}) ha cerrado todas tus sesiones activas. Si no reconoces esta acción, contacta al área de TI.",
+                    "action_label": "Iniciar sesión",
+                    "action_url": "http://localhost:3000/login",
+                    "alert_type": "warning",
+                }
+            )
+    except Exception:
+        pass
+
+    return {"success": True, "message": "Sesiones revocadas"}
+
+
+class RevokeSingleSessionRequest(BaseModel):
+    session_id: str
+
+
+@router.post("/users/{user_id}/revoke-session")
+async def revoke_single_session(
+    user_id: str,
+    body: RevokeSingleSessionRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import update
+    from shared.utils.helpers import now_utc
+
+    result = await db.execute(
+        select(UserSession).where(
+            UserSession.id == body.session_id,
+            UserSession.user_id == user_id,
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        return {"success": False, "message": "Sesion no encontrada"}
+
+    await db.execute(
+        update(UserSession).where(UserSession.id == body.session_id).values(
+            is_revoked=True,
+            revoked_at=now_utc(),
+            revoked_reason="revocado por administrador",
+        )
+    )
+    await db.commit()
+    return {"success": True, "message": "Sesion revocada"}

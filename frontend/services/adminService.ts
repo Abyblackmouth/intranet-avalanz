@@ -39,8 +39,8 @@ export const getUserSessions = (userId: string) =>
 export const getUserLoginHistory = (userId: string) =>
   api.get(`/api/v1/users/${userId}/login-history`)
 
-export const revokeAllSessions = (userId: string) =>
-  api.post(`/api/v1/auth/sessions/revoke-all`, { user_id: userId })
+export const revokeAllSessions = (userId: string, revokedByName: string, revokedByEmail: string) =>
+  api.post(`/api/v1/auth/internal/users/${userId}/revoke-sessions`, { revoked_by_name: revokedByName, revoked_by_email: revokedByEmail })
 
 export const resetUserPassword = (userId: string, newPassword: string) =>
   api.post(`/api/v1/users/${userId}/reset-password`, { new_password: newPassword })
