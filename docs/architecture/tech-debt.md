@@ -52,7 +52,7 @@ Antes de desplegar al servidor on-premise revisar y actualizar los siguientes va
 ### frontend — `frontend/.env.local`
 | Variable | Valor dev | Valor producción |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | `http://localhost` | `http://{IP_SERVIDOR}` o dominio real |
+| `NEXT_PUBLIC_API_URL` | `http://172.20.92.197` | `http://{IP_SERVIDOR}` o dominio real |
 | `NEXT_PUBLIC_WS_URL` | `ws://172.20.92.197/ws` | `ws://{IP_SERVIDOR}/ws` o dominio real |
 
 ### infrastructure — `infrastructure/docker/.env`
@@ -96,15 +96,6 @@ add_header Referrer-Policy "strict-origin-when-cross-origin";
 ```
 **Impacto:** Seguridad — protege contra clickjacking, MIME sniffing y XSS desde el browser.
 
-### Alertas de Grafana no configuradas
-**Archivos:** `infrastructure/prometheus/alerts.yml`, `infrastructure/grafana/`
-**Descripcion:** Grafana solo visualiza metricas actualmente — no envia alertas. El archivo alerts.yml esta vacio y Alertmanager no tiene canales configurados.
-**Cambio requerido:**
-- Configurar canal de notificacion en Grafana (Email via SMTP corporativo recomendado)
-- Definir reglas de alerta en alerts.yml: servicio caido >1min, latencia >1s sostenida, errores 5xx >1% del trafico, RAM >512MB
-- Conectar Alertmanager con el canal configurado
-**Impacto:** Operacion — sin alertas los problemas solo se detectan cuando un usuario los reporta.
-
 ### Backups automáticos de PostgreSQL
 **Descripción:** El cron de limpieza existe pero no hay backup automático de la base de datos. En producción una falla de disco sin backup significa pérdida total de datos.
 **Cambio requerido:**
@@ -116,15 +107,15 @@ add_header Referrer-Policy "strict-origin-when-cross-origin";
 
 ### Exporters de infraestructura no configurados
 **Archivo:** `infrastructure/docker/docker-compose.yml`
-**Descripcion:** PostgreSQL, Redis y Nginx aparecen como down en Prometheus porque no tienen exporters instalados. Solo se monitorean los servicios FastAPI.
+**Descripción:** PostgreSQL, Redis y Nginx aparecen como down en Prometheus porque no tienen exporters instalados. Solo se monitorean los servicios FastAPI.
 **Cambio requerido:** Agregar al docker-compose: postgres-exporter, redis-exporter, nginx-prometheus-exporter.
 **Impacto:** Monitoreo incompleto — no se puede ver conexiones activas a BD, uso de cache Redis ni trafico de Nginx.
 
 ### Persistencia de dashboards de Grafana
 **Archivo:** `infrastructure/grafana/`
-**Descripcion:** Los dashboards de Grafana se guardan en el volumen Docker. Un docker compose down -v los borra.
-**Cambio requerido:** Configurar provisionamiento automatico de dashboards en Grafana apuntando a infrastructure/grafana/ para que el dashboard se cargue al levantar el contenedor sin importacion manual.
-**Impacto:** Operacion — en un reset del ambiente hay que reimportar el dashboard manualmente.
+**Descripción:** Los dashboards de Grafana se guardan en el volumen Docker. Un docker compose down -v los borra.
+**Cambio requerido:** Configurar provisionamiento automático de dashboards en Grafana apuntando a infrastructure/grafana/ para que el dashboard se cargue al levantar el contenedor sin importación manual.
+**Impacto:** Operación — en un reset del ambiente hay que reimportar el dashboard manualmente.
 
 ### Auditoría de acciones administrativas
 **Descripción:** Se registra quién sube/baja archivos de empleados pero no hay log de acciones administrativas críticas como crear usuario, cambiar rol, eliminar empresa, etc.
@@ -140,38 +131,16 @@ add_header Referrer-Policy "strict-origin-when-cross-origin";
 
 ## Frontend
 
-### Autocomplete de Chrome en campo de búsqueda de usuarios
-**Archivo:** `frontend/app/(private)/admin/users/page.tsx`
-**Descripción:** Chrome autocompleta el campo de búsqueda con credenciales guardadas al abrir modales que contienen inputs de contraseña.
-**Cambio requerido:** Componente de input personalizado que bloquee el comportamiento de forma más agresiva.
-**Impacto:** UX — el filtro de búsqueda se llena con el email del admin al abrir el modal de reset de contraseña.
-
-### Hover en opciones del menú de 3 puntos
-**Archivo:** `frontend/components/admin/users/UserTable.tsx`
-**Descripción:** Las opciones del menú de acciones no tienen hover visible al pasar el mouse.
-**Cambio requerido:** Agregar fondo gris (`hover:bg-slate-100`) en el componente `MenuItem` para opciones no peligrosas.
-**Impacto:** UX — falta feedback visual de posición del cursor.
-
-### Editar empresa del usuario desde el formulario de edición
-**Archivo:** `frontend/components/admin/users/UserEditForm.tsx`
-**Descripción:** El formulario de edición no incluye el campo de empresa (`company_id`).
-**Cambio requerido:** Agregar selector de empresa en `UserEditForm.tsx` y pasar `company_id` en el payload de `UpdateUserRequest`.
-**Impacto:** UX — el super admin no puede cambiar la empresa de un usuario sin eliminarlo y recrearlo.
-
-### Carga de constancia SAT en edición de empresa
-**Archivo:** `frontend/components/admin/companies/CompanyEditForm.tsx`
-**Descripción:** El formulario de edición no tiene tab de carga de constancia SAT.
-**Cambio requerido:** Agregar tab que cargue solo domicilio y fechas de vigencia — verificando que el RFC del PDF coincida con el RFC de la empresa.
-**Impacto:** UX — el admin no puede actualizar el domicilio fiscal de una empresa existente cargando su nueva constancia.
+### Hover en módulos del sidebar
+**Archivo:** `frontend/components/layout/Sidebar.tsx`
+**Descripción:** El hover en los módulos del sidebar no funciona visualmente aunque el código es idéntico al commit donde sí funcionaba. El `hover:bg-slate-100` está en el `div` exterior pero no se renderiza. Requiere investigación más profunda.
+**Impacto:** UX — sin feedback visual al pasar el mouse por los módulos.
 
 ### Performance del frontend en desarrollo — Next.js Turbopack lento en WSL2
 **Archivo:** `frontend/next.config.ts`
 **Descripción:** Next.js con Turbopack detecta el filesystem de WSL2 como lento (benchmark >200ms).
 **Cambio requerido:** Investigar opciones para mejorar el arranque y hot reload en WSL2.
 **Impacto:** DX — el desarrollo es más lento de lo esperado en WSL2.
-
-### Refresh del JWT al crear módulo
-**Decisión tomada:** El usuario cierra sesión manualmente después de crear un módulo. No se implementará refresh automático por simplicidad y seguridad.
 
 ### TypeScript — role_id no existe en tipo GlobalRole y ModuleRole en UserForm
 **Archivo:** `frontend/components/admin/users/UserForm.tsx`
@@ -182,12 +151,6 @@ add_header Referrer-Policy "strict-origin-when-cross-origin";
 **Archivos:** `frontend/app/(private)/admin/companies/[id]/page.tsx`, `groups/[id]/page.tsx`, `modules/[id]/page.tsx`, `users/[id]/page.tsx`
 **Cambio requerido:** Verificar que cada página dinámica tenga `export default function Page({ params }: { params: { id: string } })`.
 **Impacto:** TypeScript — no bloquea el build pero genera ruido en el output de `tsc --noEmit`.
-
----
-
-## Backend
-
-
 
 ---
 
