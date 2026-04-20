@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, User, Mail, Hash, Briefcase, Building2, Shield, Layers, Plus, Trash2 } from 'lucide-react'
 import { getUser, updateUser, getGlobalRoles, assignGlobalRole, removeGlobalRole, getModules, assignModuleAccess, revokeModuleAccess } from '@/services/adminService'
+import api from '@/services/api'
 import { getOperationalRoles } from '@/services/roleService'
 import { useAuthStore } from '@/store/authStore'
 import { UpdateUserPayload } from '@/types/user.types'
@@ -43,12 +44,14 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
   const { isSuperAdmin, user } = useAuthStore()
 
   const [form, setForm] = useState({
+    company_id: '',
     full_name: '',
     email: '',
     matricula: '',
     puesto: '',
     departamento: '',
   })
+  const [companies, setCompanies] = useState<{ company_id: string; nombre_comercial: string }[]>([])
 
   const [globalRoles, setGlobalRoles] = useState<GlobalRole[]>([])
   const [operationalRoles, setOperationalRoles] = useState<OperationalRole[]>([])
@@ -74,11 +77,12 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
   useEffect(() => {
     const load = async () => {
       try {
-        const [userRes, rolesRes, opRolesRes, modulesRes] = await Promise.all([
+        const [userRes, rolesRes, opRolesRes, modulesRes, companiesRes] = await Promise.all([
           getUser(userId),
           getGlobalRoles(),
           getOperationalRoles({ per_page: 100 }),
           getModules(),
+          api.get('/api/v1/companies/', { params: { per_page: 100, is_active: true } }),
         ])
 
         const user = userRes.data.data
@@ -89,7 +93,9 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
         setModules(modulesRes.data.data.data || modulesRes.data.data || [])
         setCurrentRoles(user.roles || [])
 
+        setCompanies(companiesRes.data.data.data || [])
         setForm({
+          company_id: user.company_id || '',
           full_name: user.full_name || '',
           email: user.email || '',
           matricula: user.matricula || '',
@@ -162,6 +168,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
     setIsLoading(true)
     try {
       const payload: UpdateUserPayload = {
+        company_id: form.company_id || undefined,
         full_name: form.full_name || undefined,
         email: form.email || undefined,
         puesto: form.puesto || undefined,
@@ -248,6 +255,28 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
             </div>
           ) : (
             <>
+              {/* Empresa — solo super_admin */}
+              {isSuperAdmin() && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                    Empresa
+                  </label>
+                  <div className="relative">
+                    <Building2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <select
+                      value={form.company_id}
+                      onChange={e => setForm(prev => ({ ...prev, company_id: e.target.value }))}
+                      className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a4fa0] focus:border-transparent"
+                    >
+                      <option value="">Sin cambios</option>
+                      {companies.map(c => (
+                        <option key={c.company_id} value={c.company_id}>{c.nombre_comercial}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {/* Nombre completo */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">

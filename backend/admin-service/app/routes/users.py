@@ -26,6 +26,7 @@ class CreateUserRequest(BaseModel):
 
 
 class UpdateUserRequest(BaseModel):
+    company_id: Optional[str] = None
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
     matricula: Optional[str] = None
@@ -143,6 +144,7 @@ async def update_user(
     result = await user_service.update_user(
         db=db,
         user_id=user_id,
+        company_id=body.company_id,
         full_name=body.full_name,
         email=body.email,
         matricula=body.matricula,

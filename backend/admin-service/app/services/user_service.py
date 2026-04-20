@@ -104,7 +104,7 @@ async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, i
     return {"data": [_serialize_user(row.User, row.Company.nombre_comercial, row.Company.name, row.Company.rfc, auth_data_map.get(str(row.User.id), {}), roles_map.get(str(row.User.id), [])) for row in rows], "meta": paginate(total, page, per_page)}
 
 
-async def update_user(db, user_id, full_name=None, email=None, matricula=None, puesto=None, departamento=None, is_active=None, requested_by=None):
+async def update_user(db, user_id, company_id=None, full_name=None, email=None, matricula=None, puesto=None, departamento=None, is_active=None, requested_by=None):
     result = await db.execute(select(User).where(User.id == user_id, User.is_deleted == False))
     user = result.scalar_one_or_none()
     if not user:
@@ -127,6 +127,7 @@ async def update_user(db, user_id, full_name=None, email=None, matricula=None, p
     if puesto is not None: values["puesto"] = puesto
     if departamento is not None: values["departamento"] = departamento
     if is_active is not None: values["is_active"] = is_active
+    if company_id is not None and _is_super_admin(requested_by): values["company_id"] = company_id
     if values:
         await db.execute(update(User).where(User.id == user.id).values(**values))
         await db.commit()

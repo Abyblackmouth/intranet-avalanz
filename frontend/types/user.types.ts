@@ -37,6 +37,7 @@ export interface CreateUserPayload {
 // ── Actualizar usuario ────────────────────────────────────────────────────────
 
 export interface UpdateUserPayload {
+  company_id?: string
   full_name?: string
   email?: string
   matricula?: string
