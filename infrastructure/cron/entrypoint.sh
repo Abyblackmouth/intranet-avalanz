@@ -8,6 +8,12 @@ while true; do
   MIN=$(date '+%M')
   DOW=$(date '+%w')
 
+  # Backup de PostgreSQL a la 1:00 AM
+  if [ "$HOUR" = "01" ] && [ "$MIN" = "00" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ejecutando backup de PostgreSQL..."
+    /scripts/backup_postgres.sh >> /var/log/cron/backup_postgres.log 2>&1
+  fi
+
   # Limpieza diaria a las 2:00 AM
   if [ "$HOUR" = "02" ] && [ "$MIN" = "00" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ejecutando limpieza..."
