@@ -84,6 +84,8 @@ function ModuleForm({
   const [scaffolding, setScaffolding] = useState(false)
   const [scaffoldDone, setScaffoldDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showIconPicker, setShowIconPicker] = useState(false)
+  const [iconSearch, setIconSearch] = useState('')
 
   const handleSave = async () => {
     if (!form.company_id) return setError('Selecciona una empresa')
@@ -216,30 +218,67 @@ function ModuleForm({
             />
           </div>
 
-          {/* Selector de icono */}
-          <div>
+          {/* Selector de icono — popover flotante */}
+          <div className="relative">
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Ícono {form.icon && <span className="normal-case font-normal text-slate-400 ml-1">— {form.icon}</span>}
+              Ícono
             </label>
-            <div className="border border-slate-300 rounded-lg overflow-hidden">
-              <div className="grid grid-cols-5 gap-0 max-h-48 overflow-y-auto">
-                {ICONS.map(icon => (
-                  <button
-                    key={icon}
-                    type="button"
-                    onClick={() => setForm(p => ({ ...p, icon: p.icon === icon ? '' : icon }))}
-                    title={icon}
-                    className={`flex items-center justify-center p-3 transition-colors border-b border-r border-slate-100 ${
-                      form.icon === icon
-                        ? 'bg-[#1a4fa0] text-white'
-                        : 'hover:bg-blue-50 hover:text-[#1a4fa0] text-slate-600'
-                    }`}
-                  >
-                    <DynamicIcon name={icon} size={18} />
-                  </button>
-                ))}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowIconPicker(p => !p)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-700 hover:border-[#1a4fa0] hover:ring-2 hover:ring-[#1a4fa0]/10 transition-all duration-150 bg-white"
+            >
+              {form.icon ? (
+                <>
+                  <div className="w-7 h-7 rounded-lg bg-[#1a4fa0] flex items-center justify-center shrink-0">
+                    <DynamicIcon name={form.icon} size={15} className="text-white" />
+                  </div>
+                  <span className="text-slate-700">{form.icon}</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                    <DynamicIcon name="box" size={15} className="text-slate-400" />
+                  </div>
+                  <span className="text-slate-400">Seleccionar ícono...</span>
+                </>
+              )}
+            </button>
+
+            {showIconPicker && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowIconPicker(false)} />
+                <div className="absolute z-50 top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                  <div className="p-2 border-b border-slate-100">
+                    <input
+                      type="text"
+                      value={iconSearch}
+                      onChange={e => setIconSearch(e.target.value)}
+                      placeholder="Buscar ícono..."
+                      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a4fa0]/20 focus:border-[#1a4fa0]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="grid grid-cols-8 gap-0 max-h-48 overflow-y-auto p-1">
+                    {ICONS.filter(i => i.includes(iconSearch.toLowerCase())).map(icon => (
+                      <button
+                        key={icon}
+                        type="button"
+                        onClick={() => { setForm(p => ({ ...p, icon: p.icon === icon ? '' : icon })); setShowIconPicker(false) }}
+                        title={icon}
+                        className={`flex items-center justify-center p-2.5 rounded-lg transition-colors ${
+                          form.icon === icon
+                            ? 'bg-[#1a4fa0] text-white'
+                            : 'hover:bg-blue-50 hover:text-[#1a4fa0] text-slate-600'
+                        }`}
+                      >
+                        <DynamicIcon name={icon} size={16} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div>
@@ -306,6 +345,8 @@ function SubmoduleForm({
   const [scaffolding, setScaffolding] = useState(false)
   const [scaffoldDone, setScaffoldDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showIconPicker, setShowIconPicker] = useState(false)
+  const [iconSearch, setIconSearch] = useState('')
 
   const handleSave = async () => {
     if (!form.name.trim()) return setError('El nombre es obligatorio')
@@ -416,30 +457,67 @@ function SubmoduleForm({
               className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150 resize-none"
             />
           </div>
-          {/* Selector de icono */}
-          <div>
+          {/* Selector de icono — popover flotante */}
+          <div className="relative">
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Ícono {form.icon && <span className="normal-case font-normal text-slate-400 ml-1">— {form.icon}</span>}
+              Ícono
             </label>
-            <div className="border border-slate-300 rounded-lg overflow-hidden">
-              <div className="grid grid-cols-5 gap-0 max-h-48 overflow-y-auto">
-                {ICONS.map(icon => (
-                  <button
-                    key={icon}
-                    type="button"
-                    onClick={() => setForm(p => ({ ...p, icon: p.icon === icon ? '' : icon }))}
-                    title={icon}
-                    className={`flex items-center justify-center p-3 transition-colors border-b border-r border-slate-100 ${
-                      form.icon === icon
-                        ? 'bg-[#1a4fa0] text-white'
-                        : 'hover:bg-blue-50 hover:text-[#1a4fa0] text-slate-600'
-                    }`}
-                  >
-                    <DynamicIcon name={icon} size={18} />
-                  </button>
-                ))}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowIconPicker(p => !p)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-700 hover:border-[#1a4fa0] hover:ring-2 hover:ring-[#1a4fa0]/10 transition-all duration-150 bg-white"
+            >
+              {form.icon ? (
+                <>
+                  <div className="w-7 h-7 rounded-lg bg-[#1a4fa0] flex items-center justify-center shrink-0">
+                    <DynamicIcon name={form.icon} size={15} className="text-white" />
+                  </div>
+                  <span className="text-slate-700">{form.icon}</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                    <DynamicIcon name="box" size={15} className="text-slate-400" />
+                  </div>
+                  <span className="text-slate-400">Seleccionar ícono...</span>
+                </>
+              )}
+            </button>
+
+            {showIconPicker && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowIconPicker(false)} />
+                <div className="absolute z-50 top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                  <div className="p-2 border-b border-slate-100">
+                    <input
+                      type="text"
+                      value={iconSearch}
+                      onChange={e => setIconSearch(e.target.value)}
+                      placeholder="Buscar ícono..."
+                      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a4fa0]/20 focus:border-[#1a4fa0]"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="grid grid-cols-8 gap-0 max-h-48 overflow-y-auto p-1">
+                    {ICONS.filter(i => i.includes(iconSearch.toLowerCase())).map(icon => (
+                      <button
+                        key={icon}
+                        type="button"
+                        onClick={() => { setForm(p => ({ ...p, icon: p.icon === icon ? '' : icon })); setShowIconPicker(false) }}
+                        title={icon}
+                        className={`flex items-center justify-center p-2.5 rounded-lg transition-colors ${
+                          form.icon === icon
+                            ? 'bg-[#1a4fa0] text-white'
+                            : 'hover:bg-blue-50 hover:text-[#1a4fa0] text-slate-600'
+                        }`}
+                      >
+                        <DynamicIcon name={icon} size={16} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div>
