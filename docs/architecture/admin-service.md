@@ -290,8 +290,11 @@ El `_serialize_user` en `user_service.py` combina datos de tres fuentes:
 | Campo | Fuente |
 |---|---|
 | user_id, email, full_name, matricula, puesto, departamento | admin-service BD |
-| company_name | JOIN con tabla companies |
+| company_name | JOIN con tabla companies — nombre_comercial |
+| company_razon_social | JOIN con tabla companies — name (razón social completa) |
+| company_rfc | JOIN con tabla companies — rfc |
 | roles | JOIN con user_global_roles + global_roles. Si no tiene rol global, incluye nombre del rol operativo asignado |
+| module_accesses | Consulta a user_module_accesses con module_name, role_name y submodules. Super admin obtiene todos los módulos activos con role_name "Super Administrador" |
 | is_locked, is_2fa_configured, last_login_at | auth-service (endpoint interno batch-info) |
 
 ---
@@ -410,7 +413,7 @@ else:
 |---|---|---|---|
 | POST | / | super_admin, admin_empresa | Crear usuario |
 | GET | / | super_admin, admin_empresa | Listar usuarios |
-| GET | /{user_id} | super_admin, admin_empresa | Obtener usuario |
+| GET | /{user_id} | super_admin, admin_empresa | Obtener usuario con module_accesses |
 | PATCH | /{user_id} | super_admin, admin_empresa | Actualizar usuario |
 | DELETE | /{user_id} | super_admin, admin_empresa | Eliminar usuario |
 | POST | /{user_id}/global-roles | super_admin | Asignar rol global |
@@ -434,6 +437,8 @@ else:
 | is_active | bool | Filtrar por estado activo/inactivo |
 | is_locked | bool | Filtrar por estado bloqueado — usa columna cache local |
 
+> Al filtrar `is_active=true` el frontend también envía `is_locked=false` para excluir usuarios bloqueados del resultado de activos.
+
 ### Campos de creación de usuario (CreateUserRequest)
 
 ```python
@@ -453,8 +458,10 @@ class CreateUserRequest(BaseModel):
 
 ```python
 class UpdateUserRequest(BaseModel):
+    company_id: Optional[str]   # solo super_admin puede cambiar empresa
     full_name: Optional[str]
-    matricula: Optional[str]
+    email: Optional[EmailStr]
+    matricula: Optional[str]    # solo super_admin puede modificar
     puesto: Optional[str]
     departamento: Optional[str]
     is_active: Optional[bool]
@@ -587,6 +594,7 @@ Todos los archivos de empleados se guardan en MinIO bajo: `dirdoc/admin/employee
 | auth-service | HTTP interno | POST /api/v1/auth/internal/users/batch-info | Obtener datos de auth para múltiples usuarios en un query |
 | auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/reset-password | Resetear contraseña del usuario |
 | auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/lock | Bloquear o desbloquear cuenta |
+| auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/revoke-sessions | Revocar todas las sesiones del usuario y enviar correo de notificación |
 | upload-service | HTTP interno | POST /api/v1/upload/ | Subir archivo de empleado a MinIO |
 | upload-service | HTTP interno | GET /api/v1/upload/signed-url | Obtener URL firmada para descarga |
 

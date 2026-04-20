@@ -45,7 +45,7 @@ Backend modificado — siempre copiar el archivo al contenedor con docker cp y r
  
 Estado actual del proyecto
 Rama activa: develop
-Última actividad: 2026-04-19
+Última actividad: 2026-04-20
  
 Módulos completados
 Autenticación
@@ -67,10 +67,10 @@ Fetch en páginas auth usa process.env.NEXT_PUBLIC_API_URL como prefijo
  
 Panel de administración
  
-Usuarios — tabla completa, alta, edición, detalle, bloqueo/desbloqueo, reset contraseña, revocar sesiones, eliminar, badge Protegido
-Empresas — tarjetas por grupo, alta manual y desde constancia SAT, edición, detalle, eliminar
+Usuarios — tabla completa, alta, edición (incluyendo cambio de empresa para super_admin), detalle, bloqueo/desbloqueo, reset contraseña, revocar sesiones (individual y todas), eliminar, badge Protegido
+Empresas — tarjetas por grupo, alta manual y desde constancia SAT, edición con carga de constancia SAT, detalle, eliminar
 Grupos — tarjetas con stats, CRUD, panel detalle
-Módulos y submódulos — CRUD, íconos Lucide, scaffold automático, sidebar dinámico
+Módulos y submódulos — CRUD, íconos Lucide con popover flotante y búsqueda, scaffold automático, sidebar dinámico
 Roles — roles globales y operativos con scope, CRUD completo
 Permisos — permisos globales por categoría, permisos por submódulo en árbol, CRUD completo
  
@@ -93,16 +93,38 @@ Columnas: Matrícula, Nombre, Email, Puesto, Departamento, Empresa, Roles (separ
 Excluye usuario protegido del reporte
 Filtro de bloqueados funcional — columna cache is_locked en tabla users del admin-service
 is_locked se sincroniza automáticamente al bloquear/desbloquear desde el panel
+Filtro de estado activos excluye usuarios bloqueados correctamente
+ 
+Reporte de auditoría PDF por usuario (feature/user-audit-report)
+ 
+Reporte PDF profesional generado desde menú de 3 puntos → Reporte de auditoría
+Página 1: Información general, empresa (nombre comercial, razón social, RFC), matrícula, puesto, departamento, 2FA, roles globales, módulos y submódulos asignados
+Página 2: Historial de sesiones activas, historial de accesos con stats (total, exitosos, fallidos, red corporativa), dispositivo/navegador parseado, columna 2FA sesión
+Página 3: Archivos del expediente, nota de módulos operativos pendientes
+Super admin muestra "Acceso total a todos los módulos" en lugar de tabla vacía
+jsPDF 2.5.1 + jspdf-autotable 3.8.2 (versiones compatibles con Turbopack)
  
 Sistema de notificaciones en tiempo real
  
 notify-service + websocket-service + frontend (campana, panel, toasts)
 Hook useWebSocket con reconexión automática cada 5s y heartbeat cada 30s
+Revocar sesiones desde UserDetail revoca sesión individual via endpoint interno
+Revocar todas las sesiones desde menú de 3 puntos envía correo de notificación al usuario
  
 Monitoreo
  
 Prometheus + Grafana — métricas de los 6 servicios FastAPI
 Nginx 80, Grafana 3001, Prometheus 9090
+Alertas configuradas en Grafana: servicio caído, latencia alta, errores 5xx, RAM alta
+Notificación por correo via Mailpit en desarrollo (reemplazar con SMTP corporativo en producción)
+ 
+Backups automáticos
+ 
+Script backup_postgres.sh en el cron — respaldo diario a la 1:00 AM
+Respalda las 3 BDs: avalanz_auth, avalanz_admin, avalanz_notify
+Archivos .sql.gz por BD con fecha en el nombre
+Retención de 30 días — elimina automáticamente backups antiguos
+Volumen cron-backups:/backups persiste los archivos
  
 Infraestructura
  
@@ -111,6 +133,7 @@ Mailpit para correos en desarrollo
 Scaffold automático de módulos
 MinIO con consola en 9001 — bucket dirdoc para gobernanza de archivos
 PostgreSQL expuesto en 5432 para DBeaver
+CORS configurado en Nginx para desarrollo local (localhost:3000)
  
  
 UI/UX — Mergeado a develop
@@ -119,8 +142,9 @@ feature/ui-login — animaciones, logo, inputs, flujos completos
 feature/ui-sidebar-header — sidebar compacto, Jakarta Sans, header armonizado
 feature/ui-usertable — avatares por hash, paginación 10 registros, altura fija 629px
 feature/ui-email-templates — plantillas Avalanz, validación token al cargar, fixes de flujo
+feature/ui-modals — selector de íconos con popover flotante y búsqueda en módulos
  
-Pendiente: feature/ui-modals, dashboard principal
+Pendiente: hover en módulos del sidebar (bug Tailwind v4), dashboard principal (V2)
  
 Convenciones de UI
  
@@ -136,6 +160,7 @@ Avatares: 6 colores por hash — #1a4fa0, violet-500, teal-500, orange-400, rose
 Badges: pill con punto — emerald para activo, red para inactivo/bloqueado
 Menús flotantes: menuHeight = 280 para detección de espacio
 Componentes: AdminInput y AdminCard en components/shared/
+Hovers en menú de 3 puntos: hover:bg-slate-300 para normales, hover:bg-red-200 para destructivos
  
  
 Modelo de roles
@@ -146,14 +171,21 @@ JWT incluye cross_company: true para super_admin y scope corporativo
  
  
 Correos implementados
-EventoEstadoBienvenida al crear usuarioActivoReset de contraseña por adminActivoCuenta bloqueada por intentos fallidosActivoRecuperación de contraseñaActivoSesión revocada remotamentePendienteBloqueo manual por administradorPendiente
+EventoEstadoBienvenida al crear usuarioActivoReset de contraseña por adminActivoCuenta bloqueada por intentos fallidosActivoRecuperación de contraseñaActivoSesión revocada remotamenteActivoBloqueo manual por administradorNo aplica — decisión de negocio
  
 Próximos pasos
  
-Dashboard principal
+Infraestructura de producción (cuando esté disponible el servidor):
+Servidor Linux con IP fija
+NAS para backups externos
+HTTPS / certificado autofirmado o corporativo
+Deploy y configuración de variables de producción
+ 
+V2 — Desarrollo:
 Primer módulo operativo — Bóveda DYCE o Legal
-Más reportes en módulo de usuarios
-Producción — HTTPS, servidor real, backups, alertas Grafana
+Dashboard de métricas (resolver CORS primero)
+Motor de workflows
+Módulo de configuración SMTP
  
  
 Notas técnicas importantes
@@ -166,6 +198,7 @@ PROTECTED_SUPER_ADMIN_EMAIL = "admin@avalanz.com"
 Roles globales usan role_id (no id) en respuesta del API
 IP WSL2 puede cambiar — verificar con ip addr show eth0
 NEXT_PUBLIC_WS_URL = ws://172.20.92.197/ws
+NEXT_PUBLIC_API_URL = http://172.20.92.197
 Mailpit: http://localhost:8025 / mailpit:1025
 Grafana: http://localhost:3001 — admin / Avalanz2026!
 Prometheus: http://localhost:9090
@@ -190,5 +223,10 @@ bash  docker cp backend/auth-service/app/services/auth_service.py avalanz-auth:/
   docker cp backend/auth-service/app/main.py avalanz-auth:/app/app/main.py
   docker restart avalanz-auth
  
+jsPDF versiones compatibles con Turbopack: jspdf@2.5.1 + jspdf-autotable@3.8.2
+recharts instalado en frontend para gráficas
+Grafana SMTP configurado via variables de entorno en docker-compose (GF_SMTP_*)
+Backups PostgreSQL: cron ejecuta backup_postgres.sh diario a la 1:00 AM, archivos en volumen cron-backups:/backups/postgres/
+
 Servicios Docker
-ContenedorPuerto externoDescripciónavalanz-nginx80API Gatewayavalanz-auth—Auth Service :8000avalanz-admin—Admin Service :8000avalanz-upload—Upload Service :8000avalanz-notify—Notify Service :8000avalanz-websocket—WebSocket Service :8000avalanz-email—Email Service :8000avalanz-postgres5432PostgreSQLavalanz-redis6379Redisavalanz-rabbitmq5672/15692RabbitMQavalanz-minio9000/9001MinIOavalanz-prometheus9090Prometheusavalanz-grafana3001Grafanaavalanz-cron—Limpieza históricosmailpit8025/1025Correos desarrollo
+ContenedorPuerto externoDescripciónavalanz-nginx80API Gatewayavalanz-auth—Auth Service :8000avalanz-admin—Admin Service :8000avalanz-upload—Upload Service :8000avalanz-notify—Notify Service :8000avalanz-websocket—WebSocket Service :8000avalanz-email—Email Service :8000avalanz-postgres5432PostgreSQLavalanz-redis6379Redisavalanz-rabbitmq5672/15692RabbitMQavalanz-minio9000/9001MinIOavalanz-prometheus9090Prometheusavalanz-grafana3001Grafanaavalanz-cron—Limpieza históricos y backups PostgreSQLmailpit8025/1025Correos desarrollo

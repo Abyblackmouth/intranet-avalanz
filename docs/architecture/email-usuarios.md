@@ -63,6 +63,13 @@ def _render(content: str, subject: str) -> str:
 **Contenido:** Alert box warning con aviso de 30 minutos, botón "Restablecer contraseña", link de respaldo en texto plano
 **Nota:** El token se invalida con `is_used=True` al usarse. El frontend verifica el token al cargar la página via `GET /api/v1/auth/password-reset/validate` — si ya no es válido muestra "Enlace expirado" sin mostrar el formulario.
 
+### 5. Sesión revocada remotamente
+**Disparado por:** `auth-service` → `internal.py` → endpoint `POST /internal/users/{user_id}/revoke-sessions`
+**Cuándo:** Cuando un administrador revoca todas las sesiones de un usuario desde el menú de 3 puntos en UserTable
+**Endpoint email-service:** `POST /api/v1/email/system-notification`
+**Contenido:** Notificación al usuario de que sus sesiones activas fueron cerradas por un administrador, nombre del administrador que ejecutó la acción
+**Nota:** Solo se envía al revocar TODAS las sesiones. La revocación individual desde el tab Sesiones en UserDetail no envía correo — es una acción granular que no justifica notificación.
+
 ---
 
 ## Mensajes de bloqueo en el login
@@ -73,6 +80,21 @@ def _render(content: str, subject: str) -> str:
 | Bloqueo manual por administrador | "Tu cuenta ha sido bloqueada, contacta al administrador" |
 
 **Implementación:** `auth-service/app/services/auth_service.py` → función `login()`.
+
+---
+
+## Estado de correos por evento
+
+| Evento | Servicio | Estado |
+|---|---|---|
+| Bienvenida al crear usuario | admin-service | Activo |
+| Reset de contraseña por admin | admin-service | Activo |
+| Cuenta bloqueada por intentos fallidos | auth-service | Activo |
+| Recuperación de contraseña | auth-service | Activo |
+| Sesión revocada remotamente (todas) | auth-service | Activo |
+| Bloqueo manual por administrador | admin-service | No aplica — decisión de negocio |
+
+> El bloqueo manual no envía correo porque el usuario podría ser una baja o un caso de seguridad — anticiparle algo sería contraproducente.
 
 ---
 
@@ -91,15 +113,6 @@ SMTP_HOST=mailpit
 SMTP_PORT=1025
 SMTP_USE_TLS=False
 ```
-
----
-
-## Correos pendientes de conectar
-
-| Evento | Servicio | Estado |
-|---|---|---|
-| Sesión revocada remotamente | auth-service | Activo |
-| Bloqueo manual por administrador | admin-service | No aplica — decisión de negocio |
 
 ---
 

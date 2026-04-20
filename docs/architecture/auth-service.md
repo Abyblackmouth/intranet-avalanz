@@ -129,7 +129,7 @@ f"http://auth-service/internal/users/{user_id}/reset-password"
 | GET | /password-reset/validate | No | Verificar si un token es válido sin consumirlo |
 | POST | /password-reset/confirm | No | Confirmar nueva contraseña con token |
 | POST | /logout | Si | Cerrar sesión actual |
-| POST | /sessions/revoke | Si | Revocar una sesión específica |
+| POST | /sessions/revoke | Si | Revocar una sesión específica del propio usuario |
 | GET | /sessions | Si | Listar sesiones activas |
 | GET | /me | Si | Obtener datos del usuario autenticado |
 
@@ -148,6 +148,8 @@ Estos endpoints no requieren autenticación JWT. Son accesibles desde Nginx en `
 | GET | /internal/users/{user_id}/login-history | Historial de login de un usuario (max 50) |
 | POST | /internal/users/{user_id}/lock | Bloquear o desbloquear cuenta de un usuario |
 | POST | /internal/users/{user_id}/reset-password | Resetear contraseña — hashea la nueva y activa is_temp_password |
+| POST | /internal/users/{user_id}/revoke-sessions | Revocar todas las sesiones activas y enviar correo de notificación |
+| POST | /internal/users/{user_id}/revoke-session | Revocar una sesión específica por session_id |
 
 ### POST /internal/users
 Crea las credenciales en el auth-service cuando el admin-service crea un usuario nuevo.
@@ -209,6 +211,30 @@ Request:
 Response:
 ```json
 { "success": true, "message": "Contrasena reseteada" }
+```
+
+### POST /internal/users/{user_id}/revoke-sessions
+Revoca todas las sesiones activas del usuario y envía correo de notificación via email-service.
+
+Request:
+```json
+{ "revoked_by_name": "Admin Nombre", "revoked_by_email": "admin@avalanz.com" }
+```
+Response:
+```json
+{ "success": true, "message": "Sesiones revocadas" }
+```
+
+### POST /internal/users/{user_id}/revoke-session
+Revoca una sesión específica por session_id. Usada desde el tab Sesiones del UserDetail.
+
+Request:
+```json
+{ "session_id": "uuid-de-la-sesion" }
+```
+Response:
+```json
+{ "success": true, "message": "Sesion revocada" }
 ```
 
 ---
@@ -343,6 +369,22 @@ token marcado is_used=True → no puede reutilizarse
 is_locked=false, failed_attempts=0, lock_type=null, is_temp_password=false
         |
 Modal de éxito con countdown → redirect /login
+```
+
+### Flujo 8 — Revocar sesiones desde el panel admin
+
+```
+super_admin ejecuta "Revocar sesiones" desde menú de 3 puntos en UserTable
+        |
+Frontend llama a:
+POST http://{host}/api/v1/auth/internal/users/{user_id}/revoke-sessions
+{ revoked_by_name, revoked_by_email }
+        |
+auth-service marca todas las sesiones activas como is_revoked=true
+        |
+auth-service llama a email-service → correo de notificación al usuario
+        |
+Si el usuario tiene WebSocket activo recibe evento session.revoked → redirect /login
 ```
 
 ---

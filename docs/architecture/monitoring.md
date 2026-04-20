@@ -56,7 +56,7 @@ Documentacion oficial: https://prometheus.io/docs/
 
 ### Grafana
 
-Plataforma de visualizacion. Se conecta a Prometheus como datasource y permite crear dashboards con graficas, gauges, alertas y paneles estadisticos. Los dashboards se pueden exportar como JSON para versionarlos en git.
+Plataforma de visualizacion y alertas. Se conecta a Prometheus como datasource y permite crear dashboards con graficas, gauges, alertas y paneles estadisticos.
 
 Acceso local: `http://localhost:3001`
 Credenciales: `admin / Avalanz2026!`
@@ -148,6 +148,21 @@ datasources:
 
 Grafana resuelve `prometheus:9090` via la red Docker interna. El datasource aparece como default en Grafana sin configuracion manual.
 
+### SMTP de Grafana
+
+El SMTP de Grafana se configura via variables de entorno en el `docker-compose.yml`:
+
+```yaml
+environment:
+  GF_SMTP_ENABLED: "true"
+  GF_SMTP_HOST: "mailpit:1025"          # En produccion: host SMTP corporativo
+  GF_SMTP_FROM_ADDRESS: "grafana@avalanz.com"
+  GF_SMTP_FROM_NAME: "Grafana Avalanz"
+  GF_SMTP_SKIP_VERIFY: "true"
+```
+
+En produccion reemplazar `mailpit:1025` con el servidor SMTP corporativo real.
+
 ---
 
 ## Servicios monitoreados
@@ -182,6 +197,31 @@ Todas las metricas son generadas automaticamente por prometheus-fastapi-instrume
 | process_resident_memory_bytes | RAM usada por el proceso Python | Detectar memory leaks |
 | process_cpu_seconds_total | CPU consumida por el proceso | Detectar procesos con alto consumo |
 | python_gc_objects_collected_total | Objetos recolectados por el garbage collector | Diagnostico avanzado de memoria |
+
+---
+
+## Alertas configuradas en Grafana
+
+Las alertas se configuran desde la UI de Grafana en **Alerting → Alert rules**. Todas las reglas viven en la carpeta `Intranet Avalanz`, grupo de evaluacion `avalanz-alerts` con intervalo de 2 minutos.
+
+El contact point configurado es `avalanz-email` — envia correos via SMTP (Mailpit en desarrollo).
+
+### Reglas activas
+
+| Nombre | Query PromQL | Condicion | Pending period | Descripcion |
+|---|---|---|---|---|
+| Servicio caido | `count(up{job=~"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service"} == 0)` | IS ABOVE 0 | 2m | Dispara cuando uno o mas servicios FastAPI no responden |
+| Latencia alta | `avg(rate(http_request_duration_seconds_sum[1m]) / rate(http_request_duration_seconds_count[1m]))` | IS ABOVE 1 | 2m | Dispara cuando la latencia promedio supera 1 segundo |
+| Errores 5xx elevados | `sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m]))` | IS ABOVE 0.01 | 2m | Dispara cuando errores 5xx superan el 1% del trafico |
+| RAM alta | `process_resident_memory_bytes{job=~"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service"} / 1024 / 1024` | IS ABOVE 512 | 2m | Dispara cuando algun servicio supera 512MB de RAM |
+
+### Comportamiento cuando no hay datos
+
+Las alertas de Latencia alta, Errores 5xx y RAM alta tienen configurado **No data = OK** para evitar falsos positivos cuando no hay suficiente trafico. La alerta de Servicio caido mantiene **No data = Alerting** porque la ausencia de datos indica que el servicio no esta respondiendo.
+
+### Nota sobre falsos positivos en desarrollo
+
+En desarrollo las alertas de Servicio caido pueden dispararse porque Prometheus tiene targets para PostgreSQL, Redis y Nginx que no tienen exporters instalados y siempre aparecen como down. En produccion, cuando los exporters esten configurados o el query se ajuste para excluirlos, esto se resolvera.
 
 ---
 
@@ -279,7 +319,7 @@ process_resident_memory_bytes{job="auth-service"} / 1024 / 1024
 # CPU por servicio
 rate(process_cpu_seconds_total{job="auth-service"}[1m])
 
-# Servicios activos
+# Servicios activos (solo los 6 FastAPI)
 count(up{job=~"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service"} == 1)
 ```
 
@@ -294,15 +334,6 @@ Para monitorear PostgreSQL, Redis y Nginx se necesitan exporters adicionales que
 - **postgres-exporter** — conexiones activas, queries lentas, tamano de tablas
 - **redis-exporter** — memoria, hit rate, comandos por segundo
 - **nginx-prometheus-exporter** — conexiones activas, peticiones por status code
-
-### Alertas
-
-El archivo `infrastructure/prometheus/alerts.yml` esta vacio. Se deben configurar alertas para:
-
-- Servicio caido (up == 0) por mas de 1 minuto
-- Latencia promedio mayor a 1 segundo sostenida por mas de 2 minutos
-- Tasa de errores 5xx mayor al 1% del trafico total
-- RAM de cualquier servicio superando 512MB
 
 ### Persistencia de dashboards en Grafana
 

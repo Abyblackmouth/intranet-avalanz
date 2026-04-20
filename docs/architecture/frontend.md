@@ -21,7 +21,11 @@ Interfaz web de la Intranet Avalanz construida con Next.js 16, Tailwind CSS y sh
 | Iconos marcas | React Icons | 5.x |
 | Cookies | js-cookie | — |
 | Excel | SheetJS (xlsx) | 0.18.x |
+| PDF | jsPDF + jspdf-autotable | 2.5.1 + 3.8.2 |
+| Gráficas | Recharts | — |
 | Fuentes | Geist Sans, Geist Mono, Plus Jakarta Sans, Roboto (Google Fonts via Next.js) | — |
+
+> jsPDF versión 2.5.1 y jspdf-autotable versión 3.8.2 son las versiones compatibles con Turbopack. No usar versiones 4.x — rompen el build.
 
 ---
 
@@ -39,16 +43,16 @@ frontend/
 │   ├── (private)/                → Rutas privadas (requieren token)
 │   │   ├── admin/                → Panel de administración
 │   │   │   ├── layout.tsx
-│   │   │   ├── page.tsx
+│   │   │   ├── page.tsx          → Redirect a /admin/users
 │   │   │   ├── groups/
 │   │   │   ├── companies/
 │   │   │   ├── users/            → Incluye Exportar Excel y filtro de bloqueados
-│   │   │   ├── modules/
+│   │   │   ├── modules/          → CRUD con selector de íconos popover flotante
 │   │   │   ├── roles/
 │   │   │   └── permissions/
 │   │   ├── app/                  → Módulos operativos
 │   │   │   ├── layout.tsx
-│   │   │   ├── page.tsx
+│   │   │   ├── page.tsx          → Redirect a /admin/users al iniciar sesión
 │   │   │   └── [module]/[submodule]/
 │   │   └── layout.tsx            → Incluye ToastContainer
 │   ├── layout.tsx                → Layout raíz global con fuentes Google
@@ -66,9 +70,10 @@ frontend/
 │   ├── admin/                    → Componentes del panel admin
 │   │   ├── users/
 │   │   │   ├── UserTable.tsx     → Tabla de usuarios con paginación y menú flotante
-│   │   │   ├── UserDetail.tsx    → Panel lateral con 4 tabs incluyendo Documentos
-│   │   │   ├── UserForm.tsx
-│   │   │   ├── UserEditForm.tsx
+│   │   │   ├── UserDetail.tsx    → Panel lateral con 4 tabs incluyendo Documentos y Sesiones
+│   │   │   ├── UserForm.tsx      → Formulario de creación de usuario
+│   │   │   ├── UserEditForm.tsx  → Formulario de edición con selector de empresa para super_admin
+│   │   │   ├── UserAuditReport.tsx → Generador de reporte PDF de auditoría por usuario
 │   │   │   └── UserModuleAccess.tsx
 │   │   └── companies/
 │   │       ├── CompanyForm.tsx
@@ -112,12 +117,12 @@ Archivo: `frontend/.env.local`
 
 | Variable | Descripción | Valor desarrollo |
 |---|---|---|
-| NEXT_PUBLIC_API_URL | URL base del API | http://localhost |
+| NEXT_PUBLIC_API_URL | URL base del API | http://172.20.92.197 |
 | NEXT_PUBLIC_WS_URL | URL del WebSocket | ws://172.20.92.197/ws |
 | NEXT_PUBLIC_APP_NAME | Nombre de la app | Intranet Avalanz |
 | NEXT_PUBLIC_APP_VERSION | Versión de la app | 1.0.0 |
 
-En producción `NEXT_PUBLIC_WS_URL` usa el dominio real: `ws://intranet.avalanz.com/ws`
+> La IP `172.20.92.197` es la IP de WSL2 — puede cambiar al reiniciar. Verificar con `ip addr show eth0`. En producción usar la IP fija del servidor.
 
 ---
 
@@ -204,8 +209,9 @@ Siempre incluir punto de color: `<span className="w-1.5 h-1.5 rounded-full bg-em
 
 - Detección de espacio: `menuHeight = 280` para decidir si abrir hacia arriba o hacia abajo
 - Borde: `border border-slate-200 shadow-lg rounded-xl`
-- Items hover gris: `hover:bg-slate-100`
-- Items destructivos: `text-red-600 hover:bg-red-50`
+- Items hover gris fuerte: `hover:bg-slate-300` (visible en pantallas brillosas)
+- Items destructivos: `text-red-600 hover:bg-red-200`
+- Botones cancelar en modales: `hover:bg-slate-100`
 
 ### Avatares con iniciales
 
@@ -330,10 +336,12 @@ Archivo: `app/(private)/admin/users/page.tsx`
 | Filtro | Parámetro backend | Descripción |
 |---|---|---|
 | Buscar | `search` | Por nombre, email o matrícula |
-| Estado — Activos | `is_active=true` | Usuarios activos y no bloqueados |
+| Estado — Activos | `is_active=true&is_locked=false` | Usuarios activos y no bloqueados |
 | Estado — Inactivos | `is_active=false` | Usuarios desactivados |
 | Estado — Bloqueados | `is_locked=true` | Usa columna cache `is_locked` en BD del admin-service |
 | Empresa | `company_id` | Solo visible para super_admin |
+
+> El filtro "Activos" envía `is_locked=false` además de `is_active=true` para excluir usuarios bloqueados del resultado.
 
 ### Exportar Excel
 
@@ -377,10 +385,11 @@ Tabla con las siguientes características:
 |---|---|
 | Ver detalle | Abre UserDetail en tab Información |
 | Documentos | Abre UserDetail directo en tab Documentos |
+| Reporte de auditoría | Genera PDF con 3 páginas de información del usuario |
 | Editar | Abre formulario de edición |
 | Resetear contraseña | Modal de reset |
 | Bloquear / Desbloquear | Modal con motivo obligatorio |
-| Revocar sesiones | Modal de confirmación |
+| Revocar sesiones | Revoca todas las sesiones activas y envía correo de notificación |
 | Eliminar usuario | Modal de confirmación — solo super_admin, no aparece en usuario protegido |
 
 ---
@@ -411,6 +420,13 @@ Permite abrir el panel directo en un tab específico:
 />
 ```
 
+### Tab Sesiones
+
+- Lista todas las sesiones activas del usuario
+- Cada sesión muestra dispositivo, IP, fecha de inicio y última actividad
+- Botón de revocar individual — llama a `POST /internal/users/{id}/revoke-session` con el `session_id`
+- La revocación individual no envía correo — es una acción granular de seguridad
+
 ### Tab Documentos
 
 - Lista todos los archivos activos del empleado ordenados por fecha de subida
@@ -433,6 +449,67 @@ const ALLOWED_TYPES = [
 ]
 const MAX_SIZE_MB = 50
 ```
+
+---
+
+## Formulario de edición — UserEditForm
+
+Archivo: `components/admin/users/UserEditForm.tsx`
+
+Panel lateral derecho de edición de usuario. Campos disponibles:
+
+| Campo | Visible para | Descripción |
+|---|---|---|
+| Empresa | super_admin | Selector de empresa — permite cambiar la empresa del usuario |
+| Nombre completo | Todos | Campo de texto |
+| Correo electrónico | Todos | Campo de email |
+| Matrícula | super_admin | Número de empleado |
+| Puesto | Todos | Cargo del empleado |
+| Departamento | Todos | Área del empleado |
+| Rol global | super_admin | Selector de rol global — excluye super_admin y admin_empresa para admin_empresa |
+| Acceso a módulos | super_admin, admin_empresa | Lista de módulos asignados con opción de agregar y revocar |
+
+> El selector de empresa solo es visible para super_admin. Al seleccionar una empresa y guardar, el campo `company_id` se envía en el payload y el backend solo lo procesa si el solicitante es super_admin.
+
+---
+
+## Reporte de auditoría PDF — UserAuditReport
+
+Archivo: `components/admin/users/UserAuditReport.tsx`
+
+Genera un PDF de 3 páginas con información completa del usuario. Se accede desde el menú de 3 puntos → "Reporte de auditoría".
+
+**Página 1 — Perfil:**
+- Información general: nombre, email, matrícula, puesto, departamento
+- Empresa: nombre comercial, razón social y RFC
+- Estado de cuenta: activo/inactivo, bloqueado/desbloqueado, 2FA configurado
+- Roles globales asignados
+- Módulos y submódulos con rol operativo — super_admin muestra "Acceso total a todos los módulos"
+
+**Página 2 — Historial de sesiones:**
+- Sesiones activas actuales
+- Historial de accesos con estadísticas (total, exitosos, fallidos, desde red corporativa)
+- Dispositivo/navegador parseado del user agent
+- Columna 2FA por sesión
+
+**Página 3 — Trazabilidad:**
+- Archivos del expediente del empleado
+- Nota sobre módulos operativos pendientes
+
+**Librerías:** jsPDF 2.5.1 + jspdf-autotable 3.8.2 (versiones específicas compatibles con Turbopack — no actualizar sin verificar compatibilidad)
+
+---
+
+## Selector de íconos — Módulos
+
+Archivo: `app/(private)/admin/modules/page.tsx`
+
+El selector de íconos en el formulario de creación y edición de módulos y submódulos es un **popover flotante**. Al hacer click en el botón muestra un panel con búsqueda en tiempo real y grid de 8 columnas con los 100 íconos disponibles.
+
+- Click en el botón abre el popover
+- Campo de búsqueda filtra por nombre del ícono en tiempo real
+- Al seleccionar un ícono se cierra el popover automáticamente
+- Click fuera del popover lo cierra sin seleccionar
 
 ---
 
@@ -464,7 +541,7 @@ POST /api/v1/auth/login
         AuthProvider verifica is_temp_password → redirige si aplica
                 |
                 v
-        Redirect a /app
+        Redirect a /app → redirect automático a /admin/users
         Header inicializa useWebSocket → conexión WebSocket activa
 ```
 
