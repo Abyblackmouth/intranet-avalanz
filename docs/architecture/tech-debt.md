@@ -96,36 +96,62 @@ add_header Referrer-Policy "strict-origin-when-cross-origin";
 ```
 **Impacto:** Seguridad — protege contra clickjacking, MIME sniffing y XSS desde el browser.
 
-### Backups automáticos de PostgreSQL
-**Descripción:** El cron de limpieza existe pero no hay backup automático de la base de datos. En producción una falla de disco sin backup significa pérdida total de datos.
-**Cambio requerido:**
-- Agregar job al cron que ejecute `pg_dump` diariamente
-- Guardar los backups en una ruta externa al servidor (NAS, S3, etc.)
-- Retención mínima de 30 días
-- Script de validación que verifique que el backup se generó correctamente
-**Impacto:** Operación crítica — sin backups no hay recuperación ante desastres.
-
-### Exporters de infraestructura no configurados
-**Archivo:** `infrastructure/docker/docker-compose.yml`
-**Descripción:** PostgreSQL, Redis y Nginx aparecen como down en Prometheus porque no tienen exporters instalados. Solo se monitorean los servicios FastAPI.
-**Cambio requerido:** Agregar al docker-compose: postgres-exporter, redis-exporter, nginx-prometheus-exporter.
-**Impacto:** Monitoreo incompleto — no se puede ver conexiones activas a BD, uso de cache Redis ni trafico de Nginx.
-
-### Persistencia de dashboards de Grafana
-**Archivo:** `infrastructure/grafana/`
-**Descripción:** Los dashboards de Grafana se guardan en el volumen Docker. Un docker compose down -v los borra.
-**Cambio requerido:** Configurar provisionamiento automático de dashboards en Grafana apuntando a infrastructure/grafana/ para que el dashboard se cargue al levantar el contenedor sin importación manual.
-**Impacto:** Operación — en un reset del ambiente hay que reimportar el dashboard manualmente.
-
-### Auditoría de acciones administrativas
-**Descripción:** Se registra quién sube/baja archivos de empleados pero no hay log de acciones administrativas críticas como crear usuario, cambiar rol, eliminar empresa, etc.
-**Cambio requerido:** Crear tabla `admin_audit_log` en el admin-service con: acción, entidad afectada, performed_by, performed_at, ip_address, detalle JSON.
-**Impacto:** Trazabilidad — sin esto no se puede auditar quién hizo qué en el panel de administración.
-
 ### Notificación de login desde IP nueva
 **Descripción:** El sistema ya registra la IP de cada login. Falta enviar correo de alerta cuando un usuario accede desde una IP que nunca ha usado antes.
 **Cambio requerido:** En auth-service, comparar la IP del login actual contra el historial. Si es nueva, enviar correo via email-service con fecha, hora e IP.
 **Impacto:** Seguridad — alerta temprana ante accesos no autorizados.
+
+---
+
+## Infraestructura — pendientes para producción
+
+### rsync al servidor secundario de backups
+**Descripción:** El acta del proyecto define dos servidores: principal y secundario dedicado a backups. El cron actual ejecuta `pg_dump` localmente pero no transfiere nada al servidor secundario. Sin esta sincronización, un fallo de disco en el servidor principal implica pérdida total de datos y archivos MinIO.
+**Cambio requerido:**
+- Configurar acceso SSH sin contraseña entre servidor principal y servidor secundario
+- Agregar job al cron que ejecute `rsync` diario de los backups de PostgreSQL al servidor secundario
+- Agregar job al cron que ejecute `rsync` o `mc mirror` de MinIO (bucket `dirdoc`) al servidor secundario
+- Definir retención en el servidor secundario (mínimo 30 días)
+**Impacto:** Crítico — sin esto el servidor secundario definido en el acta no cumple ninguna función.
+
+### Scripts de verificación de integridad de backups
+**Descripción:** Un backup que nunca se ha probado no garantiza recuperación. El acta contempla scripts de restore automáticos para verificar integridad.
+**Cambio requerido:**
+- Script semanal que restaure el backup más reciente de PostgreSQL en una BD temporal y verifique que las tablas principales existen y tienen registros
+- Script que verifique el checksum de los archivos de backup contra el registro generado al momento del dump
+- Notificación por correo si la verificación falla
+**Archivo:** `infrastructure/cron/`
+**Impacto:** Operación — sin verificación no hay certeza de que los backups sean utilizables ante un desastre.
+
+### Centralización de logs con Rsyslog + logrotate
+**Descripción:** Actualmente los logs de cada microservicio viven dentro de su contenedor Docker. En producción esto hace imposible diagnosticar problemas sin entrar a cada contenedor por separado, y los logs se pierden si el contenedor se recrea.
+**Cambio requerido:**
+- Configurar Rsyslog en el servidor para recolectar logs de todos los contenedores
+- Montar un volumen compartido o usar el driver de logging de Docker apuntando a Rsyslog
+- Configurar logrotate para comprimir y rotar logs con retención de 90 días
+- Los logs deben incluir: nombre del servicio, timestamp, nivel, mensaje y request ID
+**Impacto:** Operación — sin logs centralizados el diagnóstico en producción es ciego.
+
+### Exporters de infraestructura no configurados
+**Archivo:** `infrastructure/docker/docker-compose.yml`
+**Descripción:** PostgreSQL, Redis y Nginx aparecen como down en Prometheus porque no tienen exporters instalados. Solo se monitorean los 6 servicios FastAPI y RabbitMQ.
+**Cambio requerido:** Agregar al docker-compose: `postgres-exporter`, `redis-exporter`, `nginx-prometheus-exporter`.
+**Impacto:** Monitoreo incompleto — no se pueden ver conexiones activas a BD, uso de caché Redis ni tráfico de Nginx.
+
+### Persistencia de dashboards de Grafana
+**Archivo:** `infrastructure/grafana/`
+**Descripción:** Los dashboards de Grafana se guardan en el volumen Docker. Un `docker compose down -v` los borra y hay que reimportarlos manualmente.
+**Cambio requerido:** Configurar provisionamiento automático apuntando a `infrastructure/grafana/` para que el dashboard se cargue al levantar el contenedor sin importación manual.
+**Impacto:** Operación — en un reset del ambiente se pierde la configuración de dashboards y alertas.
+
+---
+
+## Trazabilidad — pendientes
+
+### Auditoría de acciones administrativas
+**Descripción:** Se registra quién sube y baja archivos de empleados pero no hay log de acciones críticas del panel como crear usuario, cambiar rol, eliminar empresa, bloquear cuenta, etc.
+**Cambio requerido:** Crear tabla `admin_audit_log` en el admin-service con: acción, entidad afectada, `performed_by`, `performed_at`, `ip_address`, detalle JSON.
+**Impacto:** Trazabilidad — sin esto no se puede auditar quién hizo qué en el panel de administración.
 
 ---
 

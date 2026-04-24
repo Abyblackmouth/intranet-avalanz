@@ -40,7 +40,23 @@ Este archivo documenta funcionalidades estratégicas que deben implementarse en 
 
 ---
 
+## Jaeger — Rastreo Distribuido
+
+**Prioridad:** Baja — V2, cuando haya módulos operativos activos
+**Descripción:** Rastreo distribuido de peticiones entre microservicios para diagnóstico de latencia y errores en cadenas de llamadas.
+
+**Casos de uso:**
+- Rastrear una petición desde el frontend hasta el servicio que la procesa pasando por múltiples microservicios
+- Identificar qué servicio introduce latencia en flujos complejos (ej. creación de usuario → auth → email → notify)
+- Correlacionar errores distribuidos que no son visibles en los logs de un solo servicio
+
+**Por qué no ahora:** Con solo el cascarón base el volumen de tráfico distribuido no justifica la complejidad. Tiene sentido cuando Bóveda y Legal estén activos y haya flujos reales multi-servicio.
+
+**Stack:** Jaeger + OpenTelemetry en cada microservicio FastAPI.
+
+---
+
 ## Notas
-- Ambos módulos son acta 2 o 3 — no bloquean el cascarón base.
+- Jaeger, el módulo SMTP y los workflows son V2 — no bloquean el cascarón base.
 - El email-service actual usa variables de entorno. Cuando se implemente el módulo SMTP, la configuración migrará a BD sin cambiar la interfaz del servicio.
 - Los workflows deben diseñarse de forma genérica para que cualquier módulo futuro pueda usarlos.
