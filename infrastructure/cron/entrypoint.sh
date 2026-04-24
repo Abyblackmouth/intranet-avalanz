@@ -26,5 +26,11 @@ while true; do
     /scripts/rotate_backups.sh >> /var/log/cron/rotate_backups.log 2>&1
   fi
 
+  # Verificacion de integridad de backups cada domingo a las 4:00 AM
+  if [ "$HOUR" = "04" ] && [ "$MIN" = "00" ] && [ "$DOW" = "0" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ejecutando verificacion de integridad de backups..."
+    /scripts/verify_backups.sh >> /var/log/cron/verify_backups.log 2>&1
+  fi
+
   sleep 60
 done
