@@ -116,6 +116,15 @@ Contenedores esperados:
 | avalanz-prometheus | Métricas |
 | avalanz-grafana | Dashboards |
 | avalanz-cron | Tareas programadas de limpieza |
+| avalanz-postgres-exporter | Exporter de métricas PostgreSQL |
+| avalanz-redis-exporter | Exporter de métricas Redis |
+| avalanz-nginx-exporter | Exporter de métricas Nginx |
+| avalanz-mailpit | SMTP local para desarrollo |
+
+```bash
+# Verificar que los exporters están activos
+docker ps --format "table {{.Names}}\t{{.Status}}" | grep exporter
+```
 
 ```bash
 # Health checks de cada servicio
@@ -191,6 +200,20 @@ docker exec avalanz-cron /scripts/cleanup.sh
 
 # Ver logs del cron
 docker exec avalanz-cron cat /var/log/cron/cleanup.log
+
+# Recargar configuración de Prometheus sin reiniciar
+docker exec avalanz-prometheus kill -HUP 1
+
+# Recargar configuración de Nginx sin reiniciar
+docker exec avalanz-nginx nginx -s reload
+
+# Verificar métricas del nginx-exporter
+docker exec avalanz-prometheus wget -qO- 'http://nginx-exporter:9113/metrics' | grep nginx_up
+
+# Recrear Grafana limpio (borra dashboards guardados en volumen)
+docker rm -f avalanz-grafana
+docker volume rm docker_grafana-data
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d grafana
 ```
 
 ---
@@ -204,6 +227,7 @@ docker exec avalanz-cron cat /var/log/cron/cleanup.log
 | Consul UI | http://localhost:8500 | — |
 | Prometheus | http://localhost:9090 | — |
 | Grafana | http://localhost:3001 | admin / Avalanz2026! |
+| Mailpit | http://localhost:8025 | — |
 
 ---
 
@@ -294,3 +318,32 @@ location.reload();
 cd infrastructure/docker
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --force-recreate cron -d
 ```
+
+### nginx-exporter muestra `nginx_up 0`
+El endpoint `/nginx_status` no está accesible desde el exporter. Verificar que el bloque esté en `intranet.conf` y que incluya la red Docker en el allow:
+```nginx
+location /nginx_status {
+    stub_status on;
+    allow 127.0.0.1;
+    allow 172.18.0.0/16;
+    allow 172.16.0.0/12;
+    allow 192.168.0.0/16;
+    allow 10.0.0.0/8;
+    deny all;
+}
+```
+Después de editar el archivo recargar Nginx: `docker exec avalanz-nginx nginx -s reload`
+
+### Grafana muestra "Datasource not found" en el dashboard
+El dashboard JSON usa el UID `PBFA97CFB590B2093` para referenciar Prometheus. Si el datasource tiene un UID diferente (por ejemplo al recrear el volumen de Grafana), obtener el UID real y actualizar el JSON:
+```bash
+docker exec avalanz-grafana wget -qO- 'http://admin:Avalanz2026!@localhost:3000/api/datasources' | grep -o '"uid":"[^"]*"'
+```
+Reemplazar todas las ocurrencias del UID en `avalanz-services-dashboard.json` y reiniciar Grafana.
+
+### Prometheus sigue usando targets viejos tras actualizar prometheus.yml
+Recargar la configuración sin reiniciar el contenedor:
+```bash
+docker exec avalanz-prometheus kill -HUP 1
+```
+Verificar en `http://localhost:9090/targets` que los nuevos targets aparezcan.

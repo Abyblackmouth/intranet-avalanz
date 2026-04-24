@@ -12,7 +12,7 @@ En Intranet Avalanz las metricas cubren dos capas:
 
 **Capa de aplicacion** — cada microservicio FastAPI expone metricas de sus propios endpoints: cuantas peticiones recibe, cuanto tardan en responder, cuantos errores genera.
 
-**Capa de infraestructura** — RabbitMQ expone sus propias metricas de colas y mensajes. PostgreSQL, Redis y Nginx requieren exporters adicionales (pendiente).
+**Capa de infraestructura** — RabbitMQ, PostgreSQL, Redis y Nginx exponen metricas via exporters dedicados.
 
 ---
 
@@ -36,9 +36,11 @@ En Intranet Avalanz las metricas cubren dos capas:
 
 **Servicio caido** — el panel de Servicios activos baja de 6 a 5, alerta inmediata sin necesidad de que un usuario reporte el problema.
 
-**Consultas lentas a BD** — picos en la latencia del admin-service o auth-service indican queries sin indice o joins pesados.
+**Consultas lentas a BD** — picos en conexiones activas de PostgreSQL o latencia del admin-service indican queries sin indice o joins pesados.
 
 **Errores de integracion** — un aumento de errores 5xx en el notify-service puede indicar que el websocket-service no esta disponible.
+
+**Memoria de Redis saturada** — el panel de Redis muestra cuando el cache esta cerca del limite configurado.
 
 ---
 
@@ -61,6 +63,8 @@ Plataforma de visualizacion y alertas. Se conecta a Prometheus como datasource y
 Acceso local: `http://localhost:3001`
 Credenciales: `admin / Avalanz2026!`
 
+El dashboard se carga automaticamente al levantar el contenedor via provisionamiento desde filesystem — no es necesario importarlo manualmente.
+
 Documentacion oficial: https://grafana.com/docs/grafana/latest/
 
 ### prometheus-fastapi-instrumentator
@@ -68,6 +72,16 @@ Documentacion oficial: https://grafana.com/docs/grafana/latest/
 Libreria Python que se agrega a cada servicio FastAPI con 2 lineas de codigo. Expone automaticamente el endpoint `/metrics` con metricas estandar de HTTP sin configuracion adicional.
 
 Repositorio y documentacion: https://github.com/trallnag/prometheus-fastapi-instrumentator
+
+### Exporters de infraestructura
+
+| Exporter | Imagen | Puerto interno | Que monitorea |
+|---|---|---|---|
+| postgres-exporter | prometheuscommunity/postgres-exporter:v0.15.0 | 9187 | Conexiones, queries, tablas |
+| redis-exporter | oliver006/redis_exporter:v1.61.0 | 9121 | Memoria, clientes, comandos |
+| nginx-exporter | nginx/nginx-prometheus-exporter:1.1.0 | 9113 | Conexiones, peticiones, estado |
+
+El nginx-exporter requiere que el endpoint `/nginx_status` este habilitado en Nginx via el modulo `stub_status`. El bloque esta configurado en `infrastructure/nginx/conf.d/intranet.conf` y solo acepta conexiones desde redes internas Docker.
 
 ---
 
@@ -90,10 +104,11 @@ El dashboard se actualiza automaticamente cada 10 segundos. El rango de tiempo p
 infrastructure/
 ├── prometheus/
 │   ├── prometheus.yml         configuracion de scraping y targets
-│   └── alerts.yml             reglas de alerta (actualmente vacio)
+│   └── alerts.yml             reglas de alerta
 └── grafana/
-    ├── datasources.yml        conexion automatica de Grafana con Prometheus
-    └── avalanz-services-dashboard.json   dashboard principal exportado
+    ├── datasources.yml        conexion automatica de Grafana con Prometheus (UID fijo)
+    ├── dashboards.yml         provisionamiento automatico del dashboard desde filesystem
+    └── avalanz-services-dashboard.json   dashboard principal
 ```
 
 ### Como se agrego a cada servicio FastAPI
@@ -120,33 +135,60 @@ Esto expone automaticamente el endpoint `GET /metrics` en cada servicio con toda
 
 ### Como Prometheus descubre los servicios
 
-La configuracion en `infrastructure/prometheus/prometheus.yml` define un job por servicio apuntando al nombre del contenedor Docker y puerto 8000:
+La configuracion en `infrastructure/prometheus/prometheus.yml` define un job por servicio. Los exporters de infraestructura se scrape en sus puertos propios, no en los puertos de los servicios originales:
 
 ```yaml
-scrape_configs:
-  - job_name: "auth-service"
-    static_configs:
-      - targets: ["auth-service:8000"]
-    metrics_path: "/metrics"
-    scrape_interval: 15s
-```
+# Servicio FastAPI — scrape directo
+- job_name: "auth-service"
+  static_configs:
+    - targets: ["auth-service:8000"]
 
-Prometheus resuelve `auth-service:8000` via la red Docker interna `avalanz-network`. No es necesario exponer el puerto externamente — la comunicacion es interna entre contenedores.
+# PostgreSQL — via exporter
+- job_name: "postgres"
+  static_configs:
+    - targets: ["postgres-exporter:9187"]
+
+# Redis — via exporter
+- job_name: "redis"
+  static_configs:
+    - targets: ["redis-exporter:9121"]
+
+# Nginx — via exporter
+- job_name: "nginx"
+  static_configs:
+    - targets: ["nginx-exporter:9113"]
+```
 
 ### Como Grafana se conecta a Prometheus
 
-El archivo `infrastructure/grafana/datasources.yml` configura automaticamente el datasource al levantar el contenedor:
+El archivo `infrastructure/grafana/datasources.yml` configura el datasource con UID fijo para que el dashboard JSON pueda referenciarlo sin usar variables:
 
 ```yaml
 apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
+    uid: PBFA97CFB590B2093
+    access: proxy
     url: http://prometheus:9090
     isDefault: true
+    editable: false
 ```
 
-Grafana resuelve `prometheus:9090` via la red Docker interna. El datasource aparece como default en Grafana sin configuracion manual.
+### Como se provisionan los dashboards automaticamente
+
+El archivo `infrastructure/grafana/dashboards.yml` le indica a Grafana que cargue dashboards desde el filesystem al arrancar:
+
+```yaml
+apiVersion: 1
+providers:
+  - name: "Avalanz Dashboards"
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
+```
+
+El `docker-compose.yml` monta el JSON del dashboard en esa ruta. Si se ejecuta `docker compose down -v` y se vuelve a levantar, el dashboard aparece automaticamente sin importacion manual.
 
 ### SMTP de Grafana
 
@@ -155,7 +197,7 @@ El SMTP de Grafana se configura via variables de entorno en el `docker-compose.y
 ```yaml
 environment:
   GF_SMTP_ENABLED: "true"
-  GF_SMTP_HOST: "mailpit:1025"          # En produccion: host SMTP corporativo
+  GF_SMTP_HOST: "mailpit:1025"
   GF_SMTP_FROM_ADDRESS: "grafana@avalanz.com"
   GF_SMTP_FROM_NAME: "Grafana Avalanz"
   GF_SMTP_SKIP_VERIFY: "true"
@@ -167,20 +209,18 @@ En produccion reemplazar `mailpit:1025` con el servidor SMTP corporativo real.
 
 ## Servicios monitoreados
 
-| Servicio | Job en Prometheus | Puerto interno | Estado |
+| Servicio | Job en Prometheus | Target | Estado |
 |---|---|---|---|
-| auth-service | auth-service | 8000 | Activo |
-| admin-service | admin-service | 8000 | Activo |
-| notify-service | notify-service | 8000 | Activo |
-| upload-service | upload-service | 8000 | Activo |
-| websocket-service | websocket-service | 8000 | Activo |
-| email-service | email-service | 8000 | Activo |
-| RabbitMQ | rabbitmq | 15692 | Activo |
-| PostgreSQL | postgres | 5432 | Pendiente exporter |
-| Redis | redis | 6379 | Pendiente exporter |
-| Nginx | nginx | 9113 | Pendiente exporter |
-
-La configuracion de scraping esta en `infrastructure/prometheus/prometheus.yml`.
+| auth-service | auth-service | auth-service:8000 | Activo |
+| admin-service | admin-service | admin-service:8000 | Activo |
+| notify-service | notify-service | notify-service:8000 | Activo |
+| upload-service | upload-service | upload-service:8000 | Activo |
+| websocket-service | websocket-service | websocket-service:8000 | Activo |
+| email-service | email-service | email-service:8000 | Activo |
+| RabbitMQ | rabbitmq | rabbitmq:15692 | Activo |
+| PostgreSQL | postgres | postgres-exporter:9187 | Activo |
+| Redis | redis | redis-exporter:9121 | Activo |
+| Nginx | nginx | nginx-exporter:9113 | Activo |
 
 ---
 
@@ -197,6 +237,34 @@ Todas las metricas son generadas automaticamente por prometheus-fastapi-instrume
 | process_resident_memory_bytes | RAM usada por el proceso Python | Detectar memory leaks |
 | process_cpu_seconds_total | CPU consumida por el proceso | Detectar procesos con alto consumo |
 | python_gc_objects_collected_total | Objetos recolectados por el garbage collector | Diagnostico avanzado de memoria |
+
+## Metricas de infraestructura
+
+| Metrica | Origen | Descripcion |
+|---|---|---|
+| pg_stat_activity_count | postgres-exporter | Conexiones activas a PostgreSQL por estado |
+| pg_up | postgres-exporter | Estado del exporter (1=ok, 0=error) |
+| redis_memory_used_bytes | redis-exporter | Memoria RAM usada por Redis |
+| redis_connected_clients | redis-exporter | Clientes conectados a Redis |
+| redis_memory_max_bytes | redis-exporter | Limite maximo de memoria configurado |
+| nginx_connections_active | nginx-exporter | Conexiones activas en Nginx |
+| nginx_connections_waiting | nginx-exporter | Conexiones en espera (keep-alive) |
+| nginx_http_requests_total | nginx-exporter | Total de peticiones HTTP procesadas |
+| nginx_up | nginx-exporter | Estado del exporter (1=ok, 0=error) |
+
+---
+
+## Dashboard principal
+
+El dashboard de Avalanz esta guardado en `infrastructure/grafana/avalanz-services-dashboard.json` y contiene 5 secciones:
+
+- **Resumen General** — 4 stats: peticiones/seg, errores/seg, latencia promedio, servicios activos
+- **Trafico HTTP** — peticiones por servicio en tiempo real y tasa de errores 4xx/5xx
+- **Latencia** — tiempo de respuesta promedio por servicio y bargauge comparativo
+- **Recursos del Sistema** — RAM y CPU por servicio
+- **Infraestructura** — conexiones PostgreSQL, memoria Redis, peticiones y conexiones Nginx
+
+El dashboard se carga automaticamente al levantar Grafana. No requiere importacion manual.
 
 ---
 
@@ -219,24 +287,45 @@ El contact point configurado es `avalanz-email` — envia correos via SMTP (Mail
 
 Las alertas de Latencia alta, Errores 5xx y RAM alta tienen configurado **No data = OK** para evitar falsos positivos cuando no hay suficiente trafico. La alerta de Servicio caido mantiene **No data = Alerting** porque la ausencia de datos indica que el servicio no esta respondiendo.
 
-### Nota sobre falsos positivos en desarrollo
-
-En desarrollo las alertas de Servicio caido pueden dispararse porque Prometheus tiene targets para PostgreSQL, Redis y Nginx que no tienen exporters instalados y siempre aparecen como down. En produccion, cuando los exporters esten configurados o el query se ajuste para excluirlos, esto se resolvera.
-
 ---
 
-## Dashboard principal
+## Queries PromQL de referencia
 
-El dashboard de Avalanz esta guardado en `infrastructure/grafana/avalanz-services-dashboard.json`.
+```promql
+# Peticiones por segundo — todos los servicios
+sum(rate(http_requests_total[1m]))
 
-Contiene 4 secciones:
+# Peticiones por segundo — servicio especifico
+rate(http_requests_total{job="auth-service"}[1m])
 
-- **Resumen General** — 4 stats: peticiones/seg, errores/seg, latencia promedio, servicios activos
-- **Trafico HTTP** — peticiones por servicio en tiempo real y tasa de errores 4xx/5xx
-- **Latencia** — tiempo de respuesta promedio por servicio y bargauge comparativo
-- **Recursos del Sistema** — RAM y CPU por servicio
+# Tasa de errores 4xx y 5xx
+sum(rate(http_requests_total{status=~"4..|5.."}[1m]))
 
-Para importarlo en Grafana: menu + arriba a la derecha → Import dashboard → Upload JSON file → seleccionar `avalanz-services-dashboard.json` → elegir Prometheus como datasource → Import.
+# Latencia promedio por servicio
+rate(http_request_duration_seconds_sum{job="admin-service"}[1m])
+/ rate(http_request_duration_seconds_count{job="admin-service"}[1m])
+
+# RAM por servicio en MB
+process_resident_memory_bytes{job="auth-service"} / 1024 / 1024
+
+# CPU por servicio
+rate(process_cpu_seconds_total{job="auth-service"}[1m])
+
+# Servicios activos (solo los 6 FastAPI)
+count(up{job=~"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service"} == 1)
+
+# Conexiones activas PostgreSQL
+pg_stat_activity_count{job="postgres"}
+
+# Memoria usada Redis
+redis_memory_used_bytes{job="redis"}
+
+# Conexiones activas Nginx
+nginx_connections_active{job="nginx"}
+
+# Peticiones por segundo Nginx
+rate(nginx_http_requests_total{job="nginx"}[1m])
+```
 
 ---
 
@@ -295,46 +384,4 @@ Un dashboard es un objeto JSON con la siguiente estructura base:
 
 **Unidades de medida comunes:** `reqps` (peticiones/seg), `s` (segundos), `ms` (milisegundos), `bytes`, `percentunit` (0-1), `short` (numero sin unidad).
 
----
-
-## Queries PromQL de referencia
-
-```promql
-# Peticiones por segundo — todos los servicios
-sum(rate(http_requests_total[1m]))
-
-# Peticiones por segundo — servicio especifico
-rate(http_requests_total{job="auth-service"}[1m])
-
-# Tasa de errores 4xx y 5xx
-sum(rate(http_requests_total{status=~"4..|5.."}[1m]))
-
-# Latencia promedio por servicio
-rate(http_request_duration_seconds_sum{job="admin-service"}[1m])
-/ rate(http_request_duration_seconds_count{job="admin-service"}[1m])
-
-# RAM por servicio en MB
-process_resident_memory_bytes{job="auth-service"} / 1024 / 1024
-
-# CPU por servicio
-rate(process_cpu_seconds_total{job="auth-service"}[1m])
-
-# Servicios activos (solo los 6 FastAPI)
-count(up{job=~"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service"} == 1)
-```
-
----
-
-## Pendientes
-
-### Exporters para infraestructura
-
-Para monitorear PostgreSQL, Redis y Nginx se necesitan exporters adicionales que se agregan al docker-compose:
-
-- **postgres-exporter** — conexiones activas, queries lentas, tamano de tablas
-- **redis-exporter** — memoria, hit rate, comandos por segundo
-- **nginx-prometheus-exporter** — conexiones activas, peticiones por status code
-
-### Persistencia de dashboards en Grafana
-
-Actualmente los dashboards se guardan en el volumen Docker de Grafana. Si se ejecuta `docker compose down -v` se pierden. La solucion definitiva es configurar Grafana con provisionamiento automatico desde el filesystem apuntando a `infrastructure/grafana/`, lo que elimina la necesidad de importar manualmente el JSON.
+**Nota importante sobre datasource en provisionamiento:** El dashboard JSON debe usar el UID directo del datasource (`PBFA97CFB590B2093`) en lugar de la variable `${DS_PROMETHEUS}`. La variable solo funciona al importar manualmente — el provisionamiento desde filesystem no resuelve variables de template.
