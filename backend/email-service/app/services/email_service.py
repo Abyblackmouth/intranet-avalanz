@@ -129,7 +129,7 @@ async def send_welcome_email(
     temp_password: str,
     user_id: str = "",
 ) -> None:
-    subject = f"Bienvenido a Intranet {config.EMAIL_FROM_NAME}"
+    subject = f"Bienvenido a Intranet {config.EMAIL_FROM_NAME} — Tu cuenta ha sido creada"
     content = (
         _h2(f"Bienvenido, {full_name}") +
         _p(f"Tu cuenta ha sido creada exitosamente en la plataforma <strong>Intranet {config.EMAIL_FROM_NAME}</strong>. A continuación encontrarás tus credenciales de acceso.") +
