@@ -9,6 +9,7 @@ export interface UserRow {
   departamento: string | null
   company_id: string
   company_name: string
+  company_slug?: string
   roles: string[]
   is_active: boolean
   is_locked: boolean
