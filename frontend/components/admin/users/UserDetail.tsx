@@ -135,9 +135,9 @@ export default function UserDetail({ userId, initialTab = 'info', onClose, onRef
           getUserFiles(userId),
         ])
         setUser(userRes.data.data)
-        setSessions(sessionsRes.data.data || [])
-        setHistory(historyRes.data.data || [])
-        setFiles(filesRes.data.data || [])
+        setSessions(Array.isArray(sessionsRes.data) ? sessionsRes.data : sessionsRes.data?.data || [])
+        setHistory(Array.isArray(historyRes.data) ? historyRes.data : historyRes.data?.data || [])
+        setFiles(Array.isArray(filesRes.data) ? filesRes.data : filesRes.data?.data || [])
       } catch {
         // silencioso
       } finally {
