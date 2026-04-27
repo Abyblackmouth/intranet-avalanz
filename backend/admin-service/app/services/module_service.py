@@ -1,3 +1,4 @@
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func
 from typing import Optional, Dict, Any, List
@@ -56,6 +57,15 @@ async def create_module(
     db.add(module)
     await db.commit()
     await db.refresh(module)
+    # Llamar al scaffold-server para generar estructura de archivos
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{config.SCAFFOLD_SERVER_URL}/scaffold/module",
+                json={"slug": slug},
+            )
+    except Exception:
+        pass  # Falla silenciosamente
 
     return _serialize_module(module)
 
@@ -255,6 +265,18 @@ async def create_submodule(
     db.add(submodule)
     await db.commit()
     await db.refresh(submodule)
+    # Obtener slug del modulo padre para el scaffold
+    try:
+        mod_result = await db.execute(select(Module).where(Module.id == module_id))
+        parent_module = mod_result.scalar_one_or_none()
+        if parent_module:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                await client.post(
+                    f"{config.SCAFFOLD_SERVER_URL}/scaffold/submodule",
+                    json={"moduleSlug": parent_module.slug, "subSlug": slug},
+                )
+    except Exception:
+        pass  # Falla silenciosamente
 
     return _serialize_submodule(submodule)
 
