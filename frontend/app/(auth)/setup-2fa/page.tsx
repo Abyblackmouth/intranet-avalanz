@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -47,7 +47,7 @@ const footerStyle: React.CSSProperties = {
   textAlign: 'center', fontSize: '12px', color: '#94a3b8', marginTop: '20px',
 }
 
-export default function Setup2FAPage() {
+function Setup2FAContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode') || 'verify'
@@ -220,5 +220,12 @@ export default function Setup2FAPage() {
       </div>
       <p style={footerStyle}>&copy; 2026 Avalanz. Todos los derechos reservados.</p>
     </div>
+  )
+}
+export default function Setup2FAPage() {
+  return (
+    <Suspense fallback={null}>
+      <Setup2FAContent />
+    </Suspense>
   )
 }
