@@ -93,7 +93,7 @@ export default function ${toPascal(slug)}Layout({ children }: { children: React.
   const { user } = useAuthStore()
   const pathname = usePathname()
   const mod = (user?.modules ?? []).find((m: any) => m.slug === '${slug}')
-  const submodules: any[] = mod?.submodules ?? []
+  const submodules: any[] = (mod as any)?.submodules ?? []
 
   return (
     <div className="flex h-full">
