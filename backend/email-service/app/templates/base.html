@@ -9,37 +9,61 @@
   <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
   <![endif]-->
   <style>
-    body, table, td, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
-    table, td { mso-table-lspace:0pt; mso-table-rspace:0pt; }
-    img { -ms-interpolation-mode:bicubic; border:0; outline:none; text-decoration:none; }
-    body { margin:0 !important; padding:0 !important; background-color:#f1f5f9; }
+    body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
+    table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;}
+    img{-ms-interpolation-mode:bicubic;border:0;outline:none;text-decoration:none;}
+    body{margin:0!important;padding:0!important;background-color:#f1f5f9;}
   </style>
 </head>
 <body style="margin:0;padding:0;background-color:#f1f5f9;">
+
+  <!-- Outer wrapper -->
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f1f5f9;">
     <tr>
-      <td align="center" style="padding:48px 16px;">
-        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;width:100%;background-color:#ffffff;border:1px solid #e2e8f0;">
+      <td align="center" style="padding:40px 16px;">
+
+        <!-- Card — max 520px -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="520" style="max-width:520px;width:100%;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:0;">
+
+          <!-- Header stripe -->
           <tr>
-            <td align="center" style="padding:32px 40px 24px;background-color:#ffffff;border-bottom:2px solid #1a4fa0;">
-              <img src="{{ frontend_url }}/logo_200.png" alt="{{ company_name }}" width="72" height="72" style="display:block;margin:0 auto 12px;width:72px;height:72px;" />
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#0f172a;">{{ company_name }}</p>
+            <td style="background-color:#1a4fa0;height:6px;line-height:6px;font-size:1px;">&nbsp;</td>
+          </tr>
+
+          <!-- Logo + title -->
+          <tr>
+            <td align="center" style="padding:28px 40px 20px;background-color:#ffffff;border-bottom:1px solid #e2e8f0;">
+              <img src="{{ frontend_url }}/logo_200.png" alt="{{ company_name }}" width="52" height="52" style="display:block;margin:0 auto 10px;width:52px;height:52px;object-fit:contain;" />
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#1a4fa0;letter-spacing:1px;text-transform:uppercase;">{{ company_name }}</p>
             </td>
           </tr>
+
+          <!-- Content -->
           <tr>
-            <td style="padding:36px 40px;font-family:Arial,Helvetica,sans-serif;color:#374151;line-height:1.6;font-size:15px;">
+            <td style="padding:32px 40px;font-family:Arial,Helvetica,sans-serif;color:#374151;line-height:1.6;font-size:14px;">
               {{ content }}
             </td>
           </tr>
+
+          <!-- Footer -->
           <tr>
-            <td align="center" style="padding:20px 40px;background-color:#f8fafc;border-top:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;line-height:1.6;">
-              <p style="margin:0 0 4px;">Este correo fue enviado por <strong style="color:#64748b;">{{ company_name }}</strong>. Por favor no respondas a este mensaje.</p>
+            <td align="center" style="padding:16px 40px;background-color:#f8fafc;border-top:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#94a3b8;line-height:1.5;">
+              <p style="margin:0 0 2px;">Este correo fue enviado por <strong style="color:#64748b;">{{ company_name }}</strong>. Por favor no respondas a este mensaje.</p>
               <p style="margin:0;">&copy; {{ year }} {{ company_name }}. Todos los derechos reservados.</p>
             </td>
           </tr>
+
+          <!-- Bottom stripe -->
+          <tr>
+            <td style="background-color:#1a4fa0;height:4px;line-height:4px;font-size:1px;">&nbsp;</td>
+          </tr>
+
         </table>
+        <!-- End Card -->
+
       </td>
     </tr>
   </table>
+
 </body>
 </html>
