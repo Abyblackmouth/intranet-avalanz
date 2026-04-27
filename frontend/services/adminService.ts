@@ -34,10 +34,10 @@ export const getUserPermissions = (userId: string) =>
   api.get(`/api/v1/users/${userId}/permissions`)
 
 export const getUserSessions = (userId: string) =>
-  api.get(`/api/v1/auth/users/${userId}/sessions`)
+  api.get(`/api/v1/auth/internal/users/${userId}/sessions`)
 
 export const getUserLoginHistory = (userId: string) =>
-  api.get(`/api/v1/auth/users/${userId}/login-history`)
+  api.get(`/api/v1/auth/internal/users/${userId}/login-history`)
 
 export const revokeAllSessions = (userId: string, revokedByName: string, revokedByEmail: string) =>
   api.post(`/api/v1/auth/internal/users/${userId}/revoke-sessions`, { revoked_by_name: revokedByName, revoked_by_email: revokedByEmail })
