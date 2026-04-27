@@ -36,6 +36,43 @@ const write = (filePath, content) => {
 
 const ROOT = path.resolve(__dirname, '..')
 
+// ── Validaciones ──────────────────────────────────────────────────────────────
+
+function validateSlug(slug) {
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
+    console.error(`\n  ERROR: El nombre "${slug}" no es válido.`)
+    console.error(`  Solo se permiten letras minúsculas, números y guiones. Ejemplo: boveda, legal-contratos\n`)
+    process.exit(1)
+  }
+}
+
+function checkModuleExists(slug) {
+  const fePath  = path.join(ROOT, 'frontend/app/(private)/app', slug)
+  const bePath  = path.join(ROOT, `backend/modules/${slug}-service`)
+  const exists  = fs.existsSync(fePath) || fs.existsSync(bePath)
+  if (exists) {
+    console.error(`\n  ERROR: El módulo "${slug}" ya existe.`)
+    if (fs.existsSync(fePath))  console.error(`  → frontend/app/(private)/app/${slug}`)
+    if (fs.existsSync(bePath))  console.error(`  → backend/modules/${slug}-service`)
+    console.error(`\n  Si quieres agregar un submódulo usa:`)
+    console.error(`     node scripts/create-module.js ${slug} <submodulo>\n`)
+    process.exit(1)
+  }
+}
+
+function checkSubmoduleExists(moduleSlug, subSlug) {
+  const fePath = path.join(ROOT, 'frontend/app/(private)/app', moduleSlug, subSlug)
+  const bePath = path.join(ROOT, `backend/modules/${moduleSlug}-service/app/routes/${subSlug.replace(/-/g,'_')}`)
+  const exists = fs.existsSync(fePath) || fs.existsSync(bePath)
+  if (exists) {
+    console.error(`\n  ERROR: El submódulo "${subSlug}" ya existe en el módulo "${moduleSlug}".`)
+    if (fs.existsSync(fePath)) console.error(`  → frontend/app/(private)/app/${moduleSlug}/${subSlug}`)
+    if (fs.existsSync(bePath)) console.error(`  → backend/modules/${moduleSlug}-service/app/routes/${subSlug.replace(/-/g,'_')}`)
+    console.error()
+    process.exit(1)
+  }
+}
+
 // ── Templates frontend ────────────────────────────────────────────────────────
 
 const moduleLayoutTsx = (slug) => `'use client'
@@ -101,7 +138,7 @@ export default function ${toPascal(slug)}Page() {
       <div className="p-5 bg-blue-50 rounded-2xl mb-6">
         <Construction size={40} className="text-[#1a4fa0]" />
       </div>
-      <h1 className="text-2xl font-bold text-slate-800 mb-2">Módulo ${toTitle(slug)}</h1>
+      <h1 className="text-2xl font-bold text-slate-800 mb-2">${toTitle(slug)}</h1>
       <p className="text-slate-400 text-sm max-w-sm">
         Selecciona un submódulo del menú lateral para comenzar.
       </p>
@@ -155,12 +192,11 @@ export default function ${toPascal(subSlug)}Form({ onClose, onSaved }: { onClose
 
 const backendMain = (slug) => `from fastapi import FastAPI
 from app.config import config
-from app.database import engine
-from app.routes import ${slug.replace(/-/g,'_')}
+from app.routes import router as main_router
 
 app = FastAPI(title="${toTitle(slug)} Service", version="1.0.0")
 
-app.include_router(${slug.replace(/-/g,'_')}.router)
+app.include_router(main_router, prefix="/api/v1/${slug.replace(/-/g,'-')}")
 
 @app.get("/health")
 async def health():
@@ -194,9 +230,16 @@ async def get_db():
         yield session
 `
 
+const backendRoutesInit = (slug) => `from fastapi import APIRouter
+from app.routes.${slug.replace(/-/g,'_')} import router as ${slug.replace(/-/g,'_')}_router
+
+router = APIRouter()
+router.include_router(${slug.replace(/-/g,'_')}_router)
+`
+
 const backendRoute = (slug) => `from fastapi import APIRouter
 
-router = APIRouter(prefix="/${slug.replace(/-/g,'-')}", tags=["${toTitle(slug)}"])
+router = APIRouter(prefix="", tags=["${toTitle(slug)}"])
 
 @router.get("/")
 async def list_items():
@@ -210,7 +253,6 @@ const backendModels = (slug) => `from sqlalchemy import Column, String, Boolean,
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase
 import uuid
-from datetime import datetime, timezone
 
 class Base(DeclarativeBase):
     pass
@@ -219,10 +261,9 @@ class Base(DeclarativeBase):
 # class ${toPascal(slug)}(Base):
 #     __tablename__ = "${slug.replace(/-/g,'_')}s"
 #     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-#     ...
 `
 
-const backendDockerfile = (slug) => `FROM python:3.11-slim
+const backendDockerfile = () => `FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -230,23 +271,24 @@ COPY . .
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 `
 
-const backendRequirements = () => `fastapi==0.115.0
-uvicorn==0.30.6
-sqlalchemy==2.0.35
+const backendRequirements = () => `fastapi==0.111.0
+uvicorn[standard]==0.29.0
+sqlalchemy==2.0.30
 asyncpg==0.29.0
-pydantic-settings==2.5.2
-alembic==1.13.3
-httpx==0.27.2
-python-jose==3.3.0
+pydantic-settings==2.2.1
+alembic==1.13.1
+httpx==0.27.0
+python-jose[cryptography]==3.3.0
+prometheus-fastapi-instrumentator==7.0.0
 `
 
 const backendEnvExample = (slug) => `SERVICE_NAME=${slug}-service
-DATABASE_URL=postgresql+asyncpg://avalanz_user:password@postgres:5432/avalanz_${slug.replace(/-/g,'_')}
-JWT_SECRET_KEY=your_jwt_secret_here
+DATABASE_URL=postgresql+asyncpg://avalanz_user:Avalanz2026!@postgres:5432/avalanz_${slug.replace(/-/g,'_')}
+JWT_SECRET_KEY=cambia-esta-clave-por-una-segura-en-produccion
 JWT_ALGORITHM=HS256
 `
 
-const backendSubRoute = (moduleSlug, subSlug) => `from fastapi import APIRouter
+const backendSubRoute = (subSlug) => `from fastapi import APIRouter
 
 router = APIRouter(prefix="/${subSlug.replace(/-/g,'-')}", tags=["${toTitle(subSlug)}"])
 
@@ -255,25 +297,23 @@ async def list_${subSlug.replace(/-/g,'_')}():
     return {"data": [], "message": "Listado de ${toTitle(subSlug)}"}
 `
 
-const backendSubRouteInit = (moduleSlug, subSlug) => `from app.routes.${subSlug.replace(/-/g,'_')} import ${subSlug.replace(/-/g,'_')}
+const backendSubService = (subSlug) => `# ${toTitle(subSlug)} service — lógica de negocio del submódulo
 `
-
-const backendSubService = (moduleSlug, subSlug) => `# ${toTitle(subSlug)} service — lógica de negocio del submódulo
-`
-
-const backendSubServiceInit = () => ``
 
 // ── Crear módulo ──────────────────────────────────────────────────────────────
 
 function createModule(slug) {
+  validateSlug(slug)
+  checkModuleExists(slug)
+
   console.log(`\nCreando módulo: ${slug}\n`)
 
-  // Frontend
+  // Frontend — páginas
   const feBase = path.join(ROOT, 'frontend/app/(private)/app', slug)
   write(path.join(feBase, 'layout.tsx'), moduleLayoutTsx(slug))
   write(path.join(feBase, 'page.tsx'), modulePageTsx(slug))
 
-  // Frontend components
+  // Frontend — componentes
   const compBase = path.join(ROOT, 'frontend/components/app', slug)
   if (!fs.existsSync(compBase)) {
     fs.mkdirSync(compBase, { recursive: true })
@@ -281,66 +321,73 @@ function createModule(slug) {
     console.log(`  + frontend/components/app/${slug}/.gitkeep`)
   }
 
-  // Backend service
+  // Backend — microservicio
   const beBase = path.join(ROOT, `backend/modules/${slug}-service`)
+  write(path.join(beBase, 'app/__init__.py'), '')
   write(path.join(beBase, 'app/main.py'), backendMain(slug))
   write(path.join(beBase, 'app/config.py'), backendConfig(slug))
   write(path.join(beBase, 'app/database.py'), backendDatabase())
   write(path.join(beBase, 'app/models/__init__.py'), backendModels(slug))
-  write(path.join(beBase, 'app/routes/__init__.py'), '')
+  write(path.join(beBase, 'app/routes/__init__.py'), backendRoutesInit(slug))
   write(path.join(beBase, `app/routes/${slug.replace(/-/g,'_')}.py`), backendRoute(slug))
   write(path.join(beBase, 'app/services/__init__.py'), '')
   write(path.join(beBase, `app/services/${slug.replace(/-/g,'_')}_service.py`), backendService(slug))
-  write(path.join(beBase, 'Dockerfile'), backendDockerfile(slug))
+  write(path.join(beBase, 'Dockerfile'), backendDockerfile())
   write(path.join(beBase, 'requirements.txt'), backendRequirements())
   write(path.join(beBase, '.env.example'), backendEnvExample(slug))
 
-  console.log(`\nOK: Módulo "${slug}" creado exitosamente.`)
-  console.log(`\nPróximos pasos:`)
-  console.log(`   1. Da de alta el módulo en el admin: /admin/modules`)
-  console.log(`   2. Agrega el servicio al docker-compose (apunta a backend/modules/${slug}-service)`)
-  console.log(`   3. Crea los submódulos: node scripts/create-module.js ${slug} <submodulo>`)
+  console.log(`\n✓ Módulo "${slug}" creado exitosamente.\n`)
+  console.log(`Próximos pasos:`)
+  console.log(`  1. Da de alta el módulo en el admin: /admin/modules`)
+  console.log(`  2. Agrega el servicio al docker-compose apuntando a backend/modules/${slug}-service`)
+  console.log(`  3. Crea los submódulos: node scripts/create-module.js ${slug} <submodulo>`)
+  console.log(`  4. Reconstruye el frontend: cd frontend && npm run build\n`)
 }
 
 // ── Crear submódulo ───────────────────────────────────────────────────────────
 
 function createSubmodule(moduleSlug, subSlug) {
-  console.log(`\nCreando submódulo: ${subSlug} en módulo: ${moduleSlug}\n`)
+  validateSlug(moduleSlug)
+  validateSlug(subSlug)
+  checkSubmoduleExists(moduleSlug, subSlug)
 
-  // Verificar que el módulo existe
+  // Verificar que el módulo padre existe
   const moduleBase = path.join(ROOT, 'frontend/app/(private)/app', moduleSlug)
   if (!fs.existsSync(moduleBase)) {
-    console.error(`  ERROR: El módulo "${moduleSlug}" no existe. Créalo primero:`)
-    console.error(`     node scripts/create-module.js ${moduleSlug}`)
+    console.error(`\n  ERROR: El módulo "${moduleSlug}" no existe. Créalo primero:`)
+    console.error(`     node scripts/create-module.js ${moduleSlug}\n`)
     process.exit(1)
   }
 
-  // Frontend página
+  console.log(`\nCreando submódulo: ${subSlug} en módulo: ${moduleSlug}\n`)
+
+  // Frontend — página
   const feBase = path.join(moduleBase, subSlug)
   write(path.join(feBase, 'page.tsx'), submodulePageTsx(moduleSlug, subSlug))
 
-  // Frontend componentes
+  // Frontend — componentes
   const compBase = path.join(ROOT, 'frontend/components/app', moduleSlug, subSlug)
   write(path.join(compBase, `${toPascal(subSlug)}Table.tsx`), submoduleTableTsx(moduleSlug, subSlug))
   write(path.join(compBase, `${toPascal(subSlug)}Form.tsx`), submoduleFormTsx(moduleSlug, subSlug))
 
-  // Backend route y service
+  // Backend — routes y services del submódulo
   const beBase = path.join(ROOT, `backend/modules/${moduleSlug}-service`)
   if (!fs.existsSync(beBase)) {
     console.warn(`  ! El backend "${moduleSlug}-service" no existe — solo se creó el frontend.`)
   } else {
     const subSlugClean = subSlug.replace(/-/g,'_')
-    write(path.join(beBase, `app/routes/${subSlugClean}/__init__.py`), backendSubRouteInit(moduleSlug, subSlug))
-    write(path.join(beBase, `app/routes/${subSlugClean}/${subSlugClean}.py`), backendSubRoute(moduleSlug, subSlug))
-    write(path.join(beBase, `app/services/${subSlugClean}/__init__.py`), backendSubServiceInit())
-    write(path.join(beBase, `app/services/${subSlugClean}/${subSlugClean}_service.py`), backendSubService(moduleSlug, subSlug))
+    write(path.join(beBase, `app/routes/${subSlugClean}/__init__.py`), `from app.routes.${subSlugClean}.${subSlugClean} import router\n`)
+    write(path.join(beBase, `app/routes/${subSlugClean}/${subSlugClean}.py`), backendSubRoute(subSlug))
+    write(path.join(beBase, `app/services/${subSlugClean}/__init__.py`), '')
+    write(path.join(beBase, `app/services/${subSlugClean}/${subSlugClean}_service.py`), backendSubService(subSlug))
   }
 
-  console.log(`\nOK: Submódulo "${subSlug}" creado en "${moduleSlug}" exitosamente.`)
-  console.log(`\nPróximos pasos:`)
-  console.log(`   1. Da de alta el submódulo en el admin: /admin/modules`)
-  console.log(`   2. Importa el router en backend/modules/${moduleSlug}-service/app/main.py`)
-  console.log(`   3. Desarrolla la lógica en los archivos generados`)
+  console.log(`\n✓ Submódulo "${subSlug}" creado en "${moduleSlug}" exitosamente.\n`)
+  console.log(`Próximos pasos:`)
+  console.log(`  1. Da de alta el submódulo en el admin: /admin/modules`)
+  console.log(`  2. Importa el router en backend/modules/${moduleSlug}-service/app/routes/__init__.py`)
+  console.log(`  3. Desarrolla la lógica en los archivos generados`)
+  console.log(`  4. Reconstruye el frontend: cd frontend && npm run build\n`)
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -348,9 +395,12 @@ function createSubmodule(moduleSlug, subSlug) {
 const args = process.argv.slice(2)
 
 if (args.length === 0) {
-  console.log('Uso:')
+  console.log('\nUso:')
   console.log('  node scripts/create-module.js <modulo>')
-  console.log('  node scripts/create-module.js <modulo> <submodulo>')
+  console.log('  node scripts/create-module.js <modulo> <submodulo>\n')
+  console.log('Ejemplos:')
+  console.log('  node scripts/create-module.js boveda')
+  console.log('  node scripts/create-module.js boveda contratos\n')
   process.exit(0)
 }
 
