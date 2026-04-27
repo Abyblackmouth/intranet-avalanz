@@ -190,6 +190,7 @@ export default function UserDetail({ userId, initialTab = 'info', onClose, onRef
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('company_slug', user?.company_slug || user?.company_name?.toLowerCase().replace(/\s+/g, '-') || 'general')
       
       formData.append('description', uploadDescription || 'Sin descripción')
 
