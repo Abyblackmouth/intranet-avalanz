@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -61,22 +61,7 @@ const eyeBtnStyle: React.CSSProperties = {
   color: '#94a3b8', padding: '4px', display: 'flex', alignItems: 'center',
 }
 
-
-const useInputFocus = () => {
-  const [focused, setFocused] = useState(false)
-  return {
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
-    style: (base: React.CSSProperties): React.CSSProperties => ({
-      ...base,
-      borderColor: focused ? '#1a4fa0' : '#e2e8f0',
-      boxShadow: focused ? '0 0 0 3.5px rgba(26,79,160,0.10)' : 'none',
-      background: focused ? '#fafcff' : '#ffffff',
-    }),
-  }
-}
-
-export default function ChangePasswordPage() {
+function ChangePasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const userId = searchParams.get('user_id') || ''
@@ -95,6 +80,7 @@ export default function ChangePasswordPage() {
       .catch(() => setAlreadyUsed(true))
       .finally(() => setChecking(false))
   }, [userId])
+
   const [showConfirm, setShowConfirm] = useState(false)
   const [focusNew, setFocusNew] = useState(false)
   const [focusConfirm, setFocusConfirm] = useState(false)
@@ -169,7 +155,6 @@ export default function ChangePasswordPage() {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>
               Nueva contrasena
@@ -242,5 +227,13 @@ export default function ChangePasswordPage() {
         &copy; 2026 Avalanz. Todos los derechos reservados.
       </p>
     </div>
+  )
+}
+
+export default function ChangePasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChangePasswordContent />
+    </Suspense>
   )
 }
