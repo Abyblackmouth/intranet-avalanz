@@ -118,8 +118,8 @@ export const removeGlobalRole = (userId: string, roleId: string) =>
 
 // ── Modulos ───────────────────────────────────────────────────────────────────
 
-export const getModules = () =>
-  api.get('/api/v1/modules/')
+export const getModules = (params?: Record<string, string | number | boolean>) =>
+  api.get('/api/v1/modules/', { params })
 
 export const getModuleRoles = (moduleId: string) =>
   api.get(`/api/v1/roles/modules/${moduleId}`)
