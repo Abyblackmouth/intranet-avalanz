@@ -112,7 +112,7 @@ function ModuleForm({
         setIsSaving(false)
         setScaffolding(true)
         const [scaffoldResult] = await Promise.allSettled([
-          fetch('http://localhost:3002/scaffold/module', {
+          fetch(`${process.env.NEXT_PUBLIC_SCAFFOLD_URL}/scaffold/module`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ slug }),
@@ -373,7 +373,7 @@ function SubmoduleForm({
         setIsSaving(false)
         setScaffolding(true)
         await Promise.allSettled([
-          fetch('http://localhost:3002/scaffold/submodule', {
+          fetch(`${process.env.NEXT_PUBLIC_SCAFFOLD_URL}/scaffold/submodule`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ moduleSlug: moduleSlug, subSlug }),
