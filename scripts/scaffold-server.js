@@ -45,6 +45,21 @@ async function rebuildFrontend() {
   console.log(`[scaffold] Frontend actualizado.`)
 }
 
+
+async function gitCommit(slug, isSubmodule = false, moduleSlug = null) {
+  try {
+    console.log('[scaffold] Commiteando archivos generados...')
+    const msg = isSubmodule
+      ? 'feat(' + moduleSlug + '): add ' + slug + ' submodule scaffold'
+      : 'feat(' + slug + '): add ' + slug + ' module scaffold'
+    await runCommand('git add -A', ROOT)
+    await runCommand('git commit -m "' + msg + '"', ROOT)
+    await runCommand('git push origin develop', ROOT)
+    console.log('[scaffold] Commit y push exitosos.')
+  } catch (err) {
+    console.error('[scaffold] Git commit falló (no crítico):', err.error)
+  }
+}
 function parseBody(req) {
   return new Promise((resolve, reject) => {
     let body = ''
@@ -95,7 +110,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const result = await runScaffold([slug])
       respond(res, 200, { ok: true, slug, output: result.stdout })
-      rebuildFrontend().catch(err => console.error(`[scaffold] Rebuild falló: ${err.error}`))
+      rebuildFrontend().then(() => gitCommit(slug)).catch(err => console.error(`[scaffold] Rebuild falló: ${err.error}`))
     } catch (err) {
       const alreadyExists = err.error && err.error.includes('ya existe')
       respond(res, alreadyExists ? 409 : 500, { ok: false, error: err.error, already_exists: !!alreadyExists })
@@ -112,7 +127,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const result = await runScaffold([moduleSlug, subSlug])
       respond(res, 200, { ok: true, moduleSlug, subSlug, output: result.stdout })
-      rebuildFrontend().catch(err => console.error(`[scaffold] Rebuild falló: ${err.error}`))
+      rebuildFrontend().then(() => gitCommit(subSlug, true, moduleSlug)).catch(err => console.error(`[scaffold] Rebuild falló: ${err.error}`))
     } catch (err) {
       const alreadyExists = err.error && err.error.includes('ya existe')
       respond(res, alreadyExists ? 409 : 500, { ok: false, error: err.error, already_exists: !!alreadyExists })
