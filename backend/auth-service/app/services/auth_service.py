@@ -49,6 +49,7 @@ async def build_token_payload(user: User) -> Dict[str, Any]:
         "user_id": str(user.id),
         "email": user.email,
         "full_name": user.full_name,
+        "is_super_admin": perms.get("is_super_admin", False),
         "roles": perms.get("roles", []),
         "modules": perms.get("modules", []),
         "companies": perms.get("companies", []),

@@ -424,7 +424,7 @@ def _serialize_user(user, company_name="", company_razon_social="", company_rfc=
 def _is_super_admin(payload):
     if not payload:
         return False
-    return "super_admin" in payload.get("roles", [])
+    return "super_admin" in payload.get("roles", []) or payload.get("is_super_admin", False)
 
 
 def _is_admin_empresa(payload):
