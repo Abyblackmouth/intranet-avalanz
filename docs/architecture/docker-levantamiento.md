@@ -90,14 +90,201 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 ---
 
+## Servidor provisional — 10.12.0.51
+
+### Conectar al servidor
+
+```bash
+ssh abcovarrubias@10.12.0.51
+```
+
+### Levantar el stack completo
+
+```bash
+cd ~/intranet-avalanz/infrastructure/docker
+docker compose up --build -d
+```
+
+### Ver estado de servicios
+
+```bash
+docker ps --format "table {{.Names}}\t{{.Status}}"
+pm2 status
+```
+
+### Rebuild de un servicio específico
+
+```bash
+cd ~/intranet-avalanz/infrastructure/docker
+docker compose up --build --force-recreate admin-service -d
+```
+
+### Rebuild del frontend
+
+```bash
+cd ~/intranet-avalanz/frontend
+npm run build && pm2 restart intranet-frontend
+```
+
+### Variables de entorno críticas en el servidor provisional
+
+El archivo `frontend/.env.local` no está en el repo — se crea manualmente:
+
+```bash
+cat > ~/intranet-avalanz/frontend/.env.local << 'ENVEOF'
+NEXT_PUBLIC_API_URL=http://10.12.0.51
+NEXT_PUBLIC_WS_URL=ws://10.12.0.51/ws
+NEXT_PUBLIC_SCAFFOLD_URL=http://10.12.0.51:3002
+ENVEOF
+```
+
+El `admin-service/.env` debe tener:
+```
+SCAFFOLD_SERVER_URL=http://10.12.0.250:3002
+```
+La IP `10.12.0.250` es la IP del host Docker — los contenedores la usan para salir al servidor.
+
+### Paneles en el servidor provisional
+
+| Panel | URL | Credenciales |
+|---|---|---|
+| Frontend | http://10.12.0.51:3000 | admin@avalanz.com / Admin@2026! |
+| RabbitMQ | http://10.12.0.51:15672 | avalanz / Avalanz2026! |
+| MinIO Console | http://10.12.0.51:9001 | minioadmin / Avalanz2026! |
+| Prometheus | http://10.12.0.51:9090 | — |
+| Grafana | http://10.12.0.51:3001 | admin / Avalanz2026! |
+| Mailpit | http://10.12.0.51:8025 | — |
+| Scaffold-server | http://10.12.0.51:3002/health | — |
+
+---
+
+## Configuración del Frontend con PM2 (servidor provisional y producción)
+
+### Instalar Node.js 20
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+### Build y lanzar con PM2
+
+```bash
+sudo npm install -g pm2
+cd ~/intranet-avalanz/frontend
+npm install
+npm run build
+pm2 start npm --name "intranet-frontend" -- start -- -p 3000
+pm2 save
+pm2 startup
+# Ejecutar el comando que genera pm2 startup para activar arranque automático
+```
+
+### Scaffold-server con PM2
+
+```bash
+pm2 start ~/intranet-avalanz/scripts/scaffold-server.js --name "scaffold-server"
+pm2 save
+```
+
+### Configurar git en el servidor para auto-commit del scaffold
+
+```bash
+git -C ~/intranet-avalanz config user.email "abraham_covarrubias@avalanz.com"
+git -C ~/intranet-avalanz config user.name "Abraham Covarrubias"
+ssh-keygen -t ed25519 -C "abraham_covarrubias@avalanz.com" -f ~/.ssh/id_ed25519 -N ""
+cat ~/.ssh/id_ed25519.pub
+# Agregar clave pública en GitHub Settings > SSH Keys
+git -C ~/intranet-avalanz remote set-url origin git@github.com:Abyblackmouth/intranet-avalanz.git
+ssh -T git@github.com  # verificar
+```
+
+### Comandos PM2 frecuentes
+
+```bash
+pm2 status
+pm2 restart intranet-frontend
+pm2 restart scaffold-server
+pm2 logs intranet-frontend --lines 20
+pm2 logs scaffold-server --lines 20
+```
+
+---
+
+## Configuración inicial en servidor nuevo (primera vez)
+
+Los `.env` no están en el repo — crearlos manualmente. Ver `despliegue-local-a-pruebas.md` para los valores completos.
+
+### Crear BDs manualmente
+
+```bash
+docker exec avalanz-postgres psql -U avalanz_user -d postgres -c "CREATE DATABASE avalanz_auth;"
+docker exec avalanz-postgres psql -U avalanz_user -d postgres -c "CREATE DATABASE avalanz_admin;"
+docker exec avalanz-postgres psql -U avalanz_user -d postgres -c "CREATE DATABASE avalanz_notify;"
+```
+
+### Correr migraciones de Alembic
+
+```bash
+pip3 install alembic asyncpg psycopg2-binary --break-system-packages
+export PATH=$PATH:/home/$USER/.local/bin
+export PYTHONPATH=/home/$USER/intranet-avalanz/backend
+export DB_HOST=$(docker inspect avalanz-postgres | grep '"IPAddress"' | tail -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+export DB_PORT=5432 DB_USER=avalanz_user DB_PASSWORD=Avalanz2026!
+
+export DB_NAME=avalanz_auth
+cd ~/intranet-avalanz/backend/auth-service && alembic upgrade head
+
+export DB_NAME=avalanz_admin
+cd ~/intranet-avalanz/backend/admin-service && alembic upgrade head
+```
+
+Notify-service no tiene migraciones — crear tabla manualmente:
+
+```bash
+docker exec avalanz-postgres psql -U avalanz_user -d avalanz_notify -c "
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL, company_id UUID, module_slug VARCHAR(100),
+    type VARCHAR(100) NOT NULL, title VARCHAR(255) NOT NULL, body TEXT NOT NULL,
+    data JSONB, is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    read_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS ix_notifications_company_id ON notifications(company_id);"
+```
+
+### Ejecutar el seeder
+
+```bash
+pip3 install asyncpg passlib bcrypt --break-system-packages -q
+cd ~/intranet-avalanz/infrastructure/docker
+DB_PASSWORD=Avalanz2026! python3 seeder.py
+```
+
+Variables de entorno disponibles para el seeder:
+
+| Variable | Default | Descripción |
+|---|---|---|
+| DB_HOST | localhost | Host de PostgreSQL |
+| DB_PORT | 5432 | Puerto de PostgreSQL |
+| DB_USER | avalanz_user | Usuario de PostgreSQL |
+| DB_PASSWORD | changeme | Contraseña de PostgreSQL |
+| SUPER_ADMIN_EMAIL | admin@avalanz.com | Email del super admin inicial |
+| SUPER_ADMIN_NAME | Super Administrador | Nombre del super admin |
+| SUPER_ADMIN_PASSWORD | Admin@2026! | Contraseña del super admin |
+
+---
+
 ## Verificar que todo está corriendo
 
 ```bash
-# Estado de los contenedores
 docker ps --format "table {{.Names}}\t{{.Status}}"
 ```
 
-Contenedores esperados:
+Contenedores esperados (19 total):
 
 | Contenedor | Descripción |
 |---|---|
@@ -122,46 +309,27 @@ Contenedores esperados:
 | avalanz-mailpit | SMTP local para desarrollo |
 
 ```bash
-# Verificar que los exporters están activos
-docker ps --format "table {{.Names}}\t{{.Status}}" | grep exporter
-```
+# Health checks desarrollo local (requiere Host header)
+curl -s -H "Host: intranet.avalanz.com" http://localhost/health/auth
+curl -s -H "Host: intranet.avalanz.com" http://localhost/health/admin
 
-```bash
-# Health checks de cada servicio
-curl http://localhost/health/auth
-curl http://localhost/health/admin
-curl http://localhost/health/notify
-curl http://localhost/health/upload
-curl http://localhost/health/websocket
-curl http://localhost/health/email
-```
-
-Respuesta esperada de cada servicio:
-```json
-{"service":"auth-service","version":"1.0.0","status":"ok",...}
+# Health checks servidor provisional (sin Host header)
+curl -s http://10.12.0.51/health/auth
+curl -s http://10.12.0.51/health/admin
 ```
 
 ---
 
-## Ejecutar el seeder (primera vez)
+## Paneles de administración — Desarrollo local
 
-```bash
-pip3 install asyncpg passlib bcrypt
-cd infrastructure/docker
-DB_PASSWORD=Avalanz2026! python3 seeder.py
-```
-
-Variables de entorno disponibles para el seeder:
-
-| Variable | Default | Descripción |
+| Panel | URL | Credenciales |
 |---|---|---|
-| DB_HOST | localhost | Host de PostgreSQL |
-| DB_PORT | 5432 | Puerto de PostgreSQL |
-| DB_USER | avalanz_user | Usuario de PostgreSQL |
-| DB_PASSWORD | changeme | Contraseña de PostgreSQL |
-| SUPER_ADMIN_EMAIL | admin@avalanz.com | Email del super admin inicial |
-| SUPER_ADMIN_NAME | Super Administrador | Nombre del super admin |
-| SUPER_ADMIN_PASSWORD | Admin@2026! | Contraseña del super admin |
+| RabbitMQ | http://localhost:15672 | avalanz / Avalanz2026! |
+| MinIO Console | http://localhost:9001 | minioadmin / Avalanz2026! |
+| Consul UI | http://localhost:8500 | — |
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3001 | admin / Avalanz2026! |
+| Mailpit | http://localhost:8025 | — |
 
 ---
 
@@ -214,20 +382,14 @@ docker exec avalanz-prometheus wget -qO- 'http://nginx-exporter:9113/metrics' | 
 docker rm -f avalanz-grafana
 docker volume rm docker_grafana-data
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d grafana
+
+# Desbloquear super admin
+docker exec avalanz-postgres psql -U avalanz_user -d avalanz_auth \
+  -c "UPDATE users SET is_locked=false, failed_attempts=0, locked_at=NULL, lock_type=NULL WHERE email='admin@avalanz.com';"
+
+# Verificar integridad de backups manualmente
+docker exec avalanz-cron /scripts/verify_backups.sh
 ```
-
----
-
-## Paneles de administración (solo desarrollo)
-
-| Panel | URL | Credenciales |
-|---|---|---|
-| RabbitMQ | http://localhost:15672 | avalanz / Avalanz2026! |
-| MinIO Console | http://localhost:9001 | minioadmin / Avalanz2026! |
-| Consul UI | http://localhost:8500 | — |
-| Prometheus | http://localhost:9090 | — |
-| Grafana | http://localhost:3001 | admin / Avalanz2026! |
-| Mailpit | http://localhost:8025 | — |
 
 ---
 
@@ -346,4 +508,16 @@ Recargar la configuración sin reiniciar el contenedor:
 ```bash
 docker exec avalanz-prometheus kill -HUP 1
 ```
-Verificar en `http://localhost:9090/targets` que los nuevos targets aparezcan.
+
+### Variable de entorno no llega al contenedor después de `docker compose restart`
+`restart` no recarga variables del `.env`. Usar `--force-recreate`:
+```bash
+docker compose up --force-recreate admin-service -d
+```
+
+### El frontend no carga — `Could not find a production build`
+El scaffold-server reinició PM2 mientras el build estaba corriendo. Solución:
+```bash
+cd ~/intranet-avalanz/frontend
+npm run build && pm2 restart intranet-frontend
+```
