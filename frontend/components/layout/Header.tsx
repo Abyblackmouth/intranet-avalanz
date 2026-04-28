@@ -120,7 +120,7 @@ export default function Header() {
               </div>
               <div className="py-1">
                 <button
-                  onClick={() => { setMenuOpen(false); router.push('/app/profile') }}
+                  onClick={() => { setMenuOpen(false); router.push('/profile') }}
                   className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
                 >
                   <User size={15} className="text-slate-400" />
