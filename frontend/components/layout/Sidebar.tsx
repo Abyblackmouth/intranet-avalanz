@@ -28,7 +28,7 @@ const adminItems: NavItem[] = [
 
 function getModuleIcon(iconSlug: string | null | undefined): React.ReactNode {
   if (!iconSlug) return <LucideIcons.Layers size={16} />
-  const iconName = iconSlug.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
+  const iconName = (iconSlug || '').split('-').map((w: string) => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('')
   const Icon = (LucideIcons as any)[iconName]
   if (!Icon) return <LucideIcons.Layers size={16} />
   return <Icon size={16} />
@@ -142,10 +142,10 @@ export default function Sidebar() {
                         <Link
                           href={`/app/${slug}`}
                           className={`flex items-center gap-2.5 px-2.5 py-2 flex-1 min-w-0 text-sm font-medium transition-colors ${moduleActive ? 'text-white' : 'text-slate-800'} ${collapsed ? 'justify-center' : ''}`}
-                          title={collapsed ? slug.charAt(0).toUpperCase() + slug.slice(1) : undefined}
+                          title={collapsed ? (slug || '').charAt(0).toUpperCase() + (slug || '').slice(1) : undefined}
                         >
                           <span className="shrink-0">{getModuleIcon(icon)}</span>
-                          {!collapsed && <span className="truncate">{slug.charAt(0).toUpperCase() + slug.slice(1)}</span>}
+                          {!collapsed && <span className="truncate">{(slug || '').charAt(0).toUpperCase() + (slug || '').slice(1)}</span>}
                         </Link>
                         {!collapsed && submodules.length > 0 && (
                           <button
@@ -176,7 +176,7 @@ export default function Sidebar() {
                                 }`}
                               >
                                 <span className="shrink-0">{getModuleIcon(sub.icon)}</span>
-                                <span className="truncate">{sub.name ?? sub.slug.charAt(0).toUpperCase() + sub.slug.slice(1)}</span>
+                                <span className="truncate">{sub.name ?? (sub.slug || '').charAt(0).toUpperCase() + (sub.slug || '').slice(1)}</span>
                               </Link>
                             )
                           })}
