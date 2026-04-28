@@ -61,9 +61,9 @@ export default function ProfilePage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
         {/* Banner + avatar */}
-        <div className="h-4 bg-slate-100 relative" />
+
         <div className="px-6 pb-6">
-          <div className="flex items-end gap-4 -mt-10 mb-6">
+          <div className="flex items-center gap-4 pt-6 mb-6">
             <div className="w-20 h-20 rounded-full bg-slate-100 border-4 border-white shadow-md flex items-center justify-center flex-shrink-0">
               <span className="text-2xl font-bold text-[#1a4fa0]">{initials}</span>
             </div>
