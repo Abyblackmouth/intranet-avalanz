@@ -35,9 +35,9 @@ export default function ProfilePage() {
     ? profile.full_name
         .split(" ")
         .slice(0, 2)
-        .map((n) => n[0])
+        .map((n) => n?.[0] ?? "")
         .join("")
-        .toUpperCase()
+        .toUpperCase() || "?"
     : "?"
 
   if (isLoading) {
