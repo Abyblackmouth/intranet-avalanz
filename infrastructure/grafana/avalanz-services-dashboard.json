@@ -329,54 +329,9 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(http_requests_total{job=\"auth-service\"}[1m])",
-          "legendFormat": "auth-service",
+          "expr": "sum by (job) (rate(http_requests_total{job=~\"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service\"}[1m]))",
+          "legendFormat": "{{job}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_requests_total{job=\"admin-service\"}[1m])",
-          "legendFormat": "admin-service",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_requests_total{job=\"notify-service\"}[1m])",
-          "legendFormat": "notify-service",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_requests_total{job=\"upload-service\"}[1m])",
-          "legendFormat": "upload-service",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_requests_total{job=\"websocket-service\"}[1m])",
-          "legendFormat": "websocket-service",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_requests_total{job=\"email-service\"}[1m])",
-          "legendFormat": "email-service",
-          "refId": "F"
         }
       ]
     },
@@ -530,54 +485,9 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"auth-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"auth-service\"}[1m])",
-          "legendFormat": "auth-service",
+          "expr": "sum by (job) (rate(http_request_duration_seconds_sum{job=~\"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service\"}[1m])) / sum by (job) (rate(http_request_duration_seconds_count{job=~\"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service\"}[1m]))",
+          "legendFormat": "{{job}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"admin-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"admin-service\"}[1m])",
-          "legendFormat": "admin-service",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"notify-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"notify-service\"}[1m])",
-          "legendFormat": "notify-service",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"upload-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"upload-service\"}[1m])",
-          "legendFormat": "upload-service",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"websocket-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"websocket-service\"}[1m])",
-          "legendFormat": "websocket-service",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"email-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"email-service\"}[1m])",
-          "legendFormat": "email-service",
-          "refId": "F"
         }
       ]
     },
@@ -641,54 +551,9 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"auth-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"auth-service\"}[1m])",
-          "legendFormat": "auth-service",
+          "expr": "sum by (job) (rate(http_request_duration_seconds_sum{job=~\"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service\"}[1m])) / sum by (job) (rate(http_request_duration_seconds_count{job=~\"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service\"}[1m]))",
+          "legendFormat": "{{job}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"admin-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"admin-service\"}[1m])",
-          "legendFormat": "admin-service",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"notify-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"notify-service\"}[1m])",
-          "legendFormat": "notify-service",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"upload-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"upload-service\"}[1m])",
-          "legendFormat": "upload-service",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"websocket-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"websocket-service\"}[1m])",
-          "legendFormat": "websocket-service",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(http_request_duration_seconds_sum{job=\"email-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"email-service\"}[1m])",
-          "legendFormat": "email-service",
-          "refId": "F"
         }
       ]
     },
