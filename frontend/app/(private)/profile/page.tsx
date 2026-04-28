@@ -61,7 +61,7 @@ export default function ProfilePage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
         {/* Banner + avatar */}
-        <div className="h-24 bg-gradient-to-r from-[#1a4fa0] to-blue-400 relative" />
+        <div className="h-4 bg-slate-100 relative" />
         <div className="px-6 pb-6">
           <div className="flex items-end gap-4 -mt-10 mb-6">
             <div className="w-20 h-20 rounded-full bg-slate-100 border-4 border-white shadow-md flex items-center justify-center flex-shrink-0">
@@ -89,7 +89,7 @@ export default function ProfilePage() {
             <Field
               icon={<Building2 size={15} className="text-slate-400" />}
               label="Empresa"
-              value={profile?.company?.razon_social ?? "Sin empresa asignada"}
+              value={profile?.is_super_admin ? "Grupo Avalanz" : profile?.company?.razon_social ?? "Sin empresa asignada"}
             />
 
             <Field
