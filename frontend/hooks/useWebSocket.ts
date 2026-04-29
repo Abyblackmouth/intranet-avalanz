@@ -8,6 +8,15 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost/ws'
 const HEARTBEAT_INTERVAL = 30000
 const RECONNECT_DELAY = 5000
 
+function isTokenExpired(): boolean {
+  const token = Cookies.get('access_token')
+  if (!token) return true
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.exp * 1000 < Date.now()
+  } catch { return true }
+}
+
 export function useWebSocket() {
   const ws = useRef<WebSocket | null>(null)
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -32,6 +41,12 @@ export function useWebSocket() {
   const connect = useCallback(() => {
     if (isConnecting.current || ws.current?.readyState === WebSocket.OPEN) return
 
+    if (isTokenExpired()) {
+      clearStore()
+      window.location.href = '/login'
+      return
+    }
+
     const token = Cookies.get('access_token')
     if (!token || !user) return
 
@@ -42,7 +57,6 @@ export function useWebSocket() {
 
       ws.current.onopen = () => {
         isConnecting.current = false
-        // Iniciar heartbeat
         heartbeat.current = setInterval(() => {
           if (ws.current?.readyState === WebSocket.OPEN) {
             ws.current.send(JSON.stringify({ type: 'ping' }))
@@ -57,7 +71,6 @@ export function useWebSocket() {
           switch (msg.event) {
             case 'notification.new':
               if (msg.data) {
-                // Normalizar el campo id — el backend devuelve notification_id
                 const normalized = {
                   ...msg.data,
                   id: msg.data.id ?? msg.data.notification_id,
@@ -78,7 +91,6 @@ export function useWebSocket() {
               break
 
             case 'connection.established':
-              // Conexion confirmada
               break
           }
         } catch {
@@ -90,14 +102,12 @@ export function useWebSocket() {
         isConnecting.current = false
         if (heartbeat.current) clearInterval(heartbeat.current)
 
-        // Codigo 4001 = token invalido, no reconectar
         if (event.code === 4001) {
           clearStore()
           window.location.href = '/login'
           return
         }
 
-        // Reconectar automaticamente despues de delay
         reconnectTimer.current = setTimeout(() => {
           if (user) {
             if (isTokenExpired()) {
@@ -117,7 +127,7 @@ export function useWebSocket() {
     } catch {
       isConnecting.current = false
     }
-  }, [user, addNotification, disconnect, clearStore, isTokenExpired])
+  }, [user, addNotification, disconnect, clearStore])
 
   useEffect(() => {
     if (user) {
