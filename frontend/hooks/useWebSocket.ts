@@ -99,7 +99,14 @@ export function useWebSocket() {
 
         // Reconectar automaticamente despues de delay
         reconnectTimer.current = setTimeout(() => {
-          if (user) connect()
+          if (user) {
+            if (isTokenExpired()) {
+              clearStore()
+              window.location.href = '/login'
+              return
+            }
+            connect()
+          }
         }, RECONNECT_DELAY)
       }
 
