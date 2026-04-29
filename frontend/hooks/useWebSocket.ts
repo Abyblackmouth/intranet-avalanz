@@ -117,7 +117,7 @@ export function useWebSocket() {
     } catch {
       isConnecting.current = false
     }
-  }, [user, addNotification, disconnect, clearStore])
+  }, [user, addNotification, disconnect, clearStore, isTokenExpired])
 
   useEffect(() => {
     if (user) {
