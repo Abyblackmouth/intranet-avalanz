@@ -25,6 +25,7 @@ frontend/app/
 │   ├── reset-password/page.tsx
 │   └── setup-2fa/page.tsx
 └── (private)/                  — páginas con autenticación requerida
+    ├── profile/page.tsx          — perfil del usuario autenticado
     ├── admin/
     │   ├── users/page.tsx
     │   ├── companies/page.tsx
@@ -42,29 +43,29 @@ frontend/app/
 
 ---
 
-## Variables de entorno
+## Historial de variables de entorno por ambiente
 
 El archivo `.env.local` NO está en el repo — se crea manualmente en cada servidor.
 
-### Servidor provisional (10.12.0.51)
-```bash
-NEXT_PUBLIC_API_URL=http://10.12.0.51
-NEXT_PUBLIC_WS_URL=ws://10.12.0.51/ws
-NEXT_PUBLIC_SCAFFOLD_URL=http://10.12.0.51:3002
-```
-
 ### Desarrollo local (WSL2)
 ```bash
-NEXT_PUBLIC_API_URL=http://172.20.x.x      # IP de WSL2, verificar con ip addr show eth0
-NEXT_PUBLIC_WS_URL=ws://172.20.x.x/ws
+NEXT_PUBLIC_API_URL=http://localhost
+NEXT_PUBLIC_WS_URL=ws://localhost/ws
 NEXT_PUBLIC_SCAFFOLD_URL=http://localhost:3002
 ```
 
-### Producción (pendiente)
+### Servidor provisional / pruebas (activo — 2026-04-28)
+```bash
+NEXT_PUBLIC_API_URL=http://intranet.avalanz.com
+NEXT_PUBLIC_WS_URL=ws://intranet.avalanz.com/ws
+NEXT_PUBLIC_SCAFFOLD_URL=http://intranet.avalanz.com:3002
+```
+
+### Producción (pendiente — cuando esté el SSL)
 ```bash
 NEXT_PUBLIC_API_URL=https://intranet.avalanz.com
 NEXT_PUBLIC_WS_URL=wss://intranet.avalanz.com/ws
-NEXT_PUBLIC_SCAFFOLD_URL=http://IP_SERVIDOR:3002
+NEXT_PUBLIC_SCAFFOLD_URL=https://intranet.avalanz.com:3002
 ```
 
 > **Importante:** Las variables `NEXT_PUBLIC_*` se hornean en el build. Cualquier cambio requiere reconstruir el frontend con `npm run build`.
@@ -109,31 +110,48 @@ pm2 logs intranet-frontend --lines 20
 # Rebuild completo (cuando hay cambios en el código)
 cd ~/intranet-avalanz/frontend
 npm run build && pm2 restart intranet-frontend
+
+# Recrear proceso PM2 si falla
+pm2 delete intranet-frontend
+cd ~/intranet-avalanz/frontend
+pm2 start npm --name intranet-frontend -- start -- -p 3000
+pm2 save
 ```
 
 ---
 
 ## Nginx como proxy inverso
 
-El frontend corre en el puerto 3000 internamente. Nginx en el puerto 80 actúa como proxy:
+El frontend corre en el puerto 3000 internamente. Nginx en el puerto 80 actúa como proxy.
+
+El upstream apunta directamente a la IP del servidor porque PM2 corre fuera de Docker:
 
 ```nginx
-# En infrastructure/nginx/conf.d/intranet.conf
-server_name intranet.avalanz.com 10.12.0.51 _;
+upstream frontend {
+    server 10.12.0.51:3000;
+}
 
-location / {
-    proxy_pass http://host.docker.internal:3000;
-    ...
+server {
+    listen 80;
+    server_name intranet.avalanz.com 10.12.0.51 _;
+
+    location / {
+        proxy_pass http://frontend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 }
 ```
 
-El `server_name` incluye `_` como catch-all para que funcione con cualquier IP sin necesidad del header `Host`.
+> **Nota:** El `server_name` incluye `_` como catch-all para que funcione con cualquier IP sin necesidad del header `Host`.
 
 ---
 
 ## Rutas de API que pasan por Nginx
 
-Todas las peticiones al backend van por Nginx en el puerto 80. Las rutas críticas que deben existir en `intranet.conf`:
+Todas las peticiones al backend van por Nginx en el puerto 80. Las rutas críticas que deben existir en `intranet.conf` en este orden (más específicas primero):
 
 ```nginx
 # Auth sub-rutas (van al auth-service, no al admin-service)
@@ -153,6 +171,11 @@ location ~ ^/api/v1/users/[^/]+/files {
     client_max_body_size 55M;
 }
 
+# Notifications — SIN trailing slash (fix 2026-04-28)
+location /api/v1/notifications {
+    proxy_pass http://notify_service;
+}
+
 # Ruta general de usuarios (admin-service)
 location /api/v1/users/ {
     proxy_pass http://admin_service;
@@ -160,12 +183,13 @@ location /api/v1/users/ {
 ```
 
 > **Importante:** Las rutas específicas deben definirse ANTES de las rutas generales en Nginx. El orden importa.
+> **Fix 2026-04-28:** `/api/v1/notifications` sin trailing slash — con slash Nginx no hacía match con subrutas como `/unread-count`.
 
 ---
 
 ## WebSocket
 
-El WebSocket se conecta en `ws://IP_SERVIDOR/ws`. Nginx tiene configurado el upgrade:
+El WebSocket se conecta en `ws://intranet.avalanz.com/ws` (o `wss://` con SSL). Nginx tiene configurado el upgrade:
 
 ```nginx
 location /ws {
@@ -173,8 +197,25 @@ location /ws {
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
 }
 ```
+
+---
+
+## Página de perfil
+
+La página `/profile` está en `frontend/app/(private)/profile/page.tsx`.
+
+- Hace fetch a `GET /api/v1/users/{user_id}` para obtener puesto, departamento y matrícula
+- Avatar circular con iniciales del nombre
+- Para super admins muestra "Grupo Avalanz" como empresa
+- Solo lectura — edición requiere contactar al administrador
+- El botón en el Header apunta a `/profile` (no a `/app/profile`)
 
 ---
 
@@ -205,19 +246,17 @@ export const getModules = (params?: Record<string, string | number | boolean>) =
   api.get('/api/v1/modules/', { params })
 ```
 
----
+### TypeError: Cannot read properties of undefined (reading 'charAt') en Sidebar
+El Sidebar usa `charAt` sobre slugs e íconos que pueden ser `undefined`. Todos los accesos deben protegerse:
+```typescript
+// Incorrecto
+slug.charAt(0).toUpperCase() + slug.slice(1)
+iconSlug.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
 
-## Producción — checklist pendiente
-
-- [ ] Configurar HTTPS con certificado SSL
-- [ ] Actualizar Nginx para redirigir HTTP a HTTPS
-- [ ] Cambiar `NEXT_PUBLIC_API_URL` a `https://intranet.avalanz.com`
-- [ ] Cambiar `NEXT_PUBLIC_WS_URL` a `wss://intranet.avalanz.com/ws`
-- [ ] Cambiar `DEBUG=False` en todos los servicios backend
-- [ ] Generar nuevas JWT keys y contraseñas de producción
-- [ ] Cerrar puerto 5432 de PostgreSQL al exterior
-- [ ] Cerrar puerto 9001 de MinIO al exterior
-- [ ] Validar que PM2 arranca con el sistema
+// Correcto
+(slug || '').charAt(0).toUpperCase() + (slug || '').slice(1)
+(iconSlug || '').split('-').map((w: string) => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join('')
+```
 
 ---
 

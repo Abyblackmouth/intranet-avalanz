@@ -90,6 +90,32 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 ---
 
+## Historial de ambientes
+
+### Desarrollo local (WSL2)
+- **Máquina:** LAPTOP-4SPKNTJH (Windows + WSL2 Ubuntu)
+- **Usuario WSL2:** abyblackmouth
+- **Ruta repo:** `/home/abyblackmouth/code/avalanz/intranet-avalanz`
+- **Frontend:** `http://localhost:3000`
+- **API:** `http://localhost` (Nginx en Docker)
+- **Variables:** `NEXT_PUBLIC_API_URL=http://localhost`, `NEXT_PUBLIC_WS_URL=ws://localhost/ws`
+- **SMTP:** Mailpit `http://localhost:8025`
+- **Red Docker:** `172.16.0.0/12` en `CORPORATE_IP_RANGES` para WSL2
+
+### Servidor provisional / pruebas (activo — 2026-04-28)
+- **IP interna:** `10.12.0.51`
+- **IP pública:** `200.23.37.225` (NAT en Fortinet)
+- **Dominio:** `http://intranet.avalanz.com` (HTTP, sin SSL aún)
+- **Usuario SSH:** `abcovarrubias`
+- **SO:** Ubuntu 24.04
+
+### Producción (pendiente)
+- **Dominio:** `https://intranet.avalanz.com`
+- **Certificado SSL:** lo gestiona infra desde el Fortinet
+- **Puertos a cerrar:** 5432 (PostgreSQL), 9001 (MinIO)
+
+---
+
 ## Servidor provisional — 10.12.0.51
 
 ### Conectar al servidor
@@ -132,11 +158,13 @@ El archivo `frontend/.env.local` no está en el repo — se crea manualmente:
 
 ```bash
 cat > ~/intranet-avalanz/frontend/.env.local << 'ENVEOF'
-NEXT_PUBLIC_API_URL=http://10.12.0.51
-NEXT_PUBLIC_WS_URL=ws://10.12.0.51/ws
-NEXT_PUBLIC_SCAFFOLD_URL=http://10.12.0.51:3002
+NEXT_PUBLIC_API_URL=http://intranet.avalanz.com
+NEXT_PUBLIC_WS_URL=ws://intranet.avalanz.com/ws
+NEXT_PUBLIC_SCAFFOLD_URL=http://intranet.avalanz.com:3002
 ENVEOF
 ```
+
+> **Nota:** Las variables `NEXT_PUBLIC_*` se hornean en el build. Cualquier cambio requiere `npm run build` + `pm2 restart intranet-frontend`.
 
 El `admin-service/.env` debe tener:
 ```
@@ -148,11 +176,11 @@ La IP `10.12.0.250` es la IP del host Docker — los contenedores la usan para s
 
 | Panel | URL | Credenciales |
 |---|---|---|
-| Frontend | http://10.12.0.51:3000 | admin@avalanz.com / Admin@2026! |
+| Frontend | http://intranet.avalanz.com | admin@avalanz.com / Admin@2026! |
+| Grafana | http://10.12.0.51:3001 | admin / Avalanz2026! |
 | RabbitMQ | http://10.12.0.51:15672 | avalanz / Avalanz2026! |
 | MinIO Console | http://10.12.0.51:9001 | minioadmin / Avalanz2026! |
 | Prometheus | http://10.12.0.51:9090 | — |
-| Grafana | http://10.12.0.51:3001 | admin / Avalanz2026! |
 | Mailpit | http://10.12.0.51:8025 | — |
 | Scaffold-server | http://10.12.0.51:3002/health | — |
 
@@ -278,6 +306,39 @@ Variables de entorno disponibles para el seeder:
 
 ---
 
+## Monitoreo — Grafana y Prometheus
+
+### Configuración de Grafana
+
+El archivo `infrastructure/grafana/dashboards.yml` tiene `allowUiUpdates: false` para que el JSON del repo siempre sea la fuente de verdad. Si se edita el dashboard desde la UI y se quiere persistir, copiar el JSON exportado al repo.
+
+### Targets de Prometheus
+
+Los 6 servicios FastAPI deben estar en `up`. Verificar:
+
+```bash
+curl -s http://localhost:9090/api/v1/targets | python3 -c "
+import json,sys
+data = json.load(sys.stdin)
+for t in data['data']['activeTargets']:
+    print(t['labels']['job'], '|', t['health'], '|', t.get('lastError',''))
+"
+```
+
+Servicios esperados en `up`: `auth-service`, `admin-service`, `notify-service`, `upload-service`, `websocket-service`, `email-service`, `nginx`, `postgres`, `redis`, `rabbitmq`, `prometheus`.
+
+> **Nota:** `notify-service` y `websocket-service` requieren `prometheus-fastapi-instrumentator` instalado en su imagen. Ya está en `requirements.txt` y en `main.py` de ambos servicios.
+
+### Redis — límite de memoria
+
+Redis está configurado con `maxmemory 256mb` y política `allkeys-lru`. Configurado en `docker-compose.yml`:
+
+```yaml
+command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
+```
+
+---
+
 ## Verificar que todo está corriendo
 
 ```bash
@@ -288,7 +349,7 @@ Contenedores esperados (19 total):
 
 | Contenedor | Descripción |
 |---|---|
-| avalanz-nginx | API Gateway |
+| avalanz-nginx | API Gateway + proxy al frontend |
 | avalanz-auth | Auth Service |
 | avalanz-admin | Admin Service |
 | avalanz-upload | Upload Service |
@@ -296,7 +357,7 @@ Contenedores esperados (19 total):
 | avalanz-websocket | WebSocket Service |
 | avalanz-email | Email Service |
 | avalanz-postgres | Base de datos PostgreSQL |
-| avalanz-redis | Caché Redis |
+| avalanz-redis | Caché Redis (256MB limit) |
 | avalanz-rabbitmq | Message Broker |
 | avalanz-minio | Almacenamiento S3 |
 | avalanz-consul | Service Registry |
@@ -309,13 +370,13 @@ Contenedores esperados (19 total):
 | avalanz-mailpit | SMTP local para desarrollo |
 
 ```bash
+# Health checks servidor provisional
+curl -s http://intranet.avalanz.com/health/auth
+curl -s http://intranet.avalanz.com/health/admin
+
 # Health checks desarrollo local (requiere Host header)
 curl -s -H "Host: intranet.avalanz.com" http://localhost/health/auth
 curl -s -H "Host: intranet.avalanz.com" http://localhost/health/admin
-
-# Health checks servidor provisional (sin Host header)
-curl -s http://10.12.0.51/health/auth
-curl -s http://10.12.0.51/health/admin
 ```
 
 ---
@@ -389,6 +450,18 @@ docker exec avalanz-postgres psql -U avalanz_user -d avalanz_auth \
 
 # Verificar integridad de backups manualmente
 docker exec avalanz-cron /scripts/verify_backups.sh
+
+# Verificar targets Prometheus
+curl -s http://localhost:9090/api/v1/targets | python3 -c "
+import json,sys
+data = json.load(sys.stdin)
+for t in data['data']['activeTargets']:
+    print(t['labels']['job'], '|', t['health'], '|', t.get('lastError',''))
+"
+
+# Borrar módulo de prueba
+docker exec avalanz-postgres psql -U avalanz_user -d avalanz_admin \
+  -c "DELETE FROM modules WHERE slug='nombre';"
 ```
 
 ---
@@ -419,7 +492,16 @@ test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d postgres"]
 ```
 
 ### `host not found in upstream "frontend"`
-El frontend aún no está levantado. Comentar el bloque `location /` en `infrastructure/nginx/conf.d/intranet.conf` hasta que el frontend esté disponible.
+El frontend aún no está levantado o el upstream no está definido en Nginx. Verificar que `infrastructure/nginx/conf.d/intranet.conf` tenga:
+```nginx
+upstream frontend {
+    server 10.12.0.51:3000;
+}
+location / {
+    proxy_pass http://frontend;
+    ...
+}
+```
 
 ### `prometheus.yml is a directory`
 El archivo `prometheus.yml` se creó como carpeta. Eliminarlo y renombrar el archivo correcto:
@@ -503,6 +585,24 @@ docker exec avalanz-grafana wget -qO- 'http://admin:Avalanz2026!@localhost:3000/
 ```
 Reemplazar todas las ocurrencias del UID en `avalanz-services-dashboard.json` y reiniciar Grafana.
 
+### Grafana ignora el dashboard JSON del repo
+Ocurre cuando `allowUiUpdates: true` en `dashboards.yml` — Grafana guarda ediciones de la UI en su BD interna y deja de leer el archivo. La configuración correcta es:
+```yaml
+allowUiUpdates: false
+```
+Reiniciar Grafana después del cambio: `docker restart avalanz-grafana`
+
+### `notify-service` o `websocket-service` en `down` en Prometheus con error 404 en `/metrics`
+Falta el instrumentator en el `main.py`. Verificar que ambos servicios tienen:
+```python
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
+```
+Y que `prometheus-fastapi-instrumentator==7.0.0` está en `requirements.txt`. Reconstruir la imagen:
+```bash
+docker compose up --build --force-recreate notify-service websocket-service -d
+```
+
 ### Prometheus sigue usando targets viejos tras actualizar prometheus.yml
 Recargar la configuración sin reiniciar el contenedor:
 ```bash
@@ -516,8 +616,38 @@ docker compose up --force-recreate admin-service -d
 ```
 
 ### El frontend no carga — `Could not find a production build`
-El scaffold-server reinició PM2 mientras el build estaba corriendo. Solución:
+El scaffold-server reinició PM2 mientras el build estaba corriendo, o PM2 apunta al directorio equivocado. Solución:
 ```bash
 cd ~/intranet-avalanz/frontend
 npm run build && pm2 restart intranet-frontend
 ```
+Si persiste, recrear el proceso PM2:
+```bash
+pm2 delete intranet-frontend
+cd ~/intranet-avalanz/frontend
+pm2 start npm --name intranet-frontend -- start -- -p 3000
+pm2 save
+```
+
+### El super admin no ve módulos en el sidebar
+Verificar que el campo `is_super_admin` está en `true` en la BD y que el JWT lo incluye:
+```bash
+docker exec avalanz-postgres psql -U avalanz_user -d avalanz_admin \
+  -c "SELECT email, is_super_admin FROM users WHERE email='usuario@avalanz.com';"
+```
+Si `is_super_admin` es `false`, actualizarlo:
+```bash
+docker exec avalanz-postgres psql -U avalanz_user -d avalanz_admin \
+  -c "UPDATE users SET is_super_admin=true WHERE email='usuario@avalanz.com';"
+```
+El usuario debe cerrar sesión y volver a entrar para que el JWT se regenere.
+
+### Endpoint `/api/v1/notifications/unread-count` devuelve 404 desde Nginx
+El location de Nginx tiene trailing slash incorrecto. Verificar que sea sin trailing slash:
+```nginx
+location /api/v1/notifications {
+    proxy_pass http://notify_service;
+    ...
+}
+```
+No `location /api/v1/notifications/ {` con slash al final.

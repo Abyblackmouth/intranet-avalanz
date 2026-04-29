@@ -145,6 +145,8 @@ Group (Grupo Avalanz / Zignia)
 
 > `is_locked` es una columna cache que se sincroniza automáticamente cada vez que un admin bloquea o desbloquea una cuenta desde el panel. Permite filtrar usuarios bloqueados directamente en SQL sin consultar el auth-service. Si se bloquea directamente en auth-service sin pasar por el admin-service, hay que sincronizar manualmente con `UPDATE users SET is_locked = true WHERE id = 'uuid'`.
 
+> `is_super_admin` es la fuente de verdad para saber si un usuario tiene acceso total a la plataforma. El auth-service lee este campo via `GET /internal/users/{user_id}/permissions` y lo incluye en el JWT como `is_super_admin`. El modelo `User` del auth-service NO tiene este campo — solo vive en admin-service.
+
 > Para agregar más campos a esta tabla ver: `docs/architecture/agregar-campos-usuario.md`
 
 #### user_files
@@ -293,9 +295,44 @@ El `_serialize_user` en `user_service.py` combina datos de tres fuentes:
 | company_name | JOIN con tabla companies — nombre_comercial |
 | company_razon_social | JOIN con tabla companies — name (razón social completa) |
 | company_rfc | JOIN con tabla companies — rfc |
+| is_super_admin | admin-service BD — campo directo en tabla users |
 | roles | JOIN con user_global_roles + global_roles. Si no tiene rol global, incluye nombre del rol operativo asignado |
 | module_accesses | Consulta a user_module_accesses con module_name, role_name y submodules. Super admin obtiene todos los módulos activos con role_name "Super Administrador" |
 | is_locked, is_2fa_configured, last_login_at | auth-service (endpoint interno batch-info) |
+
+---
+
+## Lógica de super admin — `_is_super_admin(payload)`
+
+La función `_is_super_admin` en `user_service.py` verifica si el solicitante es super admin comprobando dos condiciones:
+
+```python
+def _is_super_admin(payload):
+    if not payload:
+        return False
+    return "super_admin" in payload.get("roles", []) or payload.get("is_super_admin", False)
+```
+
+Se verifica tanto el array `roles` como el campo `is_super_admin` del JWT para cubrir el caso donde el rol está asignado pero el flag aún no se había incluido en el token (fix 2026-04-28).
+
+---
+
+## Endpoint de permisos — `/internal/users/{user_id}/permissions`
+
+Este endpoint es consultado por el auth-service cada vez que emite un JWT. Devuelve:
+
+```json
+{
+  "roles": ["super_admin"],
+  "modules": [{"slug": "boveda", "icon": "receipt", "submodules": [...]}],
+  "companies": ["uuid-1", "uuid-2"],
+  "permissions": [],
+  "cross_company": true,
+  "is_super_admin": true
+}
+```
+
+Para super admins, `modules` contiene **todos los módulos activos** — no solo los asignados. El campo `is_super_admin` se incluye en la respuesta para que el auth-service lo agregue al JWT.
 
 ---
 
@@ -454,6 +491,8 @@ class CreateUserRequest(BaseModel):
     module_accesses: Optional[List[dict]]   # opcional — lista de {module_id, role_id}
 ```
 
+> El campo `is_super_admin` solo puede ser `true` si el solicitante también es super admin — verificado via `_is_super_admin(payload)` que valida tanto `roles` como el flag `is_super_admin` del JWT.
+
 ### Campos de actualización (UpdateUserRequest)
 
 ```python
@@ -576,12 +615,15 @@ Todos los archivos de empleados se guardan en MinIO bajo: `dirdoc/admin/employee
 ```json
 {
   "roles": ["super_admin"],
-  "modules": [{"slug": "boveda", "icon": "archive", "submodules": [...]}],
+  "modules": [{"slug": "boveda", "icon": "receipt", "submodules": [...]}],
   "companies": ["uuid-corporativo"],
   "permissions": [],
-  "cross_company": true
+  "cross_company": true,
+  "is_super_admin": true
 }
 ```
+
+> El campo `is_super_admin` se incluye explícitamente en la respuesta para que el auth-service lo agregue al JWT payload. Fix aplicado 2026-04-28.
 
 ---
 

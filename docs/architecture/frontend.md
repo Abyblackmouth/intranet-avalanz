@@ -41,6 +41,7 @@ frontend/
 │   │   ├── reset-password/page.tsx
 │   │   └── layout.tsx
 │   ├── (private)/                → Rutas privadas (requieren token)
+│   │   ├── profile/page.tsx      → Perfil del usuario autenticado
 │   │   ├── admin/                → Panel de administración
 │   │   │   ├── layout.tsx
 │   │   │   ├── page.tsx          → Redirect a /admin/users
@@ -106,23 +107,24 @@ frontend/
 ├── lib/                          → Utilidades y helpers
 ├── types/                        → TypeScript interfaces
 ├── proxy.ts                      → Middleware de protección de rutas
-└── .env.local                    → Variables de entorno
+└── .env.local                    → Variables de entorno (no en repo)
 ```
 
 ---
 
 ## Variables de entorno
 
-Archivo: `frontend/.env.local`
+Archivo: `frontend/.env.local` — no está en el repo, se crea manualmente en cada ambiente. Ver `frontend-produccion.md` para los valores por ambiente.
 
-| Variable | Descripción | Valor desarrollo |
-|---|---|---|
-| NEXT_PUBLIC_API_URL | URL base del API | http://172.20.92.197 |
-| NEXT_PUBLIC_WS_URL | URL del WebSocket | ws://172.20.92.197/ws |
-| NEXT_PUBLIC_APP_NAME | Nombre de la app | Intranet Avalanz |
-| NEXT_PUBLIC_APP_VERSION | Versión de la app | 1.0.0 |
+| Variable | Descripción |
+|---|---|
+| NEXT_PUBLIC_API_URL | URL base del API (Nginx) |
+| NEXT_PUBLIC_WS_URL | URL del WebSocket |
+| NEXT_PUBLIC_SCAFFOLD_URL | URL del scaffold-server |
+| NEXT_PUBLIC_APP_NAME | Nombre de la app |
+| NEXT_PUBLIC_APP_VERSION | Versión de la app |
 
-> La IP `172.20.92.197` es la IP de WSL2 — puede cambiar al reiniciar. Verificar con `ip addr show eth0`. En producción usar la IP fija del servidor.
+> Las variables `NEXT_PUBLIC_*` se hornean en el build. Cualquier cambio requiere `npm run build` + `pm2 restart intranet-frontend`.
 
 ---
 
@@ -236,6 +238,10 @@ const colorIndex = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) %
 
 Todas las fuentes se importan en `app/layout.tsx` y se aplican como variables CSS al elemento `<html>`.
 
+### Banners de color en páginas
+
+No usar banners de degradado azul (`bg-gradient-to-r from-[#1a4fa0]`) en páginas del área privada. Usar fondo neutro `bg-slate-100` o eliminar el banner completamente. El azul corporativo se reserva para botones, items activos y elementos de acción.
+
 ---
 
 ## Layout — Sidebar
@@ -258,6 +264,8 @@ Sidebar colapsable con dos estados: expandido (`w-60`) y colapsado (`w-16`). El 
 **Items de navegación activos:** `bg-[#1a4fa0] text-white`
 **Items de navegación hover:** `hover:bg-slate-100`
 
+> **Fix 2026-04-28:** Todos los accesos a `slug` e `iconSlug` en el Sidebar están protegidos con `(slug || '')` y `(iconSlug || '')` para evitar `TypeError: Cannot read properties of undefined (reading 'charAt')` cuando algún módulo tiene datos incompletos.
+
 ---
 
 ## Layout — Header
@@ -271,6 +279,8 @@ Altura fija `h-14`. Contiene:
 El reloj se actualiza cada segundo via `setInterval`. La fecha usa `toLocaleDateString('es-MX')` y se muestra en minúsculas con la clase `lowercase`.
 
 El menú de usuario contiene: Mi perfil, Panel admin (solo admins), Cerrar sesión.
+
+> **Nota:** El botón "Mi perfil" redirige a `/profile` — no a `/app/profile`.
 
 ---
 
@@ -324,6 +334,20 @@ Card reutilizable con hover elegante. Props: `children`, `className`, `onClick`,
 Archivo: `components/auth/AuthProvider.tsx`
 
 Se ejecuta en cada ruta privada. Valida el token con `GET /api/v1/auth/me`. Si el usuario tiene `is_temp_password: true` redirige a `/change-password?user_id=xxx`. Si el token es inválido hace logout y redirige a `/login`.
+
+---
+
+## Página de perfil — `/profile`
+
+Archivo: `app/(private)/profile/page.tsx`
+
+Página de perfil del usuario autenticado. Accesible desde el menú de usuario en el Header.
+
+- Hace fetch a `GET /api/v1/users/{user_id}` para obtener puesto, departamento y matrícula
+- Avatar circular con iniciales del nombre (misma lógica de colores que el Sidebar)
+- Para super admins muestra "Grupo Avalanz" como empresa
+- Muestra el rol como "Super Administrador" para is_super_admin, o los roles globales asignados
+- Solo lectura — un mensaje informativo indica que la edición requiere contactar al administrador
 
 ---
 
@@ -577,6 +601,22 @@ Ingresa nueva contraseña → POST /api/v1/auth/password-reset/confirm
 | logout() | void | Limpia cookies y store |
 | isAdmin() | boolean | Si es super_admin o admin_empresa |
 | isSuperAdmin() | boolean | Si es super_admin |
+
+### AuthUser — campos del JWT
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| user_id | string | UUID del usuario |
+| email | string | Correo electrónico |
+| full_name | string | Nombre completo |
+| is_super_admin | boolean | Flag de super admin (desde admin-service permissions) |
+| roles | string[] | Roles globales asignados |
+| modules | array | Módulos accesibles con submódulos |
+| companies | string[] | IDs de empresas accesibles |
+| permissions | string[] | Permisos globales |
+| cross_company | boolean | Acceso cross-company |
+
+> **Fix 2026-04-28:** `is_super_admin` se agrega al JWT desde `build_token_payload` en el auth-service, leyéndolo de la respuesta del admin-service (`perms.get("is_super_admin")`). El modelo `User` del auth-service no tiene este campo — viene del admin-service.
 
 ### notificationStore
 

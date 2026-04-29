@@ -87,6 +87,8 @@ Tabla central de autenticación.
 | last_login_at | DateTime | Último login exitoso |
 | last_login_ip | String(45) | IP del último login |
 
+> **Importante:** El modelo `User` del auth-service **no tiene** el campo `is_super_admin`. Ese campo solo existe en el modelo `User` del admin-service. El auth-service obtiene el valor de `is_super_admin` a través del endpoint interno `/internal/users/{user_id}/permissions` del admin-service y lo incluye en el JWT payload via `perms.get("is_super_admin", False)` en `build_token_payload`.
+
 ### Valores de lock_type
 
 | Valor | Descripción |
@@ -396,10 +398,12 @@ Si el usuario tiene WebSocket activo recibe evento session.revoked → redirect 
   "user_id": "uuid",
   "email": "usuario@avalanz.com",
   "full_name": "Nombre Completo",
+  "is_super_admin": true,
   "roles": ["super_admin"],
-  "modules": ["boveda", "legal"],
-  "companies": ["empresa_1", "empresa_2"],
-  "permissions": ["users:read", "users:write"],
+  "modules": [{"slug": "boveda", "icon": "receipt", "submodules": [...]}],
+  "companies": ["uuid-1", "uuid-2"],
+  "permissions": [],
+  "cross_company": true,
   "session_started_at": "2026-04-01T10:00:00+00:00",
   "absolute_exp": "2026-04-01T18:00:00+00:00",
   "exp": 1743330000,
@@ -407,6 +411,32 @@ Si el usuario tiene WebSocket activo recibe evento session.revoked → redirect 
   "type": "access"
 }
 ```
+
+> **Fix 2026-04-28:** Se agregó el campo `is_super_admin` al JWT payload. Lo lee `build_token_payload` desde la respuesta del admin-service (`perms.get("is_super_admin", False)`). El modelo `User` del auth-service no tiene este campo — viene del admin-service via el endpoint `/internal/users/{user_id}/permissions`.
+
+---
+
+## build_token_payload — función clave
+
+Esta función en `auth_service.py` construye el payload del JWT consultando al admin-service:
+
+```python
+async def build_token_payload(user: User) -> Dict[str, Any]:
+    perms = await fetch_user_permissions(str(user.id))
+    return {
+        "user_id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "is_super_admin": perms.get("is_super_admin", False),  # viene del admin-service
+        "roles": perms.get("roles", []),
+        "modules": perms.get("modules", []),
+        "companies": perms.get("companies", []),
+        "permissions": perms.get("permissions", []),
+        "cross_company": perms.get("cross_company", False),
+    }
+```
+
+El campo `is_super_admin` NO se lee del modelo `User` local — solo viene del admin-service.
 
 ---
 
@@ -497,3 +527,6 @@ cp .env.example .env
 
 uvicorn app.main:app --reload --port 8001
 ```
+
+El servicio queda disponible en `http://localhost:8001`
+La documentación interactiva en `http://localhost:8001/docs` (solo en DEBUG=True)

@@ -40,7 +40,7 @@ En Intranet Avalanz las metricas cubren dos capas:
 
 **Errores de integracion** — un aumento de errores 5xx en el notify-service puede indicar que el websocket-service no esta disponible.
 
-**Memoria de Redis saturada** — el panel de Redis muestra cuando el cache esta cerca del limite configurado.
+**Memoria de Redis saturada** — el panel de Redis muestra cuando el cache esta cerca del limite configurado (256MB).
 
 ---
 
@@ -50,6 +50,7 @@ En Intranet Avalanz las metricas cubren dos capas:
 
 Motor de recoleccion de metricas. Cada 15 segundos consulta el endpoint `/metrics` de cada servicio y almacena los datos en una base de datos de series de tiempo (TSDB).
 
+Acceso servidor provisional: `http://10.12.0.51:9090`
 Acceso local: `http://localhost:9090`
 
 No requiere autenticacion en desarrollo. En produccion debe estar protegido detras de Nginx con autenticacion basica.
@@ -60,16 +61,19 @@ Documentacion oficial: https://prometheus.io/docs/
 
 Plataforma de visualizacion y alertas. Se conecta a Prometheus como datasource y permite crear dashboards con graficas, gauges, alertas y paneles estadisticos.
 
+Acceso servidor provisional: `http://10.12.0.51:3001`
 Acceso local: `http://localhost:3001`
 Credenciales: `admin / Avalanz2026!`
 
 El dashboard se carga automaticamente al levantar el contenedor via provisionamiento desde filesystem — no es necesario importarlo manualmente.
 
+> **Nota importante:** `dashboards.yml` tiene `allowUiUpdates: false`. Esto significa que el JSON del repo es siempre la fuente de verdad. Si se edita el dashboard desde la UI y se quiere persistir el cambio, hay que exportar el JSON y reemplazar el archivo en el repo.
+
 Documentacion oficial: https://grafana.com/docs/grafana/latest/
 
 ### prometheus-fastapi-instrumentator
 
-Libreria Python que se agrega a cada servicio FastAPI con 2 lineas de codigo. Expone automaticamente el endpoint `/metrics` con metricas estandar de HTTP sin configuracion adicional.
+Libreria Python que se agrega a cada servicio FastAPI con 2 lineas de codigo. Expone automaticamente el endpoint `/metrics` en cada servicio con metricas estandar de HTTP sin configuracion adicional.
 
 Repositorio y documentacion: https://github.com/trallnag/prometheus-fastapi-instrumentator
 
@@ -87,7 +91,7 @@ El nginx-exporter requiere que el endpoint `/nginx_status` este habilitado en Ng
 
 ## Como acceder al panel de Grafana
 
-1. Abrir `http://localhost:3001` en el browser
+1. Abrir `http://10.12.0.51:3001` en el browser (servidor provisional)
 2. Ingresar con `admin / Avalanz2026!`
 3. En el menu lateral ir a Dashboards
 4. Seleccionar Intranet Avalanz — Servicios
@@ -132,6 +136,8 @@ setup_logging(app, ...)
 ```
 
 Esto expone automaticamente el endpoint `GET /metrics` en cada servicio con todas las metricas HTTP estandar.
+
+> **Nota:** Si se agrega un nuevo servicio FastAPI y su target aparece en `down` en Prometheus con error 404 en `/metrics`, verificar que el instrumentator esta en `main.py` y que `prometheus-fastapi-instrumentator==7.0.0` esta en `requirements.txt`. Reconstruir la imagen con `--build --force-recreate`.
 
 ### Como Prometheus descubre los servicios
 
@@ -183,7 +189,11 @@ El archivo `infrastructure/grafana/dashboards.yml` le indica a Grafana que cargu
 apiVersion: 1
 providers:
   - name: "Avalanz Dashboards"
+    orgId: 1
     type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
     options:
       path: /var/lib/grafana/dashboards
 ```
@@ -222,6 +232,29 @@ En produccion reemplazar `mailpit:1025` con el servidor SMTP corporativo real.
 | Redis | redis | redis-exporter:9121 | Activo |
 | Nginx | nginx | nginx-exporter:9113 | Activo |
 
+Para verificar el estado de todos los targets desde el servidor:
+
+```bash
+curl -s http://localhost:9090/api/v1/targets | python3 -c "
+import json,sys
+data = json.load(sys.stdin)
+for t in data['data']['activeTargets']:
+    print(t['labels']['job'], '|', t['health'], '|', t.get('lastError',''))
+"
+```
+
+---
+
+## Redis — limite de memoria
+
+Redis esta configurado con un limite de **256MB** y politica de eviccion `allkeys-lru`. Esto se configura en el comando de arranque en `docker-compose.yml`:
+
+```yaml
+command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
+```
+
+El panel de Grafana muestra la memoria usada vs el limite configurado (`redis_memory_max_bytes`). Si el uso se acerca al limite, evaluar aumentarlo a 512MB cuando haya modulos operativos activos con mas usuarios.
+
 ---
 
 ## Metricas disponibles por servicio FastAPI
@@ -246,7 +279,7 @@ Todas las metricas son generadas automaticamente por prometheus-fastapi-instrume
 | pg_up | postgres-exporter | Estado del exporter (1=ok, 0=error) |
 | redis_memory_used_bytes | redis-exporter | Memoria RAM usada por Redis |
 | redis_connected_clients | redis-exporter | Clientes conectados a Redis |
-| redis_memory_max_bytes | redis-exporter | Limite maximo de memoria configurado |
+| redis_memory_max_bytes | redis-exporter | Limite maximo de memoria configurado (256MB) |
 | nginx_connections_active | nginx-exporter | Conexiones activas en Nginx |
 | nginx_connections_waiting | nginx-exporter | Conexiones en espera (keep-alive) |
 | nginx_http_requests_total | nginx-exporter | Total de peticiones HTTP procesadas |
@@ -265,6 +298,24 @@ El dashboard de Avalanz esta guardado en `infrastructure/grafana/avalanz-service
 - **Infraestructura** — conexiones PostgreSQL, memoria Redis, peticiones y conexiones Nginx
 
 El dashboard se carga automaticamente al levantar Grafana. No requiere importacion manual.
+
+### Queries de los paneles principales
+
+Los paneles de peticiones y latencia usan queries agrupados por `job` para mostrar cada servicio como una linea independiente:
+
+```promql
+# Peticiones por servicio (panel Trafico HTTP)
+sum by (job) (rate(http_requests_total{job=~"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service"}[1m]))
+
+# Latencia promedio por servicio
+sum by (job) (rate(http_request_duration_seconds_sum{job=~"auth-service|..."}[1m]))
+/ sum by (job) (rate(http_request_duration_seconds_count{job=~"auth-service|..."}[1m]))
+
+# Servicios activos
+count(up{job=~"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service"} == 1)
+```
+
+> **Fix 2026-04-28:** Los paneles anteriores tenian un query separado por cada servicio, lo que generaba multiples lineas con el mismo label. Se consolidaron en un solo query con `sum by (job)`.
 
 ---
 
@@ -319,6 +370,9 @@ pg_stat_activity_count{job="postgres"}
 
 # Memoria usada Redis
 redis_memory_used_bytes{job="redis"}
+
+# Limite maximo Redis
+redis_memory_max_bytes{job="redis"}
 
 # Conexiones activas Nginx
 nginx_connections_active{job="nginx"}
@@ -385,3 +439,9 @@ Un dashboard es un objeto JSON con la siguiente estructura base:
 **Unidades de medida comunes:** `reqps` (peticiones/seg), `s` (segundos), `ms` (milisegundos), `bytes`, `percentunit` (0-1), `short` (numero sin unidad).
 
 **Nota importante sobre datasource en provisionamiento:** El dashboard JSON debe usar el UID directo del datasource (`PBFA97CFB590B2093`) en lugar de la variable `${DS_PROMETHEUS}`. La variable solo funciona al importar manualmente — el provisionamiento desde filesystem no resuelve variables de template.
+
+---
+
+## Dashboards por modulo operativo (futuro)
+
+Cuando se implementen modulos operativos como Boveda o Legal, se pueden crear dashboards especificos con metricas de negocio: documentos subidos por dia, tiempo de procesamiento, errores por empresa, uso de almacenamiento MinIO por tenant. Prometheus scrapeara automaticamente el nuevo servicio en cuanto se agregue su job a `prometheus.yml`.
