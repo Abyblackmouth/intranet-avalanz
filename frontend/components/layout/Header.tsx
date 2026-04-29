@@ -14,6 +14,7 @@ export default function Header() {
   const { user, isAdmin, isSuperAdmin, logout: clearStore } = useAuthStore()
   const [mounted, setMounted] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [now, setNow] = useState<Date | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -37,6 +38,7 @@ export default function Header() {
   }, [])
 
   const handleLogout = async () => {
+    setIsLoggingOut(true)
     try {
       const refreshToken = Cookies.get('refresh_token')
       if (refreshToken) await logout(refreshToken)
@@ -46,6 +48,8 @@ export default function Header() {
       router.push('/login')
     }
   }
+
+  if (isLoggingOut) return null
 
   const initials = mounted
     ? (user?.full_name?.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() || 'U')
