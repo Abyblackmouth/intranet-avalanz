@@ -2,6 +2,7 @@ import AuthProvider from '@/components/auth/AuthProvider'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import ToastContainer from '@/components/shared/ToastContainer'
+import LogoutGuard from '@/components/auth/LogoutGuard'
 
 export default function PrivateLayout({
   children,
@@ -10,6 +11,7 @@ export default function PrivateLayout({
 }) {
   return (
     <AuthProvider>
+      <LogoutGuard>
       <div className="flex h-screen overflow-hidden bg-slate-50">
         <Sidebar />
         <div className="flex flex-col flex-1 min-w-0">
@@ -20,6 +22,7 @@ export default function PrivateLayout({
         </div>
       </div>
       <ToastContainer />
+      </LogoutGuard>
     </AuthProvider>
   )
 }

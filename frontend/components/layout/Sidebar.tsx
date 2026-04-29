@@ -40,7 +40,8 @@ function getInitials(name: string) {
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { user, isAdmin, isSuperAdmin } = useAuthStore()
+  const { user, isAdmin, isSuperAdmin, isLoggingOut } = useAuthStore()
+  if (isLoggingOut) return null
   const [collapsed, setCollapsed] = useState(false)
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [mounted, setMounted] = useState(false)

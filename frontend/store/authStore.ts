@@ -7,11 +7,13 @@ interface AuthState {
   user: AuthUser | null
   isAuthenticated: boolean
   isLoading: boolean
+  isLoggingOut: boolean
 
   // Actions
   setUser: (user: AuthUser) => void
   setTokens: (tokens: TokenPair) => void
   setLoading: (loading: boolean) => void
+  setLoggingOut: (v: boolean) => void
   logout: () => void
 
   // Helpers
@@ -28,6 +30,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      isLoggingOut: false,
 
       setUser: (user) =>
         set({ user, isAuthenticated: true }),
@@ -38,6 +41,8 @@ export const useAuthStore = create<AuthState>()(
 
       setLoading: (loading) =>
         set({ isLoading: loading }),
+      setLoggingOut: (v) =>
+        set({ isLoggingOut: v }),
 
       logout: () => {
         clearSession()
