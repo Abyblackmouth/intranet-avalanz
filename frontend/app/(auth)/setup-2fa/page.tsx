@@ -65,7 +65,7 @@ function Setup2FAContent() {
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState<'qr' | 'backup' | 'verify'>(mode === 'setup' ? 'qr' : 'verify')
 
-  const { register, handleSubmit, formState: { errors } } = useForm<TwoFAForm>({ resolver: zodResolver(schema) })
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm<TwoFAForm>({ resolver: zodResolver(schema) })
 
   useEffect(() => { if (mode === 'setup') loadQR() }, [mode])
 
@@ -91,7 +91,7 @@ function Setup2FAContent() {
         setStep('backup')
       } else {
         const res = await verify2FA({ temp_token: tempToken, code: data.code })
-        if (!res.success || !res.data) { setError(res.message || 'Codigo incorrecto'); return }
+        if (!res.success || !res.data) { setError(res.message || 'Codigo incorrecto'); setValue('code', ''); return }
         const { access_token, refresh_token } = res.data as { access_token: string; refresh_token: string }
         setTokens({ access_token, refresh_token, token_type: 'bearer' })
         const meRes = await getMe()
