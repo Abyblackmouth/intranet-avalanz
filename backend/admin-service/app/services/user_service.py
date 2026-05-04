@@ -502,7 +502,7 @@ async def _send_reset_password_email(email: str, full_name: str, user_id: str):
                     "subject": "Tu contrasena ha sido reseteada",
                     "message": "Un administrador ha reseteado tu contrasena. Deberas cambiarla en tu proximo inicio de sesion.",
                     "action_label": "Iniciar sesion",
-                    "action_url": f"http://localhost:3000/change-password?user_id={user_id}",
+                    "action_url": f"{config.FRONTEND_URL}/change-password?user_id={user_id}",
                     "alert_type": "warning",
                 },
             )

@@ -19,6 +19,7 @@ class AdminConfig(BaseConfig):
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
     SCAFFOLD_SERVER_URL: str = "http://localhost:3002"
+    FRONTEND_URL: str = "http://localhost:3000"
 
     class Config:
         env_file = ".env"
