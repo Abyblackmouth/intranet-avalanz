@@ -19,6 +19,8 @@ Antes de desplegar al servidor on-premise revisar y actualizar los siguientes va
 | Variable | Valor dev | Valor producción |
 |---|---|---|
 | `JWT_SECRET_KEY` | Clave actual | Misma clave que auth-service |
+| `FRONTEND_URL` | `http://10.12.0.51:3000` | `https://intranet.avalanz.com` |
+| `SCAFFOLD_SERVER_URL` | `http://10.12.0.250:3002` | `http://IP_SERVIDOR:3002` |
 
 ### upload-service — `backend/upload-service/.env`
 | Variable | Valor dev | Valor producción |
@@ -155,6 +157,12 @@ logging:
 **Archivo:** `infrastructure/cron/`
 **Impacto:** Operación — sin verificación no hay certeza de que los backups sean utilizables ante un desastre.
 
+### Zona horaria del contenedor avalanz-cron
+**Estado:** Resuelto 2026-05-04.
+- Se agregó `TZ: America/Monterrey` al `docker-compose.yml` en el servicio cron
+- Se agregó `tzdata` al `Dockerfile` del cron (Alpine no lo incluye por defecto)
+- Sin este fix los backups corrían a las 7 PM hora local en lugar de la 1 AM
+
 ### Centralización de logs con Rsyslog + logrotate
 **Descripción:** Actualmente los logs de cada microservicio viven dentro de su contenedor Docker. En producción esto hace imposible diagnosticar problemas sin entrar a cada contenedor por separado.
 **Cambio requerido:**
@@ -212,6 +220,13 @@ logging:
 **Descripción:** El scaffold-server genera los archivos correctamente pero el auto-commit via gitCommit() puede fallar sin reportar error visible. Los archivos se crean pero no se pushean al repo automáticamente.
 **Cambio requerido:** Agregar logging detallado al flujo gitCommit() en `scripts/scaffold-server.js` y enviar notificación si el commit falla.
 **Impacto:** Operación — al crear un módulo desde el panel los archivos están en el servidor pero no en el repo.
+
+### FRONTEND_URL hardcodeada en admin-service
+**Estado:** Resuelto 2026-05-04.
+- `backend/admin-service/app/services/user_service.py` tenía `http://localhost:3000` hardcodeado en el link de reset de contraseña
+- Se movió a variable de entorno `FRONTEND_URL` en `config.py`
+- Agregar `FRONTEND_URL=http://IP_SERVIDOR:3000` al `.env` del admin-service en cada servidor
+- El email-service ya usaba `config.FRONTEND_URL` correctamente pero el default era localhost — agregar al `.env` también
 
 ---
 
