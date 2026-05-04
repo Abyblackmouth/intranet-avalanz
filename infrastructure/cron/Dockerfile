@@ -1,6 +1,6 @@
 FROM alpine:3.19
 
-RUN apk add --no-cache postgresql-client
+RUN apk add --no-cache postgresql-client tzdata
 
 RUN mkdir -p /scripts /backups/cleanup /var/log/cron
 

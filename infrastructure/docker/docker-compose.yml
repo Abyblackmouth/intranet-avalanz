@@ -120,6 +120,7 @@ services:
     env_file:
       - ../../backend/auth-service/.env
     environment:
+      TZ: America/Monterrey
       DB_HOST: postgres
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
@@ -144,6 +145,7 @@ services:
     env_file:
       - ../../backend/admin-service/.env
     environment:
+      TZ: America/Monterrey
       DB_HOST: postgres
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
@@ -184,6 +186,7 @@ services:
     env_file:
       - ../../backend/notify-service/.env
     environment:
+      TZ: America/Monterrey
       DB_HOST: postgres
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
@@ -315,6 +318,7 @@ services:
     container_name: avalanz-cron
     restart: unless-stopped
     environment:
+      TZ: America/Monterrey
       DB_HOST: postgres
       DB_USER: ${POSTGRES_USER}
       DB_NAME: avalanz_auth
