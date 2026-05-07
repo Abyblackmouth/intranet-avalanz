@@ -5,13 +5,25 @@ import Cookies from 'js-cookie'
 import { useAuthStore } from '@/store/authStore'
 import { getMe } from '@/services/authService'
 
-const INACTIVITY_TIMEOUT = 30 * 60 * 1000 // 30 minutos
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click']
 
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
   const { setUser, logout, isAuthenticated } = useAuthStore()
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Prevents the browser back button from returning to the login page
+  useEffect(() => {
+    window.history.pushState(null, '', window.location.href)
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.href)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
 
   useEffect(() => {
     const validate = async () => {
@@ -50,8 +62,6 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     validate()
-
-    // Iniciar timer y escuchar actividad
     resetTimer()
     ACTIVITY_EVENTS.forEach(event => window.addEventListener(event, resetTimer, { passive: true }))
 

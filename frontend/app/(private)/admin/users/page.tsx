@@ -19,6 +19,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(1)
   const [perPage] = useState(10)
   const [isLoading, setIsLoading] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
 
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -94,7 +95,6 @@ export default function UsersPage() {
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Usuarios')
 
-      // Ajustar ancho de columnas
       ws['!cols'] = [
         { wch: 12 }, { wch: 30 }, { wch: 35 }, { wch: 20 }, { wch: 20 },
         { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 15 },
@@ -108,11 +108,17 @@ export default function UsersPage() {
       setIsExporting(false)
     }
   }
-  useEffect(() => { fetchUsers() }, [page, search, filterStatus, filterCompany])
+
+  useEffect(() => { fetchUsers() }, [page, search, filterStatus, filterCompany, refreshTick])
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
     setPage(1)
+  }
+
+  const handleRefresh = () => {
+    setRefreshTick(t => t + 1)
+    fetchUsers(true)
   }
 
   return (
@@ -151,7 +157,8 @@ export default function UsersPage() {
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="search"
-                  placeholder="Nombre, correo o matrícula..." autoComplete="new-password"
+                  placeholder="Nombre, correo o matrícula..."
+                  autoComplete="new-password"
                   value={search}
                   onChange={handleSearch}
                   className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
@@ -206,7 +213,7 @@ export default function UsersPage() {
         <UserTable
           users={users}
           isLoading={isLoading}
-          onRefresh={() => fetchUsers(true)}
+          onRefresh={handleRefresh}
           page={page}
           perPage={perPage}
           total={total}
