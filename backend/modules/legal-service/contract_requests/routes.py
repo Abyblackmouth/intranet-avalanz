@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 import math
 
 from app.database import get_db
+from app.config import config
+from shared.middleware.jwt_validator import JWTValidator
 from . import service
 from .schemas import (
     ContractTypeCreate, ContractTypeUpdate, ContractTypeOut,
@@ -27,27 +29,15 @@ from .models import ContractRequest
 
 router = APIRouter(prefix="/contract-requests", tags=["Contract Requests"])
 
+# ── Validador JWT compartido ──────────────────────────────────────────────────
+_validator = JWTValidator(secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
 
-# ── Helpers de autenticación ──────────────────────────────────────────────────
-# Versión simplificada — reemplazar con el middleware JWT de la librería shared
-
-def get_current_user(request: Request) -> dict:
-    """Extrae la información del usuario desde el payload JWT inyectado por el middleware."""
-    user = getattr(request.state, "user", None)
-    if not user:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    return user
+get_current_user = _validator.get_current_user()
 
 
 def require_roles(*roles: str):
-    """Fábrica de dependencias — lanza 403 si el rol del usuario no está en la lista permitida."""
-    def checker(request: Request) -> dict:
-        user = get_current_user(request)
-        user_roles = user.get("roles", [])
-        if not any(r in user_roles for r in roles):
-            raise HTTPException(status_code=403, detail="Permisos insuficientes")
-        return user
-    return checker
+    """Dependencia que valida que el usuario tenga al menos uno de los roles indicados."""
+    return _validator.require_roles(list(roles))
 
 
 def get_client_ip(request: Request) -> Optional[str]:
@@ -168,7 +158,9 @@ async def list_contract_requests(
         if "abogado" in user_roles:
             lawyer_id = user["user_id"]
         else:
-            company_id = user.get("company_id")
+            companies = user.get("companies", [])
+            if companies and not company_id:
+                company_id = companies[0]
 
     items, total = await service.list_contract_requests(
         db,
@@ -216,11 +208,13 @@ async def create_contract_request(
     user: dict = Depends(get_current_user)
 ):
     """Crea una nueva solicitud de contrato en estado borrador. Cualquier usuario autenticado puede crear."""
+    companies = user.get("companies", [])
+    company_id = companies[0] if companies else ""
     try:
         req = await service.create_contract_request(
             db,
             data,
-            company_id=user["company_id"],
+            company_id=company_id,
             company_name=user.get("company_name", ""),
             user_id=user["user_id"],
             user_name=user["full_name"],
@@ -255,8 +249,10 @@ async def get_contract_request(
     is_legal = any(r in user_roles for r in ["super_admin", "coordinador_legal", "abogado", "director"])
 
     # Los clientes solo pueden ver solicitudes de su empresa
-    if not is_legal and req.company_id != user.get("company_id"):
-        raise HTTPException(status_code=403, detail="Acceso denegado")
+    if not is_legal:
+        companies = user.get("companies", [])
+        if req.company_id not in companies:
+            raise HTTPException(status_code=403, detail="Acceso denegado")
 
     await service.log_activity(
         db, request_id, "viewed",

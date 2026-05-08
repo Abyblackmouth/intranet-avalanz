@@ -36,9 +36,6 @@ Instrumentator().instrument(app).expose(app)
 setup_logging(app, service_name=config.SERVICE_NAME, log_level=config.LOG_LEVEL, log_format=config.LOG_FORMAT)
 setup_cors(app, origins=config.CORS_ORIGINS, allow_credentials=config.CORS_ALLOW_CREDENTIALS, allow_methods=config.CORS_ALLOW_METHODS, allow_headers=config.CORS_ALLOW_HEADERS)
 
-# ── JWT Validator ─────────────────────────────────────────────────────────────
-app.add_middleware(JWTValidator, secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
-
 # ── Exception handlers ────────────────────────────────────────────────────────
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
@@ -50,6 +47,9 @@ app.include_router(main_router, prefix="/api/v1/legal")
 
 # ── Rutas del submódulo: Solicitud de contratos ───────────────────────────────
 app.include_router(contract_requests_router, prefix="/api/v1/legal")
+
+# ── Validador JWT — disponible como dependencia en las rutas ──────────────────
+validator = JWTValidator(secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
