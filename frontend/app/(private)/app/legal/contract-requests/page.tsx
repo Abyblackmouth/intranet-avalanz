@@ -1,416 +1,239 @@
 'use client'
-
-import { useEffect, useState, useCallback } from 'react'
-import {
-  Users, Building2, Layers, ShieldCheck, ShieldOff,
-  UserCheck, UserX, TrendingUp, Activity, RefreshCw,
-  Server, CheckCircle2, XCircle, Clock
-} from 'lucide-react'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend
-} from 'recharts'
-import api from '@/services/api'
-import { useAuthStore } from '@/store/authStore'
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Search, SlidersHorizontal, Flag, FileCheck, Clock } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
+import ContractRequestsTable from '@/components/app/legal/ContractRequestsTable'
+import { useAuthStore } from '@/store/authStore'
+import { ContractRequestListItem, ContractType } from '@/types/contract.types'
+import { getContractRequests, getContractTypes } from '@/services/legalService'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+type LegalRole = 'solicitante' | 'abogado' | 'coordinador_legal' | 'director' | 'super_admin'
 
-interface DashboardMetrics {
-  kpis: {
-    total_users: number
-    active_users: number
-    locked_users: number
-    inactive_users: number
-    total_companies: number
-    active_companies: number
-    total_groups: number
-    total_modules: number
-  }
-  users_by_company: { company: string; total: number }[]
-  roles_distribution: { role: string; total: number }[]
-  recent_users: {
-    user_id: string
-    full_name: string
-    email: string
-    company: string
-    created_at: string
-  }[]
-  users_last_7_days: { date: string; total: number }[]
-}
-
-interface ServiceStatus {
-  name: string
-  key: string
-  status: 'up' | 'down' | 'loading'
-}
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const SERVICES: ServiceStatus[] = [
-  { name: 'Auth', key: 'auth', status: 'loading' },
-  { name: 'Admin', key: 'admin', status: 'loading' },
-  { name: 'Upload', key: 'upload', status: 'loading' },
-  { name: 'Notify', key: 'notify', status: 'loading' },
-  { name: 'WebSocket', key: 'websocket', status: 'loading' },
-  { name: 'Email', key: 'email', status: 'loading' },
+const STATUS_OPTIONS = [
+  { value: 'all',               label: 'Todos los estados' },
+  { value: 'borrador',          label: 'Borrador' },
+  { value: 'pendiente_legal',   label: 'Pendiente legal' },
+  { value: 'pendiente_cliente', label: 'Pendiente cliente' },
+  { value: 'en_revision_legal', label: 'En revisión legal' },
+  { value: 'en_firmas',         label: 'En firmas' },
+  { value: 'firmado_parcial',   label: 'Firmado parcial' },
+  { value: 'completado',        label: 'Completado' },
+  { value: 'rechazado',         label: 'Rechazado' },
 ]
 
-const CHART_COLORS = [
-  '#1a4fa0', '#3b82f6', '#6366f1', '#8b5cf6',
-  '#ec4899', '#f59e0b', '#10b981', '#64748b',
-]
-
-const PIE_COLORS = ['#1a4fa0', '#f59e0b', '#10b981', '#64748b']
-
-// ─── Helper components ───────────────────────────────────────────────────────
-
-const KpiCard = ({
-  label, value, sub, icon: Icon, color, trend
-}: {
-  label: string
-  value: number
-  sub?: string
-  icon: React.ElementType
-  color: string
-  trend?: 'up' | 'down' | 'neutral'
-}) => (
-  <div className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-[#1a4fa0]/30 hover:-translate-y-0.5 transition-all duration-200 p-5">
-    <div className="flex items-start justify-between">
-      <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{label}</p>
-        <p className="text-3xl font-bold text-slate-900">{value.toLocaleString()}</p>
-        {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
-      </div>
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
-        <Icon size={18} className="text-white" />
-      </div>
-    </div>
-  </div>
-)
-
-const ServicePill = ({ service }: { service: ServiceStatus }) => (
-  <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
-    <div className="flex items-center gap-2">
-      <Server size={13} className="text-slate-400" />
-      <span className="text-xs font-medium text-slate-700">{service.name}</span>
-    </div>
-    {service.status === 'loading' ? (
-      <Clock size={13} className="text-slate-400 animate-pulse" />
-    ) : service.status === 'up' ? (
-      <CheckCircle2 size={13} className="text-emerald-500" />
-    ) : (
-      <XCircle size={13} className="text-red-500" />
-    )}
-  </div>
-)
-
-const formatRelative = (iso: string) => {
-  const diff = Date.now() - new Date(iso).getTime()
-  const days = Math.floor(diff / 86400000)
-  if (days === 0) return 'Hoy'
-  if (days === 1) return 'Ayer'
-  return `Hace ${days} días`
+const resolveLegalRole = (roles: string[]): LegalRole => {
+  if (roles.includes('super_admin')) return 'super_admin'
+  if (roles.includes('coordinador_legal')) return 'coordinador_legal'
+  if (roles.includes('director')) return 'director'
+  if (roles.includes('abogado')) return 'abogado'
+  return 'solicitante'
 }
 
-const avatarColors = [
-  'bg-[#1a4fa0]', 'bg-violet-500', 'bg-teal-500',
-  'bg-orange-400', 'bg-rose-500', 'bg-emerald-500',
-]
-
-const Avatar = ({ name }: { name: string }) => {
-  const initials = name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
-  const idx = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % avatarColors.length
-  return (
-    <div className={`w-8 h-8 rounded-lg ${avatarColors[idx]} flex items-center justify-center shrink-0`}>
-      <span className="text-white text-xs font-bold">{initials}</span>
-    </div>
-  )
-}
-
-// ─── Custom tooltip for charts ───────────────────────────────────────────────
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg px-3 py-2">
-      <p className="text-xs text-slate-500 mb-1">{label}</p>
-      <p className="text-sm font-bold text-slate-900">{payload[0].value} usuarios</p>
-    </div>
-  )
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export default function DashboardPage() {
+export default function ContractRequestsPage() {
   const { user } = useAuthStore()
   const [mounted, setMounted] = useState(false)
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
-  const [services, setServices] = useState<ServiceStatus[]>(SERVICES)
-  const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const [items, setItems] = useState<ContractRequestListItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [perPage] = useState(20)
+  const [isLoading, setIsLoading] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
+
+  const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterType, setFilterType] = useState('all')
+  const [contractTypes, setContractTypes] = useState<ContractType[]>([])
+
+  const [totalActive, setTotalActive] = useState(0)
+  const [totalOverdue, setTotalOverdue] = useState(0)
+  const [totalInSignatures, setTotalInSignatures] = useState(0)
+
+  const legalRole: LegalRole = mounted && user
+    ? resolveLegalRole((user as any).roles || [])
+    : 'solicitante'
 
   useEffect(() => { setMounted(true) }, [])
 
-  const fetchMetrics = useCallback(async () => {
+  const fetchItems = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true)
     try {
-      const res = await api.get('/api/v1/dashboard/metrics')
-      setMetrics(res.data.data)
-      setLastUpdated(new Date())
+      const params: Record<string, string | number | boolean> = { page, per_page: perPage }
+      if (search) params.search = search
+      if (filterStatus !== 'all') params.status = filterStatus
+      if (filterType !== 'all') params.contract_type_id = filterType
+
+      const res = await getContractRequests(params)
+      setItems(res.data.data.data || [])
+      setTotal(res.data.data.meta?.total || 0)
     } catch {
-      // silencioso
+      setItems([])
     } finally {
-      setLoading(false)
+      setIsLoading(false)
+    }
+  }, [page, perPage, search, filterStatus, filterType, refreshTick])
+
+  const fetchContractTypes = useCallback(async () => {
+    try {
+      const res = await getContractTypes(true)
+      setContractTypes(res.data.data || [])
+    } catch {
+      setContractTypes([])
     }
   }, [])
 
-  const fetchServices = useCallback(async () => {
-    const keys = ['auth', 'admin', 'upload', 'notify', 'websocket', 'email']
-    const results = await Promise.allSettled(
-      keys.map(k => api.get(`/health/${k}`))
-    )
-    setServices(keys.map((key, i) => ({
-      name: SERVICES.find(s => s.key === key)?.name || key,
-      key,
-      status: results[i].status === 'fulfilled' ? 'up' : 'down',
-    })))
+  const fetchKPIs = useCallback(async () => {
+    try {
+      const [activeRes, overdueRes, signaturesRes] = await Promise.all([
+        getContractRequests({ per_page: 1 }),
+        getContractRequests({ per_page: 1, is_sla_breached: true }),
+        getContractRequests({ per_page: 1, status: 'en_firmas' }),
+      ])
+      setTotalActive(activeRes.data.data.meta?.total || 0)
+      setTotalOverdue(overdueRes.data.data.meta?.total || 0)
+      setTotalInSignatures(signaturesRes.data.data.meta?.total || 0)
+    } catch {
+      // silencioso
+    }
   }, [])
 
-  useEffect(() => {
-    if (!mounted) return
-    fetchMetrics()
-    fetchServices()
-  }, [mounted, fetchMetrics, fetchServices])
+  useEffect(() => { fetchContractTypes() }, [fetchContractTypes])
+  useEffect(() => { fetchKPIs() }, [fetchKPIs, refreshTick])
+  useEffect(() => { fetchItems() }, [page, search, filterStatus, filterType, refreshTick])
 
-  const handleRefresh = () => {
-    setLoading(true)
-    setServices(SERVICES)
-    fetchMetrics()
-    fetchServices()
+  const handleRefresh = (silent = false) => {
+    setRefreshTick(t => t + 1)
+    if (!silent) fetchItems(false)
   }
 
-  if (!mounted) return null
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value)
+    setPage(1)
+  }
 
-  const servicesUp = services.filter(s => s.status === 'up').length
-  const servicesTotal = services.filter(s => s.status !== 'loading').length
+  const handleClearFilters = () => {
+    setSearch('')
+    setFilterStatus('all')
+    setFilterType('all')
+    setPage(1)
+  }
+
+  const showNewButton = legalRole === 'solicitante' || legalRole === 'super_admin'
 
   return (
     <PageWrapper
-      title="Dashboard"
-      description={lastUpdated
-        ? `Actualizado ${lastUpdated.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
-        : 'Cargando métricas...'}
+      title="Solicitud de contratos"
+      description="Gestiona y da seguimiento a las solicitudes legales del grupo"
       actions={
-        <button
-          onClick={handleRefresh}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Actualizar
-        </button>
+        mounted && showNewButton ? (
+          <button className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+            <Plus size={16} />
+            Nueva solicitud
+          </button>
+        ) : undefined
       }
     >
-      {loading ? (
-        <div className="flex items-center justify-center h-96">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-slate-400">Cargando métricas...</p>
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+            <FileCheck size={18} className="text-[#1a4fa0]" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-slate-900">{totalActive}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Solicitudes activas</p>
           </div>
         </div>
-      ) : (
-        <div className="space-y-6">
-
-          {/* ── Saludo ── */}
-          <div className="bg-gradient-to-r from-[#1a4fa0] to-blue-600 rounded-xl p-5 text-white shadow-sm">
-            <p className="text-sm font-medium opacity-80">Bienvenido de vuelta</p>
-            <p className="text-xl font-bold mt-0.5">{user?.full_name || 'Administrador'}</p>
-            <div className="flex items-center gap-4 mt-3">
-              <div className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-full ${servicesUp === servicesTotal && servicesTotal > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                <span className="text-xs opacity-90">
-                  {servicesUp}/{servicesTotal} servicios activos
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Activity size={12} className="opacity-80" />
-                <span className="text-xs opacity-90">
-                  {metrics?.kpis.active_users || 0} usuarios activos
-                </span>
-              </div>
-            </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+            <Flag size={18} className="text-red-600" />
           </div>
-
-          {/* ── KPIs ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard
-              label="Total usuarios"
-              value={metrics?.kpis.total_users || 0}
-              sub={`${metrics?.kpis.active_users || 0} activos`}
-              icon={Users}
-              color="bg-[#1a4fa0]"
-            />
-            <KpiCard
-              label="Bloqueados"
-              value={metrics?.kpis.locked_users || 0}
-              sub="cuentas bloqueadas"
-              icon={ShieldOff}
-              color="bg-red-500"
-            />
-            <KpiCard
-              label="Empresas"
-              value={metrics?.kpis.total_companies || 0}
-              sub={`${metrics?.kpis.active_companies || 0} activas`}
-              icon={Building2}
-              color="bg-emerald-500"
-            />
-            <KpiCard
-              label="Módulos activos"
-              value={metrics?.kpis.total_modules || 0}
-              sub={`${metrics?.kpis.total_groups || 0} grupos`}
-              icon={Layers}
-              color="bg-violet-500"
-            />
+          <div>
+            <p className="text-2xl font-bold text-red-600">{totalOverdue}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Atrasadas (SLA vencido)</p>
           </div>
-
-          {/* ── Gráficas row ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-            {/* Usuarios por empresa */}
-            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <p className="text-sm font-semibold text-slate-900 mb-4">Usuarios por empresa</p>
-              {metrics?.users_by_company && metrics.users_by_company.length > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={metrics.users_by_company} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="company" tick={{ fontSize: 11, fill: '#64748b' }} />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="total" radius={[4, 4, 0, 0]}>
-                      {metrics.users_by_company.map((_, i) => (
-                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-52 flex items-center justify-center">
-                  <p className="text-sm text-slate-400 italic">Sin datos disponibles</p>
-                </div>
-              )}
-            </div>
-
-            {/* Distribución de roles */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <p className="text-sm font-semibold text-slate-900 mb-4">Distribución de roles</p>
-              {metrics?.roles_distribution && metrics.roles_distribution.length > 0 ? (
-                <>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <PieChart>
-                      <Pie
-                        data={metrics.roles_distribution}
-                        dataKey="total"
-                        nameKey="role"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={70}
-                        innerRadius={40}
-                      >
-                        {metrics.roles_distribution.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v, n) => [v, n]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="space-y-1.5 mt-2">
-                    {metrics.roles_distribution.map((r, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-                          <span className="text-xs text-slate-600">{r.role}</span>
-                        </div>
-                        <span className="text-xs font-semibold text-slate-900">{r.total}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="h-52 flex items-center justify-center">
-                  <p className="text-sm text-slate-400 italic">Sin datos disponibles</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Actividad últimos 7 días + Servicios ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-            {/* Usuarios creados últimos 7 días */}
-            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <p className="text-sm font-semibold text-slate-900 mb-4">Usuarios creados — últimos 7 días</p>
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={metrics?.users_last_7_days || []} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    stroke="#1a4fa0"
-                    strokeWidth={2}
-                    dot={{ fill: '#1a4fa0', r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Estado de servicios */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-semibold text-slate-900">Estado de servicios</p>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  servicesUp === servicesTotal && servicesTotal > 0
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-amber-50 text-amber-700'
-                }`}>
-                  {servicesUp}/{servicesTotal} activos
-                </span>
-              </div>
-              <div className="space-y-2">
-                {services.map(s => <ServicePill key={s.key} service={s} />)}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Últimos usuarios creados ── */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <p className="text-sm font-semibold text-slate-900 mb-4">Últimos usuarios creados</p>
-            {metrics?.recent_users && metrics.recent_users.length > 0 ? (
-              <div className="space-y-3">
-                {metrics.recent_users.map(u => (
-                  <div key={u.user_id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                    <div className="flex items-center gap-3">
-                      <Avatar name={u.full_name} />
-                      <div>
-                        <p className="text-sm font-medium text-slate-900 leading-tight">{u.full_name}</p>
-                        <p className="text-xs text-slate-400 leading-tight">{u.email}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-medium text-slate-600">{u.company}</p>
-                      <p className="text-xs text-slate-400">{formatRelative(u.created_at)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400 italic text-center py-4">Sin usuarios recientes</p>
-            )}
-          </div>
-
         </div>
-      )}
+        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+            <Clock size={18} className="text-violet-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-violet-600">{totalInSignatures}</p>
+            <p className="text-xs text-slate-400 mt-0.5">En espera de firmas</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-48">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Buscar</label>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Folio o solicitante..."
+                autoComplete="off"
+                value={search}
+                onChange={handleSearch}
+                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
+              />
+            </div>
+          </div>
+
+          <div className="min-w-44">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
+            <select
+              value={filterStatus}
+              onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {STATUS_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="min-w-44">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Tipo de contrato</label>
+            <select
+              value={filterType}
+              onChange={e => { setFilterType(e.target.value); setPage(1) }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">Todos los tipos</option>
+              {contractTypes.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={handleClearFilters}
+            className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition"
+          >
+            <SlidersHorizontal size={14} />
+            Limpiar
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-400 mt-3">
+          Mostrando {items.length} de {total} solicitudes
+        </p>
+      </div>
+
+      {/* Tabla */}
+      <ContractRequestsTable
+        items={items}
+        isLoading={isLoading}
+        onRefresh={handleRefresh}
+        page={page}
+        perPage={perPage}
+        total={total}
+        onPageChange={setPage}
+        role={legalRole}
+      />
     </PageWrapper>
   )
 }
