@@ -126,20 +126,29 @@ export default function UserDetail({ userId, initialTab = 'info', onClose, onRef
   const [fileSuccess, setFileSuccess] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
+useEffect(() => {
     const load = async () => {
       setIsLoading(true)
       try {
-        const [userRes, sessionsRes, historyRes, filesRes] = await Promise.all([
-          getUser(userId),
+        const userRes = await getUser(userId)
+        setUser(userRes.data.data)
+        const [sessionsRes, historyRes, filesRes] = await Promise.allSettled([
           getUserSessions(userId),
           getUserLoginHistory(userId),
           getUserFiles(userId),
         ])
-        setUser(userRes.data.data)
-        setSessions(Array.isArray(sessionsRes.data) ? sessionsRes.data : sessionsRes.data?.data || [])
-        setHistory(Array.isArray(historyRes.data) ? historyRes.data : historyRes.data?.data || [])
-        setFiles(Array.isArray(filesRes.data) ? filesRes.data : filesRes.data?.data || [])
+        if (sessionsRes.status === 'fulfilled') {
+          const d = sessionsRes.value.data
+          setSessions(Array.isArray(d) ? d : d?.data || [])
+        }
+        if (historyRes.status === 'fulfilled') {
+          const d = historyRes.value.data
+          setHistory(Array.isArray(d) ? d : d?.data || [])
+        }
+        if (filesRes.status === 'fulfilled') {
+          const d = filesRes.value.data
+          setFiles(Array.isArray(d) ? d : d?.data || [])
+        }
       } catch {
         // silencioso
       } finally {
