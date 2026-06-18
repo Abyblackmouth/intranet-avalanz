@@ -112,6 +112,8 @@ export default function UserDetail({ userId, initialTab = 'info', onClose, onRef
   const [files, setFiles] = useState<UserFile[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'info' | 'sessions' | 'history' | 'documents'>(initialTab as any)
+
+  useEffect(() => { setActiveTab(initialTab as any) }, [initialTab])
   const [revokingSession, setRevokingSession] = useState<string | null>(null)
 
   // Documents state

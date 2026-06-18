@@ -185,6 +185,7 @@ const ResetPasswordModal = ({
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Minimo 8 caracteres"
+              autoComplete="new-password"
               className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4fa0]"
             />
           </div>
@@ -197,6 +198,7 @@ const ResetPasswordModal = ({
               value={confirm}
               onChange={e => setConfirm(e.target.value)}
               placeholder="Repite la contrasena"
+              autoComplete="new-password"
               className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4fa0] ${
                 confirm.length > 0
                   ? matches ? 'border-green-400' : 'border-red-400'
