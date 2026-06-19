@@ -130,25 +130,16 @@ useEffect(() => {
     const load = async () => {
       setIsLoading(true)
       try {
-        const userRes = await getUser(userId)
-        setUser(userRes.data.data)
-        const [sessionsRes, historyRes, filesRes] = await Promise.allSettled([
+        const [userRes, sessionsRes, historyRes, filesRes] = await Promise.all([
+          getUser(userId),
           getUserSessions(userId),
           getUserLoginHistory(userId),
           getUserFiles(userId),
         ])
-        if (sessionsRes.status === 'fulfilled') {
-          const d = sessionsRes.value.data
-          setSessions(Array.isArray(d) ? d : d?.data || [])
-        }
-        if (historyRes.status === 'fulfilled') {
-          const d = historyRes.value.data
-          setHistory(Array.isArray(d) ? d : d?.data || [])
-        }
-        if (filesRes.status === 'fulfilled') {
-          const d = filesRes.value.data
-          setFiles(Array.isArray(d) ? d : d?.data || [])
-        }
+        setUser(userRes.data.data)
+        setSessions(Array.isArray(sessionsRes.data) ? sessionsRes.data : sessionsRes.data?.data || [])
+        setHistory(Array.isArray(historyRes.data) ? historyRes.data : historyRes.data?.data || [])
+        setFiles(Array.isArray(filesRes.data) ? filesRes.data : filesRes.data?.data || [])
       } catch {
         // silencioso
       } finally {
