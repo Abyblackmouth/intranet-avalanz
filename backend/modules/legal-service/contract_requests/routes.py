@@ -11,23 +11,23 @@ from . import service
 from .schemas import (
     ContractTypeCreate, ContractTypeUpdate, ContractTypeOut,
     LawyerAssignmentCreate, LawyerAssignmentOut,
-    ContractRequestCreate, ContractRequestUpdate, ContractRequestSubmit,
-    ContractRequestOut, ContractRequestListItem, ContractRequestDetail,
-    ContractRequestReject, ContractRequestRequestCorrections,
-    ContractCommentCreate, ContractCommentOut,
-    ContractAttachmentOut, ContractAttachmentLogOut,
-    ContractActivityLogOut, ContractStatusLogOut,
-    ContractTimeTrackingOut, ContractFormSnapshotOut,
-    PaginatedContractRequests, SLAReport, SLAReportItem,
-    ContractStatus, SLAColor
+    EnvelopeCreate, EnvelopeUpdate, EnvelopeSubmit,
+    EnvelopeOut, EnvelopeListItem, EnvelopeDetail,
+    EnvelopeReject, EnvelopeRequestCorrections,
+    EnvelopeCommentCreate, EnvelopeCommentOut,
+    EnvelopeAttachmentOut, EnvelopeAttachmentLogOut,
+    EnvelopeActivityLogOut, EnvelopeStatusLogOut,
+    EnvelopeTimeTrackingOut, EnvelopeFormSnapshotOut,
+    PaginatedEnvelopes, SLAReport, SLAReportItem,
+    EnvelopeStatus, SLAColor
 )
 from .service import (
     build_sla_info, get_sla_color, count_business_days_between,
     SLA_CLOSING_STATUSES
 )
-from .models import ContractRequest
+from .models import Envelope
 
-router = APIRouter(prefix="/contract-requests", tags=["Contract Requests"])
+router = APIRouter(prefix="/envelopes", tags=["Envelopes"])
 
 # ── Validador JWT compartido ──────────────────────────────────────────────────
 _validator = JWTValidator(secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
@@ -109,7 +109,7 @@ async def assign_lawyer_to_type(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal"))
 ):
-    """Asigna un usuario con rol abogado a un tipo de contrato para el enrutamiento de solicitudes."""
+    """Asigna un usuario con rol abogado a un tipo de contrato para el enrutamiento de sobres."""
     data.contract_type_id = contract_type_id
     assignment = await service.assign_lawyer_to_type(db, data, assigned_by=user["user_id"])
     await db.commit()
@@ -122,17 +122,17 @@ async def deactivate_lawyer_assignment(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal"))
 ):
-    """Desactiva una asignación — el abogado deja de recibir nuevas solicitudes de ese tipo."""
+    """Desactiva una asignación — el abogado deja de recibir nuevos sobres de ese tipo."""
     assignment = await service.deactivate_lawyer_assignment(db, assignment_id)
     if not assignment:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
     await db.commit()
 
 
-# ── Solicitudes de contrato — CRUD ────────────────────────────────────────────
+# ── Sobres — CRUD ─────────────────────────────────────────────────────────────
 
-@router.get("", response_model=PaginatedContractRequests)
-async def list_contract_requests(
+@router.get("", response_model=PaginatedEnvelopes)
+async def list_envelopes(
     request: Request,
     company_id: Optional[str] = Query(None),
     lawyer_id: Optional[str] = Query(None),
@@ -145,15 +145,14 @@ async def list_contract_requests(
     user: dict = Depends(get_current_user)
 ):
     """
-    Lista solicitudes de contrato con filtros.
-    - Clientes solo ven solicitudes de su empresa.
-    - Abogados solo ven solicitudes asignadas a ellos.
+    Lista sobres con filtros.
+    - Clientes solo ven sobres de su empresa.
+    - Abogados solo ven sobres asignados a ellos.
     - Coordinadores y super admins ven todo.
     """
     user_roles = user.get("roles", [])
     is_privileged = any(r in user_roles for r in ["super_admin", "coordinador_legal", "director"])
 
-    # Aplicar reglas de visibilidad por rol
     if not is_privileged:
         if "abogado" in user_roles:
             lawyer_id = user["user_id"]
@@ -162,7 +161,7 @@ async def list_contract_requests(
             if companies and not company_id:
                 company_id = companies[0]
 
-    items, total = await service.list_contract_requests(
+    items, total = await service.list_envelopes(
         db,
         company_id=company_id,
         lawyer_id=lawyer_id,
@@ -175,14 +174,14 @@ async def list_contract_requests(
 
     list_items = []
     for item in items:
-        list_items.append(ContractRequestListItem(
+        list_items.append(EnvelopeListItem(
             id=item.id,
             folio=item.folio,
             company_name=item.company_name,
             requested_by_name=item.requested_by_name,
             contract_type_name=item.contract_type_name,
             assigned_lawyer_name=item.assigned_lawyer_name,
-            status=ContractStatus(item.status),
+            status=EnvelopeStatus(item.status),
             is_open_request=item.is_open_request,
             submitted_at=item.submitted_at,
             sla_due_at=item.sla_due_at,
@@ -191,7 +190,7 @@ async def list_contract_requests(
             created_at=item.created_at
         ))
 
-    return PaginatedContractRequests(
+    return PaginatedEnvelopes(
         data=list_items,
         total=total,
         page=page,
@@ -200,18 +199,18 @@ async def list_contract_requests(
     )
 
 
-@router.post("", response_model=ContractRequestOut, status_code=201)
-async def create_contract_request(
+@router.post("", response_model=EnvelopeOut, status_code=201)
+async def create_envelope(
     request: Request,
-    data: ContractRequestCreate,
+    data: EnvelopeCreate,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
-    """Crea una nueva solicitud de contrato en estado borrador. Cualquier usuario autenticado puede crear."""
+    """Crea un nuevo sobre en estado borrador. Cualquier usuario autenticado puede crear."""
     companies = user.get("companies", [])
     company_id = companies[0] if companies else ""
     try:
-        req = await service.create_contract_request(
+        envelope = await service.create_envelope(
             db,
             data,
             company_id=company_id,
@@ -222,250 +221,249 @@ async def create_contract_request(
             ip_address=get_client_ip(request)
         )
         await db.commit()
-        sla = build_sla_info(req)
-        out = ContractRequestOut.model_validate(req)
+        sla = build_sla_info(envelope)
+        out = EnvelopeOut.model_validate(envelope)
         out.sla = sla
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{request_id}", response_model=ContractRequestDetail)
-async def get_contract_request(
-    request_id: str,
+@router.get("/{envelope_id}", response_model=EnvelopeDetail)
+async def get_envelope(
+    envelope_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
     """
-    Devuelve el detalle completo de una solicitud incluyendo toda la trazabilidad.
+    Devuelve el detalle completo de un sobre incluyendo toda la trazabilidad.
     Los comentarios internos solo son visibles para el equipo legal.
     """
-    req = await service.get_contract_request(db, request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    envelope = await service.get_envelope(db, envelope_id)
+    if not envelope:
+        raise HTTPException(status_code=404, detail="Sobre no encontrado")
 
     user_roles = user.get("roles", [])
     is_legal = any(r in user_roles for r in ["super_admin", "coordinador_legal", "abogado", "director"])
 
-    # Los clientes solo pueden ver solicitudes de su empresa
     if not is_legal:
         companies = user.get("companies", [])
-        if req.company_id not in companies:
+        if envelope.company_id not in companies:
             raise HTTPException(status_code=403, detail="Acceso denegado")
 
     await service.log_activity(
-        db, request_id, "viewed",
+        db, envelope_id, "viewed",
         user["user_id"], user["full_name"], user_roles[0] if user_roles else "cliente",
         ip_address=get_client_ip(request)
     )
     await db.commit()
 
-    status_log = await service.get_request_status_log(db, request_id)
-    time_tracking = await service.get_request_time_tracking(db, request_id)
-    comments = await service.get_request_comments(db, request_id, include_internal=is_legal)
-    attachments = await service.get_request_attachments(db, request_id)
-    snapshots = await service.get_request_form_snapshots(db, request_id)
-    activity = await service.get_request_activity_log(db, request_id) if is_legal else []
+    status_log = await service.get_envelope_status_log(db, envelope_id)
+    time_tracking = await service.get_envelope_time_tracking(db, envelope_id)
+    comments = await service.get_envelope_comments(db, envelope_id, include_internal=is_legal)
+    attachments = await service.get_envelope_attachments(db, envelope_id)
+    snapshots = await service.get_envelope_form_snapshots(db, envelope_id)
+    activity = await service.get_envelope_activity_log(db, envelope_id) if is_legal else []
 
-    req_out = ContractRequestOut.model_validate(req)
-    req_out.sla = build_sla_info(req)
+    envelope_out = EnvelopeOut.model_validate(envelope)
+    envelope_out.sla = build_sla_info(envelope)
 
-    return ContractRequestDetail(
-        request=req_out,
-        status_log=[ContractStatusLogOut.model_validate(s) for s in status_log],
-        time_tracking=[ContractTimeTrackingOut.model_validate(t) for t in time_tracking] if is_legal else [],
-        comments=[ContractCommentOut.model_validate(c) for c in comments],
-        attachments=[ContractAttachmentOut.model_validate(a) for a in attachments],
-        form_snapshots=[ContractFormSnapshotOut.model_validate(s) for s in snapshots] if is_legal else [],
-        activity_log=[ContractActivityLogOut.model_validate(a) for a in activity]
+    return EnvelopeDetail(
+        envelope=envelope_out,
+        status_log=[EnvelopeStatusLogOut.model_validate(s) for s in status_log],
+        time_tracking=[EnvelopeTimeTrackingOut.model_validate(t) for t in time_tracking] if is_legal else [],
+        comments=[EnvelopeCommentOut.model_validate(c) for c in comments],
+        attachments=[EnvelopeAttachmentOut.model_validate(a) for a in attachments],
+        form_snapshots=[EnvelopeFormSnapshotOut.model_validate(s) for s in snapshots] if is_legal else [],
+        activity_log=[EnvelopeActivityLogOut.model_validate(a) for a in activity]
     )
 
 
-@router.patch("/{request_id}", response_model=ContractRequestOut)
-async def update_contract_request(
-    request_id: str,
+@router.patch("/{envelope_id}", response_model=EnvelopeOut)
+async def update_envelope(
+    envelope_id: str,
     request: Request,
-    data: ContractRequestUpdate,
+    data: EnvelopeUpdate,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
     """
-    Actualiza los datos del formulario mientras la solicitud esté en borrador o pendiente_cliente.
-    Solo el solicitante puede editar su propia solicitud.
+    Actualiza los datos del formulario mientras el sobre esté en borrador o pendiente_cliente.
+    Solo el solicitante puede editar su propio sobre.
     """
-    req = await service.get_contract_request(db, request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    envelope = await service.get_envelope(db, envelope_id)
+    if not envelope:
+        raise HTTPException(status_code=404, detail="Sobre no encontrado")
 
-    if req.status not in ["borrador", "pendiente_cliente"]:
-        raise HTTPException(status_code=400, detail="La solicitud no puede editarse en su estado actual")
+    if envelope.status not in ["borrador", "pendiente_cliente"]:
+        raise HTTPException(status_code=400, detail="El sobre no puede editarse en su estado actual")
 
-    if req.requested_by_user_id != user["user_id"]:
-        raise HTTPException(status_code=403, detail="Solo el solicitante puede editar esta solicitud")
+    if envelope.requested_by_user_id != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Solo el solicitante puede editar este sobre")
 
-    old_form = req.form_data
+    old_form = envelope.form_data
     if data.form_data:
-        req.form_data = data.form_data
+        envelope.form_data = data.form_data
     if data.counterparty_name is not None:
-        req.counterparty_name = data.counterparty_name
+        envelope.counterparty_name = data.counterparty_name
     if data.counterparty_email is not None:
-        req.counterparty_email = str(data.counterparty_email)
+        envelope.counterparty_email = str(data.counterparty_email)
     if data.open_request_description is not None:
-        req.open_request_description = data.open_request_description
-    req.updated_at = datetime.utcnow()
+        envelope.open_request_description = data.open_request_description
+    envelope.updated_at = datetime.utcnow()
 
     user_roles = user.get("roles", [])
     await service.log_activity(
-        db, request_id, "form_edited",
+        db, envelope_id, "form_edited",
         user["user_id"], user["full_name"], user_roles[0] if user_roles else "cliente",
         ip_address=get_client_ip(request),
-        detail={"old": old_form, "new": req.form_data}
+        detail={"old": old_form, "new": envelope.form_data}
     )
     await db.commit()
 
-    out = ContractRequestOut.model_validate(req)
-    out.sla = build_sla_info(req)
+    out = EnvelopeOut.model_validate(envelope)
+    out.sla = build_sla_info(envelope)
     return out
 
 
 # ── Transiciones de la máquina de estados ────────────────────────────────────
 
-@router.post("/{request_id}/submit", response_model=ContractRequestOut)
-async def submit_contract_request(
-    request_id: str,
+@router.post("/{envelope_id}/submit", response_model=EnvelopeOut)
+async def submit_envelope(
+    envelope_id: str,
     request: Request,
-    data: ContractRequestSubmit,
+    data: EnvelopeSubmit,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
     """
-    El cliente envía la solicitud al área legal.
+    El cliente envía el sobre al área legal.
     Primer envío: borrador → pendiente_legal (asigna abogado e inicia SLA).
     Reenvío tras correcciones: pendiente_cliente → en_revision_legal.
     """
     user_roles = user.get("roles", [])
     try:
-        req = await service.submit_contract_request(
-            db, request_id, data,
+        envelope = await service.submit_envelope(
+            db, envelope_id, data,
             user_id=user["user_id"],
             user_name=user["full_name"],
             user_role=user_roles[0] if user_roles else "cliente",
             ip_address=get_client_ip(request)
         )
         await db.commit()
-        out = ContractRequestOut.model_validate(req)
-        out.sla = build_sla_info(req)
+        out = EnvelopeOut.model_validate(envelope)
+        out.sla = build_sla_info(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{request_id}/approve", response_model=ContractRequestOut)
-async def approve_contract_request(
-    request_id: str,
+@router.post("/{envelope_id}/approve", response_model=EnvelopeOut)
+async def approve_envelope(
+    envelope_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal", "abogado"))
 ):
-    """El abogado aprueba la solicitud — transiciona a en_firmas y cierra el SLA."""
+    """El abogado aprueba el sobre — transiciona a en_firmas y cierra el SLA."""
     user_roles = user.get("roles", [])
     try:
-        req = await service.approve_contract_request(
-            db, request_id,
+        envelope = await service.approve_envelope(
+            db, envelope_id,
             user_id=user["user_id"],
             user_name=user["full_name"],
             user_role=user_roles[0] if user_roles else "abogado",
             ip_address=get_client_ip(request)
         )
         await db.commit()
-        out = ContractRequestOut.model_validate(req)
-        out.sla = build_sla_info(req)
+        out = EnvelopeOut.model_validate(envelope)
+        out.sla = build_sla_info(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{request_id}/request-corrections", response_model=ContractRequestOut)
+@router.post("/{envelope_id}/request-corrections", response_model=EnvelopeOut)
 async def request_corrections(
-    request_id: str,
+    envelope_id: str,
     request: Request,
-    data: ContractRequestRequestCorrections,
+    data: EnvelopeRequestCorrections,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal", "abogado"))
 ):
     """El abogado solicita correcciones — transiciona a pendiente_cliente. El SLA sigue corriendo."""
     user_roles = user.get("roles", [])
     try:
-        req = await service.request_corrections(
-            db, request_id, data.reason,
+        envelope = await service.request_corrections(
+            db, envelope_id, data.reason,
             user_id=user["user_id"],
             user_name=user["full_name"],
             user_role=user_roles[0] if user_roles else "abogado",
             ip_address=get_client_ip(request)
         )
         await db.commit()
-        out = ContractRequestOut.model_validate(req)
-        out.sla = build_sla_info(req)
+        out = EnvelopeOut.model_validate(envelope)
+        out.sla = build_sla_info(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{request_id}/reject", response_model=ContractRequestOut)
-async def reject_contract_request(
-    request_id: str,
+@router.post("/{envelope_id}/reject", response_model=EnvelopeOut)
+async def reject_envelope(
+    envelope_id: str,
     request: Request,
-    data: ContractRequestReject,
+    data: EnvelopeReject,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal", "abogado"))
 ):
-    """El abogado rechaza la solicitud — transiciona a rechazado. La solicitud queda inmutable."""
+    """El abogado rechaza el sobre — transiciona a rechazado. El sobre queda inmutable."""
     user_roles = user.get("roles", [])
     try:
-        req = await service.reject_contract_request(
-            db, request_id, data.reason,
+        envelope = await service.reject_envelope(
+            db, envelope_id, data.reason,
             user_id=user["user_id"],
             user_name=user["full_name"],
             user_role=user_roles[0] if user_roles else "abogado",
             ip_address=get_client_ip(request)
         )
         await db.commit()
-        out = ContractRequestOut.model_validate(req)
-        out.sla = build_sla_info(req)
+        out = EnvelopeOut.model_validate(envelope)
+        out.sla = build_sla_info(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{request_id}/complete", response_model=ContractRequestOut)
-async def complete_contract_request(
-    request_id: str,
+@router.post("/{envelope_id}/complete", response_model=EnvelopeOut)
+async def complete_envelope(
+    envelope_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal", "abogado"))
 ):
-    """Marca la solicitud como completada cuando todos los firmantes han firmado."""
+    """Marca el sobre como completado cuando todos los firmantes han firmado."""
     user_roles = user.get("roles", [])
     try:
-        req = await service.complete_contract_request(
-            db, request_id,
+        envelope = await service.complete_envelope(
+            db, envelope_id,
             user_id=user["user_id"],
             user_name=user["full_name"],
             user_role=user_roles[0] if user_roles else "abogado",
             ip_address=get_client_ip(request)
         )
         await db.commit()
-        out = ContractRequestOut.model_validate(req)
-        out.sla = build_sla_info(req)
+        out = EnvelopeOut.model_validate(envelope)
+        out.sla = build_sla_info(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{request_id}/reassign", response_model=ContractRequestOut)
+@router.post("/{envelope_id}/reassign", response_model=EnvelopeOut)
 async def reassign_lawyer(
-    request_id: str,
+    envelope_id: str,
     request: Request,
     new_lawyer_id: str = Form(...),
     new_lawyer_name: str = Form(...),
@@ -473,11 +471,11 @@ async def reassign_lawyer(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal"))
 ):
-    """El coordinador reasigna la solicitud a otro abogado. El contador del SLA no se reinicia."""
+    """El coordinador reasigna el sobre a otro abogado. El contador del SLA no se reinicia."""
     user_roles = user.get("roles", [])
     try:
-        req = await service.reassign_lawyer(
-            db, request_id,
+        envelope = await service.reassign_lawyer(
+            db, envelope_id,
             new_lawyer_id=new_lawyer_id,
             new_lawyer_name=new_lawyer_name,
             new_lawyer_email=new_lawyer_email,
@@ -487,8 +485,8 @@ async def reassign_lawyer(
             ip_address=get_client_ip(request)
         )
         await db.commit()
-        out = ContractRequestOut.model_validate(req)
-        out.sla = build_sla_info(req)
+        out = EnvelopeOut.model_validate(envelope)
+        out.sla = build_sla_info(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -496,30 +494,30 @@ async def reassign_lawyer(
 
 # ── Comentarios ───────────────────────────────────────────────────────────────
 
-@router.get("/{request_id}/comments", response_model=List[ContractCommentOut])
+@router.get("/{envelope_id}/comments", response_model=List[EnvelopeCommentOut])
 async def list_comments(
-    request_id: str,
+    envelope_id: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
-    """Lista los comentarios. Los comentarios internos solo son visibles para el equipo legal."""
+    """Lista los comentarios. Los internos solo son visibles para el equipo legal."""
     user_roles = user.get("roles", [])
     is_legal = any(r in user_roles for r in ["super_admin", "coordinador_legal", "abogado", "director"])
-    comments = await service.get_request_comments(db, request_id, include_internal=is_legal)
-    return [ContractCommentOut.model_validate(c) for c in comments]
+    comments = await service.get_envelope_comments(db, envelope_id, include_internal=is_legal)
+    return [EnvelopeCommentOut.model_validate(c) for c in comments]
 
 
-@router.post("/{request_id}/comments", response_model=ContractCommentOut, status_code=201)
+@router.post("/{envelope_id}/comments", response_model=EnvelopeCommentOut, status_code=201)
 async def add_comment(
-    request_id: str,
+    envelope_id: str,
     request: Request,
-    data: ContractCommentCreate,
+    data: EnvelopeCommentCreate,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
     """
-    Agrega un comentario a la solicitud.
+    Agrega un comentario al sobre.
     Los comentarios internos (is_internal=True) solo pueden agregarlos miembros del equipo legal.
     """
     user_roles = user.get("roles", [])
@@ -529,60 +527,60 @@ async def add_comment(
         raise HTTPException(status_code=403, detail="Solo el equipo legal puede agregar comentarios internos")
 
     comment = await service.add_comment(
-        db, request_id, data,
+        db, envelope_id, data,
         user_id=user["user_id"],
         user_name=user["full_name"],
         user_role=user_roles[0] if user_roles else "cliente",
         ip_address=get_client_ip(request)
     )
     await db.commit()
-    return ContractCommentOut.model_validate(comment)
+    return EnvelopeCommentOut.model_validate(comment)
 
 
 # ── Endpoints de trazabilidad ─────────────────────────────────────────────────
 
-@router.get("/{request_id}/status-log", response_model=List[ContractStatusLogOut])
+@router.get("/{envelope_id}/status-log", response_model=List[EnvelopeStatusLogOut])
 async def get_status_log(
-    request_id: str,
+    envelope_id: str,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal", "abogado", "director"))
 ):
     """Devuelve el historial completo de cambios de estado. Solo equipo legal."""
-    logs = await service.get_request_status_log(db, request_id)
-    return [ContractStatusLogOut.model_validate(l) for l in logs]
+    logs = await service.get_envelope_status_log(db, envelope_id)
+    return [EnvelopeStatusLogOut.model_validate(l) for l in logs]
 
 
-@router.get("/{request_id}/time-tracking", response_model=List[ContractTimeTrackingOut])
+@router.get("/{envelope_id}/time-tracking", response_model=List[EnvelopeTimeTrackingOut])
 async def get_time_tracking(
-    request_id: str,
+    envelope_id: str,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal"))
 ):
     """Devuelve el tiempo transcurrido en cada estado. Solo coordinador y super admin."""
-    tracking = await service.get_request_time_tracking(db, request_id)
-    return [ContractTimeTrackingOut.model_validate(t) for t in tracking]
+    tracking = await service.get_envelope_time_tracking(db, envelope_id)
+    return [EnvelopeTimeTrackingOut.model_validate(t) for t in tracking]
 
 
-@router.get("/{request_id}/activity-log", response_model=List[ContractActivityLogOut])
+@router.get("/{envelope_id}/activity-log", response_model=List[EnvelopeActivityLogOut])
 async def get_activity_log(
-    request_id: str,
+    envelope_id: str,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal"))
 ):
     """Devuelve el log completo de actividad. Solo coordinador y super admin."""
-    logs = await service.get_request_activity_log(db, request_id)
-    return [ContractActivityLogOut.model_validate(l) for l in logs]
+    logs = await service.get_envelope_activity_log(db, envelope_id)
+    return [EnvelopeActivityLogOut.model_validate(l) for l in logs]
 
 
-@router.get("/{request_id}/form-snapshots", response_model=List[ContractFormSnapshotOut])
+@router.get("/{envelope_id}/form-snapshots", response_model=List[EnvelopeFormSnapshotOut])
 async def get_form_snapshots(
-    request_id: str,
+    envelope_id: str,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_roles("super_admin", "coordinador_legal", "abogado"))
 ):
     """Devuelve todos los snapshots del formulario — uno por cada envío. Solo equipo legal."""
-    snapshots = await service.get_request_form_snapshots(db, request_id)
-    return [ContractFormSnapshotOut.model_validate(s) for s in snapshots]
+    snapshots = await service.get_envelope_form_snapshots(db, envelope_id)
+    return [EnvelopeFormSnapshotOut.model_validate(s) for s in snapshots]
 
 
 # ── Reporte de SLA ────────────────────────────────────────────────────────────
@@ -593,70 +591,70 @@ async def get_sla_report(
     user: dict = Depends(require_roles("super_admin", "coordinador_legal", "director"))
 ):
     """
-    Devuelve el reporte de SLA actual con conteos de solicitudes atrasadas y a tiempo.
+    Devuelve el reporte de SLA actual con conteos de sobres atrasados y a tiempo.
     Lo utiliza el cron diario y el panel de KPIs del dashboard.
     """
     from sqlalchemy import select, and_
-    from .models import ContractRequest
+    from .models import Envelope
     from datetime import datetime
 
     now = datetime.utcnow()
 
     result = await db.execute(
-        select(ContractRequest).where(
+        select(Envelope).where(
             and_(
-                ContractRequest.submitted_at != None,
-                ContractRequest.sla_closed_at == None,
-                ContractRequest.is_deleted == False
+                Envelope.submitted_at != None,
+                Envelope.sla_closed_at == None,
+                Envelope.is_deleted == False
             )
         )
     )
-    open_requests = result.scalars().all()
+    open_envelopes = result.scalars().all()
 
     overdue = []
     on_time = []
     in_signatures = []
 
-    for req in open_requests:
-        if req.status in ["en_firmas", "firmado_parcial"]:
-            in_signatures.append(req)
+    for envelope in open_envelopes:
+        if envelope.status in ["en_firmas", "firmado_parcial"]:
+            in_signatures.append(envelope)
             continue
-        if req.is_sla_breached or (req.sla_due_at and req.sla_due_at < now):
-            days_overdue = count_business_days_between(req.sla_due_at, now) if req.sla_due_at else 0
-            side = "legal" if req.status in ["pendiente_legal", "en_revision_legal"] else "cliente"
+        if envelope.is_sla_breached or (envelope.sla_due_at and envelope.sla_due_at < now):
+            days_overdue = count_business_days_between(envelope.sla_due_at, now) if envelope.sla_due_at else 0
+            side = "legal" if envelope.status in ["pendiente_legal", "en_revision_legal"] else "cliente"
             overdue.append(SLAReportItem(
-                folio=req.folio,
-                company_name=req.company_name,
-                requested_by_name=req.requested_by_name,
-                contract_type_name=req.contract_type_name,
-                assigned_lawyer_name=req.assigned_lawyer_name,
-                status=ContractStatus(req.status),
-                submitted_at=req.submitted_at,
-                sla_due_at=req.sla_due_at,
+                folio=envelope.folio,
+                company_name=envelope.company_name,
+                requested_by_name=envelope.requested_by_name,
+                contract_type_name=envelope.contract_type_name,
+                assigned_lawyer_name=envelope.assigned_lawyer_name,
+                status=EnvelopeStatus(envelope.status),
+                submitted_at=envelope.submitted_at,
+                sla_due_at=envelope.sla_due_at,
                 days_overdue=days_overdue,
                 side=side
             ))
         else:
-            on_time.append(req)
+            on_time.append(envelope)
 
     overdue.sort(key=lambda x: x.days_overdue, reverse=True)
 
     in_sig_items = []
-    for req in in_signatures:
-        in_sig_items.append(ContractRequestListItem(
-            id=req.id,
-            folio=req.folio,
-            company_name=req.company_name,
-            requested_by_name=req.requested_by_name,
-            contract_type_name=req.contract_type_name,
-            assigned_lawyer_name=req.assigned_lawyer_name,
-            status=ContractStatus(req.status),
-            is_open_request=req.is_open_request,
-            submitted_at=req.submitted_at,
-            sla_due_at=req.sla_due_at,
-            is_sla_breached=req.is_sla_breached,
+    for envelope in in_signatures:
+        in_sig_items.append(EnvelopeListItem(
+            id=envelope.id,
+            folio=envelope.folio,
+            company_name=envelope.company_name,
+            requested_by_name=envelope.requested_by_name,
+            contract_type_name=envelope.contract_type_name,
+            assigned_lawyer_name=envelope.assigned_lawyer_name,
+            status=EnvelopeStatus(envelope.status),
+            is_open_request=envelope.is_open_request,
+            submitted_at=envelope.submitted_at,
+            sla_due_at=envelope.sla_due_at,
+            is_sla_breached=envelope.is_sla_breached,
             sla_color=SLAColor.green,
-            created_at=req.created_at
+            created_at=envelope.created_at
         ))
 
     return SLAReport(
@@ -674,7 +672,7 @@ async def update_sla_flags(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Endpoint interno llamado por el cron diario para marcar solicitudes vencidas.
+    Endpoint interno llamado por el cron diario para marcar sobres vencidos.
     Sin autenticación — solo accesible desde dentro de la red Docker.
     """
     updated = await service.update_sla_breach_flags(db)

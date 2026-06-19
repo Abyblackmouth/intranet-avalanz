@@ -7,16 +7,16 @@ from sqlalchemy.orm import selectinload
 
 from .models import (
     ContractType, ContractTypeField, ContractTypeAttachmentDef,
-    LawyerAssignment, ContractRequest, ContractFormSnapshot,
-    ContractStatusLog, ContractTimeTracking, ContractComment,
-    ContractAttachment, ContractAttachmentLog, ContractActivityLog,
+    LawyerAssignment, Envelope, EnvelopeFormSnapshot,
+    EnvelopeStatusLog, EnvelopeTimeTracking, EnvelopeComment,
+    EnvelopeAttachment, EnvelopeAttachmentLog, EnvelopeActivityLog,
     FolioSequence
 )
 from .schemas import (
-    ContractStatus, SLAColor, SLAInfo,
-    ContractRequestCreate, ContractRequestUpdate, ContractRequestSubmit,
+    EnvelopeStatus, SLAColor, SLAInfo,
+    EnvelopeCreate, EnvelopeUpdate, EnvelopeSubmit,
     ContractTypeCreate, ContractTypeUpdate,
-    LawyerAssignmentCreate, ContractCommentCreate
+    LawyerAssignmentCreate, EnvelopeCommentCreate
 )
 
 # ── Business day calendar ─────────────────────────────────────────────────────
@@ -63,22 +63,22 @@ def count_business_days_between(start: datetime, end: datetime) -> int:
     return count
 
 
-def get_sla_color(request: ContractRequest) -> SLAColor:
+def get_sla_color(envelope: Envelope) -> SLAColor:
     """Returns traffic light color based on SLA status."""
-    if not request.submitted_at or not request.sla_due_at:
+    if not envelope.submitted_at or not envelope.sla_due_at:
         return SLAColor.green
-    if request.is_sla_breached:
+    if envelope.is_sla_breached:
         return SLAColor.red
     now = datetime.utcnow()
-    days_remaining = count_business_days_between(now, request.sla_due_at)
+    days_remaining = count_business_days_between(now, envelope.sla_due_at)
     if days_remaining <= 1:
         return SLAColor.yellow
     return SLAColor.green
 
 
-def build_sla_info(request: ContractRequest) -> SLAInfo:
-    """Builds the SLA info block for a contract request."""
-    if not request.submitted_at:
+def build_sla_info(envelope: Envelope) -> SLAInfo:
+    """Builds the SLA info block for an envelope."""
+    if not envelope.submitted_at:
         return SLAInfo(
             submitted_at=None,
             sla_due_at=None,
@@ -88,24 +88,24 @@ def build_sla_info(request: ContractRequest) -> SLAInfo:
             color=SLAColor.green
         )
     now = datetime.utcnow()
-    elapsed = count_business_days_between(request.submitted_at, now)
-    remaining = count_business_days_between(now, request.sla_due_at) if request.sla_due_at else None
+    elapsed = count_business_days_between(envelope.submitted_at, now)
+    remaining = count_business_days_between(now, envelope.sla_due_at) if envelope.sla_due_at else None
     return SLAInfo(
-        submitted_at=request.submitted_at,
-        sla_due_at=request.sla_due_at,
+        submitted_at=envelope.submitted_at,
+        sla_due_at=envelope.sla_due_at,
         business_days_elapsed=elapsed,
         business_days_remaining=remaining,
-        is_breached=request.is_sla_breached,
-        color=get_sla_color(request)
+        is_breached=envelope.is_sla_breached,
+        color=get_sla_color(envelope)
     )
 
 
 # ── SLA closing statuses ──────────────────────────────────────────────────────
 
 SLA_CLOSING_STATUSES = {
-    ContractStatus.completado,
-    ContractStatus.rechazado,
-    ContractStatus.en_firmas,
+    EnvelopeStatus.completado,
+    EnvelopeStatus.rechazado,
+    EnvelopeStatus.en_firmas,
 }
 
 # ── Valid status transitions ──────────────────────────────────────────────────
@@ -130,7 +130,7 @@ def validate_transition(from_status: str, to_status: str) -> bool:
 # ── Folio generation ──────────────────────────────────────────────────────────
 
 async def generate_folio(db: AsyncSession) -> str:
-    """Generates the next folio in format CONT-YYYY-NNNN using a DB sequence."""
+    """Generates the next folio in format ENV-YYYY-NNNN using a DB sequence."""
     year = datetime.utcnow().year
     result = await db.execute(
         select(FolioSequence).where(FolioSequence.year == year)
@@ -142,7 +142,7 @@ async def generate_folio(db: AsyncSession) -> str:
         await db.flush()
     sequence.last_sequence += 1
     await db.flush()
-    return f"CONT-{year}-{sequence.last_sequence:04d}"
+    return f"ENV-{year}-{sequence.last_sequence:04d}"
 
 
 # ── Lawyer balancing ──────────────────────────────────────────────────────────
@@ -152,9 +152,9 @@ async def assign_lawyer(db: AsyncSession, contract_type_id: str) -> Optional[Dic
     Assigns the best available lawyer for the given contract type.
     Balancing logic:
     1. Get active lawyers assigned to this contract type.
-    2. Count non-overdue pending requests per lawyer.
-    3. Assign the one with fewest non-overdue pending requests.
-    4. On tie, assign the one who received a request least recently.
+    2. Count non-overdue pending envelopes per lawyer.
+    3. Assign the one with fewest non-overdue pending envelopes.
+    4. On tie, assign the one who received an envelope least recently.
     """
     result = await db.execute(
         select(LawyerAssignment).where(
@@ -175,16 +175,16 @@ async def assign_lawyer(db: AsyncSession, contract_type_id: str) -> Optional[Dic
 
     for lawyer in lawyers:
         count_result = await db.execute(
-            select(func.count(ContractRequest.id)).where(
+            select(func.count(Envelope.id)).where(
                 and_(
-                    ContractRequest.assigned_lawyer_id == lawyer.lawyer_user_id,
-                    ContractRequest.status.in_([
+                    Envelope.assigned_lawyer_id == lawyer.lawyer_user_id,
+                    Envelope.status.in_([
                         "pendiente_legal", "en_revision_legal", "pendiente_cliente"
                     ]),
-                    ContractRequest.is_deleted == False,
+                    Envelope.is_deleted == False,
                     or_(
-                        ContractRequest.sla_due_at == None,
-                        ContractRequest.sla_due_at >= now
+                        Envelope.sla_due_at == None,
+                        Envelope.sla_due_at >= now
                     )
                 )
             )
@@ -192,8 +192,8 @@ async def assign_lawyer(db: AsyncSession, contract_type_id: str) -> Optional[Dic
         count = count_result.scalar() or 0
 
         last_result = await db.execute(
-            select(func.max(ContractRequest.assigned_at)).where(
-                ContractRequest.assigned_lawyer_id == lawyer.lawyer_user_id
+            select(func.max(Envelope.assigned_at)).where(
+                Envelope.assigned_lawyer_id == lawyer.lawyer_user_id
             )
         )
         last_assigned = last_result.scalar()
@@ -221,7 +221,7 @@ async def assign_lawyer(db: AsyncSession, contract_type_id: str) -> Optional[Dic
 
 async def log_activity(
     db: AsyncSession,
-    contract_request_id: str,
+    envelope_id: str,
     action: str,
     user_id: str,
     user_name: str,
@@ -230,8 +230,8 @@ async def log_activity(
     detail: Optional[Dict[str, Any]] = None
 ) -> None:
     """Inserts a record in the activity log."""
-    log = ContractActivityLog(
-        contract_request_id=contract_request_id,
+    log = EnvelopeActivityLog(
+        envelope_id=envelope_id,
         action=action,
         performed_by_user_id=user_id,
         performed_by_name=user_name,
@@ -245,7 +245,7 @@ async def log_activity(
 
 async def log_status_change(
     db: AsyncSession,
-    contract_request_id: str,
+    envelope_id: str,
     from_status: Optional[str],
     to_status: str,
     user_id: str,
@@ -255,8 +255,8 @@ async def log_status_change(
     ip_address: Optional[str] = None
 ) -> None:
     """Inserts an immutable status transition record."""
-    log = ContractStatusLog(
-        contract_request_id=contract_request_id,
+    log = EnvelopeStatusLog(
+        envelope_id=envelope_id,
         from_status=from_status,
         to_status=to_status,
         changed_by_user_id=user_id,
@@ -271,16 +271,16 @@ async def log_status_change(
 
 async def close_time_tracking(
     db: AsyncSession,
-    contract_request_id: str,
+    envelope_id: str,
     status: str
 ) -> None:
     """Closes the open time tracking record for the given status."""
     result = await db.execute(
-        select(ContractTimeTracking).where(
+        select(EnvelopeTimeTracking).where(
             and_(
-                ContractTimeTracking.contract_request_id == contract_request_id,
-                ContractTimeTracking.status == status,
-                ContractTimeTracking.ended_at == None
+                EnvelopeTimeTracking.envelope_id == envelope_id,
+                EnvelopeTimeTracking.status == status,
+                EnvelopeTimeTracking.ended_at == None
             )
         )
     )
@@ -294,14 +294,14 @@ async def close_time_tracking(
 
 async def open_time_tracking(
     db: AsyncSession,
-    contract_request_id: str,
+    envelope_id: str,
     status: str,
     user_id: Optional[str] = None,
     user_name: Optional[str] = None
 ) -> None:
     """Opens a new time tracking record for the given status."""
-    tracking = ContractTimeTracking(
-        contract_request_id=contract_request_id,
+    tracking = EnvelopeTimeTracking(
+        envelope_id=envelope_id,
         status=status,
         responsible_user_id=user_id,
         responsible_user_name=user_name,
@@ -391,26 +391,26 @@ async def deactivate_lawyer_assignment(
     return assignment
 
 
-# ── Contract Request service ──────────────────────────────────────────────────
+# ── Envelope service ──────────────────────────────────────────────────────────
 
-async def create_contract_request(
+async def create_envelope(
     db: AsyncSession,
-    data: ContractRequestCreate,
+    data: EnvelopeCreate,
     company_id: str,
     company_name: str,
     user_id: str,
     user_name: str,
     user_email: str,
     ip_address: Optional[str] = None
-) -> ContractRequest:
-    """Creates a new contract request in borrador status."""
+) -> Envelope:
+    """Creates a new envelope in borrador status."""
     ct = await get_contract_type(db, data.contract_type_id)
     if not ct:
         raise ValueError("Contract type not found")
 
     folio = await generate_folio(db)
 
-    request = ContractRequest(
+    envelope = Envelope(
         folio=folio,
         company_id=company_id,
         company_name=company_name,
@@ -426,305 +426,300 @@ async def create_contract_request(
         is_open_request=data.is_open_request,
         open_request_description=data.open_request_description,
     )
-    db.add(request)
+    db.add(envelope)
     await db.flush()
 
     await log_status_change(
-        db, request.id, None, "borrador",
+        db, envelope.id, None, "borrador",
         user_id, user_name, "cliente", ip_address=ip_address
     )
-    await open_time_tracking(db, request.id, "borrador", user_id, user_name)
+    await open_time_tracking(db, envelope.id, "borrador", user_id, user_name)
     await log_activity(
-        db, request.id, "created",
+        db, envelope.id, "created",
         user_id, user_name, "cliente",
         ip_address=ip_address,
         detail={"folio": folio, "contract_type": ct.name}
     )
 
-    return request
+    return envelope
 
 
-async def submit_contract_request(
+async def submit_envelope(
     db: AsyncSession,
-    request_id: str,
-    data: ContractRequestSubmit,
+    envelope_id: str,
+    data: EnvelopeSubmit,
     user_id: str,
     user_name: str,
     user_role: str,
     ip_address: Optional[str] = None
-) -> ContractRequest:
+) -> Envelope:
     """
-    Client submits the request — transitions from borrador or pendiente_cliente
+    Client submits the envelope — transitions from borrador or pendiente_cliente
     to pendiente_legal or en_revision_legal respectively.
     Assigns a lawyer via balancing logic.
     Starts SLA counter on first submission.
     Saves a form snapshot.
     """
     result = await db.execute(
-        select(ContractRequest).where(
-            and_(ContractRequest.id == request_id, ContractRequest.is_deleted == False)
+        select(Envelope).where(
+            and_(Envelope.id == envelope_id, Envelope.is_deleted == False)
         )
     )
-    request = result.scalar_one_or_none()
-    if not request:
-        raise ValueError("Contract request not found")
+    envelope = result.scalar_one_or_none()
+    if not envelope:
+        raise ValueError("Envelope not found")
 
-    from_status = request.status
+    from_status = envelope.status
     is_first_submission = from_status == "borrador"
     to_status = "pendiente_legal" if is_first_submission else "en_revision_legal"
 
     if not validate_transition(from_status, to_status):
         raise ValueError(f"Invalid transition: {from_status} → {to_status}")
 
-    # Update form data if provided
     if data.form_data:
-        old_form = request.form_data
-        request.form_data = data.form_data
+        old_form = envelope.form_data
+        envelope.form_data = data.form_data
         await log_activity(
-            db, request.id, "form_updated",
+            db, envelope.id, "form_updated",
             user_id, user_name, user_role,
             ip_address=ip_address,
             detail={"old": old_form, "new": data.form_data}
         )
     if data.counterparty_name:
-        request.counterparty_name = data.counterparty_name
+        envelope.counterparty_name = data.counterparty_name
     if data.counterparty_email:
-        request.counterparty_email = str(data.counterparty_email)
+        envelope.counterparty_email = str(data.counterparty_email)
 
-    # Save form snapshot
     snapshot_count_result = await db.execute(
-        select(func.count(ContractFormSnapshot.id)).where(
-            ContractFormSnapshot.contract_request_id == request_id
+        select(func.count(EnvelopeFormSnapshot.id)).where(
+            EnvelopeFormSnapshot.envelope_id == envelope_id
         )
     )
     version = (snapshot_count_result.scalar() or 0) + 1
-    snapshot = ContractFormSnapshot(
-        contract_request_id=request_id,
+    snapshot = EnvelopeFormSnapshot(
+        envelope_id=envelope_id,
         version=version,
-        form_data=request.form_data or {},
+        form_data=envelope.form_data or {},
         submitted_by_user_id=user_id,
         submitted_by_name=user_name,
         submitted_at=datetime.utcnow()
     )
     db.add(snapshot)
 
-    # Assign lawyer on first submission
     if is_first_submission:
-        lawyer = await assign_lawyer(db, request.contract_type_id)
+        lawyer = await assign_lawyer(db, envelope.contract_type_id)
         if lawyer:
-            request.assigned_lawyer_id = lawyer["lawyer_user_id"]
-            request.assigned_lawyer_name = lawyer["lawyer_name"]
-            request.assigned_lawyer_email = lawyer["lawyer_email"]
-            request.assigned_at = datetime.utcnow()
+            envelope.assigned_lawyer_id = lawyer["lawyer_user_id"]
+            envelope.assigned_lawyer_name = lawyer["lawyer_name"]
+            envelope.assigned_lawyer_email = lawyer["lawyer_email"]
+            envelope.assigned_at = datetime.utcnow()
             await log_activity(
-                db, request.id, "lawyer_assigned",
+                db, envelope.id, "lawyer_assigned",
                 user_id, user_name, user_role,
                 detail={"lawyer": lawyer["lawyer_name"]}
             )
 
-        # Start SLA counter
-        request.submitted_at = datetime.utcnow()
-        ct = await get_contract_type(db, request.contract_type_id)
+        envelope.submitted_at = datetime.utcnow()
+        ct = await get_contract_type(db, envelope.contract_type_id)
         if ct:
-            request.sla_due_at = add_business_days(request.submitted_at, ct.sla_business_days)
+            envelope.sla_due_at = add_business_days(envelope.submitted_at, ct.sla_business_days)
 
-    # Transition
-    await close_time_tracking(db, request_id, from_status)
-    request.status = to_status
-    request.updated_at = datetime.utcnow()
+    await close_time_tracking(db, envelope_id, from_status)
+    envelope.status = to_status
+    envelope.updated_at = datetime.utcnow()
     await open_time_tracking(
-        db, request_id, to_status,
-        request.assigned_lawyer_id, request.assigned_lawyer_name
+        db, envelope_id, to_status,
+        envelope.assigned_lawyer_id, envelope.assigned_lawyer_name
     )
     await log_status_change(
-        db, request_id, from_status, to_status,
+        db, envelope_id, from_status, to_status,
         user_id, user_name, user_role, ip_address=ip_address
     )
     await log_activity(
-        db, request_id, "submitted",
+        db, envelope_id, "submitted",
         user_id, user_name, user_role, ip_address=ip_address,
         detail={"from": from_status, "to": to_status, "version": version}
     )
 
     await db.flush()
-    return request
+    return envelope
 
 
-async def approve_contract_request(
+async def approve_envelope(
     db: AsyncSession,
-    request_id: str,
+    envelope_id: str,
     user_id: str,
     user_name: str,
     user_role: str,
     ip_address: Optional[str] = None
-) -> ContractRequest:
+) -> Envelope:
     """Lawyer approves — transitions to en_firmas. Closes SLA."""
     result = await db.execute(
-        select(ContractRequest).where(
-            and_(ContractRequest.id == request_id, ContractRequest.is_deleted == False)
+        select(Envelope).where(
+            and_(Envelope.id == envelope_id, Envelope.is_deleted == False)
         )
     )
-    request = result.scalar_one_or_none()
-    if not request:
-        raise ValueError("Contract request not found")
+    envelope = result.scalar_one_or_none()
+    if not envelope:
+        raise ValueError("Envelope not found")
 
-    from_status = request.status
+    from_status = envelope.status
     to_status = "en_firmas"
 
     if not validate_transition(from_status, to_status):
         raise ValueError(f"Invalid transition: {from_status} → {to_status}")
 
-    await close_time_tracking(db, request_id, from_status)
-    request.status = to_status
-    request.sla_closed_at = datetime.utcnow()
-    request.updated_at = datetime.utcnow()
-    await open_time_tracking(db, request_id, to_status, user_id, user_name)
+    await close_time_tracking(db, envelope_id, from_status)
+    envelope.status = to_status
+    envelope.sla_closed_at = datetime.utcnow()
+    envelope.updated_at = datetime.utcnow()
+    await open_time_tracking(db, envelope_id, to_status, user_id, user_name)
     await log_status_change(
-        db, request_id, from_status, to_status,
+        db, envelope_id, from_status, to_status,
         user_id, user_name, user_role, ip_address=ip_address
     )
     await log_activity(
-        db, request_id, "approved",
+        db, envelope_id, "approved",
         user_id, user_name, user_role, ip_address=ip_address
     )
 
     await db.flush()
-    return request
+    return envelope
 
 
 async def request_corrections(
     db: AsyncSession,
-    request_id: str,
+    envelope_id: str,
     reason: str,
     user_id: str,
     user_name: str,
     user_role: str,
     ip_address: Optional[str] = None
-) -> ContractRequest:
+) -> Envelope:
     """Lawyer requests corrections — transitions to pendiente_cliente."""
     result = await db.execute(
-        select(ContractRequest).where(
-            and_(ContractRequest.id == request_id, ContractRequest.is_deleted == False)
+        select(Envelope).where(
+            and_(Envelope.id == envelope_id, Envelope.is_deleted == False)
         )
     )
-    request = result.scalar_one_or_none()
-    if not request:
-        raise ValueError("Contract request not found")
+    envelope = result.scalar_one_or_none()
+    if not envelope:
+        raise ValueError("Envelope not found")
 
-    from_status = request.status
+    from_status = envelope.status
     to_status = "pendiente_cliente"
 
     if not validate_transition(from_status, to_status):
         raise ValueError(f"Invalid transition: {from_status} → {to_status}")
 
-    await close_time_tracking(db, request_id, from_status)
-    request.status = to_status
-    request.updated_at = datetime.utcnow()
+    await close_time_tracking(db, envelope_id, from_status)
+    envelope.status = to_status
+    envelope.updated_at = datetime.utcnow()
     await open_time_tracking(
-        db, request_id, to_status,
-        request.requested_by_user_id, request.requested_by_name
+        db, envelope_id, to_status,
+        envelope.requested_by_user_id, envelope.requested_by_name
     )
     await log_status_change(
-        db, request_id, from_status, to_status,
+        db, envelope_id, from_status, to_status,
         user_id, user_name, user_role, reason=reason, ip_address=ip_address
     )
     await log_activity(
-        db, request_id, "corrections_requested",
+        db, envelope_id, "corrections_requested",
         user_id, user_name, user_role, ip_address=ip_address,
         detail={"reason": reason}
     )
 
     await db.flush()
-    return request
+    return envelope
 
 
-async def reject_contract_request(
+async def reject_envelope(
     db: AsyncSession,
-    request_id: str,
+    envelope_id: str,
     reason: str,
     user_id: str,
     user_name: str,
     user_role: str,
     ip_address: Optional[str] = None
-) -> ContractRequest:
+) -> Envelope:
     """Lawyer rejects — transitions to rechazado. Closes SLA. Immutable."""
     result = await db.execute(
-        select(ContractRequest).where(
-            and_(ContractRequest.id == request_id, ContractRequest.is_deleted == False)
+        select(Envelope).where(
+            and_(Envelope.id == envelope_id, Envelope.is_deleted == False)
         )
     )
-    request = result.scalar_one_or_none()
-    if not request:
-        raise ValueError("Contract request not found")
+    envelope = result.scalar_one_or_none()
+    if not envelope:
+        raise ValueError("Envelope not found")
 
-    from_status = request.status
+    from_status = envelope.status
     to_status = "rechazado"
 
     if not validate_transition(from_status, to_status):
         raise ValueError(f"Invalid transition: {from_status} → {to_status}")
 
-    await close_time_tracking(db, request_id, from_status)
-    request.status = to_status
-    request.sla_closed_at = datetime.utcnow()
-    request.updated_at = datetime.utcnow()
+    await close_time_tracking(db, envelope_id, from_status)
+    envelope.status = to_status
+    envelope.sla_closed_at = datetime.utcnow()
+    envelope.updated_at = datetime.utcnow()
     await log_status_change(
-        db, request_id, from_status, to_status,
+        db, envelope_id, from_status, to_status,
         user_id, user_name, user_role, reason=reason, ip_address=ip_address
     )
     await log_activity(
-        db, request_id, "rejected",
+        db, envelope_id, "rejected",
         user_id, user_name, user_role, ip_address=ip_address,
         detail={"reason": reason}
     )
 
     await db.flush()
-    return request
+    return envelope
 
 
-async def complete_contract_request(
+async def complete_envelope(
     db: AsyncSession,
-    request_id: str,
+    envelope_id: str,
     user_id: str,
     user_name: str,
     user_role: str,
     ip_address: Optional[str] = None
-) -> ContractRequest:
-    """Marks a request as completado when all signatures are collected."""
+) -> Envelope:
+    """Marks an envelope as completado when all signatures are collected."""
     result = await db.execute(
-        select(ContractRequest).where(
-            and_(ContractRequest.id == request_id, ContractRequest.is_deleted == False)
+        select(Envelope).where(
+            and_(Envelope.id == envelope_id, Envelope.is_deleted == False)
         )
     )
-    request = result.scalar_one_or_none()
-    if not request:
-        raise ValueError("Contract request not found")
+    envelope = result.scalar_one_or_none()
+    if not envelope:
+        raise ValueError("Envelope not found")
 
-    from_status = request.status
+    from_status = envelope.status
     to_status = "completado"
 
     if not validate_transition(from_status, to_status):
         raise ValueError(f"Invalid transition: {from_status} → {to_status}")
 
-    await close_time_tracking(db, request_id, from_status)
-    request.status = to_status
-    request.completed_at = datetime.utcnow()
-    request.updated_at = datetime.utcnow()
+    await close_time_tracking(db, envelope_id, from_status)
+    envelope.status = to_status
+    envelope.completed_at = datetime.utcnow()
+    envelope.updated_at = datetime.utcnow()
     await log_status_change(
-        db, request_id, from_status, to_status,
+        db, envelope_id, from_status, to_status,
         user_id, user_name, user_role, ip_address=ip_address
     )
     await log_activity(
-        db, request_id, "completed",
+        db, envelope_id, "completed",
         user_id, user_name, user_role, ip_address=ip_address
     )
 
     await db.flush()
-    return request
+    return envelope
 
 
 async def reassign_lawyer(
     db: AsyncSession,
-    request_id: str,
+    envelope_id: str,
     new_lawyer_id: str,
     new_lawyer_name: str,
     new_lawyer_email: str,
@@ -732,77 +727,77 @@ async def reassign_lawyer(
     user_name: str,
     user_role: str,
     ip_address: Optional[str] = None
-) -> ContractRequest:
+) -> Envelope:
     """
-    Coordinator reassigns a request to a different lawyer.
+    Coordinator reassigns an envelope to a different lawyer.
     SLA counter does not reset.
     """
     result = await db.execute(
-        select(ContractRequest).where(
-            and_(ContractRequest.id == request_id, ContractRequest.is_deleted == False)
+        select(Envelope).where(
+            and_(Envelope.id == envelope_id, Envelope.is_deleted == False)
         )
     )
-    request = result.scalar_one_or_none()
-    if not request:
-        raise ValueError("Contract request not found")
+    envelope = result.scalar_one_or_none()
+    if not envelope:
+        raise ValueError("Envelope not found")
 
-    if request.status in ["completado", "rechazado"]:
-        raise ValueError("Cannot reassign a closed request")
+    if envelope.status in ["completado", "rechazado"]:
+        raise ValueError("Cannot reassign a closed envelope")
 
-    old_lawyer = request.assigned_lawyer_name
-    request.assigned_lawyer_id = new_lawyer_id
-    request.assigned_lawyer_name = new_lawyer_name
-    request.assigned_lawyer_email = new_lawyer_email
-    request.assigned_at = datetime.utcnow()
-    request.updated_at = datetime.utcnow()
+    old_lawyer = envelope.assigned_lawyer_name
+    envelope.assigned_lawyer_id = new_lawyer_id
+    envelope.assigned_lawyer_name = new_lawyer_name
+    envelope.assigned_lawyer_email = new_lawyer_email
+    envelope.assigned_at = datetime.utcnow()
+    envelope.updated_at = datetime.utcnow()
 
     await log_activity(
-        db, request_id, "lawyer_reassigned",
+        db, envelope_id, "lawyer_reassigned",
         user_id, user_name, user_role, ip_address=ip_address,
         detail={"old_lawyer": old_lawyer, "new_lawyer": new_lawyer_name}
     )
 
     await db.flush()
-    return request
+    return envelope
 
 
 async def update_sla_breach_flags(db: AsyncSession) -> int:
     """
-    Marks all overdue open requests as is_sla_breached = True.
+    Marks all overdue open envelopes as is_sla_breached = True.
     Called by the daily SLA report cron.
     Returns the number of updated records.
     """
     now = datetime.utcnow()
     result = await db.execute(
-        select(ContractRequest).where(
+        select(Envelope).where(
             and_(
-                ContractRequest.sla_due_at < now,
-                ContractRequest.sla_closed_at == None,
-                ContractRequest.is_sla_breached == False,
-                ContractRequest.is_deleted == False
+                Envelope.sla_due_at < now,
+                Envelope.sla_closed_at == None,
+                Envelope.is_sla_breached == False,
+                Envelope.is_deleted == False
             )
         )
     )
-    requests = result.scalars().all()
-    for req in requests:
-        req.is_sla_breached = True
+    envelopes = result.scalars().all()
+    for env in envelopes:
+        env.is_sla_breached = True
     await db.flush()
-    return len(requests)
+    return len(envelopes)
 
 
-async def get_contract_request(
+async def get_envelope(
     db: AsyncSession,
-    request_id: str
-) -> Optional[ContractRequest]:
+    envelope_id: str
+) -> Optional[Envelope]:
     result = await db.execute(
-        select(ContractRequest).where(
-            and_(ContractRequest.id == request_id, ContractRequest.is_deleted == False)
+        select(Envelope).where(
+            and_(Envelope.id == envelope_id, Envelope.is_deleted == False)
         )
     )
     return result.scalar_one_or_none()
 
 
-async def list_contract_requests(
+async def list_envelopes(
     db: AsyncSession,
     company_id: Optional[str] = None,
     lawyer_id: Optional[str] = None,
@@ -811,23 +806,23 @@ async def list_contract_requests(
     is_sla_breached: Optional[bool] = None,
     page: int = 1,
     per_page: int = 20
-) -> Tuple[List[ContractRequest], int]:
-    q = select(ContractRequest).where(ContractRequest.is_deleted == False)
+) -> Tuple[List[Envelope], int]:
+    q = select(Envelope).where(Envelope.is_deleted == False)
     if company_id:
-        q = q.where(ContractRequest.company_id == company_id)
+        q = q.where(Envelope.company_id == company_id)
     if lawyer_id:
-        q = q.where(ContractRequest.assigned_lawyer_id == lawyer_id)
+        q = q.where(Envelope.assigned_lawyer_id == lawyer_id)
     if status:
-        q = q.where(ContractRequest.status == status)
+        q = q.where(Envelope.status == status)
     if contract_type_id:
-        q = q.where(ContractRequest.contract_type_id == contract_type_id)
+        q = q.where(Envelope.contract_type_id == contract_type_id)
     if is_sla_breached is not None:
-        q = q.where(ContractRequest.is_sla_breached == is_sla_breached)
+        q = q.where(Envelope.is_sla_breached == is_sla_breached)
 
     count_result = await db.execute(select(func.count()).select_from(q.subquery()))
     total = count_result.scalar() or 0
 
-    q = q.order_by(ContractRequest.created_at.desc())
+    q = q.order_by(Envelope.created_at.desc())
     q = q.offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(q)
     return result.scalars().all(), total
@@ -835,15 +830,15 @@ async def list_contract_requests(
 
 async def add_comment(
     db: AsyncSession,
-    request_id: str,
-    data: ContractCommentCreate,
+    envelope_id: str,
+    data: EnvelopeCommentCreate,
     user_id: str,
     user_name: str,
     user_role: str,
     ip_address: Optional[str] = None
-) -> ContractComment:
-    comment = ContractComment(
-        contract_request_id=request_id,
+) -> EnvelopeComment:
+    comment = EnvelopeComment(
+        envelope_id=envelope_id,
         author_user_id=user_id,
         author_name=user_name,
         author_role=user_role,
@@ -852,7 +847,7 @@ async def add_comment(
     )
     db.add(comment)
     await log_activity(
-        db, request_id, "comment_added",
+        db, envelope_id, "comment_added",
         user_id, user_name, user_role, ip_address=ip_address,
         detail={"is_internal": data.is_internal}
     )
@@ -860,84 +855,84 @@ async def add_comment(
     return comment
 
 
-async def get_request_comments(
+async def get_envelope_comments(
     db: AsyncSession,
-    request_id: str,
+    envelope_id: str,
     include_internal: bool = False
-) -> List[ContractComment]:
-    q = select(ContractComment).where(
+) -> List[EnvelopeComment]:
+    q = select(EnvelopeComment).where(
         and_(
-            ContractComment.contract_request_id == request_id,
-            ContractComment.is_deleted == False
+            EnvelopeComment.envelope_id == envelope_id,
+            EnvelopeComment.is_deleted == False
         )
     )
     if not include_internal:
-        q = q.where(ContractComment.is_internal == False)
-    q = q.order_by(ContractComment.created_at.asc())
+        q = q.where(EnvelopeComment.is_internal == False)
+    q = q.order_by(EnvelopeComment.created_at.asc())
     result = await db.execute(q)
     return result.scalars().all()
 
 
-async def get_request_status_log(
+async def get_envelope_status_log(
     db: AsyncSession,
-    request_id: str
-) -> List[ContractStatusLog]:
+    envelope_id: str
+) -> List[EnvelopeStatusLog]:
     result = await db.execute(
-        select(ContractStatusLog)
-        .where(ContractStatusLog.contract_request_id == request_id)
-        .order_by(ContractStatusLog.changed_at.asc())
+        select(EnvelopeStatusLog)
+        .where(EnvelopeStatusLog.envelope_id == envelope_id)
+        .order_by(EnvelopeStatusLog.changed_at.asc())
     )
     return result.scalars().all()
 
 
-async def get_request_time_tracking(
+async def get_envelope_time_tracking(
     db: AsyncSession,
-    request_id: str
-) -> List[ContractTimeTracking]:
+    envelope_id: str
+) -> List[EnvelopeTimeTracking]:
     result = await db.execute(
-        select(ContractTimeTracking)
-        .where(ContractTimeTracking.contract_request_id == request_id)
-        .order_by(ContractTimeTracking.started_at.asc())
+        select(EnvelopeTimeTracking)
+        .where(EnvelopeTimeTracking.envelope_id == envelope_id)
+        .order_by(EnvelopeTimeTracking.started_at.asc())
     )
     return result.scalars().all()
 
 
-async def get_request_activity_log(
+async def get_envelope_activity_log(
     db: AsyncSession,
-    request_id: str
-) -> List[ContractActivityLog]:
+    envelope_id: str
+) -> List[EnvelopeActivityLog]:
     result = await db.execute(
-        select(ContractActivityLog)
-        .where(ContractActivityLog.contract_request_id == request_id)
-        .order_by(ContractActivityLog.performed_at.asc())
+        select(EnvelopeActivityLog)
+        .where(EnvelopeActivityLog.envelope_id == envelope_id)
+        .order_by(EnvelopeActivityLog.performed_at.asc())
     )
     return result.scalars().all()
 
 
-async def get_request_form_snapshots(
+async def get_envelope_form_snapshots(
     db: AsyncSession,
-    request_id: str
-) -> List[ContractFormSnapshot]:
+    envelope_id: str
+) -> List[EnvelopeFormSnapshot]:
     result = await db.execute(
-        select(ContractFormSnapshot)
-        .where(ContractFormSnapshot.contract_request_id == request_id)
-        .order_by(ContractFormSnapshot.version.asc())
+        select(EnvelopeFormSnapshot)
+        .where(EnvelopeFormSnapshot.envelope_id == envelope_id)
+        .order_by(EnvelopeFormSnapshot.version.asc())
     )
     return result.scalars().all()
 
 
-async def get_request_attachments(
+async def get_envelope_attachments(
     db: AsyncSession,
-    request_id: str
-) -> List[ContractAttachment]:
+    envelope_id: str
+) -> List[EnvelopeAttachment]:
     result = await db.execute(
-        select(ContractAttachment)
+        select(EnvelopeAttachment)
         .where(
             and_(
-                ContractAttachment.contract_request_id == request_id,
-                ContractAttachment.is_deleted == False
+                EnvelopeAttachment.envelope_id == envelope_id,
+                EnvelopeAttachment.is_deleted == False
             )
         )
-        .order_by(ContractAttachment.uploaded_at.asc())
+        .order_by(EnvelopeAttachment.uploaded_at.asc())
     )
     return result.scalars().all()

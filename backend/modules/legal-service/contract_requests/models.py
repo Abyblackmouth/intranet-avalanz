@@ -57,7 +57,7 @@ class ContractTypeAttachmentDef(Base):
 
 
 class LawyerAssignment(Base):
-    """Assignment of lawyers to contract types for request routing."""
+    """Assignment of lawyers to contract types for envelope routing."""
     __tablename__ = "lawyer_assignments"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
@@ -70,12 +70,12 @@ class LawyerAssignment(Base):
     assigned_by = Column(UUID(as_uuid=False), nullable=False)
 
 
-class ContractRequest(Base):
-    """Main contract request entity with full state machine and traceability."""
-    __tablename__ = "contract_requests"
+class Envelope(Base):
+    """Main envelope entity with full state machine and traceability."""
+    __tablename__ = "envelopes"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    folio = Column(String(20), nullable=False, unique=True)  # CONT-2026-0001
+    folio = Column(String(20), nullable=False, unique=True)  # ENV-2026-0001
 
     # Ownership
     company_id = Column(UUID(as_uuid=False), nullable=False)
@@ -105,7 +105,7 @@ class ContractRequest(Base):
             "firmado_parcial",
             "completado",
             "rechazado",
-            name="contract_status_enum"
+            name="envelope_status_enum"
         ),
         nullable=False,
         default="borrador"
@@ -123,9 +123,9 @@ class ContractRequest(Base):
     open_request_description = Column(Text, nullable=True)
 
     # SLA tracking
-    submitted_at = Column(DateTime(timezone=True), nullable=True)  # when client first submits
-    sla_due_at = Column(DateTime(timezone=True), nullable=True)    # calculated from submitted_at
-    sla_closed_at = Column(DateTime(timezone=True), nullable=True) # when SLA stops counting
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+    sla_due_at = Column(DateTime(timezone=True), nullable=True)
+    sla_closed_at = Column(DateTime(timezone=True), nullable=True)
     is_sla_breached = Column(Boolean, nullable=False, default=False)
 
     # Timestamps
@@ -139,12 +139,12 @@ class ContractRequest(Base):
     deleted_by = Column(UUID(as_uuid=False), nullable=True)
 
 
-class ContractFormSnapshot(Base):
+class EnvelopeFormSnapshot(Base):
     """Immutable snapshot of form data each time client submits or resubmits."""
-    __tablename__ = "contract_form_snapshots"
+    __tablename__ = "envelope_form_snapshots"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    contract_request_id = Column(UUID(as_uuid=False), ForeignKey("contract_requests.id", ondelete="CASCADE"), nullable=False)
+    envelope_id = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
     version = Column(Integer, nullable=False, default=1)
     form_data = Column(JSON, nullable=False)
     submitted_by_user_id = Column(UUID(as_uuid=False), nullable=False)
@@ -152,12 +152,12 @@ class ContractFormSnapshot(Base):
     submitted_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
-class ContractStatusLog(Base):
+class EnvelopeStatusLog(Base):
     """Immutable log of every status transition — who, when, from, to, why."""
-    __tablename__ = "contract_status_logs"
+    __tablename__ = "envelope_status_logs"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    contract_request_id = Column(UUID(as_uuid=False), ForeignKey("contract_requests.id", ondelete="CASCADE"), nullable=False)
+    envelope_id = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
     from_status = Column(String(50), nullable=True)
     to_status = Column(String(50), nullable=False)
     changed_by_user_id = Column(UUID(as_uuid=False), nullable=False)
@@ -168,48 +168,48 @@ class ContractStatusLog(Base):
     ip_address = Column(String(45), nullable=True)
 
 
-class ContractTimeTracking(Base):
+class EnvelopeTimeTracking(Base):
     """Records time spent in each status for SLA diagnosis and reporting."""
-    __tablename__ = "contract_time_tracking"
+    __tablename__ = "envelope_time_tracking"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    contract_request_id = Column(UUID(as_uuid=False), ForeignKey("contract_requests.id", ondelete="CASCADE"), nullable=False)
+    envelope_id = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
     status = Column(String(50), nullable=False)
     responsible_user_id = Column(UUID(as_uuid=False), nullable=True)
     responsible_user_name = Column(String(255), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     ended_at = Column(DateTime(timezone=True), nullable=True)
-    duration_minutes = Column(Integer, nullable=True)  # calculated on close
+    duration_minutes = Column(Integer, nullable=True)
 
 
-class ContractComment(Base):
-    """Comments on a contract request — internal (legal only) or public (visible to client)."""
-    __tablename__ = "contract_comments"
+class EnvelopeComment(Base):
+    """Comments on an envelope — internal (legal only) or public (visible to client)."""
+    __tablename__ = "envelope_comments"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    contract_request_id = Column(UUID(as_uuid=False), ForeignKey("contract_requests.id", ondelete="CASCADE"), nullable=False)
+    envelope_id = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
     author_user_id = Column(UUID(as_uuid=False), nullable=False)
     author_name = Column(String(255), nullable=False)
     author_role = Column(String(100), nullable=False)
     body = Column(Text, nullable=False)
-    is_internal = Column(Boolean, nullable=False, default=False)  # True = legal only
+    is_internal = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     edited_at = Column(DateTime(timezone=True), nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
 
-class ContractAttachment(Base):
-    """Files attached to a contract request with full audit trail."""
-    __tablename__ = "contract_attachments"
+class EnvelopeAttachment(Base):
+    """Files attached to an envelope with full audit trail."""
+    __tablename__ = "envelope_attachments"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    contract_request_id = Column(UUID(as_uuid=False), ForeignKey("contract_requests.id", ondelete="CASCADE"), nullable=False)
+    envelope_id = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
     attachment_def_id = Column(UUID(as_uuid=False), ForeignKey("contract_type_attachment_defs.id"), nullable=True)
     original_name = Column(String(255), nullable=False)
     stored_name = Column(String(255), nullable=False)
     object_key = Column(String(500), nullable=False)
-    bucket = Column(String(100), nullable=False, default="legal-contracts")
+    bucket = Column(String(100), nullable=False, default="legal-envelopes")
     mime_type = Column(String(100), nullable=False)
     extension = Column(String(20), nullable=False)
     size_bytes = Column(BigInteger, nullable=False)
@@ -223,13 +223,13 @@ class ContractAttachment(Base):
     deleted_by = Column(UUID(as_uuid=False), nullable=True)
 
 
-class ContractAttachmentLog(Base):
-    """Audit log for every action on contract attachments."""
-    __tablename__ = "contract_attachment_logs"
+class EnvelopeAttachmentLog(Base):
+    """Audit log for every action on envelope attachments."""
+    __tablename__ = "envelope_attachment_logs"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    attachment_id = Column(UUID(as_uuid=False), ForeignKey("contract_attachments.id", ondelete="CASCADE"), nullable=False)
-    contract_request_id = Column(UUID(as_uuid=False), nullable=False)
+    attachment_id = Column(UUID(as_uuid=False), ForeignKey("envelope_attachments.id", ondelete="CASCADE"), nullable=False)
+    envelope_id = Column(UUID(as_uuid=False), nullable=False)
     action = Column(String(50), nullable=False)  # uploaded, downloaded, deleted
     performed_by_user_id = Column(UUID(as_uuid=False), nullable=False)
     performed_by_name = Column(String(255), nullable=False)
@@ -238,23 +238,23 @@ class ContractAttachmentLog(Base):
     detail = Column(JSON, nullable=True)
 
 
-class ContractActivityLog(Base):
+class EnvelopeActivityLog(Base):
     """General activity log — views, downloads, edits, assignments, and any other action."""
-    __tablename__ = "contract_activity_logs"
+    __tablename__ = "envelope_activity_logs"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    contract_request_id = Column(UUID(as_uuid=False), ForeignKey("contract_requests.id", ondelete="CASCADE"), nullable=False)
-    action = Column(String(100), nullable=False)  # viewed, downloaded_contract, reassigned, field_edited, etc.
+    envelope_id = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String(100), nullable=False)
     performed_by_user_id = Column(UUID(as_uuid=False), nullable=False)
     performed_by_name = Column(String(255), nullable=False)
     performed_by_role = Column(String(100), nullable=False)
     performed_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     ip_address = Column(String(45), nullable=True)
-    detail = Column(JSON, nullable=True)  # {"field": "counterparty_name", "old": "A", "new": "B"}
+    detail = Column(JSON, nullable=True)
 
 
 class FolioSequence(Base):
-    """Controls the auto-increment folio counter per year — CONT-2026-0001."""
+    """Controls the auto-increment folio counter per year — ENV-2026-0001."""
     __tablename__ = "folio_sequences"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)

@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 
-class ContractStatus(str, Enum):
+class EnvelopeStatus(str, Enum):
     borrador = "borrador"
     pendiente_legal = "pendiente_legal"
     pendiente_cliente = "pendiente_cliente"
@@ -98,9 +98,9 @@ class LawyerAssignmentOut(BaseModel):
         from_attributes = True
 
 
-# ── Contract Request ──────────────────────────────────────────────────────────
+# ── Envelope ──────────────────────────────────────────────────────────────────
 
-class ContractRequestCreate(BaseModel):
+class EnvelopeCreate(BaseModel):
     contract_type_id: str
     form_data: Optional[Dict[str, Any]] = None
     counterparty_name: Optional[str] = Field(None, max_length=255)
@@ -109,28 +109,28 @@ class ContractRequestCreate(BaseModel):
     open_request_description: Optional[str] = None
 
 
-class ContractRequestUpdate(BaseModel):
+class EnvelopeUpdate(BaseModel):
     form_data: Optional[Dict[str, Any]] = None
     counterparty_name: Optional[str] = Field(None, max_length=255)
     counterparty_email: Optional[EmailStr] = None
     open_request_description: Optional[str] = None
 
 
-class ContractRequestSubmit(BaseModel):
+class EnvelopeSubmit(BaseModel):
     form_data: Optional[Dict[str, Any]] = None
     counterparty_name: Optional[str] = None
     counterparty_email: Optional[EmailStr] = None
 
 
-class ContractRequestStatusChange(BaseModel):
+class EnvelopeStatusChange(BaseModel):
     reason: Optional[str] = None
 
 
-class ContractRequestReject(BaseModel):
+class EnvelopeReject(BaseModel):
     reason: str = Field(..., min_length=10)
 
 
-class ContractRequestRequestCorrections(BaseModel):
+class EnvelopeRequestCorrections(BaseModel):
     reason: str = Field(..., min_length=10)
 
 
@@ -143,7 +143,7 @@ class SLAInfo(BaseModel):
     color: SLAColor
 
 
-class ContractRequestOut(BaseModel):
+class EnvelopeOut(BaseModel):
     id: str
     folio: str
     company_id: str
@@ -157,7 +157,7 @@ class ContractRequestOut(BaseModel):
     assigned_lawyer_name: Optional[str] = None
     assigned_lawyer_email: Optional[str] = None
     assigned_at: Optional[datetime] = None
-    status: ContractStatus
+    status: EnvelopeStatus
     form_data: Optional[Dict[str, Any]] = None
     counterparty_name: Optional[str] = None
     counterparty_email: Optional[str] = None
@@ -176,14 +176,14 @@ class ContractRequestOut(BaseModel):
         from_attributes = True
 
 
-class ContractRequestListItem(BaseModel):
+class EnvelopeListItem(BaseModel):
     id: str
     folio: str
     company_name: str
     requested_by_name: str
     contract_type_name: str
     assigned_lawyer_name: Optional[str] = None
-    status: ContractStatus
+    status: EnvelopeStatus
     is_open_request: bool
     submitted_at: Optional[datetime] = None
     sla_due_at: Optional[datetime] = None
@@ -197,7 +197,7 @@ class ContractRequestListItem(BaseModel):
 
 # ── Status Log ────────────────────────────────────────────────────────────────
 
-class ContractStatusLogOut(BaseModel):
+class EnvelopeStatusLogOut(BaseModel):
     id: str
     from_status: Optional[str] = None
     to_status: str
@@ -212,7 +212,7 @@ class ContractStatusLogOut(BaseModel):
 
 # ── Time Tracking ─────────────────────────────────────────────────────────────
 
-class ContractTimeTrackingOut(BaseModel):
+class EnvelopeTimeTrackingOut(BaseModel):
     id: str
     status: str
     responsible_user_name: Optional[str] = None
@@ -226,12 +226,12 @@ class ContractTimeTrackingOut(BaseModel):
 
 # ── Comments ──────────────────────────────────────────────────────────────────
 
-class ContractCommentCreate(BaseModel):
+class EnvelopeCommentCreate(BaseModel):
     body: str = Field(..., min_length=1)
     is_internal: bool = False
 
 
-class ContractCommentOut(BaseModel):
+class EnvelopeCommentOut(BaseModel):
     id: str
     author_name: str
     author_role: str
@@ -246,7 +246,7 @@ class ContractCommentOut(BaseModel):
 
 # ── Attachments ───────────────────────────────────────────────────────────────
 
-class ContractAttachmentOut(BaseModel):
+class EnvelopeAttachmentOut(BaseModel):
     id: str
     original_name: str
     mime_type: str
@@ -261,7 +261,7 @@ class ContractAttachmentOut(BaseModel):
         from_attributes = True
 
 
-class ContractAttachmentLogOut(BaseModel):
+class EnvelopeAttachmentLogOut(BaseModel):
     id: str
     action: str
     performed_by_name: str
@@ -274,7 +274,7 @@ class ContractAttachmentLogOut(BaseModel):
 
 # ── Activity Log ──────────────────────────────────────────────────────────────
 
-class ContractActivityLogOut(BaseModel):
+class EnvelopeActivityLogOut(BaseModel):
     id: str
     action: str
     performed_by_name: str
@@ -288,7 +288,7 @@ class ContractActivityLogOut(BaseModel):
 
 # ── Form Snapshot ─────────────────────────────────────────────────────────────
 
-class ContractFormSnapshotOut(BaseModel):
+class EnvelopeFormSnapshotOut(BaseModel):
     id: str
     version: int
     form_data: Dict[str, Any]
@@ -301,20 +301,20 @@ class ContractFormSnapshotOut(BaseModel):
 
 # ── Full Detail ───────────────────────────────────────────────────────────────
 
-class ContractRequestDetail(BaseModel):
-    request: ContractRequestOut
-    status_log: List[ContractStatusLogOut] = []
-    time_tracking: List[ContractTimeTrackingOut] = []
-    comments: List[ContractCommentOut] = []
-    attachments: List[ContractAttachmentOut] = []
-    form_snapshots: List[ContractFormSnapshotOut] = []
-    activity_log: List[ContractActivityLogOut] = []
+class EnvelopeDetail(BaseModel):
+    envelope: EnvelopeOut
+    status_log: List[EnvelopeStatusLogOut] = []
+    time_tracking: List[EnvelopeTimeTrackingOut] = []
+    comments: List[EnvelopeCommentOut] = []
+    attachments: List[EnvelopeAttachmentOut] = []
+    form_snapshots: List[EnvelopeFormSnapshotOut] = []
+    activity_log: List[EnvelopeActivityLogOut] = []
 
 
 # ── Pagination ────────────────────────────────────────────────────────────────
 
-class PaginatedContractRequests(BaseModel):
-    data: List[ContractRequestListItem]
+class PaginatedEnvelopes(BaseModel):
+    data: List[EnvelopeListItem]
     total: int
     page: int
     per_page: int
@@ -329,7 +329,7 @@ class SLAReportItem(BaseModel):
     requested_by_name: str
     contract_type_name: str
     assigned_lawyer_name: Optional[str] = None
-    status: ContractStatus
+    status: EnvelopeStatus
     submitted_at: Optional[datetime] = None
     sla_due_at: Optional[datetime] = None
     days_overdue: int
@@ -342,4 +342,4 @@ class SLAReport(BaseModel):
     on_time_count: int
     in_signatures_count: int
     overdue_items: List[SLAReportItem] = []
-    in_signatures_items: List[ContractRequestListItem] = []
+    in_signatures_items: List[EnvelopeListItem] = []
