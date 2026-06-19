@@ -1,4 +1,4 @@
-export type ContractStatus =
+export type EnvelopeStatus =
   | 'borrador'
   | 'pendiente_legal'
   | 'pendiente_cliente'
@@ -7,6 +7,9 @@ export type ContractStatus =
   | 'firmado_parcial'
   | 'completado'
   | 'rechazado'
+
+// Alias para compatibilidad
+export type ContractStatus = EnvelopeStatus
 
 export type SLAColor = 'green' | 'yellow' | 'red'
 
@@ -19,14 +22,14 @@ export interface SLAInfo {
   color: SLAColor
 }
 
-export interface ContractRequestListItem {
+export interface EnvelopeListItem {
   id: string
   folio: string
   company_name: string
   requested_by_name: string
   contract_type_name: string
   assigned_lawyer_name: string | null
-  status: ContractStatus
+  status: EnvelopeStatus
   is_open_request: boolean
   submitted_at: string | null
   sla_due_at: string | null
@@ -35,7 +38,10 @@ export interface ContractRequestListItem {
   created_at: string
 }
 
-export interface ContractRequestOut {
+// Alias para compatibilidad
+export type ContractRequestListItem = EnvelopeListItem
+
+export interface EnvelopeOut {
   id: string
   folio: string
   company_id: string
@@ -49,7 +55,7 @@ export interface ContractRequestOut {
   assigned_lawyer_name: string | null
   assigned_lawyer_email: string | null
   assigned_at: string | null
-  status: ContractStatus
+  status: EnvelopeStatus
   form_data: Record<string, any> | null
   counterparty_name: string | null
   counterparty_email: string | null
@@ -65,13 +71,19 @@ export interface ContractRequestOut {
   completed_at: string | null
 }
 
-export interface PaginatedContractRequests {
-  data: ContractRequestListItem[]
+// Alias para compatibilidad
+export type ContractRequestOut = EnvelopeOut
+
+export interface PaginatedEnvelopes {
+  data: EnvelopeListItem[]
   total: number
   page: number
   per_page: number
   total_pages: number
 }
+
+// Alias para compatibilidad
+export type PaginatedContractRequests = PaginatedEnvelopes
 
 export interface ContractType {
   id: string
@@ -88,7 +100,7 @@ export interface SLAReport {
   on_time_count: number
   in_signatures_count: number
   overdue_items: SLAReportItem[]
-  in_signatures_items: ContractRequestListItem[]
+  in_signatures_items: EnvelopeListItem[]
 }
 
 export interface SLAReportItem {
@@ -97,14 +109,14 @@ export interface SLAReportItem {
   requested_by_name: string
   contract_type_name: string
   assigned_lawyer_name: string | null
-  status: ContractStatus
+  status: EnvelopeStatus
   submitted_at: string | null
   sla_due_at: string | null
   days_overdue: number
   side: 'legal' | 'cliente'
 }
 
-export interface CreateContractRequestPayload {
+export interface CreateEnvelopePayload {
   contract_type_id: string
   form_data?: Record<string, any>
   counterparty_name?: string
@@ -113,7 +125,10 @@ export interface CreateContractRequestPayload {
   open_request_description?: string
 }
 
-export interface ContractStatusLog {
+// Alias para compatibilidad
+export type CreateContractRequestPayload = CreateEnvelopePayload
+
+export interface EnvelopeStatusLog {
   id: string
   from_status: string | null
   to_status: string
@@ -123,7 +138,10 @@ export interface ContractStatusLog {
   changed_at: string
 }
 
-export interface ContractComment {
+// Alias para compatibilidad
+export type ContractStatusLog = EnvelopeStatusLog
+
+export interface EnvelopeComment {
   id: string
   author_name: string
   author_role: string
@@ -133,7 +151,10 @@ export interface ContractComment {
   edited_at: string | null
 }
 
-export interface ContractAttachment {
+// Alias para compatibilidad
+export type ContractComment = EnvelopeComment
+
+export interface EnvelopeAttachment {
   id: string
   original_name: string
   mime_type: string
@@ -143,4 +164,22 @@ export interface ContractAttachment {
   uploaded_by_name: string
   uploaded_at: string
   download_url: string | null
+}
+
+// Alias para compatibilidad
+export type ContractAttachment = EnvelopeAttachment
+
+export type LegalRole =
+  | 'solicitante'
+  | 'abogado'
+  | 'coordinador_legal'
+  | 'director'
+  | 'super_admin'
+
+export const resolveLegalRole = (roles: string[]): LegalRole => {
+  if (roles.includes('super_admin')) return 'super_admin'
+  if (roles.includes('coordinador_legal')) return 'coordinador_legal'
+  if (roles.includes('director')) return 'director'
+  if (roles.includes('abogado')) return 'abogado'
+  return 'solicitante'
 }

@@ -1,78 +1,94 @@
 import api from '@/services/api'
-import { CreateContractRequestPayload } from '@/types/contract.types'
+import { CreateEnvelopePayload } from '@/types/contract.types'
+
+const BASE = '/api/v1/legal/envelopes'
 
 // ── Tipos de contrato ─────────────────────────────────────────────────────────
 export const getContractTypes = (activeOnly = true) =>
-  api.get('/api/v1/legal/contract-requests/types', { params: { active_only: activeOnly } })
+  api.get(`${BASE}/types`, { params: { active_only: activeOnly } })
 
 export const getContractType = (id: string) =>
-  api.get(`/api/v1/legal/contract-requests/types/${id}`)
+  api.get(`${BASE}/types/${id}`)
 
 export const createContractType = (data: Record<string, any>) =>
-  api.post('/api/v1/legal/contract-requests/types', data)
+  api.post(`${BASE}/types`, data)
 
 export const updateContractType = (id: string, data: Record<string, any>) =>
-  api.patch(`/api/v1/legal/contract-requests/types/${id}`, data)
+  api.patch(`${BASE}/types/${id}`, data)
 
 // ── Asignación de abogados ────────────────────────────────────────────────────
 export const assignLawyerToType = (contractTypeId: string, data: Record<string, any>) =>
-  api.post(`/api/v1/legal/contract-requests/types/${contractTypeId}/lawyers`, data)
+  api.post(`${BASE}/types/${contractTypeId}/lawyers`, data)
 
 export const deactivateLawyerAssignment = (assignmentId: string) =>
-  api.delete(`/api/v1/legal/contract-requests/lawyers/assignments/${assignmentId}`)
+  api.delete(`${BASE}/lawyers/assignments/${assignmentId}`)
 
-// ── Solicitudes de contrato ───────────────────────────────────────────────────
-export const getContractRequests = (params?: Record<string, string | number | boolean>) =>
-  api.get('/api/v1/legal/contract-requests', { params })
+// ── Sobres ────────────────────────────────────────────────────────────────────
+export const getEnvelopes = (params?: Record<string, string | number | boolean>) =>
+  api.get(BASE, { params })
 
-export const getContractRequest = (id: string) =>
-  api.get(`/api/v1/legal/contract-requests/${id}`)
+export const getEnvelope = (id: string) =>
+  api.get(`${BASE}/${id}`)
 
-export const createContractRequest = (data: CreateContractRequestPayload) =>
-  api.post('/api/v1/legal/contract-requests', data)
+export const createEnvelope = (data: CreateEnvelopePayload) =>
+  api.post(BASE, data)
 
-export const updateContractRequest = (id: string, data: Record<string, any>) =>
-  api.patch(`/api/v1/legal/contract-requests/${id}`, data)
+export const updateEnvelope = (id: string, data: Record<string, any>) =>
+  api.patch(`${BASE}/${id}`, data)
 
 // ── Transiciones de estado ────────────────────────────────────────────────────
-export const submitContractRequest = (id: string, data?: Record<string, any>) =>
-  api.post(`/api/v1/legal/contract-requests/${id}/submit`, data || {})
+export const submitEnvelope = (id: string, data?: Record<string, any>) =>
+  api.post(`${BASE}/${id}/submit`, data || {})
 
-export const approveContractRequest = (id: string) =>
-  api.post(`/api/v1/legal/contract-requests/${id}/approve`)
+export const approveEnvelope = (id: string) =>
+  api.post(`${BASE}/${id}/approve`)
 
 export const requestCorrections = (id: string, reason: string) =>
-  api.post(`/api/v1/legal/contract-requests/${id}/request-corrections`, { reason })
+  api.post(`${BASE}/${id}/request-corrections`, { reason })
 
-export const rejectContractRequest = (id: string, reason: string) =>
-  api.post(`/api/v1/legal/contract-requests/${id}/reject`, { reason })
+export const rejectEnvelope = (id: string, reason: string) =>
+  api.post(`${BASE}/${id}/reject`, { reason })
 
-export const completeContractRequest = (id: string) =>
-  api.post(`/api/v1/legal/contract-requests/${id}/complete`)
+export const completeEnvelope = (id: string) =>
+  api.post(`${BASE}/${id}/complete`)
 
 export const reassignLawyer = (id: string, data: Record<string, any>) =>
-  api.post(`/api/v1/legal/contract-requests/${id}/reassign`, data)
+  api.post(`${BASE}/${id}/reassign`, data)
 
 // ── Comentarios ───────────────────────────────────────────────────────────────
-export const getContractComments = (id: string) =>
-  api.get(`/api/v1/legal/contract-requests/${id}/comments`)
+export const getEnvelopeComments = (id: string) =>
+  api.get(`${BASE}/${id}/comments`)
 
-export const addContractComment = (id: string, body: string, isInternal: boolean) =>
-  api.post(`/api/v1/legal/contract-requests/${id}/comments`, { body, is_internal: isInternal })
+export const addEnvelopeComment = (id: string, body: string, isInternal: boolean) =>
+  api.post(`${BASE}/${id}/comments`, { body, is_internal: isInternal })
 
 // ── Trazabilidad ──────────────────────────────────────────────────────────────
-export const getContractStatusLog = (id: string) =>
-  api.get(`/api/v1/legal/contract-requests/${id}/status-log`)
+export const getEnvelopeStatusLog = (id: string) =>
+  api.get(`${BASE}/${id}/status-log`)
 
-export const getContractTimeTracking = (id: string) =>
-  api.get(`/api/v1/legal/contract-requests/${id}/time-tracking`)
+export const getEnvelopeTimeTracking = (id: string) =>
+  api.get(`${BASE}/${id}/time-tracking`)
 
-export const getContractActivityLog = (id: string) =>
-  api.get(`/api/v1/legal/contract-requests/${id}/activity-log`)
+export const getEnvelopeActivityLog = (id: string) =>
+  api.get(`${BASE}/${id}/activity-log`)
 
-export const getContractFormSnapshots = (id: string) =>
-  api.get(`/api/v1/legal/contract-requests/${id}/form-snapshots`)
+export const getEnvelopeFormSnapshots = (id: string) =>
+  api.get(`${BASE}/${id}/form-snapshots`)
 
 // ── Reporte SLA ───────────────────────────────────────────────────────────────
 export const getSLAReport = () =>
-  api.get('/api/v1/legal/contract-requests/reports/sla')
+  api.get(`${BASE}/reports/sla`)
+
+// ── Aliases para compatibilidad (deprecated — usar nombres nuevos) ─────────────
+export const getContractRequests  = getEnvelopes
+export const getContractRequest   = getEnvelope
+export const createContractRequest = createEnvelope
+export const approveContractRequest = approveEnvelope
+export const rejectContractRequest  = rejectEnvelope
+export const completeContractRequest = completeEnvelope
+export const getContractComments  = getEnvelopeComments
+export const addContractComment   = addEnvelopeComment
+export const getContractStatusLog = getEnvelopeStatusLog
+export const getContractTimeTracking = getEnvelopeTimeTracking
+export const getContractActivityLog  = getEnvelopeActivityLog
+export const getContractFormSnapshots = getEnvelopeFormSnapshots
