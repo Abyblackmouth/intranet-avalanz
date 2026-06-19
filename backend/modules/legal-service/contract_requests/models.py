@@ -133,6 +133,10 @@ class Envelope(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Intercompany
+    is_intercompany          = Column(Boolean, nullable=False, default=False)
+    counterparty_company_id  = Column(UUID(as_uuid=False), nullable=True)
+
     # Soft delete
     is_deleted = Column(Boolean, nullable=False, default=False)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
