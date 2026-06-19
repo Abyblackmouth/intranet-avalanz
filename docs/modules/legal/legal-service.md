@@ -26,7 +26,7 @@ El módulo legal-corporativo tiene 5 submódulos planificados. El desarrollo sig
 - El equipo de auditoría puede visualizar todo pero sin operar
 - El área legal tiene visibilidad y operación total
 - Trazabilidad completa — quién subió, editó, borró y cuándo
-- Nadie puede borrar ni editar solicitudes una vez en estado terminado
+- Nadie puede borrar ni editar sobres una vez en estado terminal
 
 ---
 
@@ -34,9 +34,9 @@ El módulo legal-corporativo tiene 5 submódulos planificados. El desarrollo sig
 
 | Perfil | Descripción | Acciones |
 |---|---|---|
-| `solicitante` | Usuario de una empresa del grupo. Crea solicitudes y da seguimiento | Solo sus propias solicitudes mientras estén abiertas |
-| `abogado` | Equipo legal corporativo. Gestiona solicitudes de los tipos asignados | Solicitudes asignadas a su tipo de contrato |
-| `coordinador_legal` | Admin del módulo legal. Asigna tipos de contrato a abogados, reasigna solicitudes | Gestión administrativa completa + KPIs |
+| `solicitante` | Usuario de una empresa del grupo. Crea sobres y da seguimiento | Solo sus propios sobres mientras estén abiertos |
+| `abogado` | Equipo legal corporativo. Gestiona sobres de los tipos asignados | Sobres asignados a su tipo de contrato |
+| `coordinador_legal` | Admin del módulo legal. Asigna tipos de contrato a abogados, reasigna sobres | Gestión administrativa completa + KPIs |
 | `director` | Personas de alto mando configurables. Solo consultan y descargan | Solo lectura + KPIs |
 | `super_admin` | Equipo de sistemas. Si no existe Coordinador Legal, asume sus funciones | Acceso total |
 
@@ -57,18 +57,20 @@ backend/modules/legal-service/
 │   │   └── legal.py                → Router base del módulo
 │   └── services/
 │       └── legal_service.py        → Servicio base del módulo
-├── contract_requests/              → Submódulo: Solicitud de Contratos
+├── contract_requests/              → Submódulo: Solicitud de Contratos (carpeta conserva nombre original)
 │   ├── __init__.py
-│   ├── models.py                   → 13 tablas SQLAlchemy
+│   ├── models.py                   → 14 tablas SQLAlchemy
 │   ├── schemas.py                  → Modelos Pydantic request/response
 │   ├── service.py                  → Lógica de negocio, SLA, balanceo
-│   └── routes.py                   → Endpoints FastAPI
+│   └── routes.py                   → Endpoints FastAPI — prefijo /envelopes
 ├── shared/                         → Symlink a backend/shared/
 ├── migrations/
 │   ├── alembic.ini
 │   ├── env.py                      → Lee variables de entorno para conexión
 │   └── versions/
-│       └── fd194ef42a01_initial_schema_contract_requests.py
+│       ├── fd194ef42a01_initial_schema_contract_requests.py
+│       ├── a7d79d465637_rename_contract_requests_tables_to_.py
+│       └── 2c4cbf7f7b31_add_envelope_signers_table.py
 ├── Dockerfile
 ├── requirements.txt
 └── .env
@@ -119,11 +121,14 @@ legal-service:
   restart: unless-stopped
   env_file:
     - ../../backend/modules/legal-service/.env
+  environment:
+    DB_HOST: postgres
   depends_on:
     postgres:
       condition: service_healthy
   networks:
     - avalanz-network
+  logging: *default-logging
 ```
 
 ### Dockerfile
@@ -143,6 +148,8 @@ EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
+> **Crítico:** El contexto del build en `docker-compose.yml` debe ser `../../backend` para que el `COPY shared/` funcione.
+
 ---
 
 ## Nginx
@@ -151,7 +158,7 @@ Ruta configurada en `infrastructure/nginx/conf.d/intranet.conf`:
 
 ```nginx
 upstream legal_service {
-    server legal-service:8000;
+    server avalanz-legal:8000;
     keepalive 32;
 }
 
@@ -167,7 +174,7 @@ location ^~ /api/v1/legal {
 }
 ```
 
-> **Nota:** El `^~` es obligatorio para que Nginx prefiera este location sobre el `location /` del frontend. Sin él, Next.js intercepta todas las peticiones a `/api/v1/legal/...`.
+> **Nota:** El upstream apunta a `avalanz-legal:8000` (nombre del contenedor), no a `legal-service:8000`. El `^~` es obligatorio para que Nginx prefiera este location sobre el `location /` del frontend.
 
 ---
 
@@ -186,29 +193,21 @@ def require_roles(*roles: str):
     return _validator.require_roles(list(roles))
 ```
 
-Uso en endpoints:
-
-```python
-@router.get("")
-async def list_requests(user: dict = Depends(get_current_user)):
-    ...
-
-@router.post("/{id}/approve")
-async def approve(user: dict = Depends(require_roles("abogado", "coordinador_legal", "super_admin"))):
-    ...
-```
-
 ---
 
-## Submódulo: Solicitud de Contratos
+## Submódulo: Solicitud de Contratos — El Sobre
+
+### Concepto del Sobre (Envelope)
+
+La unidad central del submódulo se denomina **Sobre**, consistente con la terminología de DocuSign. Un sobre contiene todo lo relacionado con una solicitud de contrato: formulario dinámico, contrato generado, anexos, firmantes, comentarios, historial de estados y trazabilidad completa.
 
 ### Prefijo de rutas
 
 ```
-/api/v1/legal/contract-requests
+/api/v1/legal/envelopes
 ```
 
-### Modelo de datos — 13 tablas
+### 1. Modelo de datos — 14 tablas en `avalanz_legal`
 
 #### contract_types
 Catálogo de tipos de contrato administrado por el equipo legal.
@@ -224,7 +223,7 @@ Catálogo de tipos de contrato administrado por el equipo legal.
 | created_by | UUID | Usuario que lo creó |
 
 #### contract_type_fields
-Campos dinámicos del formulario por tipo de contrato (pendiente configuración por equipo legal).
+Campos dinámicos del formulario por tipo de contrato.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
@@ -259,19 +258,19 @@ Asignación de usuarios con rol abogado a tipos de contrato.
 | lawyer_name | VARCHAR(255) | Nombre desnormalizado |
 | lawyer_email | VARCHAR(255) | Email desnormalizado |
 | contract_type_id | UUID FK | Referencia a contract_types |
-| is_active | Boolean | Si recibe nuevas solicitudes de este tipo |
+| is_active | Boolean | Si recibe nuevos sobres de este tipo |
 | assigned_by | UUID | Coordinador que hizo la asignación |
 
-#### contract_requests
-Solicitud principal con máquina de estados y trazabilidad completa.
+#### envelopes
+Sobre principal con máquina de estados y trazabilidad completa.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| folio | VARCHAR(20) | Folio autogenerado — CONT-2026-0001 |
+| folio | VARCHAR(20) | Folio autogenerado — ENV-2026-0001 |
 | company_id | UUID | Empresa del solicitante |
 | company_name | VARCHAR(255) | Nombre desnormalizado |
-| requested_by_user_id | UUID | Usuario que creó la solicitud |
+| requested_by_user_id | UUID | Usuario que creó el sobre |
 | requested_by_name | VARCHAR(255) | Nombre desnormalizado |
 | requested_by_email | VARCHAR(255) | Email desnormalizado |
 | contract_type_id | UUID FK | Referencia a contract_types |
@@ -280,7 +279,7 @@ Solicitud principal con máquina de estados y trazabilidad completa.
 | assigned_lawyer_name | VARCHAR(255) | Nombre desnormalizado |
 | assigned_lawyer_email | VARCHAR(255) | Email desnormalizado |
 | assigned_at | DateTime | Cuándo se asignó |
-| status | Enum | Estado actual (ver máquina de estados) |
+| status | Enum (envelope_status_enum) | Estado actual |
 | form_data | JSON | Datos del formulario dinámico |
 | counterparty_name | VARCHAR(255) | Nombre de la contraparte |
 | counterparty_email | VARCHAR(255) | Email de la contraparte |
@@ -294,42 +293,65 @@ Solicitud principal con máquina de estados y trazabilidad completa.
 | completed_at | DateTime | Fecha de cierre |
 | is_deleted | Boolean | Soft delete |
 
-#### contract_form_snapshots
+#### envelope_signers
+Firmantes del sobre — un registro por firmante, soporta múltiples firmantes por sobre. El solicitante los define al crear el sobre.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| id | UUID | Llave primaria |
+| envelope_id | UUID FK | Referencia a envelopes |
+| signer_type | VARCHAR(20) | `internal` o `external` |
+| user_id | UUID | UUID en avalanz si es firmante interno |
+| name | VARCHAR(255) | Nombre del firmante |
+| email | VARCHAR(255) | Email del firmante |
+| role_in_document | VARCHAR(100) | Representante Legal, Testigo, Contraparte |
+| routing_order | Integer | Orden de firma en DocuSign (mismo número = paralelo) |
+| docusign_recipient_id | VARCHAR(100) | ID asignado por DocuSign al enviar |
+| status | VARCHAR(30) | `pending`, `sent`, `signed`, `declined` |
+| signed_at | DateTime | Cuándo firmó |
+| declined_at | DateTime | Cuándo rechazó |
+| declined_reason | Text | Motivo del rechazo |
+| docs_requested | JSON | Docs a solicitar: `[{"type": "INE"}, {"type": "poder_notarial"}]` |
+| docs_received | JSON | Docs recuperados de DocuSign post-firma |
+| created_at | DateTime | Fecha de creación |
+| updated_at | DateTime | Última actualización |
+
+#### envelope_form_snapshots
 Snapshot inmutable del formulario en cada envío del cliente.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| contract_request_id | UUID FK | Referencia a contract_requests |
+| envelope_id | UUID FK | Referencia a envelopes |
 | version | Integer | Número de versión (1, 2, 3...) |
 | form_data | JSON | Datos del formulario en ese momento |
 | submitted_by_user_id | UUID | Quién envió |
 | submitted_by_name | VARCHAR(255) | Nombre desnormalizado |
 | submitted_at | DateTime | Fecha del envío |
 
-#### contract_status_logs
+#### envelope_status_logs
 Bitácora inmutable de cada cambio de estado.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| contract_request_id | UUID FK | Referencia a contract_requests |
+| envelope_id | UUID FK | Referencia a envelopes |
 | from_status | VARCHAR(50) | Estado anterior (null en creación) |
 | to_status | VARCHAR(50) | Estado nuevo |
 | changed_by_user_id | UUID | Quién hizo el cambio |
 | changed_by_name | VARCHAR(255) | Nombre desnormalizado |
 | changed_by_role | VARCHAR(100) | Rol en el momento del cambio |
-| reason | Text | Motivo del cambio (requerido en rechazos y correcciones) |
+| reason | Text | Motivo (requerido en rechazos y correcciones) |
 | changed_at | DateTime | Fecha exacta del cambio |
 | ip_address | VARCHAR(45) | IP desde donde se hizo el cambio |
 
-#### contract_time_tracking
+#### envelope_time_tracking
 Tiempo transcurrido en cada estado por usuario — para diagnóstico de SLA.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| contract_request_id | UUID FK | Referencia a contract_requests |
+| envelope_id | UUID FK | Referencia a envelopes |
 | status | VARCHAR(50) | Estado que se está midiendo |
 | responsible_user_id | UUID | Usuario responsable en ese estado |
 | responsible_user_name | VARCHAR(255) | Nombre desnormalizado |
@@ -337,13 +359,13 @@ Tiempo transcurrido en cada estado por usuario — para diagnóstico de SLA.
 | ended_at | DateTime | Cuándo salió (null si es el estado actual) |
 | duration_minutes | Integer | Minutos calculados al cerrar |
 
-#### contract_comments
-Comentarios en la solicitud — internos (solo legal) o públicos (cliente los ve).
+#### envelope_comments
+Comentarios en el sobre — internos (solo legal) o públicos (cliente los ve).
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| contract_request_id | UUID FK | Referencia a contract_requests |
+| envelope_id | UUID FK | Referencia a envelopes |
 | author_user_id | UUID | Autor del comentario |
 | author_name | VARCHAR(255) | Nombre desnormalizado |
 | author_role | VARCHAR(100) | Rol en el momento del comentario |
@@ -352,18 +374,18 @@ Comentarios en la solicitud — internos (solo legal) o públicos (cliente los v
 | created_at | DateTime | Fecha de creación |
 | is_deleted | Boolean | Soft delete |
 
-#### contract_attachments
-Archivos adjuntos a la solicitud con auditoría completa.
+#### envelope_attachments
+Archivos adjuntos al sobre con auditoría completa.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| contract_request_id | UUID FK | Referencia a contract_requests |
+| envelope_id | UUID FK | Referencia a envelopes |
 | attachment_def_id | UUID FK | Referencia a contract_type_attachment_defs (opcional) |
 | original_name | VARCHAR(255) | Nombre original del archivo |
 | stored_name | VARCHAR(255) | Nombre con UUID en MinIO |
 | object_key | VARCHAR(500) | Ruta en MinIO |
-| bucket | VARCHAR(100) | Bucket de MinIO (legal-contracts) |
+| bucket | VARCHAR(100) | Bucket de MinIO (legal-envelopes) |
 | mime_type | VARCHAR(100) | Tipo MIME |
 | size_bytes | BigInteger | Tamaño en bytes |
 | checksum | VARCHAR(64) | Hash SHA256 |
@@ -372,14 +394,14 @@ Archivos adjuntos a la solicitud con auditoría completa.
 | uploaded_at | DateTime | Fecha de subida |
 | is_deleted | Boolean | Soft delete |
 
-#### contract_attachment_logs
+#### envelope_attachment_logs
 Auditoría de cada acción sobre archivos adjuntos.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| attachment_id | UUID FK | Referencia a contract_attachments |
-| contract_request_id | UUID | Referencia a la solicitud |
+| attachment_id | UUID FK | Referencia a envelope_attachments |
+| envelope_id | UUID | Referencia al sobre |
 | action | VARCHAR(50) | uploaded, downloaded, deleted |
 | performed_by_user_id | UUID | Quién realizó la acción |
 | performed_by_name | VARCHAR(255) | Nombre desnormalizado |
@@ -387,23 +409,23 @@ Auditoría de cada acción sobre archivos adjuntos.
 | ip_address | VARCHAR(45) | IP |
 | detail | JSON | Datos extra |
 
-#### contract_activity_logs
-Log general de toda actividad — vistas, descargas, ediciones de campos, reasignaciones.
+#### envelope_activity_logs
+Log general de toda actividad — vistas, descargas, ediciones, reasignaciones.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | id | UUID | Llave primaria |
-| contract_request_id | UUID FK | Referencia a contract_requests |
-| action | VARCHAR(100) | viewed, form_edited, lawyer_assigned, etc. |
+| envelope_id | UUID FK | Referencia a envelopes |
+| action | VARCHAR(100) | viewed, form_edited, lawyer_assigned, submitted, approved, rejected, etc. |
 | performed_by_user_id | UUID | Quién realizó la acción |
 | performed_by_name | VARCHAR(255) | Nombre desnormalizado |
 | performed_by_role | VARCHAR(100) | Rol en el momento |
 | performed_at | DateTime | Fecha exacta |
 | ip_address | VARCHAR(45) | IP |
-| detail | JSON | Datos extra (campo anterior/nuevo en ediciones) |
+| detail | JSON | Datos extra |
 
 #### folio_sequences
-Contador autoincrementable por año para el folio CONT-YYYY-NNNN.
+Contador autoincrementable por año para el folio ENV-YYYY-NNNN.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
@@ -413,7 +435,7 @@ Contador autoincrementable por año para el folio CONT-YYYY-NNNN.
 
 ---
 
-## Máquina de estados
+### 2. Máquina de estados
 
 ```
 borrador ──────────────────────────────────── (cliente crea, no envía aún)
@@ -431,16 +453,16 @@ firmado_parcial  en_revision_legal
 completado ←  en_firmas       rechazado
 ```
 
-### Reglas del SLA
+#### Reglas del SLA
 
 - El contador arranca cuando el cliente envía por primera vez (`submitted_at`)
 - El plazo es 3 días hábiles (lunes a viernes, sin festivos México) — configurable por tipo
-- El reloj **nunca se pausa ni reinicia** mientras la solicitud esté abierta
+- El reloj **nunca se pausa ni reinicia** mientras el sobre esté abierto
 - Se cierra únicamente cuando llega a `completado`, `rechazado` o `en_firmas`
 - Si se reasigna entre abogados, el contador no se reinicia
 - Semáforo: verde (+2 días), amarillo (≤1 día), rojo (vencido)
 
-### Transiciones válidas
+#### Transiciones válidas
 
 | Desde | Hacia | Quién |
 |---|---|---|
@@ -458,114 +480,118 @@ completado ←  en_firmas       rechazado
 
 ---
 
-## Lógica de balanceo de abogados
+### 3. Lógica de balanceo de abogados
 
-Al primer envío de una solicitud el sistema asigna automáticamente un abogado:
+Al primer envío de un sobre el sistema asigna automáticamente un abogado:
 
 1. Obtiene lista de abogados activos asignados al tipo de contrato
-2. Cuenta solicitudes pendientes **no atrasadas** de cada abogado
-3. Asigna al que tenga menos pendientes no atrasadas
-4. En empate: asigna al que lleva más tiempo sin recibir una solicitud nueva
+2. Cuenta sobres pendientes **no atrasados** de cada abogado
+3. Asigna al que tenga menos pendientes no atrasados
+4. En empate: asigna al que lleva más tiempo sin recibir un sobre nuevo
 
 > Los pendientes atrasados no cuentan en el balanceo.
 
 ---
 
-## Endpoints
+### 4. Endpoints
 
-### Tipos de contrato
+#### Tipos de contrato
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
-| GET | /types | Todos | Listar tipos de contrato |
-| GET | /types/{id} | Todos | Obtener tipo con campos y anexos |
-| POST | /types | coordinador_legal, super_admin | Crear tipo |
-| PATCH | /types/{id} | coordinador_legal, super_admin | Actualizar tipo |
-| POST | /types/{id}/lawyers | coordinador_legal, super_admin | Asignar abogado a tipo |
-| DELETE | /lawyers/assignments/{id} | coordinador_legal, super_admin | Desactivar asignación |
+| GET | /envelopes/types | Todos | Listar tipos de contrato |
+| GET | /envelopes/types/{id} | Todos | Obtener tipo con campos y anexos |
+| POST | /envelopes/types | coordinador_legal, super_admin | Crear tipo |
+| PATCH | /envelopes/types/{id} | coordinador_legal, super_admin | Actualizar tipo |
+| POST | /envelopes/types/{id}/lawyers | coordinador_legal, super_admin | Asignar abogado a tipo |
+| DELETE | /envelopes/lawyers/assignments/{id} | coordinador_legal, super_admin | Desactivar asignación |
 
-### Solicitudes
+#### Sobres
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
-| GET | / | Todos (filtrado por rol) | Listar solicitudes |
-| POST | / | Todos | Crear solicitud en borrador |
-| GET | /{id} | Todos (filtrado por rol) | Detalle completo con trazabilidad |
-| PATCH | /{id} | solicitante | Editar borrador o correcciones |
-| POST | /{id}/submit | solicitante | Enviar al área legal |
-| POST | /{id}/approve | abogado, coordinador, super_admin | Aprobar → en_firmas |
-| POST | /{id}/request-corrections | abogado, coordinador, super_admin | Pedir correcciones |
-| POST | /{id}/reject | abogado, coordinador, super_admin | Rechazar |
-| POST | /{id}/complete | abogado, coordinador, super_admin | Marcar completado |
-| POST | /{id}/reassign | coordinador, super_admin | Reasignar abogado |
+| GET | /envelopes | Todos (filtrado por rol) | Listar sobres |
+| POST | /envelopes | Todos | Crear sobre en borrador |
+| GET | /envelopes/{id} | Todos (filtrado por rol) | Detalle completo con trazabilidad |
+| PATCH | /envelopes/{id} | solicitante | Editar borrador o correcciones |
+| POST | /envelopes/{id}/submit | solicitante | Enviar al área legal |
+| POST | /envelopes/{id}/approve | abogado, coordinador, super_admin | Aprobar → en_firmas |
+| POST | /envelopes/{id}/request-corrections | abogado, coordinador, super_admin | Pedir correcciones |
+| POST | /envelopes/{id}/reject | abogado, coordinador, super_admin | Rechazar |
+| POST | /envelopes/{id}/complete | abogado, coordinador, super_admin | Marcar completado |
+| POST | /envelopes/{id}/reassign | coordinador, super_admin | Reasignar abogado |
 
-### Comentarios
+#### Firmantes
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
-| GET | /{id}/comments | Todos (internos filtrados) | Listar comentarios |
-| POST | /{id}/comments | Todos | Agregar comentario |
+| GET | /envelopes/{id}/signers | Todos (filtrado por rol) | Listar firmantes del sobre |
+| POST | /envelopes/{id}/signers | solicitante, super_admin | Agregar firmante |
+| PATCH | /envelopes/{id}/signers/{signer_id} | solicitante, super_admin | Editar firmante |
+| DELETE | /envelopes/{id}/signers/{signer_id} | solicitante, super_admin | Eliminar firmante |
 
-### Trazabilidad (solo equipo legal)
+#### Comentarios
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
-| GET | /{id}/status-log | abogado, coordinador, director, super_admin | Historial de estados |
-| GET | /{id}/time-tracking | coordinador, super_admin | Tiempo por estado |
-| GET | /{id}/activity-log | coordinador, super_admin | Log de actividad |
-| GET | /{id}/form-snapshots | abogado, coordinador, super_admin | Versiones del formulario |
+| GET | /envelopes/{id}/comments | Todos (internos filtrados) | Listar comentarios |
+| POST | /envelopes/{id}/comments | Todos | Agregar comentario |
 
-### Reportes
+#### Trazabilidad
 | Método | Ruta | Roles | Descripción |
 |---|---|---|---|
-| GET | /reports/sla | coordinador, director, super_admin | Reporte SLA actual |
-| POST | /internal/update-sla-flags | Sin auth (red interna) | Cron diario — marca vencidas |
+| GET | /envelopes/{id}/status-log | abogado, coordinador, director, super_admin | Historial de estados |
+| GET | /envelopes/{id}/time-tracking | coordinador, super_admin | Tiempo por estado |
+| GET | /envelopes/{id}/activity-log | coordinador, super_admin | Log de actividad |
+| GET | /envelopes/{id}/form-snapshots | abogado, coordinador, super_admin | Versiones del formulario |
+
+#### Reportes
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| GET | /envelopes/reports/sla | coordinador, director, super_admin | Reporte SLA actual |
+| GET | /envelopes/reports/lawyer/{lawyer_id} | coordinador, super_admin | Trazabilidad por abogado |
+| POST | /envelopes/internal/update-sla-flags | Sin auth (red interna) | Cron diario — marca vencidos |
 
 ---
 
-## Visibilidad por rol
+### 5. Visibilidad por rol
 
 | Dato | solicitante | abogado | coordinador | director | super_admin |
 |---|---|---|---|---|---|
-| Ver solicitudes | Solo su empresa | Solo asignadas a él | Todas | Todas | Todas |
-| Columna abogado | No | No | Sí | Sí | Sí |
-| Columna empresa | No | No | Sí | Sí | Sí |
-| Comentarios internos | No | Sí | Sí | Sí | Sí |
-| Time tracking | No | No | Sí | No | Sí |
-| Activity log | No | No | Sí | No | Sí |
-| Form snapshots | No | Sí | Sí | No | Sí |
-| KPIs | No | No | Sí | Sí | Sí |
+| Ver sobres | Solo su empresa | Solo asignados a él | Todos | Todos | Todos |
+| Columna abogado | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Columna empresa | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Comentarios internos | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Time tracking | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Activity log | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Form snapshots | ❌ | ✅ | ✅ | ❌ | ✅ |
+| KPIs | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Botón nuevo sobre | ✅ | ❌ | ❌ | ❌ | ✅ |
+| Ver firmantes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Editar firmantes | ✅ (solo borrador) | ❌ | ❌ | ❌ | ✅ |
 
 ---
 
-## Migraciones Alembic
+### 6. Frontend
 
-```bash
-# Generar migración desde el servidor (no desde dentro del contenedor)
-export DB_HOST=$(docker inspect avalanz-postgres | grep '"IPAddress"' | tail -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-export DB_PORT=5432 DB_USER=avalanz_user DB_PASSWORD=<password> DB_NAME=avalanz_legal
-export PYTHONPATH=/home/abcovarrubias/intranet-avalanz/backend/modules/legal-service
-cd /home/abcovarrubias/intranet-avalanz/backend/modules/legal-service
-alembic revision --autogenerate -m "descripcion"
-alembic upgrade head
-```
-
-> **Importante:** El `env.py` de Alembic lee las variables de entorno, no el `alembic.ini`. La contraseña de PostgreSQL del servidor provisional fue actualizada — ver KeePass.
-
----
-
-## Frontend
-
-### Archivos
+#### Archivos
 
 | Archivo | Ubicación |
 |---|---|
 | Página principal | `frontend/app/(private)/app/legal/solicitud-de-contratos/page.tsx` |
-| Tabla de solicitudes | `frontend/components/app/legal/ContractRequestsTable.tsx` |
+| Tabla de sobres | `frontend/components/app/legal/ContractRequestsTable.tsx` |
 | Tipos TypeScript | `frontend/types/contract.types.ts` |
 | Servicio API | `frontend/services/legalService.ts` |
+| Layout Legal | `frontend/app/(private)/app/legal/layout.tsx` |
 
-### Resolución de rol legal
+#### Notas de implementación
+- El layout de Legal usa navegación horizontal (tabs) en lugar de sidebar vertical
+- La tabla de sobres es responsive: tabla en desktop (`hidden md:block`), tarjetas en móvil (`md:hidden`)
+- El detalle del sobre abre en un slide-over lateral
+- Paginación: 10 registros por página
+- La API devuelve `{ data: [...], total, page, per_page, total_pages }` — sin wrapper `success/message`
 
-El frontend resuelve el rol legal del usuario desde el JWT:
+#### Resolución de rol legal
 
 ```typescript
+type LegalRole = 'solicitante' | 'abogado' | 'coordinador_legal' | 'director' | 'super_admin'
+
 const resolveLegalRole = (roles: string[]): LegalRole => {
   if (roles.includes('super_admin')) return 'super_admin'
   if (roles.includes('coordinador_legal')) return 'coordinador_legal'
@@ -577,56 +603,109 @@ const resolveLegalRole = (roles: string[]): LegalRole => {
 
 ---
 
-## Pendientes del submódulo
+### 7. Migraciones Alembic
 
-### Bloqueantes del equipo legal (esperando entrega)
-- Templates en Word con campos variables resaltados en amarillo
-- Listado de tipos de contrato disponibles
-- Definición de anexos obligatorios y opcionales por tipo
-- Tiempos SLA por tipo de contrato (solo NDA tiene 3d definidas)
-- Firmantes por defecto en DocuSign
+Las migraciones se corren **desde el servidor directamente**, no desde dentro del contenedor. El `env.py` lee variables de entorno — nunca el `alembic.ini`.
 
-### Técnicos pendientes
-- Integración con DocuSign para fase de firmas
-- Formulario dinámico de nueva solicitud (`ContractRequestForm.tsx`)
-- Vista de detalle de solicitud con trazabilidad completa
-- Reporte SLA diario por correo (cron a las 11:00 AM)
-- Submódulo de solicitud abierta (sin template)
-- Paginación visual en la tabla de solicitudes
-- Panel KPIs para coordinador y director
+> **Regla crítica:** Para renombrar tablas usar `op.rename_table()` manual — NUNCA `--autogenerate` porque lo interpreta como drop + create y borra los datos. Para ediciones multilínea en servidor usar Python (`python3 << 'EOF'`) en lugar de `sed`.
 
-### Datos de prueba en servidor provisional
+```bash
+export DB_HOST=$(docker inspect avalanz-postgres --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+export DB_PORT=5432 DB_USER=avalanz_user DB_NAME=avalanz_legal
+export DB_PASSWORD=<password_en_keepass>
+export PYTHONPATH=/home/abcovarrubias/intranet-avalanz/backend/modules/legal-service
+cd ~/intranet-avalanz/backend/modules/legal-service
+alembic current
+alembic upgrade head
+```
+
+#### Historial de migraciones
+
+| Revisión | Descripción |
+|---|---|
+| `fd194ef42a01` | Initial schema — tablas contract_requests |
+| `a7d79d465637` | Rename contract_requests tables to envelopes |
+| `2c4cbf7f7b31` | Add envelope_signers table |
+
+---
+
+### 8. Datos de prueba en servidor provisional
+
+15 sobres de prueba con todos los estados, 2 tipos de empresa y 2 abogados. Eliminar cuando inicie operación real:
+
 ```sql
--- Tipo de contrato de prueba
-SELECT * FROM contract_types;
--- id: 11111111-1111-1111-1111-111111111111, name: 'NDA Mutuo'
+-- Conectar
+docker exec avalanz-postgres psql -U avalanz_user -d avalanz_legal
 
--- Solicitud de prueba
-SELECT folio, status, company_name, requested_by_name FROM contract_requests;
--- CONT-2026-0001, pendiente_legal, AGIM, Ana García
+-- Ver sobres
+SELECT folio, status, company_name, requested_by_name FROM envelopes ORDER BY created_at DESC;
+
+-- Limpiar datos de prueba (cuando sea momento)
+DELETE FROM envelope_activity_logs;
+DELETE FROM envelope_time_tracking;
+DELETE FROM envelope_status_logs;
+DELETE FROM envelope_form_snapshots;
+DELETE FROM envelope_signers;
+DELETE FROM envelopes;
+DELETE FROM folio_sequences;
+```
+
+> Los folios de prueba mezclan `CONT-` (creados antes del renombramiento) y `ENV-` (creados después). En operación real todos serán `ENV-YYYY-NNNN`.
+
+---
+
+### 9. Comandos frecuentes
+
+```bash
+# Token de prueba
+TOKEN=$(curl -k -s -X POST https://localhost/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@avalanz.com","password":"Admin@2026!"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['access_token'])")
+
+# Probar API
+curl -k -s https://localhost/api/v1/legal/envelopes \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+
+# Ver logs
+docker logs avalanz-legal --tail 30 -f
+
+# Rebuild legal-service
+cd ~/intranet-avalanz/infrastructure/docker
+docker compose -f docker-compose.yml build legal-service
+docker compose -f docker-compose.yml up -d legal-service
+
+# Rebuild frontend
+cd ~/intranet-avalanz/frontend && npm run build && pm2 restart intranet-frontend
+
+# Ver BD
+docker exec avalanz-postgres psql -U avalanz_user -d avalanz_legal -c "\dt"
+
+# Recargar Nginx
+docker exec avalanz-nginx nginx -s reload
 ```
 
 ---
 
-## Comandos frecuentes
+### 10. Pendientes
 
-```bash
-# Ver logs del legal-service
-docker logs avalanz-legal --tail 30 -f
+#### Bloqueantes del equipo legal
+- Templates Word con campos variables resaltados en amarillo
+- Listado definitivo de tipos de contrato
+- Anexos obligatorios y opcionales por tipo de contrato
+- Documentos a solicitar a firmantes (INE, pasaporte, poder notarial, etc.)
+- Tiempos SLA por tipo (solo NDA: 3 días definidos)
+- Firmantes por defecto en DocuSign
+- Nombre del remitente en DocuSign: Legal Corporativo vs empresa del cliente
 
-# Verificar que el servicio responde
-curl -s http://172.18.0.17:8000/health
-
-# Verificar BD
-docker exec avalanz-postgres psql -U avalanz_user -d avalanz_legal -c "\dt"
-
-# Rebuild del contenedor
-cd ~/intranet-avalanz/infrastructure/docker
-docker compose up --build -d legal-service
-
-# Aplicar migraciones
-export DB_HOST=172.18.0.3 DB_PORT=5432 DB_USER=avalanz_user DB_PASSWORD=<pass> DB_NAME=avalanz_legal
-export PYTHONPATH=/home/abcovarrubias/intranet-avalanz/backend/modules/legal-service
-cd /home/abcovarrubias/intranet-avalanz/backend/modules/legal-service
-alembic upgrade head
-```
+#### Técnicos pendientes
+- Endpoints CRUD para `envelope_signers` (modelo y migración ya listos)
+- Formulario de nuevo sobre — flujo con template (campos dinámicos + preview PDF)
+- Formulario de contrato abierto — subir PDF/Word + asignar firmantes
+- Vista de detalle completa del sobre con trazabilidad
+- Vista de trazabilidad por abogado
+- Integración DocuSign: envío, webhook, recuperación de archivos a MinIO
+- Reporte SLA diario por correo (cron 11 AM)
+- Panel KPIs para coordinador y director
+- Filtro por empresa en la tabla de sobres
+- Sincronizar al repo: `ContractRequestsTable.tsx` y `layout.tsx` con todos los fixes de UI
