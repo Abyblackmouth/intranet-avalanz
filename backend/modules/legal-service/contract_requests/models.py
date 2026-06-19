@@ -253,6 +253,29 @@ class EnvelopeActivityLog(Base):
     detail = Column(JSON, nullable=True)
 
 
+
+class EnvelopeSigner(Base):
+    """Signers assigned to an envelope — one row per signer, supports multiple signers per envelope."""
+    __tablename__ = "envelope_signers"
+
+    id                    = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    envelope_id           = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
+    signer_type           = Column(String(20), nullable=False)   # internal | external
+    user_id               = Column(UUID(as_uuid=False), nullable=True)   # UUID en avalanz si es interno
+    name                  = Column(String(255), nullable=False)
+    email                 = Column(String(255), nullable=False)
+    role_in_document      = Column(String(100), nullable=True)   # Representante Legal | Testigo | Contraparte
+    routing_order         = Column(Integer, nullable=False, default=1)
+    docusign_recipient_id = Column(String(100), nullable=True)
+    status                = Column(String(30), nullable=False, default="pending")  # pending | sent | signed | declined
+    signed_at             = Column(DateTime(timezone=True), nullable=True)
+    declined_at           = Column(DateTime(timezone=True), nullable=True)
+    declined_reason       = Column(Text, nullable=True)
+    docs_requested        = Column(JSON, nullable=True)  # [{"type": "INE"}, {"type": "poder_notarial"}]
+    docs_received         = Column(JSON, nullable=True)  # docs recuperados de DocuSign post-firma
+    created_at            = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at            = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class FolioSequence(Base):
     """Controls the auto-increment folio counter per year — ENV-2026-0001."""
     __tablename__ = "folio_sequences"
