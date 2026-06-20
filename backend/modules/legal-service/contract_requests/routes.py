@@ -229,6 +229,33 @@ async def create_envelope(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+
+# ── Templates ─────────────────────────────────────────────────────────────────
+
+import json as _json
+from pathlib import Path as _Path
+
+_TEMPLATES_DIR = _Path(__file__).parent.parent / "templates"
+
+@router.get("/contract-templates", tags=["Templates"])
+async def list_templates(user: dict = Depends(get_current_user)):
+    """Lista todos los templates de contratos disponibles."""
+    index_path = _TEMPLATES_DIR / "index.json"
+    if not index_path.exists():
+        return {"templates": []}
+    with open(index_path, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
+@router.get("/contract-templates/{template_slug}/fields", tags=["Templates"])
+async def get_template_fields(template_slug: str, user: dict = Depends(get_current_user)):
+    """Retorna la definición de campos de un template específico."""
+    fields_path = _TEMPLATES_DIR / template_slug / "fields.json"
+    if not fields_path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Template '{template_slug}' no encontrado")
+    with open(fields_path, "r", encoding="utf-8") as f:
+        return _json.load(f)
+
 @router.get("/{envelope_id}", response_model=EnvelopeDetail)
 async def get_envelope(
     envelope_id: str,
