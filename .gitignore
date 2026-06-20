@@ -77,4 +77,4 @@ Thumbs.db
 # ── Backups ───────────────────────────────────────────────────────────────────
 *.sql
 *.dump
-*.backup
+*.backup*:Zone.Identifier
