@@ -1,0 +1,14 @@
+{
+  "templates": [
+    {
+      "id": "nda-mutuo",
+      "name": "NDA Mutuo",
+      "description": "Acuerdo de Confidencialidad y No Divulgación bilateral entre dos partes",
+      "slug": "nda-mutuo",
+      "version": "1.0",
+      "sla_business_days": 3,
+      "is_active": true,
+      "fields_file": "nda-mutuo/fields.json"
+    }
+  ]
+}

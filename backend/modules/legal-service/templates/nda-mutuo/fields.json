@@ -1,0 +1,218 @@
+{
+  "id": "nda-mutuo",
+  "name": "NDA Mutuo",
+  "description": "Acuerdo de Confidencialidad y No Divulgación bilateral entre dos partes",
+  "slug": "nda-mutuo",
+  "version": "1.0",
+  "template_file": "nda-mutuo.docx",
+  "sla_business_days": 3,
+  "field_groups": [
+    {
+      "id": "datos_generales",
+      "label": "Datos generales del contrato",
+      "order": 1,
+      "fields": [
+        {
+          "key": "FECHA_CONTRATO",
+          "label": "Fecha de celebración",
+          "type": "date",
+          "required": true,
+          "placeholder": "dd/mm/aaaa",
+          "help": "Fecha en que se celebra el acuerdo"
+        },
+        {
+          "key": "CIUDAD_FIRMA",
+          "label": "Ciudad de firma",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ej. Ciudad de México",
+          "help": "Ciudad donde se firma el contrato"
+        },
+        {
+          "key": "CIUDAD_JURISDICCION",
+          "label": "Ciudad de jurisdicción",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ej. Ciudad de México",
+          "help": "Ciudad donde se resolverán controversias"
+        },
+        {
+          "key": "OBJETO_CONTRATO",
+          "label": "Objeto del contrato (Propósito)",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Describe brevemente la relación de negocios o proyecto que motiva este acuerdo",
+          "help": "Se insertará en la sección de Declaraciones como el Propósito del acuerdo"
+        }
+      ]
+    },
+    {
+      "id": "parte_a",
+      "label": "Parte A (Solicitante)",
+      "order": 2,
+      "fields": [
+        {
+          "key": "EMPRESA_SOLICITANTE",
+          "label": "Razón social",
+          "type": "text",
+          "required": true,
+          "placeholder": "Nombre completo de la empresa",
+          "auto_fill": "company_name"
+        },
+        {
+          "key": "RFC_EMPRESA_1",
+          "label": "RFC de la empresa",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ej. ABC123456XYZ",
+          "max_length": 13
+        },
+        {
+          "key": "DOMICILIO_EMPRESA_1",
+          "label": "Domicilio fiscal",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Calle, número, colonia, ciudad, estado, C.P."
+        },
+        {
+          "key": "NOMBRE_REPRESENTANTE_1",
+          "label": "Nombre del representante legal",
+          "type": "text",
+          "required": true,
+          "placeholder": "Nombre completo"
+        },
+        {
+          "key": "CARGO_REPRESENTANTE_1",
+          "label": "Cargo del representante",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ej. Director General, Apoderado Legal"
+        },
+        {
+          "key": "NOMBRE_FIRMANTE_1",
+          "label": "Nombre del firmante",
+          "type": "text",
+          "required": true,
+          "placeholder": "Nombre completo de quien firmará",
+          "help": "Puede ser el mismo representante legal u otra persona autorizada"
+        },
+        {
+          "key": "CARGO_FIRMANTE_1",
+          "label": "Cargo del firmante",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ej. Director General"
+        }
+      ]
+    },
+    {
+      "id": "parte_b",
+      "label": "Parte B (Contraparte)",
+      "order": 3,
+      "fields": [
+        {
+          "key": "EMPRESA_CONTRAPARTE",
+          "label": "Razón social",
+          "type": "text",
+          "required": true,
+          "placeholder": "Nombre completo de la empresa contraparte"
+        },
+        {
+          "key": "RFC_EMPRESA_2",
+          "label": "RFC de la empresa",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ej. XYZ654321ABC",
+          "max_length": 13
+        },
+        {
+          "key": "DOMICILIO_EMPRESA_2",
+          "label": "Domicilio fiscal",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Calle, número, colonia, ciudad, estado, C.P."
+        },
+        {
+          "key": "NOMBRE_REPRESENTANTE_2",
+          "label": "Nombre del representante legal",
+          "type": "text",
+          "required": true,
+          "placeholder": "Nombre completo"
+        },
+        {
+          "key": "CARGO_REPRESENTANTE_2",
+          "label": "Cargo del representante",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ej. Director General, Apoderado Legal"
+        },
+        {
+          "key": "NOMBRE_FIRMANTE_2",
+          "label": "Nombre del firmante",
+          "type": "text",
+          "required": true,
+          "placeholder": "Nombre completo de quien firmará"
+        },
+        {
+          "key": "CARGO_FIRMANTE_2",
+          "label": "Cargo del firmante",
+          "type": "text",
+          "required": true,
+          "placeholder": "Ej. Director General"
+        }
+      ]
+    },
+    {
+      "id": "vigencia",
+      "label": "Vigencia y condiciones",
+      "order": 4,
+      "fields": [
+        {
+          "key": "VIGENCIA_MESES",
+          "label": "Vigencia (meses)",
+          "type": "number",
+          "required": true,
+          "min": 1,
+          "max": 120,
+          "default": 12,
+          "placeholder": "Ej. 12"
+        },
+        {
+          "key": "DIAS_AVISO_PREVIO",
+          "label": "Días de aviso previo para rescisión",
+          "type": "number",
+          "required": true,
+          "min": 1,
+          "max": 90,
+          "default": 30,
+          "placeholder": "Ej. 30"
+        },
+        {
+          "key": "VIGENCIA_OBLIGACION_POST",
+          "label": "Años de obligación post-terminación",
+          "type": "number",
+          "required": true,
+          "min": 1,
+          "max": 10,
+          "default": 2,
+          "placeholder": "Ej. 2"
+        }
+      ]
+    }
+  ],
+  "auto_filled": [
+    {
+      "key": "NUMERO_CONTRATO",
+      "source": "folio",
+      "label": "Número de contrato",
+      "help": "Generado automáticamente por el sistema"
+    },
+    {
+      "key": "FECHA_FIRMA",
+      "source": "signed_at",
+      "label": "Fecha de firma",
+      "help": "Llenado automáticamente por DocuSign"
+    }
+  ],
+  "annexes": []
+}
