@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Search, SlidersHorizontal, Flag, FileCheck, Clock } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import ContractRequestsTable from '@/components/app/legal/ContractRequestsTable'
@@ -31,6 +32,7 @@ const resolveLegalRole = (roles: string[]): LegalRole => {
 
 export default function ContractRequestsPage() {
   const { user } = useAuthStore()
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
 
   const [items, setItems] = useState<ContractRequestListItem[]>([])
@@ -126,9 +128,9 @@ export default function ContractRequestsPage() {
       description="Gestiona y da seguimiento a las solicitudes legales del grupo"
       actions={
         mounted && showNewButton ? (
-          <button className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+          <button onClick={() => router.push('/app/legal/solicitud-de-contratos/nuevo')} className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition">
             <Plus size={16} />
-            Nueva solicitud
+            Crear contrato
           </button>
         ) : undefined
       }
