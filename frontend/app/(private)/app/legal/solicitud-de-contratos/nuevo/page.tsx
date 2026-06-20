@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Check, FileText, ClipboardList, Eye, Send, AlertCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, FileText, ClipboardList, Eye, Send, AlertCircle, Loader2 } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import api from '@/services/api'
 
@@ -131,60 +131,74 @@ const Step2 = ({ templateFields, formData, onChange, errors }: { templateFields:
   )
 }
 
-const Step3 = ({ formData, templateName }: { formData: Record<string, string>; templateName: string }) => {
-  const get = (key: string) => formData[key] || '___________'
+// ── Paso 3: Preview HTML en iframe ────────────────────────────────────────────
+
+const Step3 = ({ formData, templateSlug, templateName }: {
+  formData: Record<string, string>; templateSlug: string; templateName: string
+}) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    setError(false)
+    api.post(
+      `/api/v1/legal/envelopes/contract-templates/${templateSlug}/preview`,
+      formData,
+      { responseType: 'text', headers: { 'Content-Type': 'application/json' } }
+    )
+      .then(res => {
+        const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data)
+        if (iframeRef.current) {
+          const doc = iframeRef.current.contentDocument
+          if (doc) {
+            doc.open()
+            doc.write(html)
+            doc.close()
+          }
+        }
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
+  }, [formData, templateSlug])
+
   return (
     <div>
-      <h2 className="text-base font-semibold text-slate-900 mb-1">Vista previa del contrato</h2>
-      <p className="text-sm text-slate-500 mb-4">Revisa que toda la información sea correcta antes de enviar.</p>
-      <div className="bg-white border-2 border-slate-200 rounded-xl overflow-hidden">
-        <div className="bg-[#1a4fa0] px-6 py-4 text-center">
-          <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest mb-1">{templateName}</p>
-          <p className="text-sm font-bold text-white">ACUERDO DE CONFIDENCIALIDAD Y NO DIVULGACIÓN</p>
-          <p className="text-xs text-blue-200 mt-0.5">NDA Mutuo — Acuerdo Bilateral</p>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Vista previa del contrato</h2>
+          <p className="text-sm text-slate-500">Revisa el documento antes de enviarlo al área legal.</p>
         </div>
-        <div className="px-6 py-5 space-y-5" style={{ fontFamily: 'Georgia, serif', fontSize: 13 }}>
-          <div className="flex items-center gap-4 text-xs text-slate-400 pb-3 border-b border-slate-100">
-            <span>Fecha: <strong className="text-slate-700">{get('FECHA_CONTRATO')}</strong></span>
-            <span>·</span>
-            <span>Ciudad: <strong className="text-slate-700">{get('CIUDAD_FIRMA')}</strong></span>
-            <span>·</span>
-            <span>Jurisdicción: <strong className="text-slate-700">{get('CIUDAD_JURISDICCION')}</strong></span>
+      </div>
+
+      <div className="border-2 border-slate-200 rounded-xl overflow-hidden bg-slate-50" style={{ height: '70vh' }}>
+        {loading && (
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <Loader2 size={28} className="text-[#1a4fa0] animate-spin" />
+            <p className="text-sm text-slate-400">Generando vista previa...</p>
           </div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2" style={{ fontFamily: 'system-ui' }}>Comparecientes</p>
-            <p className="text-slate-700 leading-relaxed"><strong>I.</strong> <span className="font-semibold text-[#1a4fa0]">{get('EMPRESA_SOLICITANTE')}</span> (RFC: {get('RFC_EMPRESA_1')}), representada por <strong>{get('NOMBRE_REPRESENTANTE_1')}</strong>, {get('CARGO_REPRESENTANTE_1')}, con domicilio en {get('DOMICILIO_EMPRESA_1')}; (en adelante la <strong>"Parte A"</strong>).</p>
-            <p className="text-slate-700 leading-relaxed mt-2"><strong>II.</strong> <span className="font-semibold text-[#1a4fa0]">{get('EMPRESA_CONTRAPARTE')}</span> (RFC: {get('RFC_EMPRESA_2')}), representada por <strong>{get('NOMBRE_REPRESENTANTE_2')}</strong>, {get('CARGO_REPRESENTANTE_2')}, con domicilio en {get('DOMICILIO_EMPRESA_2')}; (en adelante la <strong>"Parte B"</strong>).</p>
+        )}
+        {error && (
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <AlertCircle size={28} className="text-red-400" />
+            <p className="text-sm text-slate-500">No se pudo generar la vista previa.</p>
           </div>
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1" style={{ fontFamily: 'system-ui' }}>Propósito</p>
-            <p className="text-slate-700 leading-relaxed">{get('OBJETO_CONTRATO')}</p>
-          </div>
-          <div className="grid grid-cols-4 gap-3 bg-slate-50 rounded-lg px-4 py-3" style={{ fontFamily: 'system-ui' }}>
-            {[['Vigencia', `${get('VIGENCIA_MESES')} meses`], ['Aviso previo', `${get('DIAS_AVISO_PREVIO')} días`], ['Post-término', `${get('VIGENCIA_OBLIGACION_POST')} años`], ['Jurisdicción', get('CIUDAD_JURISDICCION')]].map(([label, val]) => (
-              <div key={label}><p className="text-xs text-slate-400">{label}</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{val}</p></div>
-            ))}
-          </div>
-          <div style={{ fontFamily: 'system-ui' }}>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Firmantes</p>
-            <div className="grid grid-cols-2 gap-3">
-              {[['POR LA PARTE A', 'EMPRESA_SOLICITANTE', 'NOMBRE_FIRMANTE_1', 'CARGO_FIRMANTE_1'], ['POR LA PARTE B', 'EMPRESA_CONTRAPARTE', 'NOMBRE_FIRMANTE_2', 'CARGO_FIRMANTE_2']].map(([title, empKey, nameKey, cargoKey]) => (
-                <div key={title} className="border border-slate-200 rounded-lg p-3">
-                  <p className="text-xs font-semibold text-[#1a4fa0] mb-1">{title}</p>
-                  <p className="text-xs font-semibold text-slate-700">{get(empKey)}</p>
-                  <div className="border-t border-slate-100 mt-2 pt-2">
-                    <p className="text-xs text-slate-600">{get(nameKey)}</p>
-                    <p className="text-xs text-slate-400">{get(cargoKey)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5" style={{ fontFamily: 'system-ui' }}>
-            <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700">Vista previa de los datos. El documento legal completo con todas las cláusulas se generará al enviar.</p>
-          </div>
-        </div>
+        )}
+        <iframe
+          ref={iframeRef}
+          className="w-full h-full bg-white"
+          style={{ display: loading || error ? 'none' : 'block', border: 'none' }}
+          onLoad={() => setLoading(false)}
+          title={`Preview ${templateName}`}
+        />
+      </div>
+
+      <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5 mt-3">
+        <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+        <p className="text-xs text-amber-700">
+          Vista previa del documento. El contrato final con numeración de folio se generará al enviar. Puedes imprimir esta vista con <strong>Ctrl+P</strong> si necesitas una copia.
+        </p>
       </div>
     </div>
   )
@@ -289,6 +303,9 @@ export default function NuevoContratoPage() {
 
   const selectedTpl = templates.find(t => t.id === selectedTemplate)
 
+  // En paso 3 el contenedor es más ancho
+  const isPreviewStep = step === 3
+
   return (
     <PageWrapper
       title="Crear contrato"
@@ -299,12 +316,12 @@ export default function NuevoContratoPage() {
         </button>
       }
     >
-      <div className="max-w-2xl mx-auto">
+      <div className={isPreviewStep ? 'max-w-4xl mx-auto' : 'max-w-2xl mx-auto'}>
         <StepIndicator current={step} />
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           {step === 1 && <Step1 templates={templates} selected={selectedTemplate} onSelect={setSelectedTemplate} />}
           {step === 2 && <Step2 templateFields={loadingFields ? null : templateFields} formData={formData} onChange={handleFieldChange} errors={errors} />}
-          {step === 3 && <Step3 formData={formData} templateName={selectedTpl?.name ?? ''} />}
+          {step === 3 && <Step3 formData={formData} templateSlug={selectedTemplate} templateName={selectedTpl?.name ?? ''} />}
           {step === 4 && <Step4 templateName={selectedTpl?.name ?? ''} isSubmitting={isSubmitting} onConfirm={handleSubmit} error={submitError} />}
         </div>
         {step < 4 && (
