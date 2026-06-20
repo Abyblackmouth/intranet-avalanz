@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #000;
+    background: #fff;
+    padding: 2.5cm 3cm 2.5cm 3.5cm;
+    max-width: 21cm;
+    margin: 0 auto;
+  }
+  .titulo {
+    text-align: center;
+    font-size: 14pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .subtitulo {
+    text-align: center;
+    font-size: 11pt;
+    margin-bottom: 16px;
+  }
+  .datos-header {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 11pt;
+  }
+  hr { border: none; border-top: 1.5px solid #000; margin: 16px 0; }
+  hr.thin { border-top: 0.5px solid #999; margin: 12px 0; }
+  .seccion-titulo {
+    font-weight: bold;
+    font-size: 12pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 18px 0 8px 0;
+  }
+  p { text-align: justify; margin-bottom: 10px; }
+  .clausula { margin-bottom: 12px; text-align: justify; }
+  .firmas-tabla { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  .firmas-tabla td { padding: 6px 8px; vertical-align: top; width: 45%; }
+  .firmas-tabla .sep { width: 10%; }
+  .firma-box { border-top: 1.5px solid #000; padding-top: 6px; }
+  .firma-espacio { height: 60px; }
+  .firma-linea { border-bottom: 1px solid #555; margin: 4px 0; }
+  .campo { color: #000; }
+  @media print {
+    body { padding: 1.5cm 2.5cm 1.5cm 3cm; }
+    @page { size: letter; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="titulo">ACUERDO DE CONFIDENCIALIDAD Y NO DIVULGACIÓN</div>
+<div class="subtitulo">(NDA Mutuo — Acuerdo Bilateral de Confidencialidad)</div>
+<div class="datos-header">
+  Contrato No. <strong>{{NUMERO_CONTRATO}}</strong>&nbsp;&nbsp;&nbsp;&nbsp;Fecha: <strong>{{FECHA_CONTRATO}}</strong>
+</div>
+
+<hr>
+
+<div class="seccion-titulo">Comparecientes</div>
+
+<p>El presente Acuerdo de Confidencialidad y No Divulgación (en adelante el <strong>"Acuerdo"</strong>), se celebra entre las siguientes partes:</p>
+
+<p><strong>I. {{EMPRESA_SOLICITANTE}}</strong>, persona moral debidamente constituida conforme a las leyes de los Estados Unidos Mexicanos, con RFC <strong>{{RFC_EMPRESA_1}}</strong>, representada en este acto por <strong>{{NOMBRE_REPRESENTANTE_1}}</strong>, en su carácter de <strong>{{CARGO_REPRESENTANTE_1}}</strong>, con domicilio para efectos de este Acuerdo en <strong>{{DOMICILIO_EMPRESA_1}}</strong>; (en adelante la <strong>"Parte A"</strong>); y</p>
+
+<p><strong>II. {{EMPRESA_CONTRAPARTE}}</strong>, persona moral debidamente constituida conforme a las leyes de los Estados Unidos Mexicanos, con RFC <strong>{{RFC_EMPRESA_2}}</strong>, representada en este acto por <strong>{{NOMBRE_REPRESENTANTE_2}}</strong>, en su carácter de <strong>{{CARGO_REPRESENTANTE_2}}</strong>, con domicilio para efectos de este Acuerdo en <strong>{{DOMICILIO_EMPRESA_2}}</strong>; (en adelante la <strong>"Parte B"</strong>).</p>
+
+<p>La Parte A y la Parte B podrán ser referidas individualmente como la <strong>"Parte"</strong> y conjuntamente como las <strong>"Partes"</strong>.</p>
+
+<hr class="thin">
+
+<div class="seccion-titulo">Declaraciones</div>
+
+<p><strong>Declara la Parte A</strong> que: (i) es una sociedad legalmente constituida y en pleno funcionamiento conforme a las leyes aplicables; (ii) cuenta con la capacidad jurídica y las autorizaciones necesarias para celebrar el presente Acuerdo; y (iii) su representante tiene facultades suficientes para suscribir el presente instrumento.</p>
+
+<p><strong>Declara la Parte B</strong> que: (i) es una sociedad legalmente constituida y en pleno funcionamiento conforme a las leyes aplicables; (ii) cuenta con la capacidad jurídica y las autorizaciones necesarias para celebrar el presente Acuerdo; y (iii) su representante tiene facultades suficientes para suscribir el presente instrumento.</p>
+
+<p><strong>Declaran las Partes</strong> que tienen interés en explorar y/o establecer una relación de negocios relacionada con <strong>{{OBJETO_CONTRATO}}</strong> (en adelante el <strong>"Propósito"</strong>), para lo cual compartirán Información Confidencial de su titularidad, y que el presente Acuerdo establece los términos y condiciones bajo los cuales dicha información será manejada.</p>
+
+<hr class="thin">
+
+<div class="seccion-titulo">Cláusulas</div>
+
+<div class="clausula"><p><strong>PRIMERA. DEFINICIÓN DE INFORMACIÓN CONFIDENCIAL.</strong> Para efectos del presente Acuerdo, se entenderá como <strong>"Información Confidencial"</strong> toda aquella información, datos, documentos, registros, análisis, estudios, procesos, metodologías, estrategias comerciales, planes de negocio, listas de clientes y proveedores, condiciones comerciales, información técnica, tecnológica, financiera, contable y cualquier otra información que una Parte divulgue a la otra, ya sea de forma escrita, verbal, electrónica, visual o por cualquier otro medio, que sea identificada como confidencial o que por su naturaleza deba ser tratada como tal.</p></div>
+
+<div class="clausula"><p><strong>SEGUNDA. OBLIGACIONES DE CONFIDENCIALIDAD.</strong> Cada Parte que reciba Información Confidencial (la <strong>"Parte Receptora"</strong>) se obliga a: (i) mantener la Información Confidencial en estricta confidencialidad; (ii) no divulgar, revelar, transferir ni de ninguna otra forma poner a disposición de terceros la Información Confidencial sin el consentimiento previo y por escrito de la Parte que la divulgó; (iii) utilizar la Información Confidencial únicamente para el Propósito descrito en el presente Acuerdo.</p></div>
+
+<div class="clausula"><p><strong>TERCERA. VIGENCIA.</strong> El presente Acuerdo tendrá una vigencia de <strong>{{VIGENCIA_MESES}}</strong> meses, contados a partir de la fecha de su firma. Transcurrido dicho plazo, el Acuerdo podrá renovarse por períodos iguales mediante convenio escrito de las Partes, o rescindirse mediante aviso escrito con <strong>{{DIAS_AVISO_PREVIO}}</strong> días naturales de anticipación. Las obligaciones de confidencialidad establecidas en el presente instrumento subsistirán durante un período adicional de <strong>{{VIGENCIA_OBLIGACION_POST}}</strong> años contados a partir de la fecha de terminación del Acuerdo, independientemente de la causa que origine dicha terminación.</p></div>
+
+<div class="clausula"><p><strong>CUARTA. EXCEPCIONES.</strong> Las obligaciones establecidas en el presente Acuerdo no serán aplicables respecto de información que: (i) sea o llegue a ser del dominio público sin que ello sea imputable a la Parte Receptora; (ii) estuviera en posesión legítima de la Parte Receptora con anterioridad a su divulgación; (iii) sea divulgada a la Parte Receptora por un tercero que cuente con el derecho de hacerlo; (iv) deba ser divulgada por mandato de autoridad competente o disposición legal aplicable.</p></div>
+
+<div class="clausula"><p><strong>QUINTA. PROPIEDAD INTELECTUAL.</strong> El presente Acuerdo no implica la cesión, transmisión ni licencia de ningún derecho de propiedad intelectual, patente, marca, derecho de autor u otro derecho de propiedad industrial o intelectual de ninguna de las Partes. La Información Confidencial permanecerá en todo momento como propiedad exclusiva de la Parte Divulgante.</p></div>
+
+<div class="clausula"><p><strong>SEXTA. MEDIDAS CAUTELARES.</strong> Las Partes reconocen que el incumplimiento de las obligaciones de confidencialidad causaría daños y perjuicios de naturaleza irreparable a la Parte Divulgante, por lo que, en caso de incumplimiento o amenaza de incumplimiento, la Parte Divulgante tendrá derecho a solicitar las medidas cautelares que estime pertinentes ante los tribunales competentes, sin perjuicio de las demás acciones legales que le correspondan.</p></div>
+
+<div class="clausula"><p><strong>SÉPTIMA. JURISDICCIÓN Y LEY APLICABLE.</strong> Las Partes acuerdan que el presente Acuerdo se regirá, interpretará y ejecutará conforme a las leyes vigentes de los <strong>Estados Unidos Mexicanos</strong>. Para la resolución de cualquier controversia derivada de la interpretación, cumplimiento o incumplimiento del presente Acuerdo, las Partes se someten expresamente a la jurisdicción y competencia de los Tribunales competentes de la Ciudad de <strong>{{CIUDAD_JURISDICCION}}</strong>, renunciando expresamente a cualquier otro fuero que pudiera corresponderles en razón de sus domicilios presentes o futuros o por cualquier otra razón.</p></div>
+
+<div class="clausula"><p><strong>OCTAVA. INTEGRALIDAD.</strong> El presente Acuerdo constituye el acuerdo completo entre las Partes con respecto a su objeto y deja sin efecto cualquier acuerdo, comunicación o entendimiento previo, ya sea verbal o escrito, relacionado con la Información Confidencial. Cualquier modificación al presente Acuerdo deberá constar por escrito y ser firmada por los representantes autorizados de ambas Partes.</p></div>
+
+<hr class="thin">
+
+<p>En testimonio de lo anterior, los suscritos, debidamente autorizados para ello, firman el presente Acuerdo de Confidencialidad y No Divulgación el día <strong>{{FECHA_FIRMA}}</strong>, en la Ciudad de <strong>{{CIUDAD_FIRMA}}</strong>, México, en dos ejemplares originales, quedando uno en poder de cada Parte.</p>
+
+<table class="firmas-tabla">
+  <tr>
+    <td class="firma-box">
+      <strong>POR LA PARTE "A"</strong><br>
+      <strong>{{EMPRESA_SOLICITANTE}}</strong>
+      <div class="firma-espacio"></div>
+      <div class="firma-linea"></div>
+      <br>
+      Nombre: <strong>{{NOMBRE_FIRMANTE_1}}</strong><br>
+      <div class="firma-linea"></div>
+      Cargo: <strong>{{CARGO_FIRMANTE_1}}</strong><br>
+      <div class="firma-linea"></div>
+      Fecha: <strong>{{FECHA_FIRMA}}</strong>
+    </td>
+    <td class="sep"></td>
+    <td class="firma-box">
+      <strong>POR LA PARTE "B"</strong><br>
+      <strong>{{EMPRESA_CONTRAPARTE}}</strong>
+      <div class="firma-espacio"></div>
+      <div class="firma-linea"></div>
+      <br>
+      Nombre: <strong>{{NOMBRE_FIRMANTE_2}}</strong><br>
+      <div class="firma-linea"></div>
+      Cargo: <strong>{{CARGO_FIRMANTE_2}}</strong><br>
+      <div class="firma-linea"></div>
+      Fecha: <strong>{{FECHA_FIRMA}}</strong>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>
