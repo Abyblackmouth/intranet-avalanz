@@ -23,7 +23,9 @@ class ContractType(Base):
     slug = Column(String(255), nullable=False, unique=True)
     description = Column(Text, nullable=True)
     sla_business_days = Column(Integer, nullable=False, default=3)
-    is_active = Column(Boolean, nullable=False, default=True)
+    is_active             = Column(Boolean, nullable=False, default=True)
+    template_slug         = Column(String(100), nullable=True)
+    template_version      = Column(String(20),  nullable=True, default="1.0")
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = Column(UUID(as_uuid=False), nullable=True)
@@ -52,8 +54,9 @@ class ContractTypeAttachmentDef(Base):
     contract_type_id = Column(UUID(as_uuid=False), ForeignKey("contract_types.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    is_required = Column(Boolean, nullable=False, default=True)
-    display_order = Column(Integer, nullable=False, default=0)
+    is_required           = Column(Boolean, nullable=False, default=True)
+    display_order         = Column(Integer, nullable=False, default=0)
+    allowed_mime_types    = Column(JSON, nullable=True)
 
 
 class LawyerAssignment(Base):
@@ -132,6 +135,8 @@ class Envelope(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    correction_checklist  = Column(JSON, nullable=True)
 
     # Intercompany
     is_intercompany          = Column(Boolean, nullable=False, default=False)
