@@ -256,6 +256,77 @@ async def get_template_fields(template_slug: str, user: dict = Depends(get_curre
     with open(fields_path, "r", encoding="utf-8") as f:
         return _json.load(f)
 
+
+@router.post("/contract-templates/{template_slug}/preview", tags=["Templates"])
+async def preview_template(template_slug: str, form_data: dict, user: dict = Depends(get_current_user)):
+    """Genera el HTML del contrato con los datos del formulario sustituidos."""
+    from fastapi.responses import HTMLResponse
+    html_path = _TEMPLATES_DIR / template_slug / "template.html"
+    if not html_path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Template HTML '{template_slug}' no encontrado")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    for key, value in form_data.items():
+        html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
+    # Campos auto-llenados
+    html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
+    html = html.replace("{{FECHA_FIRMA}}", "[Fecha de firma DocuSign]")
+    # Limpiar campos no sustituidos
+    import re
+    html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
+    return HTMLResponse(content=html)
+
+
+@router.post("/contract-templates/{template_slug}/preview-pdf", tags=["Templates"])
+async def preview_template_pdf(template_slug: str, form_data: dict, user: dict = Depends(get_current_user)):
+    """Genera un PDF del contrato con los datos del formulario."""
+    from fastapi.responses import Response
+    from weasyprint import HTML
+    html_path = _TEMPLATES_DIR / template_slug / "template.html"
+    if not html_path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Template '{template_slug}' no encontrado")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    for key, value in form_data.items():
+        html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
+    html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
+    html = html.replace("{{FECHA_FIRMA}}", "[Fecha de firma DocuSign]")
+    import re
+    html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
+    pdf_bytes = HTML(string=html, base_url="/").write_pdf()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=contrato-preview.pdf"}
+    )
+
+
+@router.post("/contract-templates/{template_slug}/preview-pdf", tags=["Templates"])
+async def preview_template_pdf(template_slug: str, form_data: dict, user: dict = Depends(get_current_user)):
+    """Genera un PDF del contrato con los datos del formulario."""
+    from fastapi.responses import Response
+    from weasyprint import HTML
+    html_path = _TEMPLATES_DIR / template_slug / "template.html"
+    if not html_path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Template '{template_slug}' no encontrado")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    for key, value in form_data.items():
+        html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
+    html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
+    html = html.replace("{{FECHA_FIRMA}}", "[Fecha de firma DocuSign]")
+    import re
+    html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
+    pdf_bytes = HTML(string=html, base_url="/").write_pdf()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=contrato-preview.pdf"}
+    )
+
 @router.get("/{envelope_id}", response_model=EnvelopeDetail)
 async def get_envelope(
     envelope_id: str,
