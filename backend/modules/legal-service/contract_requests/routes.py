@@ -262,6 +262,82 @@ async def get_contract_type_attachments(contract_type_id: str, user: dict = Depe
     ]
 
 
+
+@router.post("/{envelope_id}/attachments", tags=["Attachments"])
+async def upload_envelope_attachment(
+    envelope_id: str,
+    attachment_def_id: str = Form(None),
+    object_key: str = Form(...),
+    original_name: str = Form(...),
+    stored_name: str = Form(...),
+    bucket: str = Form(default="avalanz-documents"),
+    mime_type: str = Form(...),
+    size_bytes: int = Form(...),
+    description: str = Form(None),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Registra metadatos de un archivo ya subido al upload-service."""
+    from .models import EnvelopeAttachment
+    import os
+    attachment = EnvelopeAttachment(
+        envelope_id=envelope_id,
+        attachment_def_id=attachment_def_id,
+        original_name=original_name,
+        stored_name=stored_name,
+        object_key=object_key,
+        bucket=bucket,
+        mime_type=mime_type,
+        extension=os.path.splitext(original_name)[1].lower(),
+        size_bytes=size_bytes,
+        description=description,
+        uploaded_by_user_id=user.get("user_id"),
+        uploaded_by_name=user.get("full_name", ""),
+    )
+    db.add(attachment)
+    await db.commit()
+    await db.refresh(attachment)
+    return {
+        "id": str(attachment.id),
+        "envelope_id": envelope_id,
+        "original_name": attachment.original_name,
+        "object_key": attachment.object_key,
+        "bucket": attachment.bucket,
+        "size_bytes": attachment.size_bytes,
+        "uploaded_at": attachment.uploaded_at.isoformat(),
+    }
+
+@router.get("/{envelope_id}/attachments", tags=["Attachments"])
+async def list_envelope_attachments(
+    envelope_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Lista los archivos adjuntos de un sobre."""
+    from sqlalchemy import select
+    from .models import EnvelopeAttachment
+    result = await db.execute(
+        select(EnvelopeAttachment)
+        .where(EnvelopeAttachment.envelope_id == envelope_id)
+        .where(EnvelopeAttachment.is_deleted == False)
+        .order_by(EnvelopeAttachment.uploaded_at)
+    )
+    attachments = result.scalars().all()
+    return [
+        {
+            "id": str(a.id),
+            "original_name": a.original_name,
+            "object_key": a.object_key,
+            "bucket": a.bucket,
+            "mime_type": a.mime_type,
+            "size_bytes": a.size_bytes,
+            "attachment_def_id": str(a.attachment_def_id) if a.attachment_def_id else None,
+            "uploaded_by_name": a.uploaded_by_name,
+            "uploaded_at": a.uploaded_at.isoformat(),
+        }
+        for a in attachments
+    ]
+
 # ── Firma electrónica ─────────────────────────────────────────────────────────
 
 from .signing_service import (

@@ -97,6 +97,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     ports:
       - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio-data:/data
     networks:
@@ -240,6 +241,24 @@ services:
       - avalanz-network
     logging: *default-logging
 
+  # ── Legal Service ───────────────────────────────────────────────────────────
+  legal-service:
+    build:
+      context: ../../backend
+      dockerfile: modules/legal-service/Dockerfile
+    container_name: avalanz-legal
+    restart: unless-stopped
+    env_file:
+      - ../../backend/modules/legal-service/.env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
   # ── Prometheus ──────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.51.0
@@ -337,7 +356,7 @@ services:
   cron:
     build:
       context: ../cron
-      dockerfile: Dockerfile
+      dockerfile: modules/legal-service/Dockerfile
     container_name: avalanz-cron
     restart: unless-stopped
     environment:
