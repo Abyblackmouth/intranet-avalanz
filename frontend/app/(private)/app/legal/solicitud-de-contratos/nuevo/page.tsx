@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Check, FileText, ClipboardList, Eye, Send, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, FileText, ClipboardList, Eye, Send, AlertCircle, Loader2, Download } from 'lucide-react'
+import jsPDF from 'jspdf'
 import PageWrapper from '@/components/layout/PageWrapper'
 import api from '@/services/api'
 
@@ -22,10 +23,10 @@ const DEMO_DATA: Record<string, string> = {
   EMPRESA_SOLICITANTE: 'Grupo Avalanz S.A. de C.V.',
   RFC_EMPRESA_1: 'GAV200101ABC',
   DOMICILIO_EMPRESA_1: 'Av. Insurgentes Sur 1234, Col. Del Valle, Ciudad de México, C.P. 03100',
-  NOMBRE_REPRESENTANTE_1: 'Andrés Hinojosa García',
-  CARGO_REPRESENTANTE_1: 'Director General',
-  NOMBRE_FIRMANTE_1: 'Andrés Hinojosa García',
-  CARGO_FIRMANTE_1: 'Director General',
+  NOMBRE_REPRESENTANTE_1: 'Juan Pérez López',
+  CARGO_REPRESENTANTE_1: 'Apoderado Legal',
+  NOMBRE_FIRMANTE_1: 'Juan Pérez López',
+  CARGO_FIRMANTE_1: 'Apoderado Legal',
   EMPRESA_CONTRAPARTE: 'TechCorp México S.A. de C.V.',
   RFC_EMPRESA_2: 'TCM190515XYZ',
   DOMICILIO_EMPRESA_2: 'Blvd. Manuel Ávila Camacho 32, Col. Lomas de Chapultepec, Ciudad de México, C.P. 11000',
@@ -133,6 +134,143 @@ const Step2 = ({ templateFields, formData, onChange, errors }: { templateFields:
 
 // ── Paso 3: Preview HTML en iframe ────────────────────────────────────────────
 
+const downloadContractPDF = (iframeRef: React.RefObject<HTMLIFrameElement | null>, templateName: string) => {
+  const doc = iframeRef.current?.contentDocument
+  if (!doc) return
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' })
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  const margin = { top: 20, left: 25, right: 20, bottom: 20 }
+  const contentW = pageW - margin.left - margin.right
+  let y = margin.top
+
+  const BLUE = [26, 79, 160] as [number, number, number]
+  const BLACK = [0, 0, 0] as [number, number, number]
+  const GRAY = [80, 80, 80] as [number, number, number]
+  const LGRAY = [140, 140, 140] as [number, number, number]
+
+  const addPage = () => {
+    pdf.addPage()
+    y = margin.top
+  }
+
+  const checkY = (needed: number) => {
+    if (y + needed > pageH - margin.bottom) addPage()
+  }
+
+  const writeParagraph = (text: string, opts: { bold?: boolean; size?: number; color?: [number,number,number]; align?: 'left'|'center'; indent?: number } = {}) => {
+    const { bold = false, size = 10, color = BLACK, align = 'left', indent = 0 } = opts
+    pdf.setFont('times', bold ? 'bold' : 'normal')
+    pdf.setFontSize(size)
+    pdf.setTextColor(...color)
+    const x = margin.left + indent
+    const w = contentW - indent
+    const lines = pdf.splitTextToSize(text, w)
+    checkY(lines.length * (size * 0.4) + 3)
+    pdf.text(lines, x, y, { align })
+    y += lines.length * (size * 0.4) + 3
+  }
+
+  // Título
+  writeParagraph('ACUERDO DE CONFIDENCIALIDAD Y NO DIVULGACIÓN', { bold: true, size: 13, align: 'center' })
+  writeParagraph('(NDA Mutuo — Acuerdo Bilateral de Confidencialidad)', { size: 10, color: GRAY, align: 'center' })
+  y += 2
+
+  // Extraer datos del HTML
+  const getText = (sel: string) => doc.querySelector(sel)?.textContent?.trim() || ''
+  const getAllText = (sel: string) => Array.from(doc.querySelectorAll(sel)).map(el => el.textContent?.trim() || '')
+
+  // Número y fecha
+  const headerData = doc.querySelector('.datos-header')?.textContent?.trim() || ''
+  writeParagraph(headerData, { size: 10, align: 'center' })
+  y += 3
+
+  // HR
+  pdf.setDrawColor(0,0,0)
+  pdf.setLineWidth(0.5)
+  pdf.line(margin.left, y, pageW - margin.right, y)
+  y += 5
+
+  // Secciones del documento
+  const secciones = doc.querySelectorAll('.seccion-titulo')
+  const parrafos = doc.querySelectorAll('p')
+
+  // Procesar todo el body en orden
+  const body = doc.querySelector('body')
+  if (body) {
+    const nodes = Array.from(body.childNodes)
+    nodes.forEach(node => {
+      const el = node as Element
+      if (!el.tagName) return
+      const tag = el.tagName.toLowerCase()
+
+      if (tag === 'div' && el.classList.contains('seccion-titulo')) {
+        y += 4
+        checkY(10)
+        writeParagraph(el.textContent?.trim() || '', { bold: true, size: 11, color: BLUE })
+        pdf.setDrawColor(...LGRAY)
+        pdf.setLineWidth(0.2)
+        pdf.line(margin.left, y, pageW - margin.right, y)
+        y += 3
+      } else if (tag === 'p') {
+        writeParagraph(el.textContent?.trim() || '', { size: 10 })
+      } else if (tag === 'div' && el.classList.contains('clausula')) {
+        const p = el.querySelector('p')
+        if (p) writeParagraph(p.textContent?.trim() || '', { size: 10 })
+      } else if (tag === 'hr') {
+        pdf.setDrawColor(0,0,0)
+        pdf.setLineWidth(el.classList.contains('thin') ? 0.2 : 0.5)
+        checkY(5)
+        pdf.line(margin.left, y, pageW - margin.right, y)
+        y += 4
+      } else if (tag === 'table') {
+        // Tabla de firmas
+        y += 6
+        checkY(50)
+        const cells = el.querySelectorAll('td')
+        if (cells.length >= 2) {
+          const col1 = margin.left
+          const col2 = margin.left + contentW / 2 + 5
+          const colW2 = contentW / 2 - 5
+
+          pdf.setDrawColor(0,0,0)
+          pdf.setLineWidth(0.5)
+          pdf.line(col1, y, col1 + colW2, y)
+          pdf.line(col2, y, col2 + colW2, y)
+          y += 3
+
+          const parseCell = (cell: Element, x: number) => {
+            const lines = cell.innerHTML.split('<br>').map(l => {
+              const tmp = doc.createElement('div')
+              tmp.innerHTML = l
+              return tmp.textContent?.trim() || ''
+            }).filter(Boolean)
+            lines.forEach(line => {
+              const isBold = line.includes('POR LA PARTE')
+              pdf.setFont('times', isBold ? 'bold' : 'normal')
+              pdf.setFontSize(9)
+              pdf.setTextColor(...BLACK)
+              if (line.startsWith('─') || line === '') return
+              pdf.text(line, x, y)
+              y += 4.5
+            })
+          }
+
+          const yStart = y
+          parseCell(cells[0], col1)
+          const yAfterCol1 = y
+          y = yStart
+          parseCell(cells[cells.length - 1], col2)
+          y = Math.max(yAfterCol1, y)
+        }
+      }
+    })
+  }
+
+  const filename = `contrato-preview-${new Date().toISOString().split('T')[0]}.pdf`
+  pdf.save(filename)
+}
+
 const Step3 = ({ formData, templateSlug, templateName }: {
   formData: Record<string, string>; templateSlug: string; templateName: string
 }) => {
@@ -170,6 +308,27 @@ const Step3 = ({ formData, templateSlug, templateName }: {
           <h2 className="text-base font-semibold text-slate-900">Vista previa del contrato</h2>
           <p className="text-sm text-slate-500">Revisa el documento antes de enviarlo al área legal.</p>
         </div>
+        <button
+          onClick={async () => {
+            try {
+              const res = await api.post(
+                `/api/v1/legal/envelopes/contract-templates/${templateSlug}/preview-pdf`,
+                formData,
+                { responseType: 'blob' }
+              )
+              const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+              const a = document.createElement('a')
+              a.href = url
+              a.download = 'contrato-preview.pdf'
+              a.click()
+              URL.revokeObjectURL(url)
+            } catch (e) { console.error(e) }
+          }}
+          title="Imprimir / Guardar como PDF"
+          className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+        >
+          <Download size={17} />
+        </button>
       </div>
 
       <div className="border-2 border-slate-200 rounded-xl overflow-hidden bg-slate-50" style={{ height: '70vh' }}>
@@ -197,7 +356,7 @@ const Step3 = ({ formData, templateSlug, templateName }: {
       <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2.5 mt-3">
         <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
         <p className="text-xs text-amber-700">
-          Vista previa del documento. El contrato final con numeración de folio se generará al enviar. Puedes imprimir esta vista con <strong>Ctrl+P</strong> si necesitas una copia.
+          Vista previa del documento. El contrato final con numeración de folio se generará al enviar. Usa el botón de descarga para guardar o imprimir una copia.
         </p>
       </div>
     </div>
