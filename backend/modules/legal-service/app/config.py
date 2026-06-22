@@ -15,6 +15,8 @@ class Config(BaseSettings):
     CORS_ALLOW_HEADERS: List[str] = ["*"]
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
+    FRONTEND_URL: str = "https://intranet.avalanz.com"
+    EMAIL_SERVICE_URL: str = "http://email-service:8000"
 
     class Config:
         env_file = ".env"

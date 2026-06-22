@@ -237,6 +237,81 @@ from pathlib import Path as _Path
 
 _TEMPLATES_DIR = _Path(__file__).parent.parent / "templates"
 
+
+@router.get("/types/{contract_type_id}/attachments", tags=["Templates"])
+async def get_contract_type_attachments(contract_type_id: str, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Retorna los anexos requeridos y opcionales de un tipo de contrato."""
+    from sqlalchemy import select
+    from .models import ContractTypeAttachmentDef
+    result = await db.execute(
+        select(ContractTypeAttachmentDef)
+        .where(ContractTypeAttachmentDef.contract_type_id == contract_type_id)
+        .order_by(ContractTypeAttachmentDef.display_order)
+    )
+    defs = result.scalars().all()
+    return [
+        {
+            "id": str(d.id),
+            "name": d.name,
+            "description": d.description,
+            "is_required": d.is_required,
+            "allowed_mime_types": d.allowed_mime_types or ["application/pdf"],
+            "display_order": d.display_order,
+        }
+        for d in defs
+    ]
+
+
+# ── Firma electrónica ─────────────────────────────────────────────────────────
+
+from .signing_service import (
+    get_signing_provider, set_signing_provider,
+    send_for_signing, confirm_signature
+)
+from app.config import config as app_config
+
+@router.get("/signing/provider", tags=["Signing"])
+async def get_provider(user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Retorna el proveedor de firma activo."""
+    provider = await get_signing_provider(db)
+    return {"provider": provider}
+
+@router.post("/signing/provider", tags=["Signing"])
+async def update_provider(
+    payload: dict,
+    user: dict = Depends(require_roles("super_admin", "admin_empresa")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Cambia el proveedor de firma. Solo super_admin o admin_empresa."""
+    provider = payload.get("provider")
+    if provider not in ("email_sim", "docusign"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Proveedor inválido. Use: email_sim o docusign")
+    await set_signing_provider(db, provider, user.get("user_id"))
+    return {"provider": provider, "message": f"Proveedor cambiado a {provider}"}
+
+@router.post("/{envelope_id}/send-for-signing", tags=["Signing"])
+async def send_envelope_for_signing(
+    envelope_id: str,
+    user: dict = Depends(require_roles("abogado", "coordinador_legal", "super_admin")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Envía el sobre a firma usando el proveedor activo."""
+    frontend_url = getattr(app_config, "FRONTEND_URL", "https://intranet.avalanz.com")
+    email_service_url = getattr(app_config, "EMAIL_SERVICE_URL", "http://email-service:8000")
+    result = await send_for_signing(db, envelope_id, frontend_url, email_service_url)
+    return result
+
+@router.get("/signing/confirm/{token}", tags=["Signing"])
+async def confirm_sign(token: str, db: AsyncSession = Depends(get_db)):
+    """Confirma la firma desde el link del correo. No requiere autenticación."""
+    try:
+        result = await confirm_signature(db, token)
+        return result
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.get("/contract-templates", tags=["Templates"])
 async def list_templates(user: dict = Depends(get_current_user)):
     """Lista todos los templates de contratos disponibles."""

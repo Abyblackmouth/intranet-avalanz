@@ -285,6 +285,33 @@ class EnvelopeSigner(Base):
     created_at            = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at            = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class EnvelopeSigningToken(Base):
+    """Token único por firmante para simulación de firma por correo."""
+    __tablename__ = "envelope_signing_tokens"
+
+    id           = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    envelope_id  = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
+    signer_id    = Column(UUID(as_uuid=False), ForeignKey("envelope_signers.id", ondelete="CASCADE"), nullable=True)
+    signer_name  = Column(String(255), nullable=False)
+    signer_email = Column(String(255), nullable=False)
+    token        = Column(String(128), nullable=False, unique=True)
+    status       = Column(String(30), nullable=False, default="pending")
+    signed_at    = Column(DateTime(timezone=True), nullable=True)
+    expires_at   = Column(DateTime(timezone=True), nullable=False)
+    created_at   = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class SigningProviderConfig(Base):
+    """Configuración del proveedor de firma — una sola fila con id=1."""
+    __tablename__ = "signing_provider_config"
+
+    id         = Column(Integer, primary_key=True)
+    provider   = Column(String(30), nullable=False, default="email_sim")
+    updated_by = Column(UUID(as_uuid=False), nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class FolioSequence(Base):
     """Controls the auto-increment folio counter per year — ENV-2026-0001."""
     __tablename__ = "folio_sequences"
