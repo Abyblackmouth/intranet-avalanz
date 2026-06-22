@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, and_, or_
@@ -69,7 +69,7 @@ def get_sla_color(envelope: Envelope) -> SLAColor:
         return SLAColor.green
     if envelope.is_sla_breached:
         return SLAColor.red
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     days_remaining = count_business_days_between(now, envelope.sla_due_at)
     if days_remaining <= 1:
         return SLAColor.yellow
@@ -87,7 +87,7 @@ def build_sla_info(envelope: Envelope) -> SLAInfo:
             is_breached=False,
             color=SLAColor.green
         )
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     elapsed = count_business_days_between(envelope.submitted_at, now)
     remaining = count_business_days_between(now, envelope.sla_due_at) if envelope.sla_due_at else None
     return SLAInfo(
@@ -131,7 +131,7 @@ def validate_transition(from_status: str, to_status: str) -> bool:
 
 async def generate_folio(db: AsyncSession) -> str:
     """Generates the next folio in format ENV-YYYY-NNNN using a DB sequence."""
-    year = datetime.utcnow().year
+    year = datetime.now(timezone.utc).year
     result = await db.execute(
         select(FolioSequence).where(FolioSequence.year == year)
     )
@@ -168,7 +168,7 @@ async def assign_lawyer(db: AsyncSession, contract_type_id: str) -> Optional[Dic
     if not lawyers:
         return None
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     best_lawyer = None
     best_count = None
     best_last_assigned = None
@@ -236,7 +236,7 @@ async def log_activity(
         performed_by_user_id=user_id,
         performed_by_name=user_name,
         performed_by_role=user_role,
-        performed_at=datetime.utcnow(),
+        performed_at=datetime.now(timezone.utc),
         ip_address=ip_address,
         detail=detail
     )
@@ -263,7 +263,7 @@ async def log_status_change(
         changed_by_name=user_name,
         changed_by_role=user_role,
         reason=reason,
-        changed_at=datetime.utcnow(),
+        changed_at=datetime.now(timezone.utc),
         ip_address=ip_address
     )
     db.add(log)
@@ -286,7 +286,7 @@ async def close_time_tracking(
     )
     tracking = result.scalar_one_or_none()
     if tracking:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         tracking.ended_at = now
         elapsed = now - tracking.started_at
         tracking.duration_minutes = int(elapsed.total_seconds() / 60)
@@ -305,7 +305,7 @@ async def open_time_tracking(
         status=status,
         responsible_user_id=user_id,
         responsible_user_name=user_name,
-        started_at=datetime.utcnow()
+        started_at=datetime.now(timezone.utc)
     )
     db.add(tracking)
 
@@ -354,7 +354,7 @@ async def update_contract_type(
         return None
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(ct, field, value)
-    ct.updated_at = datetime.utcnow()
+    ct.updated_at = datetime.now(timezone.utc)
     await db.flush()
     return ct
 
@@ -502,7 +502,7 @@ async def submit_envelope(
         form_data=envelope.form_data or {},
         submitted_by_user_id=user_id,
         submitted_by_name=user_name,
-        submitted_at=datetime.utcnow()
+        submitted_at=datetime.now(timezone.utc)
     )
     db.add(snapshot)
 
@@ -512,21 +512,21 @@ async def submit_envelope(
             envelope.assigned_lawyer_id = lawyer["lawyer_user_id"]
             envelope.assigned_lawyer_name = lawyer["lawyer_name"]
             envelope.assigned_lawyer_email = lawyer["lawyer_email"]
-            envelope.assigned_at = datetime.utcnow()
+            envelope.assigned_at = datetime.now(timezone.utc)
             await log_activity(
                 db, envelope.id, "lawyer_assigned",
                 user_id, user_name, user_role,
                 detail={"lawyer": lawyer["lawyer_name"]}
             )
 
-        envelope.submitted_at = datetime.utcnow()
+        envelope.submitted_at = datetime.now(timezone.utc)
         ct = await get_contract_type(db, envelope.contract_type_id)
         if ct:
             envelope.sla_due_at = add_business_days(envelope.submitted_at, ct.sla_business_days)
 
     await close_time_tracking(db, envelope_id, from_status)
     envelope.status = to_status
-    envelope.updated_at = datetime.utcnow()
+    envelope.updated_at = datetime.now(timezone.utc)
     await open_time_tracking(
         db, envelope_id, to_status,
         envelope.assigned_lawyer_id, envelope.assigned_lawyer_name
@@ -571,8 +571,8 @@ async def approve_envelope(
 
     await close_time_tracking(db, envelope_id, from_status)
     envelope.status = to_status
-    envelope.sla_closed_at = datetime.utcnow()
-    envelope.updated_at = datetime.utcnow()
+    envelope.sla_closed_at = datetime.now(timezone.utc)
+    envelope.updated_at = datetime.now(timezone.utc)
     await open_time_tracking(db, envelope_id, to_status, user_id, user_name)
     await log_status_change(
         db, envelope_id, from_status, to_status,
@@ -614,7 +614,7 @@ async def request_corrections(
 
     await close_time_tracking(db, envelope_id, from_status)
     envelope.status = to_status
-    envelope.updated_at = datetime.utcnow()
+    envelope.updated_at = datetime.now(timezone.utc)
     await open_time_tracking(
         db, envelope_id, to_status,
         envelope.requested_by_user_id, envelope.requested_by_name
@@ -660,8 +660,8 @@ async def reject_envelope(
 
     await close_time_tracking(db, envelope_id, from_status)
     envelope.status = to_status
-    envelope.sla_closed_at = datetime.utcnow()
-    envelope.updated_at = datetime.utcnow()
+    envelope.sla_closed_at = datetime.now(timezone.utc)
+    envelope.updated_at = datetime.now(timezone.utc)
     await log_status_change(
         db, envelope_id, from_status, to_status,
         user_id, user_name, user_role, reason=reason, ip_address=ip_address
@@ -702,8 +702,8 @@ async def complete_envelope(
 
     await close_time_tracking(db, envelope_id, from_status)
     envelope.status = to_status
-    envelope.completed_at = datetime.utcnow()
-    envelope.updated_at = datetime.utcnow()
+    envelope.completed_at = datetime.now(timezone.utc)
+    envelope.updated_at = datetime.now(timezone.utc)
     await log_status_change(
         db, envelope_id, from_status, to_status,
         user_id, user_name, user_role, ip_address=ip_address
@@ -748,8 +748,8 @@ async def reassign_lawyer(
     envelope.assigned_lawyer_id = new_lawyer_id
     envelope.assigned_lawyer_name = new_lawyer_name
     envelope.assigned_lawyer_email = new_lawyer_email
-    envelope.assigned_at = datetime.utcnow()
-    envelope.updated_at = datetime.utcnow()
+    envelope.assigned_at = datetime.now(timezone.utc)
+    envelope.updated_at = datetime.now(timezone.utc)
 
     await log_activity(
         db, envelope_id, "lawyer_reassigned",
@@ -767,7 +767,7 @@ async def update_sla_breach_flags(db: AsyncSession) -> int:
     Called by the daily SLA report cron.
     Returns the number of updated records.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     result = await db.execute(
         select(Envelope).where(
             and_(

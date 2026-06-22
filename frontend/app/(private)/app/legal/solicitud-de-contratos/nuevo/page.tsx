@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, FileText, ClipboardList, Eye, Send, Alert
 import PageWrapper from '@/components/layout/PageWrapper'
 import api from '@/services/api'
 import { uploadToStorage } from '@/services/uploadService'
+import { useAuthStore } from '@/store/authStore'
 
 interface TemplateField {
   key: string; label: string; type: 'text' | 'textarea' | 'date' | 'number' | 'select'
@@ -259,6 +260,7 @@ const Step5 = ({ templateName, isSubmitting, onConfirm, error, attachmentCount }
 
 export default function NuevoContratoPage() {
   const router = useRouter()
+  const { user } = useAuthStore()
   const [step, setStep] = useState(1)
   const [templates, setTemplates] = useState<any[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState('')
@@ -319,38 +321,42 @@ export default function NuevoContratoPage() {
   const handleSubmit = async () => {
     setIsSubmitting(true); setSubmitError('')
     try {
-      // 1. Crear el sobre
-      const res = await api.post('/api/v1/legal/envelopes', { contract_type_id: selectedTemplate, form_data: formData, is_open_request: false })
-      const envelopeId = res.data.id
+      // 1. Subir archivos PRIMERO — si falla, no se crea el sobre
+      const uploadedMeta: { object_key: string; bucket: string; original_name: string; stored_name: string; content_type: string; size_bytes: number; defId: string }[] = []
 
-      // 2. Subir cada anexo al upload-service y registrar metadatos en legal-service
       for (const uploaded of uploadedFiles) {
-        try {
-          // Subir archivo al upload-service
-          const storageFormData = new FormData()
-          storageFormData.append('file', uploaded.file)
-          storageFormData.append('module_slug', 'legal')
-          storageFormData.append('folder', `envelopes/${envelopeId}/anexos`)
-          const storageRes = await uploadToStorage(storageFormData)
-          const { object_key, bucket, original_name, stored_name, content_type, size_bytes } = storageRes.data.data
-
-          // Registrar metadatos en legal-service
-          const metaFormData = new FormData()
-          metaFormData.append('object_key', object_key)
-          metaFormData.append('original_name', original_name)
-          metaFormData.append('stored_name', stored_name)
-          metaFormData.append('bucket', bucket)
-          metaFormData.append('mime_type', content_type)
-          metaFormData.append('size_bytes', String(size_bytes))
-          if (uploaded.defId) metaFormData.append('attachment_def_id', uploaded.defId)
-          await api.post(`/api/v1/legal/envelopes/${envelopeId}/attachments`, metaFormData)
-        } catch (e) {
-          console.error('Error subiendo anexo:', e)
-        }
+        const storageFormData = new FormData()
+        storageFormData.append('file', uploaded.file)
+        storageFormData.append('module_slug', 'legal')
+        storageFormData.append('submodule_slug', 'contratos')
+        storageFormData.append('company_slug', (user?.companies?.[0] || 'general').toLowerCase().replace(/\s+/g, '-'))
+        storageFormData.append('folder', `envelopes/anexos`)
+        const storageRes = await uploadToStorage(storageFormData)
+        if (!storageRes.data?.data?.object_key) throw new Error(`Error subiendo ${uploaded.name}`)
+        uploadedMeta.push({ ...storageRes.data.data, defId: uploaded.defId })
       }
 
-      // 3. Enviar sobre al área legal
-      await api.post(`/api/v1/legal/envelopes/${envelopeId}/submit`)
+      // 2. Crear el sobre solo si todos los archivos subieron OK
+      const tpl = templates.find(t => t.id === selectedTemplate)
+      const contractTypeId = tpl?.contract_type_id || selectedTemplate
+      const res = await api.post('/api/v1/legal/envelopes', { contract_type_id: contractTypeId, form_data: formData, is_open_request: false })
+      const envelopeId = res.data.id
+
+      // 3. Registrar metadatos de archivos en legal-service
+      for (const meta of uploadedMeta) {
+        const metaFormData = new FormData()
+        metaFormData.append('object_key', meta.object_key)
+        metaFormData.append('original_name', meta.original_name)
+        metaFormData.append('stored_name', meta.stored_name)
+        metaFormData.append('bucket', meta.bucket)
+        metaFormData.append('mime_type', meta.content_type)
+        metaFormData.append('size_bytes', String(meta.size_bytes))
+        if (meta.defId) metaFormData.append('attachment_def_id', meta.defId)
+        await api.post(`/api/v1/legal/envelopes/${envelopeId}/attachments`, metaFormData)
+      }
+
+      // 4. Enviar sobre al área legal
+      await api.post(`/api/v1/legal/envelopes/${envelopeId}/submit`, {})
       router.push('/app/legal/solicitud-de-contratos')
     } catch (e: any) {
       setSubmitError(e?.response?.data?.message || e?.response?.data?.detail || 'Error al enviar. Intenta de nuevo.')
