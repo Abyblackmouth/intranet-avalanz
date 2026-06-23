@@ -15,7 +15,7 @@ El `admin-service` es el servicio de administración centralizada de la platafor
 - Definición y asignación de permisos globales y por submódulo
 - Asignación de accesos de usuarios a módulos con su rol correspondiente
 - Gestión de archivos de empleados con trazabilidad completa
-- Endpoint interno para que el `auth-service` consulte permisos al emitir tokens
+- Endpoints internos para que otros servicios consulten datos de usuarios sin exponer la API pública
 
 ---
 
@@ -25,7 +25,7 @@ El `admin-service` es el servicio de administración centralizada de la platafor
 backend/admin-service/
 ├── alembic.ini
 ├── app/
-│   ├── main.py                          → Punto de entrada, middlewares, routers, endpoint interno
+│   ├── main.py                          → Punto de entrada, middlewares, routers, endpoints internos
 │   ├── config.py                        → Configuración del servicio
 │   ├── database.py                      → Motor async, sesión de BD, init/close
 │   ├── routes/
@@ -234,6 +234,7 @@ Group (Grupo Avalanz / Zignia)
 | description | Text | Descripcion |
 | scope | String(20) | empresa o corporativo — default empresa |
 | is_active | Boolean | Si el rol esta activo |
+| is_deleted | Boolean | Soft delete |
 
 Scope empresa: el usuario ve solo datos de su company_id.
 Scope corporativo: el usuario ve datos de todas las empresas (Contraloria, Auditoria).
@@ -317,9 +318,18 @@ Se verifica tanto el array `roles` como el campo `is_super_admin` del JWT para c
 
 ---
 
-## Endpoint de permisos — `/internal/users/{user_id}/permissions`
+## Endpoints internos
 
-Este endpoint es consultado por el auth-service cada vez que emite un JWT. Devuelve:
+Los endpoints internos viven en `app/main.py` — no en los routers de `routes/` — para evitar conflictos de rutas con parámetros como `/{user_id}`. No requieren autenticación y **no están expuestos en Nginx** — solo accesibles dentro de la red Docker.
+
+| Método | Ruta | Auth | Consumidor | Descripción |
+|---|---|---|---|---|
+| GET | /internal/users/{user_id}/permissions | No | auth-service | Consultado al emitir JWT — devuelve roles, módulos, empresas y permisos del usuario |
+| GET | /internal/users/by-module-role | No | Cualquier microservicio | Lista usuarios activos con un rol específico en un módulo |
+
+### GET /internal/users/{user_id}/permissions
+
+Consultado por el auth-service cada vez que emite un JWT.
 
 ```json
 {
@@ -332,7 +342,21 @@ Este endpoint es consultado por el auth-service cada vez que emite un JWT. Devue
 }
 ```
 
-Para super admins, `modules` contiene **todos los módulos activos** — no solo los asignados. El campo `is_super_admin` se incluye en la respuesta para que el auth-service lo agregue al JWT.
+Para super admins, `modules` contiene **todos los módulos activos** — no solo los asignados. El campo `is_super_admin` se incluye en la respuesta para que el auth-service lo agregue al JWT. Fix aplicado 2026-04-28.
+
+### GET /internal/users/by-module-role
+
+Query params: `module_slug` (requerido) y `role_slug` (requerido).
+
+```json
+[
+  {"id": "uuid", "name": "FELIPE GONZALEZ MARTINEZ", "email": "email@empresa.com"}
+]
+```
+
+Filtra usuarios con `is_active=true` y `uma.is_active=true`. Usado actualmente por el `legal-service` para listar abogados disponibles al asignar sobres. Diseñado para ser reutilizado por cualquier módulo futuro que necesite obtener usuarios por rol.
+
+> **Implementación:** está en `app/main.py` y no en `routes/users.py` porque FastAPI resolvería `/internal/...` como el parámetro `{user_id}` si estuviera en el mismo router, causando error de UUID inválido.
 
 ---
 
@@ -388,6 +412,8 @@ Para super admins, `modules` contiene **todos los módulos activos** — no solo
    POST /api/v1/users/{user_id}/module-access
 ```
 
+> Los roles de módulo viajan en el JWT con prefijo `{modulo}:{rol}` — por ejemplo `legal:abogado`. Cada microservicio debe normalizar el prefijo antes de comparar. Ver `docs/architecture/politica-roles-permisos.md`.
+
 ---
 
 ## Flujo de creación de usuario
@@ -438,7 +464,9 @@ else:
 | /api/v1/roles/ | admin-service |
 | /api/v1/permissions/ | admin-service |
 
-> Si agregas nuevos prefijos de ruta, agrégalos también en Nginx y reinicia el contenedor.
+> Las rutas `/internal/...` **no están expuestas en Nginx** — solo accesibles dentro de la red Docker entre contenedores.
+
+> Si agregas nuevos prefijos de ruta públicos, agrégalos también en Nginx y reinicia el contenedor.
 
 ---
 
@@ -606,55 +634,22 @@ Todos los archivos de empleados se guardan en MinIO bajo: `dirdoc/admin/employee
 
 ---
 
-## Endpoint interno
-
-| Método | Ruta | Auth | Descripción |
-|---|---|---|---|
-| GET | /internal/users/{user_id}/permissions | No | Consultado por auth-service al emitir JWT |
-| GET | /internal/users/by-module-role | No | Consultado por microservicios internos — lista usuarios activos por rol de módulo |
-
-```json
-{
-  "roles": ["super_admin"],
-  "modules": [{"slug": "boveda", "icon": "receipt", "submodules": [...]}],
-  "companies": ["uuid-corporativo"],
-  "permissions": [],
-  "cross_company": true,
-  "is_super_admin": true
-}
-```
-
-> El campo `is_super_admin` se incluye explícitamente en la respuesta para que el auth-service lo agregue al JWT payload. Fix aplicado 2026-04-28.
-
-### GET /internal/users/by-module-role
-
-Query params: `module_slug` y `role_slug`. Sin autenticación — solo red Docker interna, no expuesto en Nginx. Implementado en `app/main.py` para evitar conflicto con la ruta `/{user_id}`.
-
-```json
-[
-  {"id": "uuid", "name": "NOMBRE COMPLETO", "email": "email@empresa.com"}
-]
-```
-
-> Usado por legal-service para listar abogados disponibles al asignar sobres. Filtra `is_active=true` y `uma.is_active=true`.
-
----
-
 ## Comunicación con otros servicios
 
-| Servicio | Tipo | Endpoint | Propósito |
+| Servicio | Dirección | Endpoint | Propósito |
 |---|---|---|---|
-| auth-service | HTTP interno | POST /api/v1/auth/internal/users | Crear credenciales al crear usuario |
-| auth-service | HTTP interno | GET /api/v1/auth/internal/users/{id}/info | Obtener is_locked, is_2fa_configured, is_temp_password, last_login_at |
-| auth-service | HTTP interno | POST /api/v1/auth/internal/users/batch-info | Obtener datos de auth para múltiples usuarios en un query |
-| auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/reset-password | Resetear contraseña del usuario |
-| auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/lock | Bloquear o desbloquear cuenta |
-| auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/revoke-sessions | Revocar todas las sesiones del usuario y enviar correo de notificación |
-| upload-service | HTTP interno | POST /api/v1/upload/ | Subir archivo de empleado a MinIO |
-| upload-service | HTTP interno | GET /api/v1/upload/signed-url | Obtener URL firmada para descarga |
-| legal-service | HTTP interno | GET /internal/users/by-module-role | Consulta usuarios con rol abogado para asignación de sobres |
+| auth-service | admin → auth | POST /api/v1/auth/internal/users | Crear credenciales al crear usuario |
+| auth-service | admin → auth | GET /api/v1/auth/internal/users/{id}/info | Obtener is_locked, is_2fa_configured, is_temp_password, last_login_at |
+| auth-service | admin → auth | POST /api/v1/auth/internal/users/batch-info | Obtener datos de auth para múltiples usuarios en un query |
+| auth-service | admin → auth | POST /api/v1/auth/internal/users/{id}/reset-password | Resetear contraseña del usuario |
+| auth-service | admin → auth | POST /api/v1/auth/internal/users/{id}/lock | Bloquear o desbloquear cuenta |
+| auth-service | admin → auth | POST /api/v1/auth/internal/users/{id}/revoke-sessions | Revocar todas las sesiones del usuario |
+| upload-service | admin → upload | POST /api/v1/upload/ | Subir archivo de empleado a MinIO |
+| upload-service | admin → upload | GET /api/v1/upload/signed-url | Obtener URL firmada para descarga |
+| auth-service | auth → admin | GET /internal/users/{user_id}/permissions | Auth consulta permisos al emitir JWT |
+| legal-service | legal → admin | GET /internal/users/by-module-role | Legal consulta abogados disponibles para asignación |
 
-> Todas las URLs internas usan el formato completo con puerto: `http://auth-service:8000/...`, `http://upload-service:8000/...`
+> Todas las URLs internas usan nombre de contenedor con puerto: `http://auth-service:8000/...`, `http://upload-service:8000/...`, `http://admin-service:8000/...`
 
 ---
 
@@ -702,6 +697,14 @@ docker exec avalanz-admin bash -c "cd /app && alembic downgrade -1"
 |---|---|
 | super_admin | Acceso total a toda la plataforma |
 | admin_empresa | Gestión dentro de su empresa |
+
+### Roles de módulo Legal (configurados manualmente)
+| ID | Slug | Descripción |
+|---|---|---|
+| `8fecb981-0d9a-4a30-9b29-fd918892ed68` | abogado | Revisa y aprueba contratos del módulo legal |
+| `f9273068-6f57-4637-99cb-9b9416445041` | coordinador_legal | Administra el módulo legal y supervisa abogados |
+
+> Los roles de módulo viajan en el JWT con prefijo: `legal:abogado`, `legal:coordinador_legal`. Cada microservicio normaliza el prefijo antes de comparar — ver `docs/architecture/politica-roles-permisos.md`.
 
 ### Super admin inicial
 - Email: configurable via `SUPER_ADMIN_EMAIL` en variables de entorno

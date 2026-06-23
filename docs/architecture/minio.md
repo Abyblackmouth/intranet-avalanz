@@ -10,11 +10,11 @@ MinIO es el servidor de almacenamiento de archivos on-premise de la plataforma A
 
 | Entorno | URL | Usuario | Contraseña |
 |---|---|---|---|
-| Desarrollo — Consola web | http://localhost:9001 | minioadmin | Avalanz2026! |
-| Desarrollo — API S3 | http://localhost:9000 | minioadmin | Avalanz2026! |
-| Docker interno | http://avalanz-minio:9000 | minioadmin | Avalanz2026! |
+| Servidor — Consola web | http://10.12.0.51:9001 | AvalanzMinIO2026 | (ver KeePass) |
+| Servidor — API S3 | http://10.12.0.51:9000 | AvalanzMinIO2026 | (ver KeePass) |
+| Docker interno | http://avalanz-minio:9000 | AvalanzMinIO2026 | (ver KeePass) |
 
-> En producción el puerto 9001 (consola) no debe estar expuesto públicamente. Ver checklist de producción en `tech-debt.md`.
+> El puerto 9001 (consola web) fue agregado al mapeo de docker-compose.yml en 2026-06-23. Si no abre, verificar con `docker ps | grep minio`.
 
 ---
 
@@ -36,23 +36,57 @@ El bucket `dirdoc` organiza los archivos con la siguiente estructura:
 
 ```
 dirdoc/
-├── admin/                          → Módulo administrativo
+├── admin/                          → Módulo administrativo (sin company_slug)
 │   └── employees/
 │       └── documents/
 │           └── user_{matricula}_{company}_{folio}.{ext}
 │
 └── {company_slug}/                 → Módulos operativos por empresa
     └── {module_slug}/
-        └── {submodule_slug}/
+        └── {submodule_slug}/       → Puede contener slashes para subcarpetas
             └── {uuid8}_{nombre}.{ext}
 ```
 
-### Ejemplos reales
+### Módulo Admin — documentos de empleados
 
 ```
-dirdoc/admin/employees/documents/user_012185_avalanz_a3f9b2c1.pdf
-dirdoc/dyce/legal/contratos/f88bc926_contrato_arrendamiento.pdf
-dirdoc/agim/boveda/documentos/7e2d4f8a_acta_constitutiva.pdf
+dirdoc/
+└── admin/
+    └── employees/
+        └── documents/
+            └── user_012185_avalanz_a3f9b2c1.pdf
+```
+
+### Módulo Legal — Solicitud de Contratos
+
+El módulo legal usa `submodule_slug` con slashes para crear subcarpetas por folio:
+
+```
+dirdoc/
+├── agim/
+│   └── legal/
+│       └── envelopes/
+│           └── ENV-2026-0039/               ← submodule_slug = "envelopes/ENV-2026-0039"
+│               ├── uuid_contrato.pdf        ← PDF generado al enviar
+│               └── attachments/             ← submodule_slug = "envelopes/ENV-2026-0039/attachments"
+│                   └── uuid_ine.pdf         ← anexos del cliente
+└── sppel/
+    └── legal/
+        └── envelopes/
+            └── ENV-2026-0041/
+                └── uuid_contrato.pdf
+```
+
+El `company_slug` se obtiene del admin-service usando el `company_id` del sobre y se guarda como `company_name` en la tabla `envelopes`.
+
+### Módulos futuros
+
+```
+dirdoc/
+└── {empresa}/
+    └── boveda/
+        └── expedientes/
+            └── uuid_acta_constitutiva.pdf
 ```
 
 ---
@@ -79,7 +113,12 @@ user_{matricula}_{company_slug}_{folio}.{ext}
 {uuid8}_{nombre_original}.{ext}
 ```
 
-El `upload-service` genera el nombre automáticamente con un UUID de 8 caracteres como prefijo.
+El `upload-service` genera el nombre automáticamente. Para el módulo Legal, el frontend renombra el archivo antes de subirlo para incluir el folio:
+
+```
+ENV-2026-0039_contrato.pdf  →  uuid8_env-2026-0039_contrato.pdf
+ENV-2026-0039_ine.pdf       →  uuid8_env-2026-0039_ine.pdf
+```
 
 ---
 
@@ -102,50 +141,64 @@ Las URLs firmadas permiten al frontend descargar archivos directamente de MinIO 
 
 Formato de una URL firmada:
 ```
-http://localhost:9000/dirdoc/admin/employees/documents/user_012185_avalanz_a3f9b2c1.pdf
-  ?AWSAccessKeyId=minioadmin
+http://10.12.0.51:9000/dirdoc/agim/legal/envelopes/ENV-2026-0039/uuid_contrato.pdf
+  ?AWSAccessKeyId=AvalanzMinIO2026
   &Signature=Q0fpt0PWF32qh...
   &Expires=1776571104
 ```
 
-En producción `localhost:9000` se reemplaza por la IP o dominio real del servidor via la variable `SIGNED_URL_HOST` en el `.env` del `upload-service`.
+En producción `SIGNED_URL_HOST` en el `.env` del `upload-service` debe apuntar a la IP real del servidor.
 
 ---
 
-## Operaciones desde consola de MinIO
+## Operaciones desde terminal (CLI mc)
 
-### Ver archivos de un bucket
-1. Abrir http://localhost:9001
-2. Ir a Object Browser
-3. Seleccionar el bucket `dirdoc`
-4. Navegar por las carpetas
-
-### Eliminar archivos manualmente
-Seleccionar el archivo → botón Delete en el panel de acciones de la derecha.
-
-### Eliminar carpetas completas (solo desarrollo)
 ```bash
-docker exec avalanz-minio sh -c "mc alias set local http://localhost:9000 minioadmin Avalanz2026! && mc rm --recursive --force local/dirdoc/carpeta"
+# Configurar alias (credenciales reales en KeePass)
+docker exec avalanz-minio mc alias set local http://localhost:9000 AvalanzMinIO2026 <SECRET_KEY>
+
+# Ver contenido completo del bucket
+docker exec avalanz-minio mc ls --recursive local/dirdoc/
+
+# Ver archivos de una empresa/módulo específico
+docker exec avalanz-minio mc ls --recursive local/dirdoc/agim/legal/
+
+# Eliminar carpeta de un sobre específico (solo desarrollo)
+docker exec avalanz-minio mc rm --recursive --force local/dirdoc/agim/legal/envelopes/ENV-2026-XXXX/
+
+# Eliminar todos los archivos de prueba del módulo legal
+docker exec avalanz-minio mc rm --recursive --force local/dirdoc/agim/
+docker exec avalanz-minio mc rm --recursive --force local/dirdoc/sppel/
 ```
 
-### Ver contenido del bucket desde terminal
-```bash
-docker exec avalanz-minio sh -c "mc alias set local http://localhost:9000 minioadmin Avalanz2026! && mc ls --recursive local/dirdoc"
-```
+---
+
+## Operaciones desde consola web
+
+1. Abrir `http://10.12.0.51:9001`
+2. Iniciar sesión con credenciales de KeePass
+3. Ir a Object Browser
+4. Seleccionar el bucket `dirdoc`
+5. Navegar por las carpetas: empresa → módulo → folio
 
 ---
 
 ## Limpieza de datos de prueba
 
-Para eliminar todo el contenido del bucket `dirdoc` y los registros de BD:
+Para eliminar archivos de prueba del módulo Legal en MinIO y sus registros en BD:
 
 ```bash
-# Limpiar BD
+# Limpiar MinIO — módulo legal (ajustar slugs según empresas usadas en pruebas)
+docker exec avalanz-minio mc alias set local http://localhost:9000 AvalanzMinIO2026 <SECRET_KEY>
+docker exec avalanz-minio mc rm --recursive --force local/dirdoc/agim/
+docker exec avalanz-minio mc rm --recursive --force local/dirdoc/sppel/
+
+# Limpiar BD legal — attachments
+docker exec avalanz-postgres psql -U avalanz_user -d avalanz_legal -c "DELETE FROM envelope_attachments;"
+
+# Limpiar BD admin — archivos de empleados
 docker exec avalanz-postgres psql -U avalanz_user -d avalanz_admin -c "DELETE FROM user_file_audit_log;"
 docker exec avalanz-postgres psql -U avalanz_user -d avalanz_admin -c "DELETE FROM user_files;"
-
-# Limpiar MinIO
-docker exec avalanz-minio sh -c "mc alias set local http://localhost:9000 minioadmin Avalanz2026! && mc rm --recursive --force local/dirdoc"
 ```
 
 ---
@@ -192,6 +245,8 @@ minio:
     - minio-data:/data
   networks:
     - avalanz-network
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
 ```
 
 Los archivos físicos viven en el volumen Docker `minio-data`. Para encontrar su ubicación en el servidor:
@@ -207,22 +262,34 @@ docker volume inspect minio-data
 
 ### `infrastructure/docker/.env`
 
-| Variable | Descripción | Default |
-|---|---|---|
-| `MINIO_ACCESS_KEY` | Usuario root de MinIO | minioadmin |
-| `MINIO_SECRET_KEY` | Contraseña root de MinIO | Avalanz2026! |
+| Variable | Descripción |
+|---|---|
+| `MINIO_ACCESS_KEY` | Usuario root de MinIO |
+| `MINIO_SECRET_KEY` | Contraseña root de MinIO |
 
 ### `backend/upload-service/.env`
 
 | Variable | Descripción | Default dev |
 |---|---|---|
 | `STORAGE_ENDPOINT` | URL interna Docker | http://avalanz-minio:9000 |
-| `STORAGE_ACCESS_KEY` | Clave de acceso | minioadmin |
-| `STORAGE_SECRET_KEY` | Clave secreta | Avalanz2026! |
+| `STORAGE_ACCESS_KEY` | Clave de acceso | igual que MINIO_ACCESS_KEY |
+| `STORAGE_SECRET_KEY` | Clave secreta | igual que MINIO_SECRET_KEY |
 | `STORAGE_USE_SSL` | Usar SSL | False |
 | `BUCKET_DIRDOC` | Bucket principal | dirdoc |
 | `SIGNED_URL_EXPIRATION` | Segundos de validez URL firmada | 900 |
-| `SIGNED_URL_HOST` | Host público para URLs firmadas | http://localhost:9000 |
+| `SIGNED_URL_HOST` | Host público para URLs firmadas | http://10.12.0.51:9000 |
+
+---
+
+## Módulos que usan MinIO
+
+| Módulo | Ruta en dirdoc | Descripción |
+|---|---|---|
+| admin-service | `admin/employees/documents/` | Archivos de expediente de empleados |
+| legal-service | `{empresa}/legal/envelopes/{folio}/` | Contratos PDF generados al enviar |
+| legal-service | `{empresa}/legal/envelopes/{folio}/attachments/` | Anexos del cliente (INE, pasaporte, etc.) |
+
+> Al agregar un nuevo módulo que suba archivos, documentar aquí su estructura de rutas.
 
 ---
 

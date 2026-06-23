@@ -42,14 +42,14 @@ POST /api/v1/upload/
 { file, company_slug, module_slug, submodule_slug }
         |
 upload-service valida el archivo
-upload-service construye la ruta: avalanz/legal/contratos/uuid_contrato.pdf
+upload-service construye la ruta: agim/legal/envelopes/ENV-2026-0039/uuid_contrato.pdf
 upload-service sube a MinIO en bucket dirdoc
 upload-service devuelve { object_key, bucket, checksum, ... }
         |
 legal-service recibe el object_key y checksum
 legal-service guarda en su propia BD:
-  files → { object_key, bucket, checksum, uploaded_by, entity_id, ... }
-  file_audit_log → { action: "uploaded", performed_by, ... }
+  envelope_attachments → { object_key, bucket, checksum, uploaded_by, envelope_id, ... }
+  envelope_activity_logs → { action: "uploaded", performed_by, ... }
 ```
 
 ### Flujo de descarga desde un módulo
@@ -65,7 +65,7 @@ GET /api/v1/upload/signed-url?object_key=...&bucket=dirdoc
         |
 upload-service genera URL firmada válida 15 minutos
         |
-legal-service registra en file_audit_log → { action: "downloaded", ... }
+legal-service registra en envelope_activity_logs → { action: "downloaded", ... }
 legal-service devuelve la URL al frontend
         |
 Frontend descarga directo de MinIO con la URL firmada
@@ -86,27 +86,64 @@ dirdoc/
 │           └── {uuid8}_{nombre_original}.{ext}
 ```
 
-Ejemplo real:
+La ruta se construye concatenando los tres parámetros: `company_slug/module_slug/submodule_slug/uuid_nombre.ext`.
+
+### Ejemplo — Módulo Legal (Solicitud de Contratos)
+
+El módulo legal usa `submodule_slug` para incluir el folio del sobre y el tipo de archivo:
+
 ```
 dirdoc/
-├── dyce/
-│   └── legal/
-│       └── contratos/
-│           └── a3f9b2c1_contrato_arrendamiento.pdf
 ├── agim/
 │   └── legal/
-│       └── expedientes/
-│           └── 7e2d4f8a_demanda_civil.pdf
-├── avalanz/
-│   └── usuarios/
-│       └── perfiles/
-│           └── 9540cf2d_foto_perfil.png
+│       ├── envelopes/
+│       │   └── ENV-2026-0039/         ← submodule_slug = "envelopes/ENV-2026-0039"
+│       │       └── uuid_contrato.pdf  ← PDF generado al enviar
+│       └── envelopes/
+│           └── ENV-2026-0039/
+│               └── attachments/       ← submodule_slug = "envelopes/ENV-2026-0039/attachments"
+│                   └── uuid_ine.pdf   ← anexos del cliente
+├── sppel/
+│   └── legal/
+│       └── envelopes/
+│           └── ENV-2026-0041/
+│               └── uuid_contrato.pdf
+```
+
+Parámetros que manda el legal-service al upload-service:
+
+| Archivo | company_slug | module_slug | submodule_slug |
+|---|---|---|---|
+| Contrato PDF | slug de la empresa | legal | envelopes/{folio} |
+| Anexo del cliente | slug de la empresa | legal | envelopes/{folio}/attachments |
+
+> El `company_slug` se obtiene consultando al admin-service con el `company_id` del sobre. Se guarda como `company_name` en la tabla `envelopes`.
+
+### Ejemplo — Módulo Admin (Archivos de empleados)
+
+```
+dirdoc/
+└── avalanz/
+    └── admin/
+        └── employees/
+            └── documents/
+                └── uuid_contrato_empleado.pdf
+```
+
+### Ejemplo — Otros módulos futuros
+
+```
+dirdoc/
+└── {empresa}/
+    └── boveda/
+        └── expedientes/
+            └── uuid_acta_constitutiva.pdf
 ```
 
 El `object_key` que devuelve el servicio es la ruta relativa dentro del bucket, sin incluir el nombre del bucket:
 
 ```
-avalanz/usuarios/perfiles/9540cf2d_foto_perfil.png
+agim/legal/envelopes/ENV-2026-0039/a3f9b2c1_contrato.pdf
 ```
 
 ---
@@ -142,6 +179,8 @@ Cada módulo operativo que maneje archivos debe implementar estas dos tablas en 
 | uploaded_at | DateTime | Fecha de subida |
 | last_modified_by | UUID | Último usuario que lo modificó |
 | last_modified_at | DateTime | Fecha de última modificación |
+
+> El módulo Legal implementa esta tabla como `envelope_attachments` con columnas adicionales para versionado: `version_number`, `is_current`, `replaced_at`, `replaced_by_name`, `replaced_reason`.
 
 ### file_audit_log
 
@@ -191,7 +230,7 @@ upload-service/
 │   │   └── upload.py            → Endpoints de subida, descarga y eliminación
 │   ├── services/
 │   │   ├── upload_service.py    → Lógica de validación, organización y checksum
-│   │   └── storage_service.py  → Abstracción S3 / MinIO, URLs firmadas
+│   │   └── storage_service.py  → Abstracción S3 / MinIO, URLs firmadas, build_object_key
 │   ├── models/
 │   │   └── upload_models.py
 │   └── middleware/
@@ -200,6 +239,19 @@ upload-service/
 ├── requirements.txt
 └── .env
 ```
+
+### Función `build_object_key`
+
+La ruta del archivo en MinIO se construye en `storage_service.py`:
+
+```python
+def build_object_key(company_slug, module_slug, submodule_slug, unique_id, safe_name, ext):
+    return f"{company_slug}/{module_slug}/{submodule_slug}/{unique_id}_{safe_name}{ext}"
+```
+
+El `unique_id` es un UUID de 8 caracteres generado por el servicio. El `safe_name` es el nombre original del archivo con espacios reemplazados por `_` y en minúsculas.
+
+> **Nota importante:** el `submodule_slug` puede contener slashes — por ejemplo `envelopes/ENV-2026-0039/attachments`. Esto permite crear subcarpetas arbitrarias dentro del módulo sin modificar el upload-service.
 
 ---
 
@@ -247,6 +299,10 @@ upload-service/
 
 Los tres buckets se crean automáticamente al arrancar el servicio si no existen.
 
+La consola web de MinIO está disponible en el puerto 9001 (mapeado en docker-compose.yml):
+- URL: `http://{IP_SERVIDOR}:9001`
+- Credenciales: en `infrastructure/docker/.env` bajo `MINIO_ACCESS_KEY` y `MINIO_SECRET_KEY`
+
 ---
 
 ## Endpoints
@@ -267,7 +323,7 @@ Recibe `multipart/form-data`:
 | file | File | Si | Archivo a subir |
 | company_slug | string | Si | Slug de la empresa |
 | module_slug | string | Si | Slug del módulo |
-| submodule_slug | string | Si | Slug del submódulo |
+| submodule_slug | string | Si | Slug del submódulo — puede incluir slashes para subcarpetas |
 
 Respuesta exitosa:
 ```json
@@ -275,7 +331,7 @@ Respuesta exitosa:
   "success": true,
   "message": "Archivo subido exitosamente",
   "data": {
-    "object_key": "dyce/legal/contratos/a3f9b2c1_contrato.pdf",
+    "object_key": "agim/legal/envelopes/ENV-2026-0039/a3f9b2c1_contrato.pdf",
     "bucket": "dirdoc",
     "original_name": "contrato.pdf",
     "stored_name": "a3f9b2c1_contrato.pdf",
@@ -286,11 +342,10 @@ Respuesta exitosa:
     "checksum": "4c413baa5077fb8da875ce0da74321c6c69aa6f473707d044ac8a2159085e50e",
     "is_image": false,
     "uploaded_by": "uuid-usuario",
-    "company_id": "uuid-dyce",
-    "company_slug": "dyce",
+    "company_slug": "agim",
     "module_slug": "legal",
-    "submodule_slug": "contratos",
-    "uploaded_at": "2026-04-19T03:09:37+00:00"
+    "submodule_slug": "envelopes/ENV-2026-0039",
+    "uploaded_at": "2026-06-23T17:22:19+00:00"
   }
 }
 ```
@@ -311,8 +366,8 @@ Respuesta exitosa:
   "success": true,
   "message": "URL generada exitosamente",
   "data": {
-    "url": "http://localhost:9000/dirdoc/dyce/legal/contratos/a3f9b2c1_contrato.pdf?AWSAccessKeyId=...&Expires=...",
-    "object_key": "dyce/legal/contratos/a3f9b2c1_contrato.pdf",
+    "url": "http://10.12.0.51:9000/dirdoc/agim/legal/envelopes/ENV-2026-0039/a3f9b2c1_contrato.pdf?...",
+    "object_key": "agim/legal/envelopes/ENV-2026-0039/a3f9b2c1_contrato.pdf",
     "bucket": "dirdoc",
     "expires_in_seconds": 900
   }
@@ -392,6 +447,8 @@ SIGNED_URL_HOST=https://s3.amazonaws.com
 
 ## Cómo consumir desde otros servicios
 
+### Desde backend (Python / httpx)
+
 ```python
 import httpx
 
@@ -421,6 +478,63 @@ async def obtener_url_descarga(object_key: str, token: str) -> str:
         return response.json()["data"]["url"]
 ```
 
+### Desde frontend (TypeScript / Axios)
+
+El frontend consume el upload-service directamente vía Nginx. Los servicios disponibles en `frontend/services/uploadService.ts`:
+
+```typescript
+// Subir archivo
+export const uploadToStorage = (formData: FormData) =>
+  api.post('/api/v1/upload/', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+
+// Generar URL firmada de descarga
+export const getSignedUrl = (objectKey: string, bucket: string) =>
+  api.get('/api/v1/upload/signed-url', {
+    params: { object_key: objectKey, bucket },
+  })
+
+// Eliminar archivo
+export const deleteFromStorage = (objectKey: string, bucket: string) =>
+  api.delete('/api/v1/upload/', {
+    params: { object_key: objectKey, bucket },
+  })
+```
+
+### Ejemplo de uso en módulo Legal (frontend)
+
+```typescript
+// Subir contrato PDF al enviar un sobre
+const pdfFD = new FormData()
+pdfFD.append('file', pdfFile)
+pdfFD.append('company_slug', companySlug)       // slug obtenido del sobre creado
+pdfFD.append('module_slug', 'legal')
+pdfFD.append('submodule_slug', `envelopes/${folio}`)
+const result = await uploadToStorage(pdfFD)
+// result.data.data.object_key → se registra en envelope_attachments
+
+// Subir anexo del cliente
+const aFD = new FormData()
+aFD.append('file', ineFile)
+aFD.append('company_slug', companySlug)
+aFD.append('module_slug', 'legal')
+aFD.append('submodule_slug', `envelopes/${folio}/attachments`)
+const aResult = await uploadToStorage(aFD)
+```
+
+---
+
+## Módulos que consumen el upload-service
+
+| Módulo | Ruta en MinIO | Descripción |
+|---|---|---|
+| admin-service | `{empresa}/admin/employees/documents/` | Archivos de expediente de empleados |
+| legal-service | `{empresa}/legal/envelopes/{folio}/` | Contratos PDF generados al enviar |
+| legal-service | `{empresa}/legal/envelopes/{folio}/attachments/` | Anexos del cliente (INE, pasaporte, etc.) |
+
+> Al agregar un nuevo módulo que suba archivos, documentar aquí su estructura de rutas.
+
 ---
 
 ## Instalación y arranque local
@@ -429,7 +543,7 @@ El servicio corre dentro del stack Docker. No se levanta de forma aislada en des
 
 ```bash
 cd infrastructure/docker
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d upload-service
+docker compose -f docker-compose.yml up -d upload-service
 ```
 
 Después de modificar archivos localmente copiar al contenedor y reiniciar:
