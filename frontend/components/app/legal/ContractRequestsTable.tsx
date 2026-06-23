@@ -23,10 +23,13 @@ const formatDate = (iso: string | null) => {
 
 const formatRelative = (iso: string | null) => {
   if (!iso) return '—'
-  const diff = Date.now() - new Date(iso).getTime()
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
   const days = Math.floor(diff / 86400000)
-  if (days === 0) return 'Hoy'
-  if (days === 1) return 'Ayer'
+  const timeStr = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: true })
+  if (days === 0) return `Hoy ${timeStr}`
+  if (days === 1) return `Ayer ${timeStr}`
   if (days < 7)  return `Hace ${days} días`
   return formatDate(iso)
 }
@@ -318,22 +321,46 @@ const EnvelopeSlideOver = ({
                 </div>
               )}
 
-              {/* Bitácora de estados */}
-              {data?.status_log?.length > 0 && (
+              {/* Bitácora de estados y actividad */}
+              {(data?.status_log?.length > 0 || data?.activity_log?.length > 0) && (
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Historial</p>
                   <div className="space-y-2">
-                    {[...(data.status_log)].reverse().map((log: any) => (
-                      <div key={log.id} className="flex items-start gap-3">
-                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 shrink-0" />
+                    {[
+                      ...(data.status_log || []).map((s: any) => ({
+                        id: s.id, date: s.changed_at, who: s.changed_by_name,
+                        text: STATUS_CFG[s.to_status]?.label ?? s.to_status,
+                        reason: s.reason, type: 'status'
+                      })),
+                      ...(data.activity_log || [])
+                        .filter((a: any) => !['viewed'].includes(a.action))
+                        .map((a: any) => {
+                          const labels: Record<string, string> = {
+                            created: 'Sobre creado',
+                            submitted: 'Enviado al área legal',
+                            lawyer_reassigned: `Abogado asignado: ${a.detail?.new_lawyer || ''}`,
+                            attachment_uploaded: 'Documento adjuntado',
+                            approved: 'Aprobado por el abogado',
+                            rejected: 'Rechazado',
+                            corrections_requested: 'Correcciones solicitadas',
+                          }
+                          return {
+                            id: a.id, date: a.performed_at, who: a.performed_by_name,
+                            text: labels[a.action] || a.action, reason: null, type: 'activity'
+                          }
+                        })
+                    ]
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((item: any) => (
+                      <div key={item.id} className="flex items-start gap-3">
+                        <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${item.type === 'status' ? 'bg-[#1a4fa0]' : 'bg-slate-300'}`} />
                         <div className="min-w-0">
                           <p className="text-xs text-slate-700">
-                            <span className="font-medium">{log.changed_by_name}</span>
-                            {' '}<span className="text-slate-400">→</span>{' '}
-                            <span className="font-medium">{STATUS_CFG[log.to_status]?.label ?? log.to_status}</span>
+                            <span className="font-medium">{item.who}</span>
+                            {' — '}<span>{item.text}</span>
                           </p>
-                          {log.reason && <p className="text-xs text-slate-500 mt-0.5 italic">"{log.reason}"</p>}
-                          <p className="text-[10px] text-slate-400 mt-0.5">{formatRelative(log.changed_at)}</p>
+                          {item.reason && <p className="text-xs text-slate-500 mt-0.5 italic">"{item.reason}"</p>}
+                          <p className="text-[10px] text-slate-400 mt-0.5">{formatRelative(item.date)}</p>
                         </div>
                       </div>
                     ))}

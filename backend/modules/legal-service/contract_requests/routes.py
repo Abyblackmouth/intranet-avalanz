@@ -581,9 +581,33 @@ async def get_envelope(
         ip_address=get_client_ip(request)
     )
 
-    # Si es abogado/legal y el sobre está en pendiente_legal → pasar a en_revision_legal
-    is_abogado = any(r in get_flat_roles(user) for r in ["abogado", "coordinador_legal"])
-    if is_abogado and envelope.status == "pendiente_legal":
+    # Solo el abogado ASIGNADO al sobre cambia el estado a en_revision_legal
+    flat_roles = get_flat_roles(user)
+    is_assigned_lawyer = "abogado" in flat_roles and str(envelope.assigned_lawyer_id) == user["user_id"]
+    is_coordinator = any(r in flat_roles for r in ["coordinador_legal", "super_admin"])
+
+    # Abogado asignado abre el sobre → registrar tiempo de revisión del abogado
+    if is_assigned_lawyer:
+        from sqlalchemy import select as _sel
+        from .models import EnvelopeTimeTracking
+        existing = await db.execute(
+            _sel(EnvelopeTimeTracking)
+            .where(EnvelopeTimeTracking.envelope_id == envelope_id)
+            .where(EnvelopeTimeTracking.status == "revision_abogado")
+            .where(EnvelopeTimeTracking.responsible_user_id == user["user_id"])
+        )
+        if not existing.scalar_one_or_none():
+            from datetime import datetime, timezone as _tz
+            tracking = EnvelopeTimeTracking(
+                envelope_id=envelope_id,
+                status="revision_abogado",
+                responsible_user_id=user["user_id"],
+                responsible_user_name=user["full_name"],
+                started_at=datetime.now(_tz.utc)
+            )
+            db.add(tracking)
+
+    if is_assigned_lawyer and envelope.status == "pendiente_legal":
         envelope.status = "en_revision_legal"
         await service.log_status_change(
             db, envelope_id,
