@@ -142,6 +142,26 @@ async def deactivate_lawyer_assignment(
     await db.commit()
 
 
+# ── Abogados disponibles ─────────────────────────────────────────────────────
+
+@router.get("/lawyers", tags=["Lawyers"])
+async def list_available_lawyers(
+    user: dict = Depends(require_roles("coordinador_legal", "super_admin")),
+):
+    """Lista usuarios con rol abogado activos en el módulo legal."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "legal", "role_slug": "abogado"}
+            )
+            if r.status_code == 200:
+                return r.json()
+    except Exception as e:
+        print(f"Error fetching lawyers: {e}")
+    return []
+
 # ── Sobres — CRUD ─────────────────────────────────────────────────────────────
 
 @router.get("", response_model=PaginatedEnvelopes)

@@ -84,6 +84,29 @@ validator = JWTValidator(secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_
 
 from app.services.user_service import get_user_permissions
 
+
+@app.get("/internal/users/by-module-role", include_in_schema=False)
+async def internal_get_users_by_module_role(
+    module_slug: str,
+    role_slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT u.id, u.full_name, u.email
+        FROM users u
+        JOIN user_module_accesses uma ON uma.user_id = u.id
+        JOIN module_roles mr ON mr.id = uma.role_id
+        JOIN modules m ON m.id = uma.module_id
+        WHERE mr.slug = :role_slug
+          AND m.slug = :module_slug
+          AND u.is_active = true
+          AND uma.is_active = true
+        ORDER BY u.full_name
+    """), {"role_slug": role_slug, "module_slug": module_slug})
+    rows = result.fetchall()
+    return [{"id": str(r[0]), "name": r[1], "email": r[2]} for r in rows]
+
 @app.get("/internal/users/{user_id}/permissions", include_in_schema=False)
 async def internal_get_user_permissions(
     user_id: str,

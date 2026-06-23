@@ -297,3 +297,33 @@ async def reset_user_password(
         requested_by=payload,
     )
     return BaseResponse(success=True, message="Contrasena reseteada exitosamente")
+
+@router.get("/by-module-role", response_model=DataResponse)
+async def get_users_by_module_role(
+    module_slug: str,
+    role_slug: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Endpoint interno — lista usuarios activos con un rol específico en un módulo.
+    Usado por microservicios del grupo (legal-service, etc.) para obtener usuarios por rol.
+    No requiere autenticación — solo accesible dentro de la red Docker.
+    """
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT u.id, u.full_name, u.email
+        FROM users u
+        JOIN user_module_accesses uma ON uma.user_id = u.id
+        JOIN module_roles mr ON mr.id = uma.role_id
+        JOIN modules m ON m.id = uma.module_id
+        WHERE mr.slug = :role_slug
+          AND m.slug = :module_slug
+          AND u.is_active = true
+          AND uma.is_active = true
+        ORDER BY u.full_name
+    """), {"role_slug": role_slug, "module_slug": module_slug})
+    rows = result.fetchall()
+    return DataResponse(
+        message="Usuarios obtenidos",
+        data=[{"id": str(r[0]), "name": r[1], "email": r[2]} for r in rows]
+    )
