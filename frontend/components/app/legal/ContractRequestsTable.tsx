@@ -8,7 +8,7 @@ import {
 import { EnvelopeListItem, SLAColor, LegalRole } from '@/types/contract.types'
 import {
   approveEnvelope, requestCorrections, rejectEnvelope, completeEnvelope,
-  getEnvelope,
+  getEnvelope, assignLawyer,
 } from '@/services/legalService'
 import { getSignedUrl } from '@/services/uploadService'
 
@@ -78,19 +78,20 @@ const SLADot = ({ color }: { color: SLAColor }) => {
 }
 
 const SLAPill = ({ item }: { item: EnvelopeListItem }) => {
-  if (!item.submitted_at || item.status === 'borrador')
+  if (!item.submitted_at)
     return <span className="text-xs text-slate-400">—</span>
 
-  const elapsed = item.submitted_at
-    ? Math.floor((Date.now() - new Date(item.submitted_at).getTime()) / 86400000)
-    : null
+  if (!item.submitted_at)
+    return <span className="text-xs text-slate-400">—</span>
+  const diffMs = Math.max(0, Date.now() - new Date(item.submitted_at).getTime())
+  const diffHrs = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  const colorClass = item.sla_color === 'red' ? 'text-red-600' : item.sla_color === 'yellow' ? 'text-amber-600' : 'text-green-600'
   if (item.is_sla_breached)
-    return (<span className="flex items-center gap-1"><span className="text-sm text-red-600">{elapsed ?? 0}</span><span className="text-xs text-red-600"> {(elapsed ?? 0) === 1 ? "día" : "días"}</span></span>)
-  const remaining = item.sla_due_at
-    ? Math.ceil((new Date(item.sla_due_at).getTime() - Date.now()) / 86400000)
-    : null
-  const colorClass = item.sla_color === 'red' ? 'text-red-600' : item.sla_color === 'yellow' ? 'text-amber-600' : 'text-slate-500'
-  return <span className={`text-xs font-medium ${colorClass}`}>{elapsed !== null ? (<><span className="text-sm">{elapsed}</span><span className="text-xs"> {elapsed === 1 ? "día" : "días"}</span></>) : "—"}</span>
+    return (<span className="flex items-center gap-1 text-red-600"><span className="text-sm">{diffDays}</span><span className="text-xs"> {diffDays === 1 ? "día" : "días"}</span></span>)
+  if (diffDays === 0)
+    return <span className={`text-xs font-medium ${colorClass}`}><span className="text-sm">{diffHrs}</span><span className="text-xs"> {diffHrs === 1 ? "hr" : "hrs"}</span></span>
+  return <span className={`text-xs font-medium ${colorClass}`}><span className="text-sm">{diffDays}</span><span className="text-xs"> {diffDays === 1 ? "día" : "días"}</span></span>
 }
 
 // ── Modal de motivo ───────────────────────────────────────────────────────────
@@ -441,6 +442,9 @@ const ActionMenu = ({
   const [showCorrections, setShowCorrections] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [acting, setActing] = useState(false)
+  const [showAssign, setShowAssign] = useState(false)
+  const [lawyers, setLawyers] = useState<{id: string; name: string}[]>([])
+  const [selectedLawyer, setSelectedLawyer] = useState('')
   const btnRef = useRef<HTMLButtonElement>(null)
 
   const openMenu = () => {
@@ -467,6 +471,22 @@ const ActionMenu = ({
     finally { setActing(false) }
   }
 
+  const handleAssign = async () => {
+    if (!selectedLawyer) return
+    setActing(true)
+    try { await assignLawyer(item.id, selectedLawyer); setShowAssign(false); onRefresh() }
+    catch (e) { console.error(e) }
+    finally { setActing(false) }
+  }
+  const openAssign = async () => {
+    setOpen(false)
+    try {
+      const res = await import('@/services/api').then(m => m.default.get('/api/v1/legal/envelopes/lawyers'))
+      setLawyers(res.data || [])
+    } catch (e) { setLawyers([]) }
+    setSelectedLawyer('')
+    setShowAssign(true)
+  }
   const handleComplete = async () => {
     setOpen(false); setActing(true)
     try { await completeEnvelope(item.id); onRefresh() }
@@ -519,13 +539,46 @@ const ActionMenu = ({
             )}
             {isCoord && !isClosed && <>
               <div className="h-px bg-slate-100 my-1" />
-              <MI icon={<Users size={14} />} label={item.assigned_lawyer_name ? 'Reasignar abogado' : 'Asignar abogado'} onClick={() => setOpen(false)} />
+              <MI icon={<Users size={14} />} label={item.assigned_lawyer_name ? 'Reasignar abogado' : 'Asignar abogado'} onClick={openAssign} />
               <MI icon={<RotateCcw size={14} />} label="Actualizar SLA" onClick={() => setOpen(false)} />
             </>}
           </div>
         </>
       )}
 
+      {showAssign && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowAssign(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-900">{item.assigned_lawyer_name ? 'Reasignar abogado' : 'Asignar abogado'}</h3>
+              <button onClick={() => setShowAssign(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <p className="text-sm text-slate-500 mb-4">Sobre <span className="font-mono font-bold text-slate-700">{item.folio}</span></p>
+            <select
+              value={selectedLawyer}
+              onChange={e => setSelectedLawyer(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4fa0] mb-5"
+            >
+              <option value="">Selecciona un abogado...</option>
+              {lawyers.map(l => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+            <div className="flex items-center justify-end gap-3">
+              <button onClick={() => setShowAssign(false)} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100">Cancelar</button>
+              <button
+                onClick={handleAssign}
+                disabled={!selectedLawyer || acting}
+                className="px-5 py-2 text-sm font-medium rounded-lg bg-[#1a4fa0] text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {acting && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                Asignar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showCorrections && (
         <ReasonModal title="Solicitar correcciones"
           description={`Indica al solicitante qué debe corregir en el sobre ${item.folio}.`}

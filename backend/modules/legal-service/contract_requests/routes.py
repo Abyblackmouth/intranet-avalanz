@@ -801,6 +801,56 @@ async def complete_envelope(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.patch("/{envelope_id}/assign-lawyer", tags=["Envelopes"])
+async def assign_lawyer(
+    envelope_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_roles("super_admin", "coordinador_legal"))
+):
+    """Asigna o reasigna un abogado a un sobre usando solo el lawyer_id."""
+    import httpx
+    lawyer_id = payload.get("lawyer_id")
+    if not lawyer_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="lawyer_id es requerido")
+    # Obtener datos del abogado desde admin-service
+    lawyer_name = ""
+    lawyer_email = ""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "legal", "role_slug": "abogado"}
+            )
+            if r.status_code == 200:
+                lawyers = r.json()
+                lawyer = next((l for l in lawyers if l["id"] == lawyer_id), None)
+                if lawyer:
+                    lawyer_name = lawyer["name"]
+                    lawyer_email = lawyer["email"]
+    except Exception as e:
+        print(f"Error fetching lawyer: {e}")
+    try:
+        user_roles = get_flat_roles(user)
+        envelope = await service.reassign_lawyer(
+            db, envelope_id,
+            new_lawyer_id=lawyer_id,
+            new_lawyer_name=lawyer_name,
+            new_lawyer_email=lawyer_email,
+            user_id=user["user_id"],
+            user_name=user["full_name"],
+            user_role=user_roles[0] if user_roles else "coordinador_legal",
+            ip_address=None
+        )
+        await db.commit()
+        out = EnvelopeOut.model_validate(envelope)
+        out.sla = build_sla_info(envelope)
+        return out
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/{envelope_id}/reassign", response_model=EnvelopeOut)
 async def reassign_lawyer(
     envelope_id: str,

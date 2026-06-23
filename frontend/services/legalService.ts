@@ -52,6 +52,9 @@ export const rejectEnvelope = (id: string, reason: string) =>
 export const completeEnvelope = (id: string) =>
   api.post(`${BASE}/${id}/complete`)
 
+export const assignLawyer = (envelopeId: string, lawyerId: string) =>
+  api.patch(`${BASE}/${envelopeId}/assign-lawyer`, { lawyer_id: lawyerId })
+
 export const reassignLawyer = (id: string, data: Record<string, any>) =>
   api.post(`${BASE}/${id}/reassign`, data)
 
