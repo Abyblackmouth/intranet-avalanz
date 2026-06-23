@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import {
   MoreHorizontal, Eye, CheckCircle, XCircle, AlertCircle, Users,
   ChevronLeft, ChevronRight, X, Flag, FileText, RotateCcw,
-  Clock, Calendar, Building2, User, Scale, ChevronRight as Arrow,
+  Clock, Calendar, Building2, User, Scale, ChevronRight as Arrow, Mail,
 } from 'lucide-react'
 import { EnvelopeListItem, SLAColor, LegalRole } from '@/types/contract.types'
 import {
@@ -79,15 +79,17 @@ const SLADot = ({ color }: { color: SLAColor }) => {
 const SLAPill = ({ item }: { item: EnvelopeListItem }) => {
   if (!item.submitted_at || item.status === 'borrador')
     return <span className="text-xs text-slate-400">—</span>
-  if (item.status === 'completado' || item.status === 'rechazado')
-    return <span className="text-xs text-slate-400">Cerrado</span>
+
+  const elapsed = item.submitted_at
+    ? Math.floor((Date.now() - new Date(item.submitted_at).getTime()) / 86400000)
+    : null
   if (item.is_sla_breached)
-    return <span className="text-xs font-semibold text-red-600 flex items-center gap-1"><Flag size={11} />Atrasado</span>
+    return (<span className="flex items-center gap-1"><span className="text-sm text-red-600">{elapsed ?? 0}</span><span className="text-xs text-red-600"> {(elapsed ?? 0) === 1 ? "día" : "días"}</span></span>)
   const remaining = item.sla_due_at
     ? Math.ceil((new Date(item.sla_due_at).getTime() - Date.now()) / 86400000)
     : null
   const colorClass = item.sla_color === 'red' ? 'text-red-600' : item.sla_color === 'yellow' ? 'text-amber-600' : 'text-slate-500'
-  return <span className={`text-xs font-medium ${colorClass}`}>{remaining !== null ? `${remaining}d rest.` : '—'}</span>
+  return <span className={`text-xs font-medium ${colorClass}`}>{elapsed !== null ? (<><span className="text-sm">{elapsed}</span><span className="text-xs"> {elapsed === 1 ? "día" : "días"}</span></>) : "—"}</span>
 }
 
 // ── Modal de motivo ───────────────────────────────────────────────────────────
@@ -242,7 +244,7 @@ const EnvelopeSlideOver = ({
                     {env.sla.is_breached
                       ? 'SLA vencido'
                       : env.sla.business_days_remaining !== null
-                      ? `${env.sla.business_days_remaining}d hábiles restantes`
+                      ? `${env.sla.business_days_elapsed ?? 0} ${(env.sla.business_days_elapsed ?? 0) === 1 ? "día" : "días"} transcurridos`
                       : 'Sin enviar'}
                   </span>
                 )}
@@ -609,37 +611,37 @@ export default function ContractRequestsTable({
   return (
     <>
       {/* ── DESKTOP: Tabla ── */}
-      <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
         <div style={{ overflowX: 'auto' }}>
-          <table className="w-full" style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
-            <colgroup>
-              <col style={{ width: 36 }} />
-              <col style={{ width: 140 }} />
-              <col style={{ width: 180 }} />
-              {showSolicitante && <col style={{ width: showAbogado ? 190 : 230 }} />}
-              <col style={{ width: 110 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 160 }} />
-              {showAbogado && <col style={{ width: 170 }} />}
-              <col style={{ width: 44 }} />
+          <table className="w-full table-fixed" style={{ borderCollapse: 'collapse', fontSize: 13 }}>
+                                    <colgroup>
+              <col style={{ width: '3%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '9%' }} />
+              {showSolicitante && <><col style={{ width: '7%' }} /><col style={{ width: '21%' }} /></>}
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '13%' }} />
+              {showAbogado && <col style={{ width: '13%' }} />}
+              <col style={{ width: '4%' }} />
             </colgroup>
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-3 py-2.5" />
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Folio</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Tipo</th>
-                {showSolicitante && <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Solicitante</th>}
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Enviado</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">SLA</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Estado</th>
-                {showAbogado && <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Abogado</th>}
-                <th className="px-4 py-3 w-10" />
+              <tr className="bg-slate-50 border-b-2 border-slate-200">
+                <th className="px-3 py-3 bg-slate-50" />
+                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Folio</th>
+                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Tipo</th>
+                {showSolicitante && <><th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Empresa</th><th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Solicitante</th></>}
+                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">{role === 'solicitante' ? "Enviado" : "Recibido"}</th>
+                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Días</th>
+                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Estado</th>
+                {showAbogado && <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Abogado</th>}
+                <th className="px-4 py-3 bg-slate-50 w-10" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200">
               {items.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50/60 transition group">
-                  <td className="px-3 py-3 text-center"><SLADot color={item.sla_color} /></td>
+                <tr key={item.id} className="hover:bg-slate-100 transition-colors cursor-pointer">
+                  <td className="px-3 py-4 text-center"><SLADot color={item.sla_color} /></td>
                   <td className="px-4 py-3">
                     <span
                       className="font-bold text-[#1a4fa0] font-mono cursor-pointer hover:underline"
@@ -647,25 +649,23 @@ export default function ContractRequestsTable({
                     >
                       {item.folio}
                     </span>
-                    {item.is_open_request && (
-                      <span className="ml-1.5 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Abierta</span>
-                    )}
+
                   </td>
-                  <td className="px-4 py-3 text-slate-700 font-medium">{item.contract_type_name}</td>
+                  <td className="px-4 py-4 text-slate-700">{item.contract_type_name}</td>
                   {showSolicitante && (
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Avatar name={item.requested_by_name} size="sm" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-900 truncate leading-tight">{item.requested_by_name}</p>
-                          <p className="text-xs text-slate-400 truncate leading-tight">{item.company_name}</p>
+                    <>
+                      <td className="px-4 py-4 text-xs text-slate-600 font-medium uppercase">{item.company_name}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Avatar name={item.requested_by_name} size="sm" />
+                          <p className="text-sm text-slate-700 truncate leading-tight">{item.requested_by_name}</p>
                         </div>
-                      </div>
-                    </td>
+                      </td>
+                    </>
                   )}
-                  <td className="px-4 py-3 text-xs text-slate-500">{formatDate(item.submitted_at)}</td>
-                  <td className="px-4 py-3"><SLAPill item={item} /></td>
-                  <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
+                  <td className="px-4 py-4 text-xs text-slate-500">{formatDate(item.submitted_at)}</td>
+                  <td className="px-4 py-4"><SLAPill item={item} /></td>
+                  <td className="px-4 py-4"><StatusBadge status={item.status} /></td>
                   {showAbogado && (
                     <td className="px-4 py-3">
                       {item.assigned_lawyer_name ? (
@@ -680,9 +680,22 @@ export default function ContractRequestsTable({
                       )}
                     </td>
                   )}
-                  <td className="px-2 py-3">
+                  <td className="px-2 py-4">
                     <ActionMenu item={item} role={role} onRefresh={() => onRefresh(true)} onViewDetail={() => setDetailId(item.id)} />
                   </td>
+                </tr>
+              ))}
+              {Array.from({ length: Math.max(0, 8 - items.length) }).map((_, i) => (
+                <tr key={`empty-${i}`} className="pointer-events-none">
+                  <td className="px-3 py-4" />
+                  <td className="px-4 py-4" />
+                  <td className="px-4 py-4" />
+                  {showSolicitante && <><td className="px-4 py-4" /><td className="px-4 py-4" /></>}
+                  <td className="px-4 py-4" />
+                  <td className="px-4 py-4" />
+                  <td className="px-4 py-4" />
+                  {showAbogado && <td className="px-4 py-4" />}
+                  <td className="px-4 py-4" />
                 </tr>
               ))}
             </tbody>

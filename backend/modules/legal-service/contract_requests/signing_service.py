@@ -5,7 +5,7 @@ Switch via signing_provider_config table (id=1).
 """
 import secrets
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from .models import EnvelopeSigningToken, SigningProviderConfig, Envelope, EnvelopeSigner
@@ -189,14 +189,15 @@ async def confirm_signature(db: AsyncSession, token: str) -> dict:
     if signing_token.status == "signed":
         return {"status": "already_signed", "message": "Este documento ya fue firmado anteriormente"}
 
-    if signing_token.status == "expired" or signing_token.expires_at < datetime.utcnow():
+    now = datetime.now(timezone.utc)
+    if signing_token.status == "expired" or signing_token.expires_at < now:
         signing_token.status = "expired"
         await db.commit()
         raise ValueError("Este enlace ha expirado. Contacta al área legal para obtener uno nuevo")
 
     # Mark as signed
     signing_token.status = "signed"
-    signing_token.signed_at = datetime.utcnow()
+    signing_token.signed_at = datetime.now(timezone.utc)
 
     # Update signer status if linked
     if signing_token.signer_id:
@@ -226,8 +227,8 @@ async def confirm_signature(db: AsyncSession, token: str) -> dict:
         envelope = env_result.scalar_one_or_none()
         if envelope and envelope.status not in ("completado", "rechazado"):
             envelope.status = "completado"
-            envelope.completed_at = datetime.utcnow()
-            envelope.sla_closed_at = datetime.utcnow()
+            envelope.completed_at = datetime.now(timezone.utc)
+            envelope.sla_closed_at = datetime.now(timezone.utc)
             await db.commit()
 
     return {

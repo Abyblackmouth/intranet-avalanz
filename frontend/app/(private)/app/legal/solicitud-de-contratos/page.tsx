@@ -6,7 +6,7 @@ import PageWrapper from '@/components/layout/PageWrapper'
 import ContractRequestsTable from '@/components/app/legal/ContractRequestsTable'
 import { useAuthStore } from '@/store/authStore'
 import { ContractRequestListItem, ContractType } from '@/types/contract.types'
-import { getContractRequests, getContractTypes } from '@/services/legalService'
+import { getEnvelopes, getContractTypes } from '@/services/legalService'
 
 type LegalRole = 'solicitante' | 'abogado' | 'coordinador_legal' | 'director' | 'super_admin'
 
@@ -38,7 +38,7 @@ export default function ContractRequestsPage() {
   const [items, setItems] = useState<ContractRequestListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [perPage] = useState(20)
+  const [perPage] = useState(8)
   const [isLoading, setIsLoading] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
 
@@ -65,9 +65,9 @@ export default function ContractRequestsPage() {
       if (filterStatus !== 'all') params.status = filterStatus
       if (filterType !== 'all') params.contract_type_id = filterType
 
-      const res = await getContractRequests(params)
-      setItems(res.data.data.data || [])
-      setTotal(res.data.data.meta?.total || 0)
+      const res = await getEnvelopes(params)
+      setItems(res.data.data || [])
+      setTotal(res.data.total || 0)
     } catch {
       setItems([])
     } finally {
@@ -78,7 +78,7 @@ export default function ContractRequestsPage() {
   const fetchContractTypes = useCallback(async () => {
     try {
       const res = await getContractTypes(true)
-      setContractTypes(res.data.data || [])
+      setContractTypes(res.data || [])
     } catch {
       setContractTypes([])
     }
@@ -87,13 +87,13 @@ export default function ContractRequestsPage() {
   const fetchKPIs = useCallback(async () => {
     try {
       const [activeRes, overdueRes, signaturesRes] = await Promise.all([
-        getContractRequests({ per_page: 1 }),
-        getContractRequests({ per_page: 1, is_sla_breached: true }),
-        getContractRequests({ per_page: 1, status: 'en_firmas' }),
+        getEnvelopes({ per_page: 1 }),
+        getEnvelopes({ per_page: 1, is_sla_breached: true }),
+        getEnvelopes({ per_page: 1, status: 'en_firmas' }),
       ])
-      setTotalActive(activeRes.data.data.meta?.total || 0)
-      setTotalOverdue(overdueRes.data.data.meta?.total || 0)
-      setTotalInSignatures(signaturesRes.data.data.meta?.total || 0)
+      setTotalActive(activeRes.data.total || 0)
+      setTotalOverdue(overdueRes.data.total || 0)
+      setTotalInSignatures(signaturesRes.data.total || 0)
     } catch {
       // silencioso
     }
@@ -136,38 +136,38 @@ export default function ContractRequestsPage() {
       }
     >
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+      <div className="grid grid-cols-3 gap-3 mb-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
             <FileCheck size={18} className="text-[#1a4fa0]" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-900">{totalActive}</p>
+            <p className="text-xl font-bold text-slate-900">{totalActive}</p>
             <p className="text-xs text-slate-400 mt-0.5">Solicitudes activas</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
             <Flag size={18} className="text-red-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-red-600">{totalOverdue}</p>
+            <p className="text-xl font-bold text-red-600">{totalOverdue}</p>
             <p className="text-xs text-slate-400 mt-0.5">Atrasadas (SLA vencido)</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
             <Clock size={18} className="text-violet-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-violet-600">{totalInSignatures}</p>
+            <p className="text-xl font-bold text-violet-600">{totalInSignatures}</p>
             <p className="text-xs text-slate-400 mt-0.5">En espera de firmas</p>
           </div>
         </div>
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 p-3 mb-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-48">
             <label className="block text-xs font-medium text-slate-500 mb-1">Buscar</label>

@@ -209,12 +209,27 @@ async def create_envelope(
     """Crea un nuevo sobre en estado borrador. Cualquier usuario autenticado puede crear."""
     companies = user.get("companies", [])
     company_id = companies[0] if companies else ""
+    # Obtener nombre de la empresa desde admin-service
+    company_name = ""
+    if company_id:
+        try:
+            import httpx as _httpx
+            _auth_header = request.headers.get("Authorization", "")
+            async with _httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(
+                    f"http://admin-service:8000/api/v1/companies/{company_id}",
+                    headers={"Authorization": _auth_header}
+                )
+                if r.status_code == 200:
+                    company_name = r.json().get("data", {}).get("slug", "") or r.json().get("data", {}).get("nombre_comercial", "")
+        except Exception:
+            company_name = ""
     try:
         envelope = await service.create_envelope(
             db,
             data,
             company_id=company_id,
-            company_name=user.get("company_name", ""),
+            company_name=company_name,
             user_id=user["user_id"],
             user_name=user["full_name"],
             user_email=user["email"],
@@ -280,6 +295,29 @@ async def upload_envelope_attachment(
     """Registra metadatos de un archivo ya subido al upload-service."""
     from .models import EnvelopeAttachment
     import os
+    from sqlalchemy import select as _select
+    # Buscar versiones anteriores del mismo tipo y marcarlas como no actuales
+    prev_query = _select(EnvelopeAttachment).where(
+        EnvelopeAttachment.envelope_id == envelope_id,
+        EnvelopeAttachment.is_current == True,
+        EnvelopeAttachment.is_deleted == False,
+    )
+    if attachment_def_id:
+        prev_query = prev_query.where(EnvelopeAttachment.attachment_def_id == attachment_def_id)
+    else:
+        prev_query = prev_query.where(EnvelopeAttachment.attachment_def_id == None)
+    prev_result = await db.execute(prev_query)
+    prev_attachments = prev_result.scalars().all()
+    next_version = 1
+    from datetime import datetime, timezone as _tz
+    now = datetime.now(_tz.utc)
+    for prev in prev_attachments:
+        prev.is_current = False
+        prev.replaced_at = now
+        prev.replaced_by_user_id = user.get("user_id")
+        prev.replaced_by_name = user.get("full_name", "")
+        next_version = prev.version_number + 1
+
     attachment = EnvelopeAttachment(
         envelope_id=envelope_id,
         attachment_def_id=attachment_def_id,
@@ -293,6 +331,8 @@ async def upload_envelope_attachment(
         description=description,
         uploaded_by_user_id=user.get("user_id"),
         uploaded_by_name=user.get("full_name", ""),
+        version_number=next_version,
+        is_current=True,
     )
     db.add(attachment)
     await db.commit()
@@ -506,6 +546,23 @@ async def get_envelope(
         user["user_id"], user["full_name"], user_roles[0] if user_roles else "cliente",
         ip_address=get_client_ip(request)
     )
+
+    # Si es abogado/legal y el sobre está en pendiente_legal → pasar a en_revision_legal
+    is_abogado = any(r in user_roles for r in ["abogado", "coordinador_legal"])
+    if is_abogado and envelope.status == "pendiente_legal":
+        envelope.status = "en_revision_legal"
+        await service.log_status_change(
+            db, envelope_id,
+            from_status="pendiente_legal",
+            to_status="en_revision_legal",
+            user_id=user["user_id"],
+            user_name=user["full_name"],
+            user_role=user_roles[0] if user_roles else "abogado",
+            reason="Abogado inició revisión del sobre",
+            ip_address=get_client_ip(request)
+        )
+        await service.open_time_tracking(db, envelope_id, "en_revision_legal", user["user_id"], user["full_name"])
+
     await db.commit()
 
     status_log = await service.get_envelope_status_log(db, envelope_id)
