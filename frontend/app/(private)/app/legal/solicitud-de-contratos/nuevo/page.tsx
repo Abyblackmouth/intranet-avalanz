@@ -272,6 +272,30 @@ export default function NuevoContratoPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState<{id: string; slug: string; name: string} | null>(null)
+  const [availableCompanies, setAvailableCompanies] = useState<{id: string; slug: string; name: string}[]>([])
+  const needsCompanySelect = (user?.roles?.includes('super_admin') || (user?.companies?.length || 0) > 1) && !selectedCompany
+
+  useEffect(() => {
+    const isSuperAdmin = user?.roles?.includes('super_admin')
+    if (isSuperAdmin || (user?.companies?.length || 0) > 1) {
+      api.get('/api/v1/companies/?is_active=true&per_page=100')
+        .then(res => {
+          const all = res.data?.data?.data || []
+          const filtered = isSuperAdmin ? all : all.filter((c: any) => user?.companies?.includes(c.company_id))
+          setAvailableCompanies(filtered.map((c: any) => ({ id: c.company_id, slug: c.slug, name: c.nombre_comercial || c.name })))
+        })
+        .catch(() => {})
+    } else if ((user?.companies?.length || 0) === 1) {
+      // Solo una empresa — cargar sus datos
+      api.get(`/api/v1/companies/${user?.companies?.[0]}`)
+        .then(res => {
+          const c = res.data?.data
+          if (c) setSelectedCompany({ id: c.company_id, slug: c.slug, name: c.nombre_comercial || c.name })
+        })
+        .catch(() => {})
+    }
+  }, [user])
 
   useEffect(() => {
     api.get('/api/v1/legal/envelopes/contract-templates').then(res => setTemplates(res.data.templates || [])).catch(() => setTemplates([]))
@@ -321,38 +345,66 @@ export default function NuevoContratoPage() {
   const handleSubmit = async () => {
     setIsSubmitting(true); setSubmitError('')
     try {
-      // 1. Subir archivos PRIMERO — si falla, no se crea el sobre
-      const uploadedMeta: { object_key: string; bucket: string; original_name: string; stored_name: string; content_type: string; size_bytes: number; defId: string }[] = []
-
-      for (const uploaded of uploadedFiles) {
-        const storageFormData = new FormData()
-        storageFormData.append('file', uploaded.file)
-        storageFormData.append('module_slug', 'legal')
-        storageFormData.append('submodule_slug', 'contratos')
-        storageFormData.append('company_slug', (user?.companies?.[0] || 'general').toLowerCase().replace(/\s+/g, '-'))
-        storageFormData.append('folder', `envelopes/anexos`)
-        const storageRes = await uploadToStorage(storageFormData)
-        if (!storageRes.data?.data?.object_key) throw new Error(`Error subiendo ${uploaded.name}`)
-        uploadedMeta.push({ ...storageRes.data.data, defId: uploaded.defId })
-      }
-
-      // 2. Crear el sobre solo si todos los archivos subieron OK
+      // Ping para forzar renovación del token si está por expirar
+      try { await api.get('/api/v1/legal/envelopes/contract-templates') } catch (e) { /* continúa */ }
       const tpl = templates.find(t => t.id === selectedTemplate)
       const contractTypeId = tpl?.contract_type_id || selectedTemplate
+
+      // 1. Crear el sobre — obtenemos envelope_id, folio y company_name
       const res = await api.post('/api/v1/legal/envelopes', { contract_type_id: contractTypeId, form_data: formData, is_open_request: false })
       const envelopeId = res.data.id
+      const folio = res.data.folio
+      const companySlug = selectedCompany?.slug || res.data.company_name || 'general'
 
-      // 3. Registrar metadatos de archivos en legal-service
-      for (const meta of uploadedMeta) {
-        const metaFormData = new FormData()
-        metaFormData.append('object_key', meta.object_key)
-        metaFormData.append('original_name', meta.original_name)
-        metaFormData.append('stored_name', meta.stored_name)
-        metaFormData.append('bucket', meta.bucket)
-        metaFormData.append('mime_type', meta.content_type)
-        metaFormData.append('size_bytes', String(meta.size_bytes))
-        if (meta.defId) metaFormData.append('attachment_def_id', meta.defId)
-        await api.post(`/api/v1/legal/envelopes/${envelopeId}/attachments`, metaFormData)
+      const registerAttachment = async (d: any, defId?: string, description?: string) => {
+        const payload: any = {
+          object_key: d.object_key,
+          original_name: d.original_name,
+          stored_name: d.stored_name,
+          bucket: d.bucket,
+          mime_type: d.content_type,
+          size_bytes: d.size_bytes,
+        }
+        if (defId) payload.attachment_def_id = defId
+        if (description) payload.description = description
+        await api.post(`/api/v1/legal/envelopes/${envelopeId}/attachments`, payload)
+      }
+
+      // 2. Generar PDF del contrato y subirlo a MinIO
+      try {
+        const pdfRes = await api.post(
+          `/api/v1/legal/envelopes/contract-templates/${selectedTemplate}/preview-pdf`,
+          formData,
+          { responseType: 'blob' }
+        )
+        const pdfFile = new File([pdfRes.data], `${folio}_contrato.pdf`, { type: 'application/pdf' })
+        const pdfFD = new FormData()
+        pdfFD.append('file', pdfFile)
+        pdfFD.append('module_slug', 'legal')
+        pdfFD.append('submodule_slug', `envelopes/${folio}`)
+        pdfFD.append('company_slug', companySlug)
+        const pdfUpload = await uploadToStorage(pdfFD)
+        console.log("PDF upload response:", JSON.stringify(pdfUpload.data))
+        if (pdfUpload.data?.data?.object_key) {
+          await registerAttachment(pdfUpload.data.data, undefined, `Contrato generado — ${folio}`)
+        }
+      } catch (e) { console.error('Error subiendo PDF del contrato:', e) }
+
+      // 3. Subir anexos del cliente
+      for (const uploaded of uploadedFiles) {
+        try {
+          const anexoName = `${folio}_${uploaded.name.replace(/\.[^.]+$/, '')}.${uploaded.file.name.split('.').pop()}`
+          const renamedFile = new File([uploaded.file], anexoName, { type: uploaded.file.type })
+          const aFD = new FormData()
+          aFD.append('file', renamedFile)
+          aFD.append('module_slug', 'legal')
+          aFD.append('submodule_slug', `envelopes/${folio}/attachments`)
+          aFD.append('company_slug', companySlug)
+          const aUpload = await uploadToStorage(aFD)
+          if (aUpload.data?.data?.object_key) {
+            await registerAttachment(aUpload.data.data, uploaded.defId)
+          }
+        } catch (e) { console.error('Error subiendo anexo:', e) }
       }
 
       // 4. Enviar sobre al área legal
@@ -372,7 +424,24 @@ export default function NuevoContratoPage() {
   return (
     <PageWrapper title="Crear contrato" description="Completa el formulario y envía tu solicitud al área legal"
       actions={<button onClick={handleBack} className="flex items-center gap-2 text-sm text-slate-600 border border-slate-300 px-3 py-2 rounded-lg hover:bg-slate-50 transition"><ArrowLeft size={15} />{step === 1 ? 'Cancelar' : 'Atrás'}</button>}>
-      <div className={isPreviewStep ? 'max-w-4xl mx-auto' : 'max-w-2xl mx-auto'}>
+      {needsCompanySelect && (
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-1">¿En nombre de qué empresa?</h2>
+            <p className="text-sm text-slate-500 mb-5">Selecciona la empresa para la que estás creando este contrato.</p>
+            <div className="grid grid-cols-1 gap-3">
+              {availableCompanies.map(c => (
+                <button key={c.id} onClick={() => setSelectedCompany(c)}
+                  className="w-full text-left p-4 rounded-xl border-2 border-slate-200 hover:border-[#1a4fa0] hover:bg-blue-50 transition">
+                  <p className="font-semibold text-sm text-slate-900">{c.name}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{c.slug}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {!needsCompanySelect && <div className={isPreviewStep ? 'max-w-4xl mx-auto' : 'max-w-2xl mx-auto'}>
         <StepIndicator current={step} />
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           {step === 1 && <Step1 templates={templates} selected={selectedTemplate} onSelect={setSelectedTemplate} />}
@@ -394,7 +463,7 @@ export default function NuevoContratoPage() {
             </button>
           </div>
         )}
-      </div>
+      </div>}
     </PageWrapper>
   )
 }

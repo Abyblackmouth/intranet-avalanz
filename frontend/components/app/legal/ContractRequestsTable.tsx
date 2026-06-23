@@ -3,13 +3,14 @@ import { useState, useRef, useEffect } from 'react'
 import {
   MoreHorizontal, Eye, CheckCircle, XCircle, AlertCircle, Users,
   ChevronLeft, ChevronRight, X, Flag, FileText, RotateCcw,
-  Clock, Calendar, Building2, User, Scale, ChevronRight as Arrow, Mail,
+  Clock, Calendar, Building2, User, Scale, ChevronRight as Arrow, Mail, FileDown, History,
 } from 'lucide-react'
 import { EnvelopeListItem, SLAColor, LegalRole } from '@/types/contract.types'
 import {
   approveEnvelope, requestCorrections, rejectEnvelope, completeEnvelope,
   getEnvelope,
 } from '@/services/legalService'
+import { getSignedUrl } from '@/services/uploadService'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -263,6 +264,58 @@ const EnvelopeSlideOver = ({
                   <InfoCard icon={<User size={14} />} label="Contraparte" value={env.counterparty_name} />
                 )}
               </div>
+
+              {/* Documentos */}
+              {data?.attachments?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Documentos</p>
+                  {/* Activos */}
+                  <div className="space-y-2 mb-3">
+                    {data.attachments.filter((a: any) => a.is_current !== false).map((a: any) => (
+                      <div key={a.id} className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                        <FileText size={16} className="text-[#1a4fa0] shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-slate-800 truncate">{a.original_name}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{a.uploaded_by_name} · {formatDate(a.uploaded_at)}{a.version_number > 1 ? ` · v${a.version_number}` : ''}</p>
+                        </div>
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium shrink-0">Actual</span>
+                        {a.object_key && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await getSignedUrl(a.object_key, a.bucket || 'dirdoc')
+                                window.open(res.data.data?.url || res.data.url, '_blank')
+                              } catch (e) { console.error(e) }
+                            }}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#1a4fa0] hover:bg-blue-50 transition shrink-0"
+                            title="Descargar"
+                          >
+                            <FileDown size={17} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Historial de versiones */}
+                  {data.attachments.filter((a: any) => a.is_current === false).length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1"><History size={10} />Versiones anteriores</p>
+                      <div className="space-y-1.5">
+                        {data.attachments.filter((a: any) => a.is_current === false).map((a: any) => (
+                          <div key={a.id} className="flex items-center gap-3 bg-slate-50 border border-dashed border-slate-200 rounded-lg px-3 py-2">
+                            <FileText size={14} className="text-slate-300 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs text-slate-400 truncate">{a.original_name}</p>
+                              <p className="text-[10px] text-slate-300 mt-0.5">{formatDate(a.uploaded_at)} · v{a.version_number}</p>
+                            </div>
+                            <span className="text-[10px] text-slate-300 shrink-0">Anterior</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Bitácora de estados */}
               {data?.status_log?.length > 0 && (

@@ -281,18 +281,19 @@ async def get_contract_type_attachments(contract_type_id: str, user: dict = Depe
 @router.post("/{envelope_id}/attachments", tags=["Attachments"])
 async def upload_envelope_attachment(
     envelope_id: str,
-    attachment_def_id: str = Form(None),
-    object_key: str = Form(...),
-    original_name: str = Form(...),
-    stored_name: str = Form(...),
-    bucket: str = Form(default="avalanz-documents"),
-    mime_type: str = Form(...),
-    size_bytes: int = Form(...),
-    description: str = Form(None),
+    payload: dict,
     user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Registra metadatos de un archivo ya subido al upload-service."""
+    attachment_def_id = payload.get("attachment_def_id")
+    object_key = payload.get("object_key", "")
+    original_name = payload.get("original_name", "")
+    stored_name = payload.get("stored_name", "")
+    bucket = payload.get("bucket", "avalanz-documents")
+    mime_type = payload.get("mime_type", "")
+    size_bytes = int(payload.get("size_bytes", 0))
+    description = payload.get("description")
     from .models import EnvelopeAttachment
     import os
     from sqlalchemy import select as _select

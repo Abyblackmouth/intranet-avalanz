@@ -256,6 +256,11 @@ class EnvelopeAttachmentOut(BaseModel):
     uploaded_by_name: str
     uploaded_at: datetime
     download_url: Optional[str] = None
+    object_key: Optional[str] = None
+    bucket: Optional[str] = None
+    is_current: Optional[bool] = True
+    version_number: Optional[int] = 1
+    attachment_def_id: Optional[str] = None
 
     class Config:
         from_attributes = True
