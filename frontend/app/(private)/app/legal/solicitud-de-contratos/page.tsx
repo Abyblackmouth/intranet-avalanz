@@ -23,10 +23,11 @@ const STATUS_OPTIONS = [
 ]
 
 const resolveLegalRole = (roles: string[]): LegalRole => {
-  if (roles.includes('super_admin')) return 'super_admin'
-  if (roles.includes('coordinador_legal')) return 'coordinador_legal'
-  if (roles.includes('director')) return 'director'
-  if (roles.includes('abogado')) return 'abogado'
+  const flat = roles.map(r => r.includes(':') ? r.split(':')[1] : r)
+  if (flat.includes('super_admin')) return 'super_admin'
+  if (flat.includes('coordinador_legal')) return 'coordinador_legal'
+  if (flat.includes('director')) return 'director'
+  if (flat.includes('abogado')) return 'abogado'
   return 'solicitante'
 }
 

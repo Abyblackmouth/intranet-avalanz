@@ -29,6 +29,12 @@ from .models import Envelope
 
 router = APIRouter(prefix="/envelopes", tags=["Envelopes"])
 
+def get_flat_roles(user: dict) -> list:
+    """Normaliza roles de módulo quitando el prefijo {modulo}: para comparaciones."""
+    return [r.split(":")[-1] for r in user.get("roles", [])]
+
+
+
 # ── Validador JWT compartido ──────────────────────────────────────────────────
 _validator = JWTValidator(secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)
 
@@ -36,8 +42,15 @@ get_current_user = _validator.get_current_user()
 
 
 def require_roles(*roles: str):
-    """Dependencia que valida que el usuario tenga al menos uno de los roles indicados."""
-    return _validator.require_roles(list(roles))
+    """Dependencia que valida roles normalizando prefijos de módulo (ej: legal:abogado -> abogado)."""
+    from fastapi import Depends
+    from typing import Dict, Any
+    def dependency(payload: Dict[str, Any] = Depends(_validator.get_current_user())) -> Dict[str, Any]:
+        user_roles = [r.split(":")[-1] for r in payload.get("roles", [])]
+        if not any(role in roles for role in user_roles):
+            raise Exception(f"Se requiere uno de los siguientes roles: {', '.join(roles)}")
+        return payload
+    return dependency
 
 
 def get_client_ip(request: Request) -> Optional[str]:
@@ -150,7 +163,7 @@ async def list_envelopes(
     - Abogados solo ven sobres asignados a ellos.
     - Coordinadores y super admins ven todo.
     """
-    user_roles = user.get("roles", [])
+    user_roles = get_flat_roles(user)
     is_privileged = any(r in user_roles for r in ["super_admin", "coordinador_legal", "director"])
 
     if not is_privileged:
@@ -208,7 +221,7 @@ async def create_envelope(
 ):
     """Crea un nuevo sobre en estado borrador. Cualquier usuario autenticado puede crear."""
     companies = user.get("companies", [])
-    company_id = companies[0] if companies else ""
+    company_id = data.company_id or (companies[0] if companies else "")
     # Obtener nombre de la empresa desde admin-service
     company_name = ""
     if company_id:
@@ -410,7 +423,7 @@ async def update_provider(
 @router.post("/{envelope_id}/send-for-signing", tags=["Signing"])
 async def send_envelope_for_signing(
     envelope_id: str,
-    user: dict = Depends(require_roles("abogado", "coordinador_legal", "super_admin")),
+    user: dict = Depends(require_roles("abogado", "coordinador_legal", "super_admin", "legal:abogado", "legal:coordinador_legal")),
     db: AsyncSession = Depends(get_db)
 ):
     """Envía el sobre a firma usando el proveedor activo."""
@@ -534,7 +547,7 @@ async def get_envelope(
     if not envelope:
         raise HTTPException(status_code=404, detail="Sobre no encontrado")
 
-    user_roles = user.get("roles", [])
+    user_roles = get_flat_roles(user)
     is_legal = any(r in user_roles for r in ["super_admin", "coordinador_legal", "abogado", "director"])
 
     if not is_legal:
@@ -549,7 +562,7 @@ async def get_envelope(
     )
 
     # Si es abogado/legal y el sobre está en pendiente_legal → pasar a en_revision_legal
-    is_abogado = any(r in user_roles for r in ["abogado", "coordinador_legal"])
+    is_abogado = any(r in get_flat_roles(user) for r in ["abogado", "coordinador_legal"])
     if is_abogado and envelope.status == "pendiente_legal":
         envelope.status = "en_revision_legal"
         await service.log_status_change(
@@ -809,7 +822,7 @@ async def list_comments(
     user: dict = Depends(get_current_user)
 ):
     """Lista los comentarios. Los internos solo son visibles para el equipo legal."""
-    user_roles = user.get("roles", [])
+    user_roles = get_flat_roles(user)
     is_legal = any(r in user_roles for r in ["super_admin", "coordinador_legal", "abogado", "director"])
     comments = await service.get_envelope_comments(db, envelope_id, include_internal=is_legal)
     return [EnvelopeCommentOut.model_validate(c) for c in comments]
