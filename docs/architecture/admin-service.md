@@ -611,6 +611,7 @@ Todos los archivos de empleados se guardan en MinIO bajo: `dirdoc/admin/employee
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | GET | /internal/users/{user_id}/permissions | No | Consultado por auth-service al emitir JWT |
+| GET | /internal/users/by-module-role | No | Consultado por microservicios internos — lista usuarios activos por rol de módulo |
 
 ```json
 {
@@ -624,6 +625,18 @@ Todos los archivos de empleados se guardan en MinIO bajo: `dirdoc/admin/employee
 ```
 
 > El campo `is_super_admin` se incluye explícitamente en la respuesta para que el auth-service lo agregue al JWT payload. Fix aplicado 2026-04-28.
+
+### GET /internal/users/by-module-role
+
+Query params: `module_slug` y `role_slug`. Sin autenticación — solo red Docker interna, no expuesto en Nginx. Implementado en `app/main.py` para evitar conflicto con la ruta `/{user_id}`.
+
+```json
+[
+  {"id": "uuid", "name": "NOMBRE COMPLETO", "email": "email@empresa.com"}
+]
+```
+
+> Usado por legal-service para listar abogados disponibles al asignar sobres. Filtra `is_active=true` y `uma.is_active=true`.
 
 ---
 
@@ -639,6 +652,7 @@ Todos los archivos de empleados se guardan en MinIO bajo: `dirdoc/admin/employee
 | auth-service | HTTP interno | POST /api/v1/auth/internal/users/{id}/revoke-sessions | Revocar todas las sesiones del usuario y enviar correo de notificación |
 | upload-service | HTTP interno | POST /api/v1/upload/ | Subir archivo de empleado a MinIO |
 | upload-service | HTTP interno | GET /api/v1/upload/signed-url | Obtener URL firmada para descarga |
+| legal-service | HTTP interno | GET /internal/users/by-module-role | Consulta usuarios con rol abogado para asignación de sobres |
 
 > Todas las URLs internas usan el formato completo con puerto: `http://auth-service:8000/...`, `http://upload-service:8000/...`
 

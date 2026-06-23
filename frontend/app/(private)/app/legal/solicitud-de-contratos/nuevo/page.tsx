@@ -351,7 +351,9 @@ export default function NuevoContratoPage() {
       const contractTypeId = tpl?.contract_type_id || selectedTemplate
 
       // 1. Crear el sobre — obtenemos envelope_id, folio y company_name
-      const res = await api.post('/api/v1/legal/envelopes', { contract_type_id: contractTypeId, form_data: formData, is_open_request: false })
+      const payload: any = { contract_type_id: contractTypeId, form_data: formData, is_open_request: false }
+      if (selectedCompany?.id) payload.company_id = selectedCompany.id
+      const res = await api.post('/api/v1/legal/envelopes', payload)
       const envelopeId = res.data.id
       const folio = res.data.folio
       const companySlug = selectedCompany?.slug || res.data.company_name || 'general'

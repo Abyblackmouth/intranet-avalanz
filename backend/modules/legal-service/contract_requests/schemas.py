@@ -107,6 +107,7 @@ class EnvelopeCreate(BaseModel):
     counterparty_email: Optional[EmailStr] = None
     is_open_request: bool = False
     open_request_description: Optional[str] = None
+    company_id: Optional[str] = None
 
 
 class EnvelopeUpdate(BaseModel):

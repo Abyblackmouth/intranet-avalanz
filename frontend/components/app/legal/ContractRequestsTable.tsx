@@ -343,6 +343,7 @@ const EnvelopeSlideOver = ({
                             approved: 'Aprobado por el abogado',
                             rejected: 'Rechazado',
                             corrections_requested: 'Correcciones solicitadas',
+                            lawyer_started_review: 'Abogado inició revisión del contrato',
                           }
                           return {
                             id: a.id, date: a.performed_at, who: a.performed_by_name,

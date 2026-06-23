@@ -606,6 +606,11 @@ async def get_envelope(
                 started_at=datetime.now(_tz.utc)
             )
             db.add(tracking)
+            await service.log_activity(
+                db, envelope_id, "lawyer_started_review",
+                user["user_id"], user["full_name"], "abogado",
+                detail={"lawyer": user["full_name"]}
+            )
 
     if is_assigned_lawyer and envelope.status == "pendiente_legal":
         envelope.status = "en_revision_legal"
