@@ -1294,6 +1294,10 @@ async def delete_signer(
     )
     await db.commit()
 
+
+
+
+
 @router.post("/internal/update-sla-flags", status_code=200)
 async def update_sla_flags(
     db: AsyncSession = Depends(get_db)

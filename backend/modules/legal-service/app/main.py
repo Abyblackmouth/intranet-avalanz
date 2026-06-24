@@ -6,6 +6,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.config import config
 from app.routes import router as main_router
 from contract_requests.routes import router as contract_requests_router
+from contract_requests.docusign_routes import router as docusign_router
 
 from shared.exceptions.http_exceptions import (
     AppException,
@@ -47,6 +48,8 @@ app.include_router(main_router, prefix="/api/v1/legal")
 
 # ── Rutas del submódulo: Solicitud de contratos ───────────────────────────────
 app.include_router(contract_requests_router, prefix="/api/v1/legal")
+# ── Rutas DocuSign — webhook y polling ────────────────────────────────────────
+app.include_router(docusign_router, prefix="/api/v1/legal")
 
 # ── Validador JWT — disponible como dependencia en las rutas ──────────────────
 validator = JWTValidator(secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM)

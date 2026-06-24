@@ -253,7 +253,7 @@ async def download_signed_document(docusign_envelope_id: str) -> bytes:
     doc_id = None
     for doc in docs_data.get("envelopeDocuments", []):
         if doc.get("type") == "content":
-            doc_id = doc["documentIdGuid"]
+            doc_id = doc["documentId"]  # usar ID numérico, no GUID
             break
 
     if not doc_id:
