@@ -9,3 +9,4 @@ python-jose[cryptography]==3.3.0
 prometheus-fastapi-instrumentator==7.0.0
 weasyprint==57.2
 pydyf==0.6.0
+boto3==1.43.36

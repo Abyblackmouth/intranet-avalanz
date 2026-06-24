@@ -210,22 +210,33 @@ async def _send_docusign(db: AsyncSession, envelope_id: str) -> dict:
     if not contrato_attachment:
         raise ValueError(f"No se encontró PDF del contrato en sobre {envelope_id}")
 
-    # Descargar el PDF desde MinIO via upload-service
-    upload_service_url = "http://upload-service:8000"
+    # Descargar el PDF directamente desde MinIO
+    import os as _os
+    minio_url = _os.getenv("MINIO_ENDPOINT", "http://minio:9000")
+    minio_access_key = _os.getenv("MINIO_ACCESS_KEY", "")
+    minio_secret_key = _os.getenv("MINIO_SECRET_KEY", "")
+    bucket = contrato_attachment.bucket or "dirdoc"
+    object_key = contrato_attachment.object_key
+
     pdf_bytes = None
     try:
-        async with _httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.get(
-                f"{upload_service_url}/api/v1/upload/signed-url",
-                params={"object_key": contrato_attachment.object_key, "bucket": contrato_attachment.bucket}
-            )
-            if r.status_code == 200:
-                signed_url = r.json().get("data", {}).get("url")
-                if signed_url:
-                    pdf_r = await client.get(signed_url)
-                    pdf_bytes = pdf_r.content
+        import boto3 as _boto3
+        from botocore.config import Config as _BotoConfig
+        s3 = _boto3.client(
+            "s3",
+            endpoint_url=minio_url,
+            aws_access_key_id=minio_access_key,
+            aws_secret_access_key=minio_secret_key,
+            config=_BotoConfig(signature_version="s3v4"),
+            region_name="us-east-1",
+        )
+        response = s3.get_object(Bucket=bucket, Key=object_key)
+        pdf_bytes = response["Body"].read()
     except Exception as e:
-        print(f"Error descargando PDF: {e}")
+        import traceback
+        print(f"Error descargando PDF desde MinIO: {e}")
+        print(traceback.format_exc())
+        raise ValueError(f"No se pudo descargar el PDF del contrato: {e}")
 
     if not pdf_bytes:
         raise ValueError("No se pudo descargar el PDF del contrato")
