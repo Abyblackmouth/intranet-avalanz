@@ -115,7 +115,12 @@
     <td class="firma-box">
       <strong>POR LA PARTE "A"</strong><br>
       <strong>{{EMPRESA_SOLICITANTE}}</strong>
-      <div class="firma-espacio"></div>
+      <div class="firma-espacio">
+        <!-- Anclas DocuSign Parte A — texto invisible, mismo color que fondo -->
+        <span style="color:#ffffff;font-size:1px;line-height:0;">*FIRMA1*</span>
+        <span style="color:#ffffff;font-size:1px;line-height:0;">*NOMBRE1*</span>
+        <span style="color:#ffffff;font-size:1px;line-height:0;">*FECHA_FIRMA1*</span>
+      </div>
       <div class="firma-linea"></div>
       <br>
       Nombre: <strong>{{NOMBRE_FIRMANTE_1}}</strong><br>
@@ -128,7 +133,12 @@
     <td class="firma-box">
       <strong>POR LA PARTE "B"</strong><br>
       <strong>{{EMPRESA_CONTRAPARTE}}</strong>
-      <div class="firma-espacio"></div>
+      <div class="firma-espacio">
+        <!-- Anclas DocuSign Parte B — texto invisible, mismo color que fondo -->
+        <span style="color:#ffffff;font-size:1px;line-height:0;">*FIRMA2*</span>
+        <span style="color:#ffffff;font-size:1px;line-height:0;">*NOMBRE2*</span>
+        <span style="color:#ffffff;font-size:1px;line-height:0;">*FECHA_FIRMA2*</span>
+      </div>
       <div class="firma-linea"></div>
       <br>
       Nombre: <strong>{{NOMBRE_FIRMANTE_2}}</strong><br>

@@ -220,7 +220,7 @@ class EnvelopeAttachment(Base):
     original_name = Column(String(255), nullable=False)
     stored_name = Column(String(255), nullable=False)
     object_key = Column(String(500), nullable=False)
-    bucket = Column(String(100), nullable=False, default="legal-envelopes")
+    bucket = Column(String(100), nullable=False, default="dirdoc")
     mime_type = Column(String(100), nullable=False)
     extension = Column(String(20), nullable=False)
     size_bytes = Column(BigInteger, nullable=False)

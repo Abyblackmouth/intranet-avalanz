@@ -323,7 +323,7 @@ async def upload_envelope_attachment(
     object_key = payload.get("object_key", "")
     original_name = payload.get("original_name", "")
     stored_name = payload.get("stored_name", "")
-    bucket = payload.get("bucket", "avalanz-documents")
+    bucket = payload.get("bucket", "dirdoc")
     mime_type = payload.get("mime_type", "")
     size_bytes = int(payload.get("size_bytes", 0))
     description = payload.get("description")
@@ -527,30 +527,6 @@ async def preview_template_pdf(template_slug: str, form_data: dict, user: dict =
         headers={"Content-Disposition": "attachment; filename=contrato-preview.pdf"}
     )
 
-
-@router.post("/contract-templates/{template_slug}/preview-pdf", tags=["Templates"])
-async def preview_template_pdf(template_slug: str, form_data: dict, user: dict = Depends(get_current_user)):
-    """Genera un PDF del contrato con los datos del formulario."""
-    from fastapi.responses import Response
-    from weasyprint import HTML
-    html_path = _TEMPLATES_DIR / template_slug / "template.html"
-    if not html_path.exists():
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail=f"Template '{template_slug}' no encontrado")
-    with open(html_path, "r", encoding="utf-8") as f:
-        html = f.read()
-    for key, value in form_data.items():
-        html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
-    html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
-    html = html.replace("{{FECHA_FIRMA}}", "[Fecha de firma DocuSign]")
-    import re
-    html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
-    pdf_bytes = HTML(string=html, base_url="/").write_pdf()
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=contrato-preview.pdf"}
-    )
 
 @router.get("/{envelope_id}", response_model=EnvelopeDetail)
 async def get_envelope(

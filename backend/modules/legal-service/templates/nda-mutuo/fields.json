@@ -214,5 +214,25 @@
       "help": "Llenado automáticamente por DocuSign"
     }
   ],
-  "annexes": []
+  "annexes": [],
+  "signers_definition": [
+    {
+      "routing_order": 1,
+      "role_in_document": "Representante Legal Parte A",
+      "signer_type": "internal",
+      "sign_here_anchor": "*FIRMA1*",
+      "full_name_anchor": "*NOMBRE1*",
+      "date_signed_anchor": "*FECHA_FIRMA1*",
+      "note": "Firmante interno — empresa solicitante del grupo Avalanz"
+    },
+    {
+      "routing_order": 2,
+      "role_in_document": "Representante Legal Parte B",
+      "signer_type": "external",
+      "sign_here_anchor": "*FIRMA2*",
+      "full_name_anchor": "*NOMBRE2*",
+      "date_signed_anchor": "*FECHA_FIRMA2*",
+      "note": "Firmante externo — contraparte"
+    }
+  ]
 }
