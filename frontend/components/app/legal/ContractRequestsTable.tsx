@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { EnvelopeListItem, SLAColor, LegalRole } from '@/types/contract.types'
 import {
-  approveEnvelope, requestCorrections, rejectEnvelope, completeEnvelope,
+  approveEnvelope, requestCorrections, rejectEnvelope, completeEnvelope, sendForSigning,
   getEnvelope, assignLawyer,
 } from '@/services/legalService'
 import { getSignedUrl } from '@/services/uploadService'
@@ -175,7 +175,11 @@ const EnvelopeSlideOver = ({
 
   const handleApprove = async () => {
     setActing(true)
-    try { await approveEnvelope(envelopeId); onRefresh(); onClose() }
+    try {
+      await approveEnvelope(envelopeId)
+      try { await sendForSigning(envelopeId) } catch (e) { console.error('DocuSign send-for-signing error:', e) }
+      onRefresh(); onClose()
+    }
     catch (e) { console.error(e) }
     finally { setActing(false) }
   }
@@ -494,7 +498,11 @@ const ActionMenu = ({
 
   const handleApprove = async () => {
     setOpen(false); setActing(true)
-    try { await approveEnvelope(item.id); onRefresh() }
+    try {
+      await approveEnvelope(item.id)
+      try { await sendForSigning(item.id) } catch (e) { console.error('DocuSign send-for-signing error:', e) }
+      onRefresh()
+    }
     catch (e) { console.error(e) }
     finally { setActing(false) }
   }

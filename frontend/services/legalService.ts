@@ -82,6 +82,16 @@ export const getEnvelopeFormSnapshots = (id: string) =>
 export const getSLAReport = () =>
   api.get(`${BASE}/reports/sla`)
 
+// ── Firma ────────────────────────────────────────────────────────────────────
+export const sendForSigning = (envelopeId: string) =>
+  api.post(`${BASE}/${envelopeId}/send-for-signing`)
+
+export const getSigningProvider = () =>
+  api.get(`${BASE}/signing/provider`)
+
+export const setSigningProvider = (provider: 'docusign' | 'email_sim') =>
+  api.post(`${BASE}/signing/provider`, { provider })
+
 // ── Aliases para compatibilidad (deprecated — usar nombres nuevos) ─────────────
 export const getContractRequests  = getEnvelopes
 export const getContractRequest   = getEnvelope
