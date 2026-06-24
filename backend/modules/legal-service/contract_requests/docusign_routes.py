@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.database import get_db
-from .models import Envelope, EnvelopeAttachment, EnvelopeSigner
+from .models import Envelope, EnvelopeAttachment, EnvelopeSigner, EnvelopeActivityLog
+from .service import log_activity
 from . import docusign_service as ds
 
 router = APIRouter(prefix="/envelopes", tags=["DocuSign"])
@@ -197,6 +198,36 @@ async def _process_completed_envelope(db: AsyncSession, docusign_envelope_id: st
     envelope.status       = "completado"
     envelope.completed_at = datetime.now(_tz.utc)
     envelope.sla_closed_at = datetime.now(_tz.utc)
+
+    # Log — firmantes completaron
+    await log_activity(
+        db, str(envelope.id),
+        action="docusign_signing_completed",
+        user_id=str(envelope.requested_by_user_id),
+        user_name="DocuSign",
+        user_role="sistema",
+        detail={"docusign_envelope_id": docusign_envelope_id, "message": "Todos los firmantes completaron la firma en DocuSign"}
+    )
+
+    # Log — PDF firmado archivado
+    await log_activity(
+        db, str(envelope.id),
+        action="signed_document_archived",
+        user_id=str(envelope.requested_by_user_id),
+        user_name="DocuSign",
+        user_role="sistema",
+        detail={"object_key": object_key, "size_bytes": len(pdf_bytes), "message": "PDF firmado descargado de DocuSign y archivado en MinIO"}
+    )
+
+    # Log — sobre completado
+    await log_activity(
+        db, str(envelope.id),
+        action="envelope_completed",
+        user_id=str(envelope.requested_by_user_id),
+        user_name="Sistema",
+        user_role="sistema",
+        detail={"message": f"Sobre {envelope.folio} marcado como completado automáticamente tras firma electrónica"}
+    )
 
     await db.commit()
 

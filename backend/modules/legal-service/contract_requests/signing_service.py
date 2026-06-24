@@ -250,21 +250,71 @@ async def _send_docusign(db: AsyncSession, envelope_id: str) -> dict:
     signers = signers_result.scalars().all()
 
     if not signers:
-        raise ValueError(f"El sobre {envelope_id} no tiene firmantes definidos")
-
-    # Construir lista de firmantes para DocuSign
-    ds_signers = [
-        {
-            "name": s.name,
-            "email": s.email,
-            "routing_order": s.routing_order,
-            "sign_here_anchor": s.sign_here_anchor or f"*FIRMA{i}*",
-            "full_name_anchor": s.full_name_anchor or f"*NOMBRE{i}*",
-            "date_signed_anchor": s.date_signed_anchor or f"*FECHA_FIRMA{i}*",
-            "role_in_document": s.role_in_document,
-        }
-        for i, s in enumerate(signers, start=1)
-    ]
+        # No hay firmantes en BD — construirlos desde form_data + signers_definition del template
+        import json as _json, os as _os
+        templates_dir = _os.path.join(_os.path.dirname(__file__), "..", "templates")
+        fields_path = None
+        for slug in _os.listdir(templates_dir):
+            fp = _os.path.join(templates_dir, slug, "fields.json")
+            if _os.path.exists(fp):
+                with open(fp) as _f:
+                    fdata = _json.load(_f)
+                if envelope.contract_type_name and fdata.get("name", "").lower() in envelope.contract_type_name.lower():
+                    fields_path = fp
+                    break
+        if not fields_path:
+            fp = _os.path.join(templates_dir, "nda-mutuo", "fields.json")
+            if _os.path.exists(fp):
+                fields_path = fp
+        if not fields_path:
+            raise ValueError(f"El sobre {envelope_id} no tiene firmantes y no se encontró template")
+        with open(fields_path) as _f:
+            fields_data = _json.load(_f)
+        signers_def = fields_data.get("signers_definition", [])
+        form_data   = envelope.form_data or {}
+        ds_signers  = []
+        for sdef in signers_def:
+            name  = form_data.get(sdef.get("name_field", ""), "")
+            email = form_data.get(sdef.get("email_field", ""), "")
+            role  = form_data.get(sdef.get("role_field", ""), sdef.get("role_in_document", ""))
+            if not name or not email:
+                raise ValueError(f"El formulario no tiene {sdef.get('email_field')} o {sdef.get('name_field')} — agrega el correo del firmante")
+            ds_signers.append({
+                "name": name,
+                "email": email,
+                "routing_order": sdef.get("routing_order", 1),
+                "sign_here_anchor": sdef.get("sign_here_anchor", f"*FIRMA{sdef.get('routing_order',1)}*"),
+                "full_name_anchor": sdef.get("full_name_anchor", f"*NOMBRE{sdef.get('routing_order',1)}*"),
+                "date_signed_anchor": sdef.get("date_signed_anchor", f"*FECHA_FIRMA{sdef.get('routing_order',1)}*"),
+                "role_in_document": role,
+                "signer_type": sdef.get("signer_type", "external"),
+            })
+            db.add(EnvelopeSigner(
+                envelope_id=envelope_id,
+                signer_type=sdef.get("signer_type", "external"),
+                name=name, email=email, role_in_document=role,
+                routing_order=sdef.get("routing_order", 1),
+                sign_here_anchor=sdef.get("sign_here_anchor"),
+                full_name_anchor=sdef.get("full_name_anchor"),
+                date_signed_anchor=sdef.get("date_signed_anchor"),
+                status="pending",
+            ))
+        await db.flush()
+        signers = ds_signers
+    else:
+        # Construir lista desde BD
+        ds_signers = [
+            {
+                "name": s.name,
+                "email": s.email,
+                "routing_order": s.routing_order,
+                "sign_here_anchor": s.sign_here_anchor or f"*FIRMA{i}*",
+                "full_name_anchor": s.full_name_anchor or f"*NOMBRE{i}*",
+                "date_signed_anchor": s.date_signed_anchor or f"*FECHA_FIRMA{i}*",
+                "role_in_document": s.role_in_document,
+            }
+            for i, s in enumerate(signers, start=1)
+        ]
 
     # Crear sobre en DocuSign
     docusign_envelope_id = await ds.create_envelope(
