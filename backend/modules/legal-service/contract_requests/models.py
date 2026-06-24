@@ -142,6 +142,8 @@ class Envelope(Base):
     is_intercompany          = Column(Boolean, nullable=False, default=False)
     counterparty_company_id  = Column(UUID(as_uuid=False), nullable=True)
 
+    # DocuSign
+    docusign_envelope_id  = Column(String(100), nullable=True)  # envelopeId retornado por DocuSign
     # Soft delete
     is_deleted = Column(Boolean, nullable=False, default=False)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
@@ -289,6 +291,15 @@ class EnvelopeSigner(Base):
     declined_reason       = Column(Text, nullable=True)
     docs_requested        = Column(JSON, nullable=True)  # [{"type": "INE"}, {"type": "poder_notarial"}]
     docs_received         = Column(JSON, nullable=True)  # docs recuperados de DocuSign post-firma
+    # DocuSign tabs — posición de firma en el documento
+    sign_here_anchor      = Column(String(50), nullable=True)   # anchorString del signHereTabs
+    full_name_anchor      = Column(String(50), nullable=True)   # anchorString del fullNameTabs
+    date_signed_anchor    = Column(String(50), nullable=True)   # anchorString del dateSignedTabs
+    # DocuSign Embedded Signing
+    client_user_id        = Column(String(100), nullable=True)  # clientUserId para firma incorporada
+    # Notificación personalizada por firmante
+    email_subject         = Column(String(255), nullable=True)  # emailSubject personalizado
+    email_blurb           = Column(Text, nullable=True)         # emailBlurb personalizado
     created_at            = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at            = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

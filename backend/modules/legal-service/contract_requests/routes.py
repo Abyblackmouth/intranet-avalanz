@@ -1086,6 +1086,238 @@ async def get_sla_report(
     )
 
 
+
+# ── Firmantes (Signers) ───────────────────────────────────────────────────────
+
+@router.get("/{envelope_id}/signers", tags=["Signers"])
+async def list_signers(
+    envelope_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Lista los firmantes de un sobre."""
+    from sqlalchemy import select
+    from .models import EnvelopeSigner
+    result = await db.execute(
+        select(EnvelopeSigner)
+        .where(EnvelopeSigner.envelope_id == envelope_id)
+        .order_by(EnvelopeSigner.routing_order)
+    )
+    signers = result.scalars().all()
+    return [
+        {
+            "id": str(s.id),
+            "envelope_id": str(s.envelope_id),
+            "signer_type": s.signer_type,
+            "user_id": str(s.user_id) if s.user_id else None,
+            "name": s.name,
+            "email": s.email,
+            "role_in_document": s.role_in_document,
+            "routing_order": s.routing_order,
+            "docusign_recipient_id": s.docusign_recipient_id,
+            "sign_here_anchor": s.sign_here_anchor,
+            "full_name_anchor": s.full_name_anchor,
+            "date_signed_anchor": s.date_signed_anchor,
+            "email_subject": s.email_subject,
+            "email_blurb": s.email_blurb,
+            "client_user_id": s.client_user_id,
+            "status": s.status,
+            "signed_at": s.signed_at.isoformat() if s.signed_at else None,
+            "declined_reason": s.declined_reason,
+            "docs_requested": s.docs_requested,
+            "created_at": s.created_at.isoformat(),
+        }
+        for s in signers
+    ]
+
+
+@router.post("/{envelope_id}/signers", tags=["Signers"], status_code=201)
+async def create_signer(
+    envelope_id: str,
+    payload: dict,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Agrega un firmante al sobre.
+    El sobre debe estar en borrador o pendiente_cliente.
+    Campos requeridos: name, email.
+    Campos opcionales: signer_type, role_in_document, routing_order,
+                       sign_here_anchor, full_name_anchor, date_signed_anchor,
+                       email_subject, email_blurb, client_user_id, docs_requested.
+    """
+    from sqlalchemy import select
+    from .models import EnvelopeSigner, Envelope as _Envelope
+
+    env_result = await db.execute(
+        select(_Envelope).where(_Envelope.id == envelope_id, _Envelope.is_deleted == False)
+    )
+    envelope = env_result.scalar_one_or_none()
+    if not envelope:
+        raise HTTPException(status_code=404, detail="Sobre no encontrado")
+    if envelope.status not in ("borrador", "pendiente_cliente"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pueden modificar firmantes en estado '{envelope.status}'"
+        )
+
+    name = payload.get("name", "").strip()
+    email = payload.get("email", "").strip()
+    if not name or not email:
+        raise HTTPException(status_code=400, detail="name y email son requeridos")
+
+    routing_order = payload.get("routing_order")
+    if not routing_order:
+        count_result = await db.execute(
+            select(func.count(EnvelopeSigner.id))
+            .where(EnvelopeSigner.envelope_id == envelope_id)
+        )
+        routing_order = (count_result.scalar() or 0) + 1
+
+    signer = EnvelopeSigner(
+        envelope_id=envelope_id,
+        signer_type=payload.get("signer_type", "external"),
+        user_id=payload.get("user_id"),
+        name=name,
+        email=email,
+        role_in_document=payload.get("role_in_document"),
+        routing_order=routing_order,
+        sign_here_anchor=payload.get("sign_here_anchor"),
+        full_name_anchor=payload.get("full_name_anchor"),
+        date_signed_anchor=payload.get("date_signed_anchor"),
+        email_subject=payload.get("email_subject"),
+        email_blurb=payload.get("email_blurb"),
+        client_user_id=payload.get("client_user_id"),
+        docs_requested=payload.get("docs_requested"),
+        status="pending",
+    )
+    db.add(signer)
+    await db.commit()
+    await db.refresh(signer)
+
+    return {
+        "id": str(signer.id),
+        "envelope_id": envelope_id,
+        "signer_type": signer.signer_type,
+        "name": signer.name,
+        "email": signer.email,
+        "role_in_document": signer.role_in_document,
+        "routing_order": signer.routing_order,
+        "sign_here_anchor": signer.sign_here_anchor,
+        "full_name_anchor": signer.full_name_anchor,
+        "date_signed_anchor": signer.date_signed_anchor,
+        "email_subject": signer.email_subject,
+        "email_blurb": signer.email_blurb,
+        "client_user_id": signer.client_user_id,
+        "docs_requested": signer.docs_requested,
+        "status": signer.status,
+        "created_at": signer.created_at.isoformat(),
+    }
+
+
+@router.patch("/{envelope_id}/signers/{signer_id}", tags=["Signers"])
+async def update_signer(
+    envelope_id: str,
+    signer_id: str,
+    payload: dict,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Actualiza los datos de un firmante. Solo en sobre borrador o pendiente_cliente."""
+    from sqlalchemy import select
+    from .models import EnvelopeSigner, Envelope as _Envelope
+
+    env_result = await db.execute(
+        select(_Envelope).where(_Envelope.id == envelope_id, _Envelope.is_deleted == False)
+    )
+    envelope = env_result.scalar_one_or_none()
+    if not envelope:
+        raise HTTPException(status_code=404, detail="Sobre no encontrado")
+    if envelope.status not in ("borrador", "pendiente_cliente"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pueden modificar firmantes en estado '{envelope.status}'"
+        )
+
+    result = await db.execute(
+        select(EnvelopeSigner).where(
+            EnvelopeSigner.id == signer_id,
+            EnvelopeSigner.envelope_id == envelope_id
+        )
+    )
+    signer = result.scalar_one_or_none()
+    if not signer:
+        raise HTTPException(status_code=404, detail="Firmante no encontrado")
+
+    editable_fields = [
+        "name", "email", "signer_type", "role_in_document", "routing_order",
+        "sign_here_anchor", "full_name_anchor", "date_signed_anchor",
+        "email_subject", "email_blurb", "client_user_id", "docs_requested", "user_id"
+    ]
+    for field in editable_fields:
+        if field in payload:
+            setattr(signer, field, payload[field])
+
+    await db.commit()
+    await db.refresh(signer)
+
+    return {
+        "id": str(signer.id),
+        "envelope_id": envelope_id,
+        "name": signer.name,
+        "email": signer.email,
+        "signer_type": signer.signer_type,
+        "role_in_document": signer.role_in_document,
+        "routing_order": signer.routing_order,
+        "sign_here_anchor": signer.sign_here_anchor,
+        "full_name_anchor": signer.full_name_anchor,
+        "date_signed_anchor": signer.date_signed_anchor,
+        "email_subject": signer.email_subject,
+        "email_blurb": signer.email_blurb,
+        "client_user_id": signer.client_user_id,
+        "docs_requested": signer.docs_requested,
+        "status": signer.status,
+    }
+
+
+@router.delete("/{envelope_id}/signers/{signer_id}", tags=["Signers"], status_code=204)
+async def delete_signer(
+    envelope_id: str,
+    signer_id: str,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Elimina un firmante. Solo en sobre borrador o pendiente_cliente."""
+    from sqlalchemy import select, delete
+    from .models import EnvelopeSigner, Envelope as _Envelope
+
+    env_result = await db.execute(
+        select(_Envelope).where(_Envelope.id == envelope_id, _Envelope.is_deleted == False)
+    )
+    envelope = env_result.scalar_one_or_none()
+    if not envelope:
+        raise HTTPException(status_code=404, detail="Sobre no encontrado")
+    if envelope.status not in ("borrador", "pendiente_cliente"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pueden eliminar firmantes en estado '{envelope.status}'"
+        )
+
+    result = await db.execute(
+        select(EnvelopeSigner).where(
+            EnvelopeSigner.id == signer_id,
+            EnvelopeSigner.envelope_id == envelope_id
+        )
+    )
+    signer = result.scalar_one_or_none()
+    if not signer:
+        raise HTTPException(status_code=404, detail="Firmante no encontrado")
+
+    await db.execute(
+        delete(EnvelopeSigner).where(EnvelopeSigner.id == signer_id)
+    )
+    await db.commit()
+
 @router.post("/internal/update-sla-flags", status_code=200)
 async def update_sla_flags(
     db: AsyncSession = Depends(get_db)
