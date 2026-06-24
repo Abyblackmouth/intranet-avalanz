@@ -160,14 +160,125 @@ async def _send_email_sim(db: AsyncSession, envelope_id: str, frontend_url: str,
     }
 
 
-# ── DocuSign Provider (placeholder) ──────────────────────────────────────────
+# ── DocuSign Provider ────────────────────────────────────────────────────────
 
 async def _send_docusign(db: AsyncSession, envelope_id: str) -> dict:
-    """DocuSign provider — to be implemented when credentials are available."""
-    raise NotImplementedError(
-        "DocuSign provider not yet implemented. "
-        "Switch to email_sim provider while DocuSign integration is being configured."
+    """
+    Envía el sobre a DocuSign eSignature usando JWT Grant.
+    1. Obtiene el PDF del contrato desde envelope_attachments
+    2. Obtiene los firmantes desde envelope_signers
+    3. Crea el sobre en DocuSign
+    4. Guarda el docusign_envelope_id en la BD
+    """
+    from sqlalchemy import select as _sel
+    from .models import Envelope, EnvelopeAttachment, EnvelopeSigner
+    from . import docusign_service as ds
+    import httpx as _httpx
+    import os as _os
+
+    # Obtener el sobre
+    env_result = await db.execute(_sel(Envelope).where(Envelope.id == envelope_id))
+    envelope = env_result.scalar_one_or_none()
+    if not envelope:
+        raise ValueError(f"Sobre {envelope_id} no encontrado")
+
+    # Obtener el PDF del contrato (document_type = contrato o el más reciente)
+    att_result = await db.execute(
+        _sel(EnvelopeAttachment)
+        .where(
+            EnvelopeAttachment.envelope_id == envelope_id,
+            EnvelopeAttachment.is_current == True,
+            EnvelopeAttachment.is_deleted == False,
+        )
+        .order_by(EnvelopeAttachment.uploaded_at.desc())
     )
+    attachments = att_result.scalars().all()
+
+    # Buscar el PDF del contrato
+    contrato_attachment = None
+    for att in attachments:
+        if att.mime_type == "application/pdf" and "contrato" in (att.original_name or "").lower():
+            contrato_attachment = att
+            break
+    if not contrato_attachment and attachments:
+        # Tomar el primer PDF disponible
+        for att in attachments:
+            if att.mime_type == "application/pdf":
+                contrato_attachment = att
+                break
+
+    if not contrato_attachment:
+        raise ValueError(f"No se encontró PDF del contrato en sobre {envelope_id}")
+
+    # Descargar el PDF desde MinIO via upload-service
+    upload_service_url = "http://upload-service:8000"
+    pdf_bytes = None
+    try:
+        async with _httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(
+                f"{upload_service_url}/api/v1/upload/signed-url",
+                params={"object_key": contrato_attachment.object_key, "bucket": contrato_attachment.bucket}
+            )
+            if r.status_code == 200:
+                signed_url = r.json().get("data", {}).get("url")
+                if signed_url:
+                    pdf_r = await client.get(signed_url)
+                    pdf_bytes = pdf_r.content
+    except Exception as e:
+        print(f"Error descargando PDF: {e}")
+
+    if not pdf_bytes:
+        raise ValueError("No se pudo descargar el PDF del contrato")
+
+    # Obtener firmantes
+    signers_result = await db.execute(
+        _sel(EnvelopeSigner)
+        .where(EnvelopeSigner.envelope_id == envelope_id)
+        .order_by(EnvelopeSigner.routing_order)
+    )
+    signers = signers_result.scalars().all()
+
+    if not signers:
+        raise ValueError(f"El sobre {envelope_id} no tiene firmantes definidos")
+
+    # Construir lista de firmantes para DocuSign
+    ds_signers = [
+        {
+            "name": s.name,
+            "email": s.email,
+            "routing_order": s.routing_order,
+            "sign_here_anchor": s.sign_here_anchor or f"*FIRMA{i}*",
+            "full_name_anchor": s.full_name_anchor or f"*NOMBRE{i}*",
+            "date_signed_anchor": s.date_signed_anchor or f"*FECHA_FIRMA{i}*",
+            "role_in_document": s.role_in_document,
+        }
+        for i, s in enumerate(signers, start=1)
+    ]
+
+    # Crear sobre en DocuSign
+    docusign_envelope_id = await ds.create_envelope(
+        pdf_bytes=pdf_bytes,
+        folio=envelope.folio,
+        contract_type_name=envelope.contract_type_name,
+        signers=ds_signers,
+    )
+
+    # Guardar el ID de DocuSign en la BD
+    envelope.docusign_envelope_id = docusign_envelope_id
+    await db.commit()
+
+    # Actualizar status de firmantes a "sent"
+    for signer in signers:
+        signer.status = "sent"
+    await db.commit()
+
+    return {
+        "provider": "docusign",
+        "status": "sent",
+        "docusign_envelope_id": docusign_envelope_id,
+        "signers_notified": len(signers),
+        "details": [{"name": s["name"], "email": s["email"]} for s in ds_signers],
+    }
 
 
 # ── Confirm signature (email_sim) ─────────────────────────────────────────────
