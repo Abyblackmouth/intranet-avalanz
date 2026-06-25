@@ -168,6 +168,16 @@ async def _process_completed_envelope(db: AsyncSession, docusign_envelope_id: st
         return {"received": True, "action": "error", "reason": f"MinIO: {e}"}
 
     # Registrar en envelope_attachments
+    # Marcar adjuntos anteriores como no actuales
+    await db.execute(
+        update(EnvelopeAttachment)
+        .where(
+            EnvelopeAttachment.envelope_id == str(envelope.id),
+            EnvelopeAttachment.is_deleted == False,
+        )
+        .values(is_current=False)
+    )
+
     attachment = EnvelopeAttachment(
         id=str(_uuid.uuid4()),
         envelope_id=str(envelope.id),

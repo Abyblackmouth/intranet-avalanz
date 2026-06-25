@@ -304,8 +304,8 @@ const EnvelopeSlideOver = ({
                       </div>
                     ))}
                   </div>
-                  {/* Historial de versiones */}
-                  {data.attachments.filter((a: any) => a.is_current === false).length > 0 && (
+                  {/* Historial de versiones — oculto para solicitante */}
+                  {role !== 'solicitante' && data.attachments.filter((a: any) => a.is_current === false).length > 0 && (
                     <div>
                       <p className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1"><History size={10} />Versiones anteriores</p>
                       <div className="space-y-1.5">
