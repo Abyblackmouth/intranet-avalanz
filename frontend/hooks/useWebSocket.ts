@@ -1,143 +1,95 @@
+'use client'
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { useNotificationStore } from '@/store/notificationStore'
-import { useToastStore } from '@/store/toastStore'
-import Cookies from 'js-cookie'
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost/ws'
-const HEARTBEAT_INTERVAL = 30000
-const RECONNECT_DELAY = 5000
+type WSEventHandler = (data: any) => void
 
-function isTokenExpired(): boolean {
-  const token = Cookies.get('access_token')
-  if (!token) return true
+interface WSEvent {
+  event: string
+  module: string | null
+  data: any
+  timestamp: string
+}
+
+const handlers: Map<string, Set<WSEventHandler>> = new Map()
+let socket: WebSocket | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let isConnecting = false
+
+function getToken(): string | null {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.exp * 1000 < Date.now()
-  } catch { return true }
+    const raw = localStorage.getItem('auth-storage')
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed?.state?.token ?? null
+  } catch {
+    return null
+  }
+}
+
+function connect() {
+  if (isConnecting || socket?.readyState === WebSocket.OPEN) return
+  const token = getToken()
+  if (!token) return
+
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL
+  if (!wsUrl) return
+
+  isConnecting = true
+  socket = new WebSocket(`${wsUrl}?token=${token}`)
+
+  socket.onopen = () => {
+    isConnecting = false
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+  }
+
+  socket.onmessage = (e) => {
+    try {
+      const msg: WSEvent = JSON.parse(e.data)
+      // Disparar handlers por evento exacto
+      handlers.get(msg.event)?.forEach(h => h(msg.data))
+      // Disparar handlers globales (*)
+      handlers.get('*')?.forEach(h => h(msg))
+    } catch {}
+  }
+
+  socket.onclose = () => {
+    isConnecting = false
+    socket = null
+    // Reconectar en 5 segundos
+    reconnectTimer = setTimeout(connect, 5000)
+  }
+
+  socket.onerror = () => {
+    socket?.close()
+  }
+}
+
+export function initWebSocket() {
+  if (typeof window === 'undefined') return
+  connect()
+}
+
+export function useWSEvent(event: string, handler: WSEventHandler) {
+  const handlerRef = useRef(handler)
+  handlerRef.current = handler
+
+  useEffect(() => {
+    const wrapped: WSEventHandler = (data) => handlerRef.current(data)
+    if (!handlers.has(event)) handlers.set(event, new Set())
+    handlers.get(event)!.add(wrapped)
+
+    // Asegurar conexión activa
+    connect()
+
+    return () => {
+      handlers.get(event)?.delete(wrapped)
+    }
+  }, [event])
 }
 
 export function useWebSocket() {
-  const ws = useRef<WebSocket | null>(null)
-  const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null)
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isConnecting = useRef(false)
-
-  const { user, logout: clearStore } = useAuthStore()
-  const { addNotification } = useNotificationStore()
-  const { addToast } = useToastStore()
-
-  const disconnect = useCallback(() => {
-    if (heartbeat.current) clearInterval(heartbeat.current)
-    if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
-    if (ws.current) {
-      ws.current.onclose = null
-      ws.current.close()
-      ws.current = null
-    }
-    isConnecting.current = false
-  }, [])
-
-  const connect = useCallback(() => {
-    if (isConnecting.current || ws.current?.readyState === WebSocket.OPEN) return
-
-    if (isTokenExpired()) {
-      clearStore()
-      window.location.href = '/login'
-      return
-    }
-
-    const token = Cookies.get('access_token')
-    if (!token || !user) return
-
-    isConnecting.current = true
-
-    try {
-      ws.current = new WebSocket(`${WS_URL}?token=${token}`)
-
-      ws.current.onopen = () => {
-        isConnecting.current = false
-        heartbeat.current = setInterval(() => {
-          if (ws.current?.readyState === WebSocket.OPEN) {
-            ws.current.send(JSON.stringify({ type: 'ping' }))
-          }
-        }, HEARTBEAT_INTERVAL)
-      }
-
-      ws.current.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data)
-
-          switch (msg.event) {
-            case 'notification.new':
-              if (msg.data) {
-                const normalized = {
-                  ...msg.data,
-                  id: msg.data.id ?? msg.data.notification_id,
-                }
-                addNotification(normalized)
-                addToast({
-                  type: normalized.type ?? 'info',
-                  title: normalized.title,
-                  body: normalized.body,
-                })
-              }
-              break
-
-            case 'session.revoked':
-              disconnect()
-              clearStore()
-              window.location.href = '/login'
-              break
-
-            case 'connection.established':
-              break
-          }
-        } catch {
-          // Ignorar mensajes mal formados
-        }
-      }
-
-      ws.current.onclose = (event) => {
-        isConnecting.current = false
-        if (heartbeat.current) clearInterval(heartbeat.current)
-
-        if (event.code === 4001) {
-          clearStore()
-          window.location.href = '/login'
-          return
-        }
-
-        reconnectTimer.current = setTimeout(() => {
-          if (user) {
-            if (isTokenExpired()) {
-              clearStore()
-              window.location.href = '/login'
-              return
-            }
-            connect()
-          }
-        }, RECONNECT_DELAY)
-      }
-
-      ws.current.onerror = () => {
-        isConnecting.current = false
-      }
-
-    } catch {
-      isConnecting.current = false
-    }
-  }, [user, addNotification, disconnect, clearStore])
-
   useEffect(() => {
-    if (user) {
-      connect()
-    } else {
-      disconnect()
-    }
-
-    return () => disconnect()
-  }, [user, connect, disconnect])
-
-  return { connect, disconnect }
+    connect()
+  }, [])
 }

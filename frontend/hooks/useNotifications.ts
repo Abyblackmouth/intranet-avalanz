@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react'
 import { useNotificationStore } from '@/store/notificationStore'
 import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '@/services/notificationService'
+import { useWSEvent } from '@/hooks/useWebSocket'
 
 export function useNotifications() {
   const {
@@ -50,9 +51,19 @@ export function useNotifications() {
 
   useEffect(() => {
     fetchUnreadCount()
-    const interval = setInterval(fetchUnreadCount, 60000)
+    const interval = setInterval(fetchUnreadCount, 30000)
     return () => clearInterval(interval)
   }, [fetchUnreadCount])
+
+  // Actualizar contador en tiempo real via WebSocket
+  useWSEvent('notification.new', useCallback(() => {
+    fetchUnreadCount()
+  }, [fetchUnreadCount]))
+
+  // Actualizar tabla legal en tiempo real
+  useWSEvent('legal.tabla_actualizada', useCallback(() => {
+    fetchUnreadCount()
+  }, [fetchUnreadCount]))
 
   return {
     notifications,
