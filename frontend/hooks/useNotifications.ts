@@ -56,7 +56,8 @@ export function useNotifications() {
   }, [fetchUnreadCount])
 
   // Actualizar contador en tiempo real via WebSocket
-  useWSEvent('notification.new', useCallback(() => {
+  useWSEvent('notification.new', useCallback((data) => {
+    console.log('[WS] notification.new recibido:', data)
     fetchUnreadCount()
   }, [fetchUnreadCount]))
 
