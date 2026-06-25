@@ -162,7 +162,7 @@ const Step2 = ({ templateFields, formData, onChange, errors }: {
 
 const Step3Anexos = ({ attachmentDefs, uploadedFiles, onUpload, onRemove }: {
   attachmentDefs: AttachmentDef[]; uploadedFiles: UploadedFile[]
-  onUpload: (defId: string, file: File) => void; onRemove: (defId: string) => void
+  onUpload: (defId: string, file: File, defName?: string) => void; onRemove: (defId: string) => void
 }) => {
   const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   if (attachmentDefs.length === 0) return (
@@ -371,7 +371,7 @@ export default function NuevoContratoPage() {
     setFormData(prev => ({ ...prev, [key]: value }))
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: '' }))
   }
-  const handleUpload = (defId: string, file: File) => setUploadedFiles(prev => [...prev.filter(f => f.defId !== defId), { defId, file, name: file.name }])
+  const handleUpload = (defId: string, file: File, defName?: string) => setUploadedFiles(prev => [...prev.filter(f => f.defId !== defId), { defId, file, name: defName ? defName : file.name }])
   const handleRemove = (defId: string) => setUploadedFiles(prev => prev.filter(f => f.defId !== defId))
 
   const validateStep2 = () => {

@@ -75,7 +75,9 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 // ── SLA ───────────────────────────────────────────────────────────────────────
 
-const SLADot = ({ color }: { color: SLAColor }) => {
+const SLADot = ({ color, status }: { color: SLAColor, status?: string }) => {
+  if (status === 'completado' || status === 'rechazado')
+    return <span className="w-2.5 h-2.5 rounded-full ring-4 inline-block shrink-0 bg-slate-300 ring-slate-100" />
   const styles = { green: 'bg-green-500 ring-green-200', yellow: 'bg-amber-400 ring-amber-100', red: 'bg-red-500 ring-red-200' }
   return <span className={`w-2.5 h-2.5 rounded-full ring-4 inline-block shrink-0 ${styles[color]}`} />
 }
@@ -83,10 +85,10 @@ const SLADot = ({ color }: { color: SLAColor }) => {
 const SLAPill = ({ item }: { item: EnvelopeListItem }) => {
   if (!item.submitted_at)
     return <span className="text-xs text-slate-400">—</span>
-
-  if (!item.submitted_at)
-    return <span className="text-xs text-slate-400">—</span>
-  const diffMs = Math.max(0, Date.now() - new Date(item.submitted_at).getTime())
+  const endTime = (item.status === 'completado' || item.status === 'rechazado') && item.sla_closed_at
+    ? new Date(item.sla_closed_at).getTime()
+    : Date.now()
+  const diffMs = Math.max(0, endTime - new Date(item.submitted_at).getTime())
   const diffHrs = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
   const colorClass = item.sla_color === 'red' ? 'text-red-600' : item.sla_color === 'yellow' ? 'text-amber-600' : 'text-green-600'
@@ -652,7 +654,7 @@ const EnvelopeCard = ({
   >
     <div className="flex items-start justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <SLADot color={item.sla_color} />
+        <SLADot color={item.sla_color} status={item.status} />
         <span className="font-bold text-[#1a4fa0] font-mono text-sm">{item.folio}</span>
         {item.is_open_request && (
           <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">Abierta</span>
@@ -783,7 +785,7 @@ export default function ContractRequestsTable({
             <tbody className="divide-y divide-slate-200">
               {items.map(item => (
                 <tr key={item.id} className="hover:bg-slate-100 transition-colors cursor-pointer">
-                  <td className="px-3 py-4 text-center"><SLADot color={item.sla_color} /></td>
+                  <td className="px-3 py-4 text-center"><SLADot color={item.sla_color} status={item.status} /></td>
                   <td className="px-4 py-3">
                     <span
                       className="font-bold text-[#1a4fa0] font-mono cursor-pointer hover:underline"

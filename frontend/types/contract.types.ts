@@ -33,6 +33,7 @@ export interface EnvelopeListItem {
   is_open_request: boolean
   submitted_at: string | null
   sla_due_at: string | null
+  sla_closed_at: string | null
   is_sla_breached: boolean
   sla_color: SLAColor
   created_at: string
