@@ -91,8 +91,9 @@ const SLAPill = ({ item }: { item: EnvelopeListItem }) => {
   const diffMs = Math.max(0, endTime - new Date(item.submitted_at).getTime())
   const diffHrs = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
-  const colorClass = item.sla_color === 'red' ? 'text-red-600' : item.sla_color === 'yellow' ? 'text-amber-600' : 'text-green-600'
-  if (item.is_sla_breached)
+  const isClosed = item.status === 'completado' || item.status === 'rechazado'
+  const colorClass = isClosed ? 'text-slate-400' : item.sla_color === 'red' ? 'text-red-600' : item.sla_color === 'yellow' ? 'text-amber-600' : 'text-green-600'
+  if (item.is_sla_breached && !isClosed)
     return (<span className="flex items-center gap-1 text-red-600"><span className="text-sm">{diffDays}</span><span className="text-xs"> {diffDays === 1 ? "día" : "días"}</span></span>)
   if (diffDays === 0)
     return <span className={`text-xs font-medium ${colorClass}`}><span className="text-sm">{diffHrs}</span><span className="text-xs"> {diffHrs === 1 ? "hr" : "hrs"}</span></span>
