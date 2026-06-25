@@ -58,7 +58,9 @@ export function useNotifications() {
   // Actualizar contador en tiempo real via WebSocket
   useWSEvent('notification.new', useCallback((data) => {
     console.log('[WS] notification.new recibido:', data)
-    fetchUnreadCount()
+    fetchUnreadCount().then(() => {
+      console.log('[WS] unreadCount actualizado:', useNotificationStore.getState().unreadCount)
+    })
   }, [fetchUnreadCount]))
 
   // Actualizar tabla legal en tiempo real
