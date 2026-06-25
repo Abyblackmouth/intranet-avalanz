@@ -36,7 +36,10 @@ async def docusign_webhook(
     except Exception:
         raise HTTPException(status_code=400, detail="Payload inválido")
 
+    print(f"[webhook] Payload recibido: {list(payload.keys())}")
+    print(f"[webhook] data keys: {list(payload.get('data', {}).keys())}")
     if not ds.verify_webhook_payload(payload):
+        print(f"[webhook] Payload completo: {payload}")
         raise HTTPException(status_code=400, detail="Payload no reconocido")
 
     event  = payload.get("event", "")

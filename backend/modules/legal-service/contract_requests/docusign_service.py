@@ -275,10 +275,13 @@ async def download_signed_document(docusign_envelope_id: str) -> bytes:
 def verify_webhook_payload(payload: dict) -> bool:
     """
     Verifica que el webhook viene de DocuSign.
+    El payload REST v2.1 tiene envelopeId dentro de data.
     En producción usar HMAC signature verification.
-    Por ahora valida que tenga los campos esperados.
     """
-    return bool(
-        payload.get("envelopeId") and
-        payload.get("status")
-    )
+    # Formato REST v2.1: envelopeId en data
+    if payload.get("data", {}).get("envelopeId"):
+        return True
+    # Formato legacy: envelopeId en raíz
+    if payload.get("envelopeId"):
+        return True
+    return False

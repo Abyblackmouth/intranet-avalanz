@@ -330,7 +330,8 @@ async def _send_docusign(db: AsyncSession, envelope_id: str) -> dict:
 
     # Actualizar status de firmantes a "sent"
     for signer in signers:
-        signer.status = "sent"
+        if hasattr(signer, 'status'):
+            signer.status = "sent"
     await db.commit()
 
     return {
