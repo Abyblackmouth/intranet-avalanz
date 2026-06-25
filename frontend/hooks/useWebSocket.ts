@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useRef } from 'react'
-import { useNotificationStore } from '@/store/notificationStore'
 
 type WSEventHandler = (data: any) => void
 
@@ -16,13 +15,6 @@ let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let isConnecting = false
 
-// Referencia al store fuera del hook para acceder desde onmessage
-let storeRef: ReturnType<typeof useNotificationStore.getState> | null = null
-
-export function setStoreRef(store: ReturnType<typeof useNotificationStore.getState>) {
-  storeRef = store
-}
-
 function getToken(): string | null {
   try {
     const cookies = document.cookie.split(';')
@@ -34,11 +26,6 @@ function getToken(): string | null {
   } catch {
     return null
   }
-}
-
-function dispatch(event: string, data: any) {
-  handlers.get(event)?.forEach(h => h(data))
-  handlers.get('*')?.forEach(h => h({ event, data }))
 }
 
 function connect() {
@@ -66,19 +53,11 @@ function connect() {
   socket.onmessage = (e) => {
     try {
       const msg: WSEvent = JSON.parse(e.data)
-      if (msg.event === 'notification.new' && storeRef) {
-        const notif = msg.data
-        if (notif?.id) {
-          storeRef.addNotification(notif)
-        } else {
-          storeRef.setUnreadCount(storeRef.unreadCount + 1)
-        }
-      }
+      // Disparar evento DOM para que cualquier componente pueda escucharlo
+      window.dispatchEvent(new CustomEvent('ws:message', { detail: msg }))
       if (msg.event === 'session.revoked') {
         window.location.href = '/login'
-        return
       }
-      dispatch(msg.event, msg.data)
     } catch {}
   }
 
@@ -97,24 +76,20 @@ export function useWSEvent(event: string, handler: WSEventHandler) {
   handlerRef.current = handler
 
   useEffect(() => {
-    const wrapped: WSEventHandler = (data) => handlerRef.current(data)
-    if (!handlers.has(event)) handlers.set(event, new Set())
-    handlers.get(event)!.add(wrapped)
+    const listener = (e: Event) => {
+      const msg = (e as CustomEvent<WSEvent>).detail
+      if (msg.event === event || event === '*') {
+        handlerRef.current(msg.data)
+      }
+    }
+    window.addEventListener('ws:message', listener)
     connect()
-    return () => { handlers.get(event)?.delete(wrapped) }
+    return () => window.removeEventListener('ws:message', listener)
   }, [event])
 }
 
 export function useWebSocket() {
-  const store = useNotificationStore()
-
   useEffect(() => {
-    storeRef = useNotificationStore.getState()
     connect()
   }, [])
-
-  // Actualizar la referencia cuando cambia el store
-  useEffect(() => {
-    storeRef = useNotificationStore.getState()
-  }, [store.unreadCount])
 }
