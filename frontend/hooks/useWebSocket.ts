@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { useNotificationStore } from '@/store/notificationStore'
 
 type WSEventHandler = (data: any) => void
 
@@ -14,6 +15,13 @@ const handlers: Map<string, Set<WSEventHandler>> = new Map()
 let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let isConnecting = false
+
+// Referencia al store fuera del hook para acceder desde onmessage
+let storeRef: ReturnType<typeof useNotificationStore.getState> | null = null
+
+export function setStoreRef(store: ReturnType<typeof useNotificationStore.getState>) {
+  storeRef = store
+}
 
 function getToken(): string | null {
   try {
@@ -46,7 +54,6 @@ function connect() {
   socket.onopen = () => {
     isConnecting = false
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-    // Heartbeat cada 30 segundos
     const heartbeat = setInterval(() => {
       if (socket?.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'ping' }))
@@ -59,23 +66,16 @@ function connect() {
   socket.onmessage = (e) => {
     try {
       const msg: WSEvent = JSON.parse(e.data)
-      if (msg.event === 'notification.new') {
-        // Agregar al notificationStore directamente
-        import('@/store/notificationStore').then(({ useNotificationStore }) => {
-          const store = useNotificationStore.getState()
-          const notif = msg.data
-          if (notif?.id) {
-            store.addNotification({ ...notif, id: notif.id ?? notif._id })
-          } else {
-            store.setUnreadCount(store.unreadCount + 1)
-          }
-        }).catch(() => {})
+      if (msg.event === 'notification.new' && storeRef) {
+        const notif = msg.data
+        if (notif?.id) {
+          storeRef.addNotification(notif)
+        } else {
+          storeRef.setUnreadCount(storeRef.unreadCount + 1)
+        }
       }
-      if (msg.event === 'session.revoked' || (msg as any).code === 4001) {
-        import('@/store/authStore').then(({ useAuthStore }) => {
-          useAuthStore.getState().logout()
-          window.location.href = '/login'
-        }).catch(() => {})
+      if (msg.event === 'session.revoked') {
+        window.location.href = '/login'
         return
       }
       dispatch(msg.event, msg.data)
@@ -89,9 +89,7 @@ function connect() {
     reconnectTimer = setTimeout(connect, 5000)
   }
 
-  socket.onerror = () => {
-    socket?.close()
-  }
+  socket.onerror = () => { socket?.close() }
 }
 
 export function useWSEvent(event: string, handler: WSEventHandler) {
@@ -103,14 +101,20 @@ export function useWSEvent(event: string, handler: WSEventHandler) {
     if (!handlers.has(event)) handlers.set(event, new Set())
     handlers.get(event)!.add(wrapped)
     connect()
-    return () => {
-      handlers.get(event)?.delete(wrapped)
-    }
+    return () => { handlers.get(event)?.delete(wrapped) }
   }, [event])
 }
 
 export function useWebSocket() {
+  const store = useNotificationStore()
+
   useEffect(() => {
+    storeRef = useNotificationStore.getState()
     connect()
   }, [])
+
+  // Actualizar la referencia cuando cambia el store
+  useEffect(() => {
+    storeRef = useNotificationStore.getState()
+  }, [store.unreadCount])
 }
