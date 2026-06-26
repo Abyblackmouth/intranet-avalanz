@@ -5,11 +5,36 @@ import { useToastStore, Toast, ToastType } from '@/store/toastStore'
 
 const TOAST_DURATION = 9000
 
+let audioCtx: AudioContext | null = null
+
+if (typeof window !== 'undefined') {
+  document.addEventListener('click', () => {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume()
+  }, { once: false })
+}
+
 function playNotificationSound() {
   try {
-    const audio = new Audio('/notification.wav')
-    audio.volume = 0.5
-    audio.play().catch(() => {})
+    if (!audioCtx) return
+    if (audioCtx.state === 'suspended') audioCtx.resume()
+    const play = (freq: number, start: number, dur: number) => {
+      const osc = audioCtx!.createOscillator()
+      const gain = audioCtx!.createGain()
+      osc.connect(gain)
+      gain.connect(audioCtx!.destination)
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.001, audioCtx!.currentTime + start)
+      gain.gain.linearRampToValueAtTime(0.3, audioCtx!.currentTime + start + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx!.currentTime + start + dur)
+      osc.start(audioCtx!.currentTime + start)
+      osc.stop(audioCtx!.currentTime + start + dur + 0.05)
+    }
+    play(660, 0, 0.15)
+    play(880, 0.18, 0.2)
   } catch {}
 }
 
