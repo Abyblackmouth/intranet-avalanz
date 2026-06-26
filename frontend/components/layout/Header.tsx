@@ -19,6 +19,18 @@ export default function Header() {
   const menuRef = useRef<HTMLDivElement>(null)
 
   useWebSocket()
+
+  // Desbloquear audio en primera interacción del usuario
+  useEffect(() => {
+    const unlock = () => {
+      const audio = new Audio('/notification.wav')
+      audio.volume = 0
+      audio.play().then(() => audio.pause()).catch(() => {})
+      document.removeEventListener('click', unlock)
+    }
+    document.addEventListener('click', unlock)
+    return () => document.removeEventListener('click', unlock)
+  }, [])
   const { addToast } = useToastStore()
   useWSEvent('notification.new', useCallback((data: any) => {
     if (data?.title) {
