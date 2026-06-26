@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, LogOut, User, Shield, Clock } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
@@ -20,7 +20,7 @@ export default function Header() {
 
   useWebSocket()
   const { addToast } = useToastStore()
-  useWSEvent('notification.new', (data: any) => {
+  useWSEvent('notification.new', useCallback((data: any) => {
     if (data?.title) {
       addToast({
         type: data?.type ?? 'info',
@@ -28,7 +28,7 @@ export default function Header() {
         body: data?.body ?? '',
       })
     }
-  })
+  }, [addToast]))
 
   useEffect(() => {
     setMounted(true)
