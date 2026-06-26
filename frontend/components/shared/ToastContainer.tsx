@@ -68,7 +68,7 @@ function ToastItem({ toast }: { toast: Toast }) {
   return (
     <div
       className={`
-        flex items-start gap-3 w-80 px-4 py-3.5 rounded-xl shadow-lg border
+        flex items-start gap-3 w-96 px-4 py-4 rounded-xl shadow-lg border
         ${style.bg} ${style.border}
         transition-all duration-350 ease-out
         ${visible && !leaving
@@ -85,7 +85,7 @@ function ToastItem({ toast }: { toast: Toast }) {
           {toast.title}
         </p>
         {toast.body && (
-          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-2">
+          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-3">
             {toast.body}
           </p>
         )}

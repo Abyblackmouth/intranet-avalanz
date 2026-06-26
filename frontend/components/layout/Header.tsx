@@ -6,7 +6,8 @@ import { ChevronDown, LogOut, User, Shield, Clock } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { logout } from '@/services/authService'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
-import { useWebSocket } from '@/hooks/useWebSocket'
+import { useWebSocket, useWSEvent } from '@/hooks/useWebSocket'
+import { useToastStore } from '@/store/toastStore'
 import Cookies from 'js-cookie'
 
 export default function Header() {
@@ -18,6 +19,16 @@ export default function Header() {
   const menuRef = useRef<HTMLDivElement>(null)
 
   useWebSocket()
+  const { addToast } = useToastStore()
+  useWSEvent('notification.new', (data: any) => {
+    if (data?.title) {
+      addToast({
+        type: data?.type ?? 'info',
+        title: data.title,
+        body: data?.body ?? '',
+      })
+    }
+  })
 
   useEffect(() => {
     setMounted(true)
