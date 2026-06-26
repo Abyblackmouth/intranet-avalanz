@@ -26,7 +26,9 @@ export function useNotifications() {
     try {
       const res = await getUnreadCount()
       console.log('[NOTIFY] unread-count response:', JSON.stringify(res.data))
-      setUnreadCount(res.data?.data?.unread ?? res.data?.data?.count ?? 0)
+      const count = res.data?.data?.unread ?? res.data?.data?.count ?? 0
+      console.log('[NOTIFY] setUnreadCount llamado con:', count)
+      setUnreadCount(count)
     } catch {}
   }, [setUnreadCount])
 
