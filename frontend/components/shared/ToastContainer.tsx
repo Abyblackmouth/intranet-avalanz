@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { X, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react'
 import { useToastStore, Toast, ToastType } from '@/store/toastStore'
 
-const TOAST_DURATION = 5000
+const TOAST_DURATION = 9000
 
 const toastStyles: Record<ToastType, {
   bg: string
