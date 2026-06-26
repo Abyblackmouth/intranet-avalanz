@@ -2,6 +2,7 @@ import { useEffect, useCallback } from 'react'
 import { useNotificationStore } from '@/store/notificationStore'
 import { getNotifications, getUnreadCount, markAsRead, markAllAsRead } from '@/services/notificationService'
 import { useWSEvent } from '@/hooks/useWebSocket'
+import { useToastStore } from '@/store/toastStore'
 
 export function useNotifications() {
   const {
@@ -51,10 +52,19 @@ export function useNotifications() {
     return () => clearInterval(interval)
   }, [fetchUnreadCount])
 
-  // Actualizar contador en tiempo real via WebSocket
-  useWSEvent('notification.new', useCallback(() => {
+  const { addToast } = useToastStore()
+
+  // Actualizar contador en tiempo real via WebSocket + mostrar toast
+  useWSEvent('notification.new', useCallback((data: any) => {
     fetchUnreadCount()
-  }, [fetchUnreadCount]))
+    if (data?.title) {
+      addToast({
+        type: data?.type ?? 'info',
+        title: data.title,
+        body: data?.body ?? '',
+      })
+    }
+  }, [fetchUnreadCount, addToast]))
 
   // Refrescar tabla legal en tiempo real
   useWSEvent('legal.tabla_actualizada', useCallback(() => {
