@@ -76,6 +76,7 @@ async def notify_nuevo_sobre(envelope, coordinador_ids: list) -> None:
     await _notify(user_ids=coordinador_ids, type="info", title=title, body=body,
                   data=data, company_id=str(envelope.company_id))
     await _ws_broadcast(coordinador_ids, "notification.new", {**data, "title": title, "body": body, "type": "info"})
+    await _ws_broadcast(coordinador_ids, "legal.tabla_actualizada", data)
 
 
 async def notify_abogado_asignado(envelope, abogado_id: str) -> None:
@@ -85,6 +86,7 @@ async def notify_abogado_asignado(envelope, abogado_id: str) -> None:
     await _notify(user_ids=[abogado_id], type="info", title=title, body=body,
                   data=data, company_id=str(envelope.company_id))
     await _ws_send(abogado_id, "notification.new", {**data, "title": title, "body": body, "type": "info"})
+    await _ws_send(abogado_id, "legal.tabla_actualizada", data)
 
 
 async def notify_solicitante_abogado_asignado(envelope) -> None:
@@ -95,6 +97,7 @@ async def notify_solicitante_abogado_asignado(envelope) -> None:
     await _notify(user_ids=[str(envelope.requested_by_user_id)], type="info", title=title, body=body,
                   data=data, company_id=str(envelope.company_id))
     await _ws_send(str(envelope.requested_by_user_id), "notification.new", {**data, "title": title, "body": body, "type": "info"})
+    await _ws_send(str(envelope.requested_by_user_id), "legal.tabla_actualizada", data)
 
 
 async def notify_sobre_en_firmas(envelope) -> None:
@@ -104,6 +107,7 @@ async def notify_sobre_en_firmas(envelope) -> None:
     await _notify(user_ids=[str(envelope.requested_by_user_id)], type="success", title=title, body=body,
                   data=data, company_id=str(envelope.company_id))
     await _ws_send(str(envelope.requested_by_user_id), "notification.new", {**data, "title": title, "body": body, "type": "success"})
+    await _ws_send(str(envelope.requested_by_user_id), "legal.tabla_actualizada", data)
 
 
 async def notify_sobre_rechazado(envelope, coordinador_ids: list) -> None:
@@ -113,6 +117,7 @@ async def notify_sobre_rechazado(envelope, coordinador_ids: list) -> None:
     await _notify(user_ids=[str(envelope.requested_by_user_id)], type="error", title=title_sol, body=body_sol,
                   data=data, company_id=str(envelope.company_id))
     await _ws_send(str(envelope.requested_by_user_id), "notification.new", {**data, "title": title_sol, "body": body_sol, "type": "error"})
+    await _ws_send(str(envelope.requested_by_user_id), "legal.tabla_actualizada", data)
     title_coord = f"Contrato rechazado — {envelope.folio}"
     body_coord = f"El contrato {envelope.folio} de {envelope.company_name} fue rechazado."
     await _notify(user_ids=coordinador_ids, type="warning", title=title_coord, body=body_coord,
@@ -127,6 +132,9 @@ async def notify_sobre_completado(envelope, coordinador_ids: list) -> None:
     await _notify(user_ids=[str(envelope.requested_by_user_id)], type="success", title=title_sol, body=body_sol,
                   data=data, company_id=str(envelope.company_id))
     await _ws_send(str(envelope.requested_by_user_id), "notification.new", {**data, "title": title_sol, "body": body_sol, "type": "success"})
+    await _ws_send(str(envelope.requested_by_user_id), "legal.tabla_actualizada", data)
+    if envelope.assigned_lawyer_id:
+        await _ws_send(str(envelope.assigned_lawyer_id), "legal.tabla_actualizada", data)
     title_coord = f"Contrato completado — {envelope.folio}"
     body_coord = f"El contrato {envelope.folio} de {envelope.company_name} fue firmado por todas las partes."
     await _notify(user_ids=coordinador_ids, type="success", title=title_coord, body=body_coord,
@@ -141,6 +149,7 @@ async def notify_correcciones_solicitadas(envelope) -> None:
     await _notify(user_ids=[str(envelope.requested_by_user_id)], type="warning", title=title, body=body,
                   data=data, company_id=str(envelope.company_id))
     await _ws_send(str(envelope.requested_by_user_id), "notification.new", {**data, "title": title, "body": body, "type": "warning"})
+    await _ws_send(str(envelope.requested_by_user_id), "legal.tabla_actualizada", data)
 
 
 async def ws_refresh_tabla(user_ids: list, envelope) -> None:
