@@ -5,6 +5,22 @@ import { useToastStore, Toast, ToastType } from '@/store/toastStore'
 
 const TOAST_DURATION = 9000
 
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const oscillator = ctx.createOscillator()
+    const gainNode = ctx.createGain()
+    oscillator.connect(gainNode)
+    gainNode.connect(ctx.destination)
+    oscillator.frequency.setValueAtTime(880, ctx.currentTime)
+    oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1)
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+    oscillator.start(ctx.currentTime)
+    oscillator.stop(ctx.currentTime + 0.4)
+  } catch {}
+}
+
 const toastStyles: Record<ToastType, {
   bg: string
   border: string
@@ -49,6 +65,7 @@ function ToastItem({ toast }: { toast: Toast }) {
   }
 
   useEffect(() => {
+    playNotificationSound()
     const enterTimer = setTimeout(() => setVisible(true), 10)
     const closeTimer = setTimeout(() => dismiss(), TOAST_DURATION)
     return () => {
