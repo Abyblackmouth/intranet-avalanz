@@ -25,25 +25,18 @@ export function useNotifications() {
   const fetchUnreadCount = useCallback(async () => {
     try {
       const res = await getUnreadCount()
-      console.log('[NOTIFY] unread-count response:', JSON.stringify(res.data))
-      const count = res.data?.data?.unread ?? res.data?.data?.count ?? 0
-      console.log('[NOTIFY] setUnreadCount llamado con:', count)
-      setUnreadCount(count)
+      setUnreadCount(res.data?.data?.unread ?? res.data?.data?.count ?? 0)
     } catch {}
   }, [setUnreadCount])
 
   const handleMarkAsRead = useCallback(async (id: string) => {
     markReadLocal(id)
-    try {
-      await markAsRead(id)
-    } catch {}
+    try { await markAsRead(id) } catch {}
   }, [markReadLocal])
 
   const handleMarkAllAsRead = useCallback(async () => {
     markAllReadLocal()
-    try {
-      await markAllAsRead()
-    } catch {}
+    try { await markAllAsRead() } catch {}
   }, [markAllReadLocal])
 
   const toggleOpen = useCallback(() => {
@@ -59,14 +52,11 @@ export function useNotifications() {
   }, [fetchUnreadCount])
 
   // Actualizar contador en tiempo real via WebSocket
-  useWSEvent('notification.new', useCallback((data) => {
-    console.log('[WS] notification.new recibido:', data)
-    fetchUnreadCount().then(() => {
-      console.log('[WS] unreadCount actualizado:', useNotificationStore.getState().unreadCount)
-    })
+  useWSEvent('notification.new', useCallback(() => {
+    fetchUnreadCount()
   }, [fetchUnreadCount]))
 
-  // Actualizar tabla legal en tiempo real
+  // Refrescar tabla legal en tiempo real
   useWSEvent('legal.tabla_actualizada', useCallback(() => {
     fetchUnreadCount()
   }, [fetchUnreadCount]))
