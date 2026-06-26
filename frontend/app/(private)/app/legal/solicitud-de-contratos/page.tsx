@@ -7,6 +7,7 @@ import ContractRequestsTable from '@/components/app/legal/ContractRequestsTable'
 import { useAuthStore } from '@/store/authStore'
 import { ContractRequestListItem, ContractType } from '@/types/contract.types'
 import { getEnvelopes, getContractTypes } from '@/services/legalService'
+import { useWSEvent } from '@/hooks/useWebSocket'
 
 type LegalRole = 'solicitante' | 'abogado' | 'coordinador_legal' | 'director' | 'super_admin'
 
@@ -108,6 +109,11 @@ export default function ContractRequestsPage() {
     setRefreshTick(t => t + 1)
     if (!silent) fetchItems(false)
   }
+
+  // Auto-refresh tabla via WebSocket
+  useWSEvent('legal.tabla_actualizada', useCallback(() => {
+    setRefreshTick(t => t + 1)
+  }, []))
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
