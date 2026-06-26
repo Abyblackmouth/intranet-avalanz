@@ -8,16 +8,23 @@ const TOAST_DURATION = 9000
 function playNotificationSound() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const oscillator = ctx.createOscillator()
-    const gainNode = ctx.createGain()
-    oscillator.connect(gainNode)
-    gainNode.connect(ctx.destination)
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime)
-    oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1)
-    gainNode.gain.setValueAtTime(0.3, ctx.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
-    oscillator.start(ctx.currentTime)
-    oscillator.stop(ctx.currentTime + 0.4)
+    if (ctx.state === 'suspended') ctx.resume()
+    // Dos tonos suaves — estilo notificación
+    const play = (freq: number, start: number, duration: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + start)
+      gain.gain.setValueAtTime(0, ctx.currentTime + start)
+      gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + start + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration)
+      osc.start(ctx.currentTime + start)
+      osc.stop(ctx.currentTime + start + duration)
+    }
+    play(660, 0, 0.15)
+    play(880, 0.15, 0.2)
   } catch {}
 }
 
