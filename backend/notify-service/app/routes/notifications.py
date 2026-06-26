@@ -132,3 +132,23 @@ async def read_all_notifications(
 ):
     await mark_all_as_read(db=db, user_id=payload.get("user_id"))
     return BaseResponse(success=True, message="Todas las notificaciones marcadas como leidas")
+
+# ── Endpoint interno — sin auth, solo red Docker ──────────────────────────────
+
+@router.post("/internal/bulk", include_in_schema=False)
+async def internal_bulk_notify(
+    body: CreateBulkNotificationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Endpoint interno para que otros servicios creen notificaciones sin JWT."""
+    result = await create_bulk_notifications(
+        db=db,
+        user_ids=body.user_ids,
+        type=body.type,
+        title=body.title,
+        body=body.body,
+        company_id=body.company_id,
+        module_slug=body.module_slug,
+        data=body.data,
+    )
+    return {"success": True, "created": len(result)}

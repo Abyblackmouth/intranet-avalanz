@@ -1,3 +1,4 @@
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List, Dict, Any
@@ -8,6 +9,7 @@ from app.database import get_db
 from app.config import config
 from shared.middleware.jwt_validator import JWTValidator
 from . import service
+from . import notification_service as ns
 from .schemas import (
     ContractTypeCreate, ContractTypeUpdate, ContractTypeOut,
     LawyerAssignmentCreate, LawyerAssignmentOut,
@@ -59,6 +61,23 @@ def get_client_ip(request: Request) -> Optional[str]:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else None
+
+
+# ── Helper — obtener IDs de coordinadores legales ────────────────────────────
+
+async def _get_coordinador_ids() -> list:
+    """Obtiene los UUIDs de todos los coordinadores legales activos."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "legal", "role_slug": "coordinador_legal"}
+            )
+            if r.status_code == 200:
+                return [u["id"] for u in r.json()]
+    except Exception as e:
+        print(f"[notify] Error obteniendo coordinadores: {e}")
+    return []
 
 
 # ── Tipos de contrato ─────────────────────────────────────────────────────────
@@ -699,6 +718,12 @@ async def submit_envelope(
         await db.commit()
         out = EnvelopeOut.model_validate(envelope)
         out.sla = build_sla_info(envelope)
+        if envelope.status == "pendiente_legal":
+            coordinador_ids = await _get_coordinador_ids()
+            await ns.notify_nuevo_sobre(envelope, coordinador_ids)
+            if envelope.assigned_lawyer_id:
+                await ns.notify_abogado_asignado(envelope, str(envelope.assigned_lawyer_id))
+                await ns.notify_solicitante_abogado_asignado(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -724,6 +749,7 @@ async def approve_envelope(
         await db.commit()
         out = EnvelopeOut.model_validate(envelope)
         out.sla = build_sla_info(envelope)
+        await ns.notify_sobre_en_firmas(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -750,6 +776,7 @@ async def request_corrections(
         await db.commit()
         out = EnvelopeOut.model_validate(envelope)
         out.sla = build_sla_info(envelope)
+        await ns.notify_correcciones_solicitadas(envelope)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -776,6 +803,8 @@ async def reject_envelope(
         await db.commit()
         out = EnvelopeOut.model_validate(envelope)
         out.sla = build_sla_info(envelope)
+        coordinador_ids = await _get_coordinador_ids()
+        await ns.notify_sobre_rechazado(envelope, coordinador_ids)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -851,6 +880,9 @@ async def assign_lawyer(
         await db.commit()
         out = EnvelopeOut.model_validate(envelope)
         out.sla = build_sla_info(envelope)
+        if lawyer_id:
+            await ns.notify_abogado_asignado(envelope, lawyer_id)
+            await ns.notify_solicitante_abogado_asignado(envelope)
         return out
     except ValueError as e:
         from fastapi import HTTPException

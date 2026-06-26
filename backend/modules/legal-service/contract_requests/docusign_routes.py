@@ -8,6 +8,7 @@ from sqlalchemy import select, update
 from app.database import get_db
 from .models import Envelope, EnvelopeAttachment, EnvelopeSigner, EnvelopeActivityLog
 from .service import log_activity
+from . import notification_service as ns
 from . import docusign_service as ds
 
 router = APIRouter(prefix="/envelopes", tags=["DocuSign"])
@@ -244,6 +245,21 @@ async def _process_completed_envelope(db: AsyncSession, docusign_envelope_id: st
     )
 
     await db.commit()
+
+    # Notificaciones — sobre completado
+    import httpx as _httpx
+    coordinador_ids = []
+    try:
+        async with _httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "legal", "role_slug": "coordinador_legal"}
+            )
+            if r.status_code == 200:
+                coordinador_ids = [u["id"] for u in r.json()]
+    except Exception as e:
+        print(f"[notify] Error obteniendo coordinadores: {e}")
+    await ns.notify_sobre_completado(envelope, coordinador_ids)
 
     print(f"[docusign] Sobre {envelope.folio} completado — PDF archivado en {object_key}")
     return {
