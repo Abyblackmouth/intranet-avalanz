@@ -85,8 +85,8 @@ const SLADot = ({ color, status }: { color: SLAColor, status?: string }) => {
 const SLAPill = ({ item }: { item: EnvelopeListItem }) => {
   if (!item.submitted_at)
     return <span className="text-xs text-slate-400">—</span>
-  const endTime = (item.status === 'completado' || item.status === 'rechazado') && item.sla_closed_at
-    ? new Date(item.sla_closed_at).getTime()
+  const endTime = (item.status === 'completado' || item.status === 'rechazado') && item.completed_at
+    ? new Date(item.completed_at).getTime()
     : Date.now()
   const diffMs = Math.max(0, endTime - new Date(item.submitted_at).getTime())
   const diffHrs = Math.floor(diffMs / 3600000)

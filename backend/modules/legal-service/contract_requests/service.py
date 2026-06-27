@@ -570,6 +570,12 @@ async def approve_envelope(
         raise ValueError(f"Invalid transition: {from_status} → {to_status}")
 
     await close_time_tracking(db, envelope_id, from_status)
+    await close_time_tracking(db, envelope_id, "revision_abogado")
+    # Si no hay abogado asignado, asignar al usuario que aprueba
+    if not envelope.assigned_lawyer_id:
+        envelope.assigned_lawyer_id = user_id
+        envelope.assigned_lawyer_name = user_name
+        envelope.assigned_at = datetime.now(timezone.utc)
     envelope.status = to_status
     envelope.sla_closed_at = datetime.now(timezone.utc)
     envelope.updated_at = datetime.now(timezone.utc)
@@ -659,6 +665,12 @@ async def reject_envelope(
         raise ValueError(f"Invalid transition: {from_status} → {to_status}")
 
     await close_time_tracking(db, envelope_id, from_status)
+    await close_time_tracking(db, envelope_id, "revision_abogado")
+    # Si no hay abogado asignado, asignar al usuario que rechaza
+    if not envelope.assigned_lawyer_id:
+        envelope.assigned_lawyer_id = user_id
+        envelope.assigned_lawyer_name = user_name
+        envelope.assigned_at = datetime.now(timezone.utc)
     envelope.status = to_status
     envelope.sla_closed_at = datetime.now(timezone.utc)
     envelope.updated_at = datetime.now(timezone.utc)

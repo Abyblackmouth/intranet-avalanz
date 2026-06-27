@@ -239,6 +239,7 @@ async def list_envelopes(
             sla_due_at=item.sla_due_at,
             is_sla_breached=item.is_sla_breached,
             sla_color=get_sla_color(item),
+            completed_at=item.completed_at,
             created_at=item.created_at
         ))
 

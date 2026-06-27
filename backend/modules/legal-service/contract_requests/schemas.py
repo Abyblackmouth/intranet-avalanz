@@ -190,6 +190,7 @@ class EnvelopeListItem(BaseModel):
     sla_due_at: Optional[datetime] = None
     is_sla_breached: bool
     sla_color: SLAColor
+    completed_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
