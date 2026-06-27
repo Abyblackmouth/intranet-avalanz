@@ -64,6 +64,34 @@ async def _send_email_sim(db: AsyncSession, envelope_id: str, frontend_url: str,
     signers = signers_result.scalars().all()
 
     if not signers:
+        # Auto-create signers from form_data using signers_definition in fields.json
+        import os as _os, json as _json
+        templates_dir = _os.path.join(_os.path.dirname(__file__), "..", "templates")
+        form_data = envelope.form_data or {}
+        fp = _os.path.join(templates_dir, "nda-mutuo", "fields.json")
+        if _os.path.exists(fp):
+            with open(fp) as _f:
+                fields_data = _json.load(_f)
+            for sdef in fields_data.get("signers_definition", []):
+                name  = form_data.get(sdef.get("name_field", ""), "")
+                email = form_data.get(sdef.get("email_field", ""), "")
+                role  = form_data.get(sdef.get("role_field", ""), sdef.get("role_in_document", ""))
+                if name and email:
+                    db.add(EnvelopeSigner(
+                        envelope_id=envelope_id,
+                        signer_type=sdef.get("signer_type", "external"),
+                        name=name, email=email, role_in_document=role,
+                        routing_order=sdef.get("routing_order", 1),
+                        status="pending",
+                    ))
+            await db.flush()
+            signers_result2 = await db.execute(
+                select(EnvelopeSigner)
+                .where(EnvelopeSigner.envelope_id == envelope_id)
+                .order_by(EnvelopeSigner.routing_order)
+            )
+            signers = signers_result2.scalars().all()
+    if not signers:
         raise ValueError(f"Envelope {envelope_id} has no signers defined")
 
     tokens_created = []
