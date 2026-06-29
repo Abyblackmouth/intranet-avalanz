@@ -190,6 +190,54 @@ const url = `/api/intranet/users?filter=${encodeURIComponent(JSON.stringify(filt
 
 ## Seguridad — pendientes
 
+### fail2ban — log path dinámico del contenedor Nginx
+**Estado:** Pendiente.
+**Descripción:** El jail `nginx-docker` de fail2ban apunta al archivo JSON de logs del contenedor de Nginx por su ID (`6107efc9c61e...`). Si el contenedor se recrea, el ID cambia y fail2ban deja de monitorear el log correcto.
+**Cambio requerido:** Configurar el log path de fail2ban para que use el nombre del contenedor (`avalanz-nginx`) en lugar del ID, o crear un symlink estable. Alternativamente montar el log de Nginx como volumen en una ruta fija del servidor.
+**Impacto:** Seguridad — si el contenedor se recrea, fail2ban deja de banear IPs automáticamente sin que nadie lo note.
+
+### fail2ban — notificación por correo al banear una IP
+**Estado:** Pendiente.
+**Descripción:** Actualmente fail2ban banea IPs automáticamente pero no notifica al administrador. Solo se puede consultar revisando los logs manualmente.
+**Cambio requerido:** Configurar la acción `sendmail` o integrar con el `email-service` de la plataforma para enviar un correo al `super_admin` cuando fail2ban banee una IP, incluyendo la IP baneada, el jail que la detectó y el número de intentos.
+**Impacto:** Seguridad — sin notificación, los ataques bloqueados automáticamente pasan desapercibidos.
+
+### CAPTCHA en formulario de login
+**Estado:** Pendiente — evaluar para producción operativa.
+**Descripción:** El formulario de login no tiene CAPTCHA. Un bot puede intentar credenciales indefinidamente hasta que fail2ban lo detecte (10 intentos con 429). Un CAPTCHA detendría el ataque antes de llegar a esa capa.
+**Cambio requerido:** Integrar Google reCAPTCHA v3 o hCaptcha en el formulario de login del frontend y validar el token en el auth-service antes de procesar el intento.
+**Impacto:** Seguridad — reduce la superficie de ataque de fuerza bruta antes de que llegue a las capas de backend.
+
+### Restringir SSH a IPs conocidas
+**Estado:** Pendiente — evaluar para producción operativa.
+**Descripción:** El puerto 22 (SSH) está abierto para cualquier IP. Un atacante puede intentar entrar por SSH desde cualquier parte del mundo.
+**Cambio requerido:** Restringir en UFW el acceso SSH a las IPs conocidas del equipo de desarrollo y la red corporativa.
+**Impacto:** Seguridad — reduce drásticamente la superficie de ataque SSH.
+
+### Actualizar ignoreip de fail2ban al cambiar IP del equipo
+**Estado:** Pendiente — proceso operativo.
+**Descripción:** La whitelist de fail2ban tiene hardcodeada la IP pública del equipo de desarrollo (`200.23.36.4`). Si cambia la IP, el desarrollador puede quedar baneado accidentalmente.
+**Cambio requerido:** Documentar el procedimiento para actualizar `/etc/fail2ban/jail.local` cuando cambie la IP del equipo y reiniciar fail2ban.
+**Impacto:** Operación — sin actualizar, el desarrollador puede bloquearse a sí mismo.
+
+### 🔴 MinIO expuesto directamente en puerto 9000 — URGENTE
+**Estado:** Pendiente — debe resolverse antes de producción operativa.
+**Descripción:** Las URLs firmadas de descarga de documentos apuntan directamente a `http://10.12.0.51:9000` — el puerto de MinIO está expuesto públicamente a internet. Cualquier persona con la URL firmada puede descargar el archivo, y el puerto 9000 queda visible en los logs del navegador de los usuarios.
+**Cambio requerido:**
+1. Agregar location en Nginx que proxy el tráfico a MinIO:
+```nginx
+location /storage/ {
+    proxy_pass http://minio:9000/;
+    proxy_set_header Host $host;
+}
+```
+2. Cambiar en el `.env` del upload-service:
+```env
+SIGNED_URL_HOST=https://intranet.avalanz.com/storage
+```
+3. Cerrar el puerto 9000 en UFW — ya no necesita estar expuesto públicamente
+**Impacto:** Seguridad crítica — documentos legales confidenciales accesibles por HTTP sin cifrado y MinIO expuesto a internet.
+
 ### SPF + DKIM en Office 365
 **Estado:** Pendiente con el admin del tenant de Office 365.
 **Cambio requerido:**
