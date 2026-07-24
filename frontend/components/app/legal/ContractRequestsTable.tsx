@@ -11,6 +11,8 @@ import {
   getEnvelope, assignLawyer,
 } from '@/services/legalService'
 import { getSignedUrl } from '@/services/uploadService'
+import { useRouter } from 'next/navigation'
+import { useAuthStore } from '@/store/authStore'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -161,6 +163,8 @@ const EnvelopeSlideOver = ({
   const [showCorrections, setShowCorrections] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [acting, setActing] = useState(false)
+  const router = useRouter()
+  const { user } = useAuthStore()
 
   useEffect(() => {
     setLoading(true)
@@ -202,6 +206,8 @@ const EnvelopeSlideOver = ({
   }
 
   const env = data?.envelope
+  const isOwner = !!user && (env?.requested_by_user_id === (user as any)?.id || env?.requested_by_user_id === (user as any)?.user_id)
+  const canCorrect = env?.status === 'pendiente_cliente' && isOwner
 
   return (
     <>
@@ -424,6 +430,18 @@ const EnvelopeSlideOver = ({
               className="w-10 flex items-center justify-center border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 transition"
             >
               <XCircle size={15} />
+            </button>
+          </div>
+        )}
+
+        {canCorrect && (
+          <div className="px-6 py-4 border-t border-slate-200 shrink-0">
+            <button
+              onClick={() => router.push(`/app/legal/solicitud-de-contratos/nuevo?correct=${envelopeId}`)}
+              className="w-full flex items-center justify-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-blue-700 transition"
+            >
+              <RotateCcw size={15} />
+              Corregir y reenviar
             </button>
           </div>
         )}

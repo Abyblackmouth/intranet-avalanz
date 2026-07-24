@@ -428,6 +428,9 @@ async def list_envelope_attachments(
             "attachment_def_id": str(a.attachment_def_id) if a.attachment_def_id else None,
             "uploaded_by_name": a.uploaded_by_name,
             "uploaded_at": a.uploaded_at.isoformat(),
+            "is_current": a.is_current,
+            "version_number": a.version_number,
+            "document_type": a.document_type,
         }
         for a in attachments
     ]
@@ -725,6 +728,9 @@ async def submit_envelope(
             if envelope.assigned_lawyer_id:
                 await ns.notify_abogado_asignado(envelope, str(envelope.assigned_lawyer_id))
                 await ns.notify_solicitante_abogado_asignado(envelope)
+        elif envelope.status == "en_revision_legal":
+            coordinador_ids = await _get_coordinador_ids()
+            await ns.notify_sobre_reenviado(envelope, coordinador_ids)
         return out
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -152,5 +152,21 @@ async def notify_correcciones_solicitadas(envelope) -> None:
     await _ws_send(str(envelope.requested_by_user_id), "legal.tabla_actualizada", data)
 
 
+async def notify_sobre_reenviado(envelope, coordinador_ids: list) -> None:
+    """El solicitante corrigio y reenvio tras correcciones — avisar al abogado asignado y coordinadores."""
+    data = _envelope_data(envelope)
+    title = f"Correcciones recibidas — {envelope.folio}"
+    body = f"{envelope.requested_by_name} reenvió el contrato {envelope.folio} con las correcciones. Listo para revisión."
+    targets = []
+    if envelope.assigned_lawyer_id:
+        targets.append(str(envelope.assigned_lawyer_id))
+    targets.extend([str(c) for c in coordinador_ids])
+    targets = list(dict.fromkeys(targets))
+    await _notify(user_ids=targets, type="info", title=title, body=body,
+                  data=data, company_id=str(envelope.company_id))
+    await _ws_broadcast(targets, "notification.new", {**data, "title": title, "body": body, "type": "info"})
+    await _ws_broadcast(targets, "legal.tabla_actualizada", data)
+
+
 async def ws_refresh_tabla(user_ids: list, envelope) -> None:
     await _ws_broadcast(user_ids, "legal.tabla_actualizada", _envelope_data(envelope))

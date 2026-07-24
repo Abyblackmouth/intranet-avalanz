@@ -78,3 +78,6 @@ Thumbs.db
 *.sql
 *.dump
 *.backup*:Zone.Identifier
+
+# Security — never commit
+security/
