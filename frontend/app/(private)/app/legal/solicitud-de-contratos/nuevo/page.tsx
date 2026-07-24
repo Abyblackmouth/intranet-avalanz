@@ -212,7 +212,7 @@ const Step3Anexos = ({ attachmentDefs, uploadedFiles, onUpload, onRemove, existi
                   ? <button onClick={() => onRemove(def.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition shrink-0"><X size={13} /></button>
                   : <label className="flex items-center gap-1.5 text-xs text-[#1a4fa0] border border-[#1a4fa0]/30 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-blue-50 transition shrink-0">
                       {existing ? <><RotateCcw size={12} />Reemplazar</> : <><Upload size={12} />Subir</>}
-                      <input type="file" accept={accept} className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onUpload(def.id, file); e.target.value = '' }} />
+                      <input type="file" accept={accept} className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onUpload(def.id, file, def.name); e.target.value = '' }} />
                     </label>
                 }
               </div>
@@ -458,6 +458,16 @@ function NuevoContratoInner() {
 
   const hasCurrentAttachment = (defId: string) => existingAttachments.some(a => a.attachment_def_id === defId && a.is_current !== false)
 
+  // Calcula la siguiente versión a partir de las versiones ya existentes
+  const nextVersionForDef = (defId: string) => {
+    const versions = existingAttachments.filter(a => a.attachment_def_id === defId).map(a => a.version_number || 1)
+    return versions.length ? Math.max(...versions) + 1 : 1
+  }
+  const nextContractVersion = () => {
+    const versions = existingAttachments.filter(a => !a.attachment_def_id).map(a => a.version_number || 1)
+    return versions.length ? Math.max(...versions) + 1 : 1
+  }
+
   const validateStep2 = () => {
     if (!templateFields) return false
     const newErrors: Record<string, string> = {}
@@ -494,7 +504,9 @@ function NuevoContratoInner() {
     for (const uploaded of uploadedFiles) {
       try {
         const ext = uploaded.file.name.split('.').pop()
-        const anexoName = `${folio}_${uploaded.name.replace(/\.[^.]+$/, '')}.${ext}`
+        const version = nextVersionForDef(uploaded.defId)
+        const baseName = uploaded.name.replace(/\.[^.]+$/, '')
+        const anexoName = `${folio}_${baseName}_v${version}.${ext}`
         const renamedFile = new File([uploaded.file], anexoName, { type: uploaded.file.type })
         const aFD = new FormData()
         aFD.append('file', renamedFile)
@@ -510,7 +522,8 @@ function NuevoContratoInner() {
   const generateAndUploadPdf = async (envelopeId: string, folio: string, companySlug: string, description: string) => {
     try {
       const pdfRes = await api.post(`/api/v1/legal/envelopes/contract-templates/${selectedTemplate}/preview-pdf`, formData, { responseType: 'blob' })
-      const pdfFile = new File([pdfRes.data], `${folio}_contrato.pdf`, { type: 'application/pdf' })
+      const cv = nextContractVersion()
+      const pdfFile = new File([pdfRes.data], `${folio}_Contrato_v${cv}.pdf`, { type: 'application/pdf' })
       const pdfFD = new FormData()
       pdfFD.append('file', pdfFile)
       pdfFD.append('module_slug', 'legal')
