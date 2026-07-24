@@ -191,6 +191,7 @@ async def list_envelopes(
     status: Optional[str] = Query(None),
     contract_type_id: Optional[str] = Query(None),
     is_sla_breached: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -220,6 +221,7 @@ async def list_envelopes(
         status=status,
         contract_type_id=contract_type_id,
         is_sla_breached=is_sla_breached,
+        search=search,
         page=page,
         per_page=per_page
     )

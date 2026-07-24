@@ -816,6 +816,7 @@ async def list_envelopes(
     status: Optional[str] = None,
     contract_type_id: Optional[str] = None,
     is_sla_breached: Optional[bool] = None,
+    search: Optional[str] = None,
     page: int = 1,
     per_page: int = 20
 ) -> Tuple[List[Envelope], int]:
@@ -830,6 +831,13 @@ async def list_envelopes(
         q = q.where(Envelope.contract_type_id == contract_type_id)
     if is_sla_breached is not None:
         q = q.where(Envelope.is_sla_breached == is_sla_breached)
+    if search and search.strip():
+        like = f"%{search.strip()}%"
+        q = q.where(
+            Envelope.folio.ilike(like)
+            | Envelope.requested_by_name.ilike(like)
+            | Envelope.company_name.ilike(like)
+        )
 
     count_result = await db.execute(select(func.count()).select_from(q.subquery()))
     total = count_result.scalar() or 0
