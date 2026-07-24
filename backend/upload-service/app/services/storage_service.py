@@ -5,6 +5,18 @@ from typing import Optional
 
 from app.config import config
 from shared.exceptions.http_exceptions import StorageException
+import unicodedata
+import re as _re
+
+
+def _ascii_safe(value: str) -> str:
+    """Convierte un texto a ASCII para la metadata de S3: quita acentos y
+    reemplaza cualquier caracter fuera de [A-Za-z0-9._-] por guion bajo."""
+    if value is None:
+        return ""
+    text = unicodedata.normalize("NFKD", str(value)).encode("ascii", "ignore").decode("ascii")
+    text = _re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("_")
+    return text or "archivo"
 
 
 # ── Cliente S3 / MinIO ────────────────────────────────────────────────────────
@@ -56,7 +68,7 @@ async def upload_file(
         try:
             extra_args = {"ContentType": content_type}
             if metadata:
-                extra_args["Metadata"] = {k: str(v) for k, v in metadata.items()}
+                extra_args["Metadata"] = {k: _ascii_safe(v) for k, v in metadata.items()}
 
             await s3.put_object(
                 Bucket=bucket,
@@ -169,4 +181,4 @@ def build_object_key(
     safe_name: str,
     ext: str,
 ) -> str:
-    return f"{company_slug}/{module_slug}/{submodule_slug}/{unique_id}_{safe_name}{ext}"
+    return f"{company_slug}/{module_slug}/{submodule_slug}/{unique_id}_{_ascii_safe(safe_name)}{ext}"
