@@ -142,34 +142,28 @@ export default function ContractRequestsPage() {
         ) : undefined
       }
     >
-      {/* KPIs */}
+      {/* KPIs — en una sola linea, mas delgados */}
       <div className="grid grid-cols-3 gap-3 mb-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-            <FileCheck size={18} className="text-[#1a4fa0]" />
+        <div className="bg-white rounded-xl ring-1 ring-slate-200/70 shadow-[0_1px_2px_rgba(16,45,90,0.05)] px-4 py-2.5 flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+            <FileCheck size={15} className="text-[#1a4fa0]" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-slate-900">{totalActive}</p>
-            <p className="text-xs text-slate-400 mt-0.5">Solicitudes activas</p>
-          </div>
+          <p className="text-lg font-bold text-slate-900 leading-none">{totalActive}</p>
+          <p className="text-xs text-slate-500">Solicitudes activas</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-            <Flag size={18} className="text-red-600" />
+        <div className="bg-white rounded-xl ring-1 ring-slate-200/70 shadow-[0_1px_2px_rgba(16,45,90,0.05)] px-4 py-2.5 flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+            <Flag size={15} className="text-red-600" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-red-600">{totalOverdue}</p>
-            <p className="text-xs text-slate-400 mt-0.5">Atrasadas (SLA vencido)</p>
-          </div>
+          <p className="text-lg font-bold text-red-600 leading-none">{totalOverdue}</p>
+          <p className="text-xs text-slate-500">Atrasadas (SLA vencido)</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
-            <Clock size={18} className="text-violet-600" />
+        <div className="bg-white rounded-xl ring-1 ring-slate-200/70 shadow-[0_1px_2px_rgba(16,45,90,0.05)] px-4 py-2.5 flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+            <Clock size={15} className="text-violet-600" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-violet-600">{totalInSignatures}</p>
-            <p className="text-xs text-slate-400 mt-0.5">En espera de firmas</p>
-          </div>
+          <p className="text-lg font-bold text-violet-600 leading-none">{totalInSignatures}</p>
+          <p className="text-xs text-slate-500">En espera de firmas</p>
         </div>
       </div>
 
@@ -228,7 +222,7 @@ export default function ContractRequestsPage() {
         </div>
 
         <p className="text-xs text-slate-400 mt-3">
-          Mostrando {items.length} de {total} solicitudes
+          Mostrando {items.length} de {total} sobres
         </p>
       </div>
 
