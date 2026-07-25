@@ -783,13 +783,13 @@ export default function ContractRequestsTable({
           <table className="w-full table-fixed" style={{ borderCollapse: 'collapse', fontSize: 13 }}>
             <colgroup>
               <col style={{ width: '3%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '9%' }} />
               <col style={{ width: '8%' }} />
               {showSolicitante && <><col style={{ width: '11%' }} /><col style={{ width: '24%' }} /></>}
               <col style={{ width: '8%' }} />
               <col style={{ width: '6%' }} />
-              <col style={{ width: '11%' }} />
-              {showAbogado && <col style={{ width: '15%' }} />}
+              <col style={{ width: '8%' }} />
+              {showAbogado && <col style={{ width: '19%' }} />}
               <col style={{ width: '4%' }} />
             </colgroup>
             <thead>
