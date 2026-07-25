@@ -783,26 +783,26 @@ export default function ContractRequestsTable({
           <table className="w-full table-fixed" style={{ borderCollapse: 'collapse', fontSize: 13 }}>
             <colgroup>
               <col style={{ width: '3%' }} />
+              <col style={{ width: '9%' }} />
               <col style={{ width: '8%' }} />
-              <col style={{ width: '9%' }} />
-              {showSolicitante && <><col style={{ width: '7%' }} /><col style={{ width: '21%' }} /></>}
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '13%' }} />
+              {showSolicitante && <><col style={{ width: '13%' }} /><col style={{ width: '18%' }} /></>}
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '5%' }} />
+              <col style={{ width: '11%' }} />
               {showAbogado && <col style={{ width: '13%' }} />}
               <col style={{ width: '4%' }} />
             </colgroup>
             <thead>
               <tr className="bg-slate-50/60 border-b border-slate-100">
-                <th className="px-3 py-3" />
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Folio</th>
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Tipo</th>
-                {showSolicitante && <><th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Empresa</th><th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Solicitante</th></>}
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">{role === 'solicitante' ? "Enviado" : "Recibido"}</th>
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Días</th>
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Estado</th>
-                {showAbogado && <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Abogado</th>}
-                <th className="px-4 py-3 w-10" />
+                <th className="px-3 py-2.5" />
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Folio</th>
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Tipo</th>
+                {showSolicitante && <><th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Empresa</th><th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Solicitante</th></>}
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">{role === 'solicitante' ? "Enviado" : "Recibido"}</th>
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Días</th>
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Estado</th>
+                {showAbogado && <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Abogado</th>}
+                <th className="px-3 py-2.5 w-10" />
               </tr>
             </thead>
             <tbody>
@@ -812,15 +812,15 @@ export default function ContractRequestsTable({
                   className="group border-b border-slate-50 last:border-0 hover:bg-slate-50 hover:shadow-[inset_3px_0_0_0_#1a4fa0] transition-all duration-150 cursor-pointer"
                   onClick={() => setDetailId(item.id)}
                 >
-                  <td className="px-3 py-3.5 text-center"><SLADot color={item.sla_color} status={item.status} /></td>
-                  <td className="px-4 py-3.5">
+                  <td className="px-3 py-3 text-center"><SLADot color={item.sla_color} status={item.status} /></td>
+                  <td className="px-3 py-3">
                     <span className="font-bold text-[#1a4fa0] font-mono group-hover:underline">{item.folio}</span>
                   </td>
-                  <td className="px-4 py-3.5 text-slate-600">{item.contract_type_name}</td>
+                  <td className="px-3 py-3 text-slate-600">{item.contract_type_name}</td>
                   {showSolicitante && (
                     <>
-                      <td className="px-4 py-3.5 text-xs text-slate-500 font-medium uppercase">{item.company_name}</td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-3 py-3 text-xs text-slate-500 font-medium uppercase truncate">{item.company_name}</td>
+                      <td className="px-3 py-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <Avatar name={item.requested_by_name} photoUrl={(item as any).requested_by_photo_url} size="sm" />
                           <p className="text-sm text-slate-700 truncate leading-tight">{item.requested_by_name}</p>
@@ -828,11 +828,11 @@ export default function ContractRequestsTable({
                       </td>
                     </>
                   )}
-                  <td className="px-4 py-3.5 text-xs text-slate-500">{formatDate(item.submitted_at)}</td>
-                  <td className="px-4 py-3.5"><SLAPill item={item} /></td>
-                  <td className="px-4 py-3.5"><StatusBadge status={item.status} /></td>
+                  <td className="px-3 py-3 text-xs text-slate-500">{formatDate(item.submitted_at)}</td>
+                  <td className="px-3 py-3"><SLAPill item={item} /></td>
+                  <td className="px-3 py-3"><StatusBadge status={item.status} /></td>
                   {showAbogado && (
-                    <td className="px-4 py-3.5">
+                    <td className="px-3 py-3">
                       {item.assigned_lawyer_name ? (
                         <div className="flex items-center gap-2 min-w-0">
                           <Avatar name={item.assigned_lawyer_name} photoUrl={(item as any).assigned_lawyer_photo_url} size="sm" />
@@ -845,7 +845,7 @@ export default function ContractRequestsTable({
                       )}
                     </td>
                   )}
-                  <td className="px-2 py-3.5" onClick={e => e.stopPropagation()}>
+                  <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
                     <ActionMenu item={item} role={role} onRefresh={() => onRefresh(true)} onViewDetail={() => setDetailId(item.id)} />
                   </td>
                 </tr>
