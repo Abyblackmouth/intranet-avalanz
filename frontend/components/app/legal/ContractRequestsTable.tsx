@@ -41,10 +41,14 @@ const avatarColors = [
   'bg-orange-400','bg-rose-500','bg-emerald-500',
 ]
 
-const Avatar = ({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) => {
+const Avatar = ({ name, photoUrl, size = 'md' }: { name: string; photoUrl?: string | null; size?: 'sm' | 'md' | 'lg' }) => {
   const initials = name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
   const colorIdx = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % avatarColors.length
   const sz = size === 'sm' ? 'w-6 h-6 text-[10px]' : size === 'lg' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs'
+  // Si en el futuro el backend envia la foto de perfil, se muestra; si no, iniciales con color por nombre.
+  if (photoUrl) {
+    return <img src={photoUrl} alt={name} className={`${sz} rounded-lg object-cover shrink-0`} />
+  }
   return (
     <div className={`${sz} ${avatarColors[colorIdx]} rounded-lg flex items-center justify-center shrink-0`}>
       <span className="text-white font-bold">{initials}</span>
@@ -723,9 +727,9 @@ export default function ContractRequestsTable({
   const showAbogado = role === 'coordinador_legal' || role === 'director' || role === 'super_admin'
 
   const EmptyState = () => (
-    <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-        <FileText size={22} className="text-slate-400" />
+    <div className="bg-white rounded-2xl ring-1 ring-slate-200/70 shadow-[0_1px_3px_rgba(16,45,90,0.07)] p-14 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+        <FileText size={24} className="text-slate-400" />
       </div>
       <p className="text-slate-600 text-sm font-medium">Sin sobres</p>
       <p className="text-slate-400 text-xs mt-1">Ajusta los filtros o crea un nuevo sobre</p>
@@ -774,10 +778,10 @@ export default function ContractRequestsTable({
   return (
     <>
       {/* ── DESKTOP: Tabla ── */}
-      <div className="hidden md:block bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
+      <div className="hidden md:block bg-white rounded-2xl ring-1 ring-slate-200/70 shadow-[0_1px_3px_rgba(16,45,90,0.07)] overflow-hidden">
         <div style={{ overflowX: 'auto' }}>
           <table className="w-full table-fixed" style={{ borderCollapse: 'collapse', fontSize: 13 }}>
-                                    <colgroup>
+            <colgroup>
               <col style={{ width: '3%' }} />
               <col style={{ width: '8%' }} />
               <col style={{ width: '9%' }} />
@@ -789,51 +793,49 @@ export default function ContractRequestsTable({
               <col style={{ width: '4%' }} />
             </colgroup>
             <thead>
-              <tr className="bg-slate-50 border-b-2 border-slate-200">
-                <th className="px-3 py-3 bg-slate-50" />
-                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Folio</th>
-                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Tipo</th>
-                {showSolicitante && <><th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Empresa</th><th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Solicitante</th></>}
-                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">{role === 'solicitante' ? "Enviado" : "Recibido"}</th>
-                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Días</th>
-                <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Estado</th>
-                {showAbogado && <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-widest px-4 py-3 bg-slate-50">Abogado</th>}
-                <th className="px-4 py-3 bg-slate-50 w-10" />
+              <tr className="bg-slate-50/60 border-b border-slate-100">
+                <th className="px-3 py-3" />
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Folio</th>
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Tipo</th>
+                {showSolicitante && <><th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Empresa</th><th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Solicitante</th></>}
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">{role === 'solicitante' ? "Enviado" : "Recibido"}</th>
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Días</th>
+                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Estado</th>
+                {showAbogado && <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-4 py-3">Abogado</th>}
+                <th className="px-4 py-3 w-10" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody>
               {items.map(item => (
-                <tr key={item.id} className="hover:bg-slate-100 transition-colors cursor-pointer">
-                  <td className="px-3 py-4 text-center"><SLADot color={item.sla_color} status={item.status} /></td>
-                  <td className="px-4 py-3">
-                    <span
-                      className="font-bold text-[#1a4fa0] font-mono cursor-pointer hover:underline"
-                      onClick={() => setDetailId(item.id)}
-                    >
-                      {item.folio}
-                    </span>
-
+                <tr
+                  key={item.id}
+                  className="group border-b border-slate-50 last:border-0 hover:bg-slate-50 hover:shadow-[inset_3px_0_0_0_#1a4fa0] transition-all duration-150 cursor-pointer"
+                  onClick={() => setDetailId(item.id)}
+                >
+                  <td className="px-3 py-3.5 text-center"><SLADot color={item.sla_color} status={item.status} /></td>
+                  <td className="px-4 py-3.5">
+                    <span className="font-bold text-[#1a4fa0] font-mono group-hover:underline">{item.folio}</span>
                   </td>
-                  <td className="px-4 py-4 text-slate-700">{item.contract_type_name}</td>
+                  <td className="px-4 py-3.5 text-slate-600">{item.contract_type_name}</td>
                   {showSolicitante && (
                     <>
-                      <td className="px-4 py-4 text-xs text-slate-600 font-medium uppercase">{item.company_name}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3.5 text-xs text-slate-500 font-medium uppercase">{item.company_name}</td>
+                      <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Avatar name={item.requested_by_name} size="sm" />
+                          <Avatar name={item.requested_by_name} photoUrl={(item as any).requested_by_photo_url} size="sm" />
                           <p className="text-sm text-slate-700 truncate leading-tight">{item.requested_by_name}</p>
                         </div>
                       </td>
                     </>
                   )}
-                  <td className="px-4 py-4 text-xs text-slate-500">{formatDate(item.submitted_at)}</td>
-                  <td className="px-4 py-4"><SLAPill item={item} /></td>
-                  <td className="px-4 py-4"><StatusBadge status={item.status} /></td>
+                  <td className="px-4 py-3.5 text-xs text-slate-500">{formatDate(item.submitted_at)}</td>
+                  <td className="px-4 py-3.5"><SLAPill item={item} /></td>
+                  <td className="px-4 py-3.5"><StatusBadge status={item.status} /></td>
                   {showAbogado && (
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       {item.assigned_lawyer_name ? (
                         <div className="flex items-center gap-2 min-w-0">
-                          <Avatar name={item.assigned_lawyer_name} size="sm" />
+                          <Avatar name={item.assigned_lawyer_name} photoUrl={(item as any).assigned_lawyer_photo_url} size="sm" />
                           <span className="text-sm text-slate-700 truncate">{item.assigned_lawyer_name}</span>
                         </div>
                       ) : (
@@ -843,22 +845,9 @@ export default function ContractRequestsTable({
                       )}
                     </td>
                   )}
-                  <td className="px-2 py-4">
+                  <td className="px-2 py-3.5" onClick={e => e.stopPropagation()}>
                     <ActionMenu item={item} role={role} onRefresh={() => onRefresh(true)} onViewDetail={() => setDetailId(item.id)} />
                   </td>
-                </tr>
-              ))}
-              {Array.from({ length: Math.max(0, 8 - items.length) }).map((_, i) => (
-                <tr key={`empty-${i}`} className="pointer-events-none">
-                  <td className="px-3 py-4" />
-                  <td className="px-4 py-4" />
-                  <td className="px-4 py-4" />
-                  {showSolicitante && <><td className="px-4 py-4" /><td className="px-4 py-4" /></>}
-                  <td className="px-4 py-4" />
-                  <td className="px-4 py-4" />
-                  <td className="px-4 py-4" />
-                  {showAbogado && <td className="px-4 py-4" />}
-                  <td className="px-4 py-4" />
                 </tr>
               ))}
             </tbody>
