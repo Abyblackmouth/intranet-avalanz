@@ -5,6 +5,7 @@ import { Mail, Building2, Briefcase, Hash, ShieldCheck, Info, Camera, Loader2, Z
 import { useAuthStore } from "@/store/authStore"
 import api from "@/services/api"
 import { uploadToStorage, getSignedUrl } from "@/services/uploadService"
+import { refreshAvatarPhoto } from "@/hooks/useAvatarPhoto"
 
 interface UserProfile {
   id: string
@@ -258,6 +259,7 @@ export default function ProfilePage() {
       await api.post(`/api/v1/users/${user?.user_id}/photo`, { object_key: objectKey })
       closeCropper()
       await fetchProfile()
+      refreshAvatarPhoto()
     } catch {
       setPhotoError("No se pudo subir la foto. Intenta de nuevo.")
     } finally {

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, LogOut, User, Shield, Clock } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import { useAvatarPhoto } from '@/hooks/useAvatarPhoto'
 import { logout } from '@/services/authService'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { useWebSocket, useWSEvent } from '@/hooks/useWebSocket'
@@ -13,6 +14,7 @@ import Cookies from 'js-cookie'
 export default function Header() {
   const router = useRouter()
   const { user, isAdmin, isSuperAdmin, logout: clearStore, setLoggingOut } = useAuthStore()
+  const photoUrl = useAvatarPhoto()
   const [mounted, setMounted] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [now, setNow] = useState<Date | null>(null)
@@ -124,8 +126,13 @@ export default function Header() {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition"
           >
-            <div className="w-7 h-7 bg-sky-700 rounded-lg flex items-center justify-center shrink-0">
-              <span className="text-white text-xs font-bold">{initials}</span>
+            <div className="w-7 h-7 bg-sky-700 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white text-xs font-bold">{initials}</span>
+              )}
             </div>
             <div className="text-left hidden sm:block">
               <p className="text-sm font-medium text-slate-900 leading-tight">
