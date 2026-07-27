@@ -240,7 +240,7 @@ export default function CompanyEditForm({ company, onClose, onSaved }: CompanyEd
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-50 rounded-lg">
               <Building2 size={18} className="text-blue-600" />
@@ -256,7 +256,7 @@ export default function CompanyEditForm({ company, onClose, onSaved }: CompanyEd
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 px-6 flex-shrink-0">
+        <div className="flex border-b border-slate-200 px-6 shrink-0">
           <button
             onClick={() => { setTab('datos'); setError(null) }}
             className={`flex items-center gap-2 py-3 px-1 mr-6 text-sm font-medium border-b-2 transition-colors ${
@@ -322,7 +322,7 @@ export default function CompanyEditForm({ company, onClose, onSaved }: CompanyEd
 
               {error && (
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  <AlertCircle size={15} className="flex-shrink-0" />
+                  <AlertCircle size={15} className="shrink-0" />
                   {error}
                 </div>
               )}
@@ -335,7 +335,7 @@ export default function CompanyEditForm({ company, onClose, onSaved }: CompanyEd
 
               {error && (
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  <AlertCircle size={15} className="flex-shrink-0" />
+                  <AlertCircle size={15} className="shrink-0" />
                   {error}
                 </div>
               )}
@@ -510,7 +510,7 @@ export default function CompanyEditForm({ company, onClose, onSaved }: CompanyEd
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 flex-shrink-0">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"

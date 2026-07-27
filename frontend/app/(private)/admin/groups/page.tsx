@@ -65,7 +65,7 @@ function GroupForm({
         <div className="px-6 py-5 space-y-4">
           {error && (
             <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              <AlertCircle size={15} className="flex-shrink-0" />
+              <AlertCircle size={15} className="shrink-0" />
               {error}
             </div>
           )}

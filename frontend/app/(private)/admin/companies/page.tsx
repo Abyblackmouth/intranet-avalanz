@@ -264,7 +264,7 @@ export default function CompaniesPage() {
                         </button>
                       )}
                       <div className="flex items-center gap-2 mb-2 pr-7">
-                        <div className={`w-3 h-3 rounded-full flex-shrink-0 transition-colors duration-300 ${
+                        <div className={`w-3 h-3 rounded-full shrink-0 transition-colors duration-300 ${
                           company.is_active ? 'bg-emerald-400' : 'bg-red-400'
                         }`} />
                         <p className="text-sm font-bold text-slate-800 leading-tight truncate">
