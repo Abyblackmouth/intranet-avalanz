@@ -283,3 +283,40 @@ Los siguientes puntos están documentados en `docs/architecture/tech-debt.md` ba
 - Configuración Nginx: `infrastructure/nginx/nginx.conf` y `infrastructure/nginx/conf.d/intranet.conf`
 - Incidentes: `security/incidents/`
 - Tests de seguridad: `security/tests/`
+
+
+---
+
+## Red corporativa y 2FA condicional
+
+El auth-service solicita 2FA solo cuando el login proviene de una IP fuera de los rangos definidos en `CORPORATE_IP_RANGES` (en `backend/auth-service/.env`). Si el login viene de un rango corporativo, no se pide 2FA.
+
+Rangos corporativos autorizados:
+
+| Rango | Descripcion |
+|---|---|
+| 192.168.0.0/16 | Redes privadas LAN |
+| 10.0.0.0/8 | Red interna corporativa |
+| 172.16.0.0/12 | Rango privado / Docker |
+| 127.0.0.1/32 | Loopback local |
+| 200.23.36.0/24 | Salida a internet de oficina (bloque previo) |
+| 200.13.24.0/24 | Salida a internet de oficina (agregado 27 jul 2026) |
+
+El 27 jul 2026 la IP publica de salida de la oficina cambio de 200.23.36.x a 200.13.24.54, por lo que se empezo a solicitar 2FA en la oficina. Se agrego el bloque 200.13.24.0/24 para corregirlo. Si vuelve a cambiar la IP de salida, agregar el nuevo rango aqui y en el .env del auth-service.
+
+Como aplicar un cambio de rango:
+1. Editar `CORPORATE_IP_RANGES` en `backend/auth-service/.env` en local Y en el servidor (el .env no viaja por git).
+2. Recrear el contenedor: `cd infrastructure/docker && docker compose up -d --force-recreate auth-service` (un `restart` NO recarga el .env).
+
+---
+
+## IMPORTANTE: contrasenas de BD en los .env de servicios
+
+La contrasena real de PostgreSQL es la definida en `infrastructure/docker/.env` (variable `POSTGRES_PASSWORD`). TODOS los .env de servicios que conectan a la BD (auth, admin, notify) deben tener ese mismo valor en `DB_PASSWORD`. NO debe quedar la contrasena de desarrollo (`Avalanz2026!`) en ningun .env de servicio.
+
+Riesgo (ocurrido el 27 jul 2026): al recrear un contenedor con `--force-recreate`, Docker recarga el .env; si `DB_PASSWORD` tiene la contrasena vieja, el servicio se cae al arrancar con:
+`asyncpg.exceptions.InvalidPasswordError: password authentication failed for user "avalanz_user"`.
+Mientras el contenedor no se recree, sigue corriendo con la config antigua en memoria, por lo que el problema queda latente hasta el siguiente recreate o el go-live.
+
+Verificacion recomendada antes de cualquier despliegue o recreate:
+`grep -rn "DB_PASSWORD" backend/*/.env` — todos deben coincidir con `POSTGRES_PASSWORD` de `infrastructure/docker/.env`. Por seguridad, la contrasena real no se escribe en esta documentacion.
