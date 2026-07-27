@@ -126,7 +126,7 @@ export default function Header() {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition"
           >
-            <div className="w-7 h-7 bg-sky-700 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="w-9 h-9 bg-sky-700 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
               {photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photoUrl} alt="" className="w-full h-full object-cover" />

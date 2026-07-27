@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
-import { useAvatarPhoto } from '@/hooks/useAvatarPhoto'
 
 interface NavItem {
   label: string
@@ -35,14 +34,9 @@ function getModuleIcon(iconSlug: string | null | undefined): React.ReactNode {
   return <Icon size={16} />
 }
 
-function getInitials(name: string) {
-  return name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() || 'U'
-}
-
 export default function Sidebar() {
   const pathname = usePathname()
   const { user, isAdmin, isSuperAdmin, isLoggingOut } = useAuthStore()
-  const photoUrl = useAvatarPhoto()
   if (isLoggingOut) return null
   const [collapsed, setCollapsed] = useState(false)
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
@@ -194,47 +188,8 @@ export default function Sidebar() {
         )}
       </div>
 
-      <div className="h-px bg-slate-100 mx-3 shrink-0" />
-
-      {/* Footer usuario */}
-      <div className="px-3 py-2.5 shrink-0">
-        {mounted && collapsed ? (
-          <div className="w-8 h-8 bg-[#1a4fa0] rounded-lg flex items-center justify-center mx-auto overflow-hidden">
-            {photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={photoUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-white text-xs font-bold">
-                {user?.full_name ? getInitials(user.full_name) : 'U'}
-              </span>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 shrink-0 relative">
-              <div className="w-8 h-8 bg-[#1a4fa0] rounded-lg overflow-hidden flex items-center justify-center">
-                {photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photoUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-white text-xs font-bold">
-                    {mounted && user?.full_name ? getInitials(user.full_name) : 'U'}
-                  </span>
-                )}
-              </div>
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
-            </div>
-            <div className="overflow-hidden">
-              <p className="text-slate-700 text-xs font-semibold truncate leading-tight">
-                {mounted ? (user?.full_name || 'Usuario') : 'Usuario'}
-              </p>
-              <p className="text-slate-400 text-[10px] truncate leading-tight">
-                {mounted ? (isSuperAdmin() ? 'Super Admin' : isAdmin() ? 'Admin Empresa' : 'Usuario') : ''}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Footer del sidebar — espacio reservado para uso futuro */}
+      {/* Aqui puede ir: estado del sistema, accesos rapidos, etc. */}
     </aside>
   )
 }
