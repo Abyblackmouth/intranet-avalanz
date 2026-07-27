@@ -61,6 +61,10 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class SetPhotoRequest(BaseModel):
+    object_key: str
+
+
 @router.post("/", response_model=CreatedResponse)
 async def create_user(
     body: CreateUserRequest,
@@ -132,6 +136,19 @@ async def get_user(
 ):
     result = await user_service.get_user_by_id(db=db, user_id=user_id)
     return DataResponse(success=True, message="Usuario obtenido", data=result)
+
+
+@router.post("/{user_id}/photo", response_model=DataResponse)
+async def set_user_photo(
+    user_id: str,
+    body: SetPhotoRequest,
+    db: AsyncSession = Depends(get_db),
+    payload=Depends(validator.get_current_user()),
+):
+    result = await user_service.register_user_photo(
+        db=db, user_id=user_id, object_key=body.object_key, requested_by=payload,
+    )
+    return DataResponse(success=True, message="Foto actualizada", data=result)
 
 
 @router.patch("/{user_id}", response_model=DataResponse)

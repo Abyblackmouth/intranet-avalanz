@@ -51,6 +51,7 @@ async def upload(
     submodule_slug: str,
     uploaded_by: str,
     company_id: str,
+    fixed_key: Optional[str] = None,
 ) -> Dict[str, Any]:
 
     file_data = await validate_file(file)
@@ -63,17 +64,23 @@ async def upload(
     is_image = file.content_type in config.ALLOWED_IMAGE_TYPES
     bucket = config.BUCKET_DIRDOC
 
-    # Construir object key con estructura dirdoc/company_slug/module_slug/submodule_slug/
-    unique_id = str(uuid.uuid4())[:8]
-    safe_name = original_name.replace(" ", "_").lower()
-    object_key = build_object_key(
-        company_slug=company_slug,
-        module_slug=module_slug,
-        submodule_slug=submodule_slug,
-        unique_id=unique_id,
-        safe_name=safe_name,
-        ext=ext,
-    )
+    # Si viene fixed_key se usa esa ruta tal cual (sobrescribe el archivo anterior,
+    # no se generan versiones extra). Si no, se genera una key unica con UUID.
+    if fixed_key:
+        safe_name = os.path.basename(fixed_key)
+        unique_id = "fixed"
+        object_key = fixed_key
+    else:
+        unique_id = str(uuid.uuid4())[:8]
+        safe_name = original_name.replace(" ", "_").lower()
+        object_key = build_object_key(
+            company_slug=company_slug,
+            module_slug=module_slug,
+            submodule_slug=submodule_slug,
+            unique_id=unique_id,
+            safe_name=safe_name,
+            ext=ext,
+        )
 
     # Calcular checksum SHA256 para verificacion de integridad
     checksum = compute_checksum(file_data)

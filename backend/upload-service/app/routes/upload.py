@@ -18,6 +18,7 @@ async def upload_file(
     company_slug: str = Form(...),
     module_slug: str = Form(...),
     submodule_slug: str = Form(...),
+    fixed_key: Optional[str] = Form(None),
     payload=Depends(validator.get_current_user()),
 ):
     result = await upload(
@@ -27,6 +28,7 @@ async def upload_file(
         submodule_slug=submodule_slug,
         uploaded_by=payload.get("user_id"),
         company_id=payload.get("company_id") or "",
+        fixed_key=fixed_key,
     )
     return DataResponse(success=True, message="Archivo subido exitosamente", data=result)
 

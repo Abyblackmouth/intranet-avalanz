@@ -396,6 +396,27 @@ async def _get_module_accesses_for_report(db, user_id, is_super_admin):
     return result
 
 
+async def register_user_photo(db, user_id, object_key, requested_by=None):
+    result = await db.execute(select(User).where(User.id == user_id, User.is_deleted == False))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise NotFoundException("Usuario")
+    # Permisos: el propio usuario o un administrador
+    is_owner = requested_by and str(requested_by.get("user_id")) == str(user.id)
+    if not is_owner and not _is_super_admin(requested_by) and not _is_admin_empresa(requested_by):
+        raise ForbiddenException("No tienes permisos para cambiar esta foto")
+    if not object_key or not object_key.strip():
+        raise ValidationException("object_key requerido")
+    await db.execute(
+        update(User).where(User.id == user.id).values(
+            photo_object_key=object_key.strip(),
+            photo_updated_at=now_utc(),
+        )
+    )
+    await db.commit()
+    return await get_user_by_id(db, user_id)
+
+
 def _serialize_user(user, company_name="", company_razon_social="", company_rfc="", auth_data={}, roles=[], module_accesses=[]):
     return {
         "user_id": str(user.id),
@@ -417,6 +438,8 @@ def _serialize_user(user, company_name="", company_razon_social="", company_rfc=
         "is_2fa_configured": auth_data.get("is_2fa_configured", False),
         "last_login_at": auth_data.get("last_login_at", None),
         "created_at": user.created_at.isoformat(),
+        "photo_object_key": getattr(user, "photo_object_key", None),
+        "photo_updated_at": user.photo_updated_at.isoformat() if getattr(user, "photo_updated_at", None) else None,
         "module_accesses": module_accesses,
     }
 
