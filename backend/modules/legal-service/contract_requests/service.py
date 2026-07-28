@@ -929,6 +929,36 @@ async def get_envelope_activity_log(
     return result.scalars().all()
 
 
+async def get_user_activity(
+    db: AsyncSession,
+    user_id: str,
+    since: Optional[datetime] = None,
+) -> List[Dict[str, Any]]:
+    """Actividad de un usuario en todos los sobres — para el reporte de auditoria
+    del admin-service. Junta EnvelopeActivityLog con el folio del sobre."""
+    q = (
+        select(EnvelopeActivityLog, Envelope.folio, Envelope.contract_type_name)
+        .join(Envelope, EnvelopeActivityLog.envelope_id == Envelope.id)
+        .where(EnvelopeActivityLog.performed_by_user_id == user_id)
+    )
+    if since:
+        q = q.where(EnvelopeActivityLog.performed_at >= since)
+    q = q.order_by(EnvelopeActivityLog.performed_at.desc())
+    result = await db.execute(q)
+    rows = result.all()
+    return [
+        {
+            "folio": folio,
+            "contract_type_name": contract_type_name,
+            "action": log.action,
+            "performed_by_role": log.performed_by_role,
+            "performed_at": log.performed_at.isoformat(),
+            "detail": log.detail,
+        }
+        for log, folio, contract_type_name in rows
+    ]
+
+
 async def get_envelope_form_snapshots(
     db: AsyncSession,
     envelope_id: str

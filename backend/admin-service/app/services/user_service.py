@@ -417,6 +417,26 @@ async def register_user_photo(db, user_id, object_key, requested_by=None):
     return await get_user_by_id(db, user_id)
 
 
+async def get_user_module_activity(user_id: str, since: str = None):
+    """Actividad del usuario en modulos operativos (por ahora solo Legal).
+    Llama al endpoint interno del legal-service. Si el modulo no responde
+    o el usuario no tiene actividad, devuelve una lista vacia sin romper el reporte."""
+    params = {}
+    if since:
+        params["since"] = since
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(
+                f"http://legal-service:8000/api/v1/legal/envelopes/internal/users/{user_id}/activity",
+                params=params,
+            )
+            if resp.status_code == 200:
+                return resp.json().get("data", [])
+    except Exception:
+        pass
+    return []
+
+
 def _serialize_user(user, company_name="", company_razon_social="", company_rfc="", auth_data={}, roles=[], module_accesses=[]):
     return {
         "user_id": str(user.id),

@@ -103,8 +103,10 @@ function timeAgo(iso: string): string {
 
 export default function UserAuditReport({ user }: UserAuditReportProps) {
   const [loading, setLoading] = useState(false)
+  const [showRangeModal, setShowRangeModal] = useState(false)
 
-  const generatePDF = async () => {
+  const generatePDF = async (activitySince: 'last_month' | 'all') => {
+    setShowRangeModal(false)
     setLoading(true)
     try {
       const [detailRes, historyRes, sessionsRes] = await Promise.all([
@@ -461,7 +463,8 @@ export default function UserAuditReport({ user }: UserAuditReportProps) {
       // PAGE 3 — TRAZABILIDAD DE OPERACIONES
       // ════════════════════════════════════════════════
       doc.addPage()
-      drawHeader('Trazabilidad de Operaciones', `${detail.full_name}  ·  ${detail.email}`)
+      const rangeLabel = activitySince === 'last_month' ? 'Último mes' : 'Historial completo'
+      drawHeader('Trazabilidad de Operaciones', `${detail.full_name}  ·  ${detail.email}  ·  ${rangeLabel}`)
       y = 52
 
       y = sectionTitle('Archivos del Expediente', y)
@@ -501,22 +504,78 @@ export default function UserAuditReport({ user }: UserAuditReportProps) {
         y += 18
       }
 
-      y = sectionTitle('Actividad en Módulos Operativos', y)
+      y = sectionTitle('Actividad en Legal — Solicitud de Contratos', y)
+
+      let legalActivity: any[] = []
+      try {
+        const sinceParam = activitySince === 'last_month'
+          ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+          : undefined
+        const activityRes = await api.get(`/api/v1/users/${user.user_id}/module-activity`, {
+          params: sinceParam ? { since: sinceParam } : {},
+        })
+        legalActivity = activityRes.data.data || []
+      } catch {
+        legalActivity = []
+      }
+
+      const ACTION_LABELS: Record<string, string> = {
+        created: 'Sobre creado',
+        submitted: 'Enviado a revisión',
+        approved: 'Aprobado',
+        rejected: 'Rechazado',
+        corrections_requested: 'Correcciones solicitadas',
+        resubmitted: 'Reenviado tras corrección',
+        completed: 'Completado',
+        commented: 'Comentario agregado',
+        attachment_uploaded: 'Anexo subido',
+        lawyer_assigned: 'Abogado asignado',
+        lawyer_reassigned: 'Abogado reasignado',
+      }
+
+      if (legalActivity.length > 0) {
+        autoTable(doc, {
+          startY: y,
+          head: [['Folio', 'Tipo de contrato', 'Acción', 'Rol', 'Fecha']],
+          body: legalActivity.map((a: any) => [
+            a.folio || '—',
+            a.contract_type_name || '—',
+            ACTION_LABELS[a.action] || a.action || '—',
+            a.performed_by_role || '—',
+            formatDate(a.performed_at),
+          ]),
+          margin: { left: 12, right: 12 },
+          styles: { fontSize: 8, cellPadding: 3.5, textColor: SLATE_900, lineColor: SLATE_200, lineWidth: 0.2 },
+          headStyles: { fillColor: BLUE, textColor: WHITE, fontStyle: 'bold', fontSize: 8 },
+          alternateRowStyles: { fillColor: SLATE_50 },
+        })
+        y = (doc as any).lastAutoTable.finalY + 12
+      } else {
+        doc.setFillColor(...SLATE_50)
+        doc.roundedRect(12, y, pageW - 24, 12, 2, 2, 'F')
+        doc.setTextColor(...SLATE_600)
+        doc.setFont('helvetica', 'italic')
+        doc.setFontSize(9)
+        const emptyMsg = activitySince === 'last_month'
+          ? 'Sin actividad en Legal durante el último mes'
+          : 'Sin actividad registrada en el módulo Legal'
+        doc.text(emptyMsg, pageW / 2, y + 7.5, { align: 'center' })
+        y += 18
+      }
+
+      y = sectionTitle('Otros módulos operativos', y)
 
       doc.setFillColor(...BLUE_LIGHT)
-      doc.roundedRect(12, y, pageW - 24, 22, 3, 3, 'F')
+      doc.roundedRect(12, y, pageW - 24, 16, 3, 3, 'F')
       doc.setDrawColor(...BLUE)
       doc.setLineWidth(0.5)
-      doc.roundedRect(12, y, 3, 22, 1.5, 1.5, 'F')
+      doc.roundedRect(12, y, 3, 16, 1.5, 1.5, 'F')
       doc.setTextColor(...BLUE)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(9)
-      doc.text('Pendiente de módulos operativos', 20, y + 8)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(...SLATE_600)
       doc.setFontSize(8.5)
-      doc.text('El registro de operaciones en módulos como Bóveda, Legal y otros estará disponible', 20, y + 14)
-      doc.text('una vez que dichos módulos sean activados en la plataforma.', 20, y + 19)
+      doc.setTextColor(...SLATE_600)
+      doc.text('El registro de operaciones en Bóveda y otros módulos estará disponible', 20, y + 7)
+      doc.text('una vez que dichos módulos sean activados en la plataforma.', 20, y + 12)
 
       drawFooter(3, 3)
 
@@ -531,16 +590,47 @@ export default function UserAuditReport({ user }: UserAuditReportProps) {
   }
 
   return (
-    <button
-      onClick={generatePDF}
-      disabled={loading}
-      className="w-full flex items-center gap-2.5 px-4 py-2 text-sm transition text-slate-700 hover:bg-slate-300 disabled:opacity-50"
-    >
-      {loading
-        ? <Loader2 size={14} className="animate-spin" />
-        : <FileDown size={14} />
-      }
-      {loading ? 'Generando reporte...' : 'Reporte de auditoría'}
-    </button>
+    <>
+      <button
+        onClick={() => setShowRangeModal(true)}
+        disabled={loading}
+        className="w-full flex items-center gap-2.5 px-4 py-2 text-sm transition text-slate-700 hover:bg-slate-300 disabled:opacity-50"
+      >
+        {loading
+          ? <Loader2 size={14} className="animate-spin" />
+          : <FileDown size={14} />
+        }
+        {loading ? 'Generando reporte...' : 'Reporte de auditoría'}
+      </button>
+
+      {showRangeModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowRangeModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">Actividad en Legal</h3>
+            <p className="text-xs text-slate-500 mb-4">¿Qué periodo quieres incluir en el reporte?</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => generatePDF('last_month')}
+                className="w-full text-sm font-medium text-white bg-[#1a4fa0] rounded-lg py-2 hover:bg-blue-700 transition"
+              >
+                Último mes
+              </button>
+              <button
+                onClick={() => generatePDF('all')}
+                className="w-full text-sm text-slate-700 border border-slate-200 rounded-lg py-2 hover:bg-slate-50 transition"
+              >
+                Todo el historial
+              </button>
+              <button
+                onClick={() => setShowRangeModal(false)}
+                className="w-full text-xs text-slate-400 py-1 hover:text-slate-600 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

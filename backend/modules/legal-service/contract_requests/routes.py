@@ -1339,6 +1339,25 @@ async def delete_signer(
 
 
 
+@router.get("/internal/users/{user_id}/activity", status_code=200)
+async def get_user_activity_internal(
+    user_id: str,
+    since: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Endpoint interno (sin JWT) — actividad de un usuario en el modulo Legal.
+    Lo consume el admin-service para el reporte de auditoria. Solo accesible
+    dentro de la red interna de Docker."""
+    since_dt = None
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except ValueError:
+            since_dt = None
+    activity = await service.get_user_activity(db, user_id, since_dt)
+    return {"success": True, "data": activity}
+
+
 @router.post("/internal/update-sla-flags", status_code=200)
 async def update_sla_flags(
     db: AsyncSession = Depends(get_db)

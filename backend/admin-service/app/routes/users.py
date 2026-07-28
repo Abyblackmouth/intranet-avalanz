@@ -282,6 +282,16 @@ async def get_user_login_history(
     return DataResponse(success=True, message="Historial obtenido", data=resp.json())
 
 
+@router.get("/{user_id}/module-activity", response_model=DataResponse)
+async def get_user_module_activity(
+    user_id: str,
+    since: Optional[str] = Query(None),
+    payload=Depends(validator.require_roles(["super_admin", "admin_empresa"])),
+):
+    result = await user_service.get_user_module_activity(user_id=user_id, since=since)
+    return DataResponse(success=True, message="Actividad en modulos obtenida", data=result)
+
+
 @router.post("/{user_id}/lock", response_model=DataResponse)
 async def toggle_lock_user(
     user_id: str,
