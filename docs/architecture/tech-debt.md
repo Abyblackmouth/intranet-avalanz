@@ -335,3 +335,12 @@ SIGNED_URL_HOST=https://intranet.avalanz.com/storage
 ## Notas
 - Los items de este archivo no bloquean el merge ni el avance de features.
 - Revisar y limpiar este archivo al inicio de cada sprint.
+
+---
+
+## Pendiente urgente — credenciales de correo (28 jul 2026)
+
+- Cambiar la contrasena de `soporte@avalanz.com` en Office 365 (quedo temporalmente expuesta durante el diagnostico del SMTP). Pendiente para el 29 jul 2026.
+- Tras cambiarla, actualizar `SMTP_PASSWORD` en `backend/email-service/.env` en el servidor y recrear el contenedor: `docker compose up -d --force-recreate email-service` (un `restart` no recarga el .env).
+- Reactivar el 2FA de `soporte@avalanz.com` (se quito temporalmente para diagnosticar un error 535 5.7.139 causado por una politica de Acceso Condicional mal configurada en el tenant, ya corregida por IT).
+- Al reactivar el 2FA, generar un **App Password** especifico para SMTP (Microsoft 365 -> cuenta -> Seguridad -> Contrasenas de aplicacion) y usar ese valor en `SMTP_PASSWORD`, no la contrasena normal de la cuenta. Esto permite tener 2FA activo sin romper el envio de correos.
