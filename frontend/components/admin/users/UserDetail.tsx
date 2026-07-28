@@ -6,7 +6,8 @@ import {
   FileText, Upload, Download, Trash2, Eye, AlertCircle, CheckCircle2
 } from 'lucide-react'
 import { getUser, getUserSessions, getUserLoginHistory } from '@/services/adminService'
-import { getUserFiles, uploadUserFile, downloadUserFile, deleteUserFile } from '@/services/uploadService'
+import { getUserFiles, uploadUserFile, downloadUserFile, deleteUserFile, getSignedUrl } from '@/services/uploadService'
+import { UserAvatarEditor } from '@/components/admin/users/UserAvatarEditor'
 import { UserRow } from '@/types/user.types'
 import api from '@/services/api'
 
@@ -124,6 +125,7 @@ export default function UserDetail({ userId, initialTab = 'info', onClose, onRef
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null)
   const [fileError, setFileError] = useState('')
   const [fileSuccess, setFileSuccess] = useState('')
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
 useEffect(() => {
@@ -137,6 +139,17 @@ useEffect(() => {
           getUserFiles(userId),
         ])
         setUser(userRes.data.data)
+        const photoKey = userRes.data.data?.photo_object_key
+        if (photoKey) {
+          try {
+            const signed = await getSignedUrl(photoKey, 'dirdoc')
+            setPhotoUrl(signed.data?.data?.url || signed.data?.url || null)
+          } catch {
+            setPhotoUrl(null)
+          }
+        } else {
+          setPhotoUrl(null)
+        }
         setSessions(Array.isArray(sessionsRes.data) ? sessionsRes.data : sessionsRes.data?.data || [])
         setHistory(Array.isArray(historyRes.data) ? historyRes.data : historyRes.data?.data || [])
         setFiles(Array.isArray(filesRes.data) ? filesRes.data : filesRes.data?.data || [])
@@ -251,11 +264,14 @@ useEffect(() => {
             <div className="h-5 w-48 bg-slate-100 rounded animate-pulse" />
           ) : (
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#1a4fa0] flex items-center justify-center shrink-0">
-                <span className="text-white text-sm font-bold">
-                  {user?.full_name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()}
-                </span>
-              </div>
+              <UserAvatarEditor
+                userId={userId}
+                fullName={user?.full_name || ''}
+                matricula={user?.matricula || null}
+                photoUrl={photoUrl}
+                editable={false}
+                size={40}
+              />
               <div>
                 <h2 className="text-base font-bold text-slate-900">{user?.full_name}</h2>
                 <p className="text-xs text-slate-500">{user?.email}</p>
@@ -636,4 +652,3 @@ const InfoRow = ({ icon, label, value }: { icon: React.ReactNode; label: string;
     <span className="text-sm text-slate-800 font-medium" style={{textAlign: "right", wordBreak: "break-word", overflowWrap: "anywhere"}}>{value}</span>
   </div>
 )
-

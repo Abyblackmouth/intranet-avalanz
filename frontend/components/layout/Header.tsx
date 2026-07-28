@@ -126,10 +126,15 @@ export default function Header() {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition"
           >
-            <div className="w-9 h-9 bg-sky-700 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="w-9 h-9 bg-sky-700 rounded-full flex items-center justify-center shrink-0 relative">
               {photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={photoUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover rounded-full"
+                  style={{ clipPath: 'circle(50%)' }}
+                />
               ) : (
                 <span className="text-white text-xs font-bold">{initials}</span>
               )}

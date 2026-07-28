@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { X, User, Mail, Hash, Briefcase, Building2, Shield, Layers, Plus, Trash2 } from 'lucide-react'
 import { getUser, updateUser, getGlobalRoles, assignGlobalRole, removeGlobalRole, getModules, assignModuleAccess, revokeModuleAccess } from '@/services/adminService'
+import { getSignedUrl } from '@/services/uploadService'
+import { UserAvatarEditor } from '@/components/admin/users/UserAvatarEditor'
 import api from '@/services/api'
 import { getOperationalRoles } from '@/services/roleService'
 import { useAuthStore } from '@/store/authStore'
@@ -70,6 +72,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
   const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState('')
   const [userName, setUserName] = useState('')
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
 
   const canEditGlobalRoles = isSuperAdmin()
   const canEditModuleRoles = isSuperAdmin() || (user?.roles?.includes('admin_empresa') ?? false)
@@ -88,6 +91,16 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
         const user = userRes.data.data
         setUserName(user.full_name)
         setIsProtected(user.is_protected ?? false)
+        if (user.photo_object_key) {
+          try {
+            const signed = await getSignedUrl(user.photo_object_key, 'dirdoc')
+            setPhotoUrl(signed.data?.data?.url || signed.data?.url || null)
+          } catch {
+            setPhotoUrl(null)
+          }
+        } else {
+          setPhotoUrl(null)
+        }
         setGlobalRoles(rolesRes.data.data.data || rolesRes.data.data || [])
         setOperationalRoles(opRolesRes.data.data.data || [])
         setModules(modulesRes.data.data.data || modulesRes.data.data || [])
@@ -222,11 +235,15 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
             <div className="h-5 w-48 bg-slate-100 rounded animate-pulse" />
           ) : (
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#1a4fa0] flex items-center justify-center shrink-0">
-                <span className="text-white text-sm font-bold">
-                  {userName.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()}
-                </span>
-              </div>
+              <UserAvatarEditor
+                userId={userId}
+                fullName={userName}
+                matricula={form.matricula || null}
+                photoUrl={photoUrl}
+                editable
+                size={40}
+                onPhotoChanged={setPhotoUrl}
+              />
               <div>
                 <h2 className="text-base font-bold text-slate-900">Editar usuario</h2>
                 <p className="text-xs text-slate-500">{form.email}</p>
