@@ -561,10 +561,11 @@ def _render_contract_html(template_slug: str, form_data: dict) -> str:
     html = html.replace("{{DOCUMENT_SUBTITLE}}", document_subtitle)
 
     for key, value in form_data.items():
-        html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
+        display_value = _format_fecha_larga(value) if key == "FECHA_CONTRATO" else value
+        html = html.replace(f"{{{{{key}}}}}", str(display_value) if display_value else "___________")
     html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
-    fecha_firma_value = form_data.get("FECHA_CONTRATO", "")
-    html = html.replace("{{FECHA_FIRMA}}", str(fecha_firma_value) if fecha_firma_value else "___________")
+    fecha_firma_value = _format_fecha_larga(form_data.get("FECHA_CONTRATO", ""))
+    html = html.replace("{{FECHA_FIRMA}}", fecha_firma_value if fecha_firma_value else "___________")
     import re
     html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
     return html
