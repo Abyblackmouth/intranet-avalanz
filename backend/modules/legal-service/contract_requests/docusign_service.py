@@ -119,8 +119,12 @@ async def create_envelope(
         - routing_order: int
         - sign_here_anchor: str  (ej. "*FIRMA1*")
         - full_name_anchor: str  (ej. "*NOMBRE1*")
-        - date_signed_anchor: str (ej. "*FECHA_FIRMA1*")
         - role_in_document: str (opcional)
+
+    Nota: la fecha de firma ya no se solicita como tab separado — DocuSign
+    estampa su propio sello con nombre y fecha sobre la firma, por lo que
+    el date_signed_anchor (si viniera en la definicion del firmante) se
+    ignora deliberadamente.
 
     Retorna: docusign_envelope_id (str)
     """
@@ -143,7 +147,8 @@ async def create_envelope(
                 "anchorString": signer["sign_here_anchor"],
                 "anchorUnits": "pixels",
                 "anchorXOffset": "0",
-                "anchorYOffset": "0",
+                "anchorYOffset": "6",
+                "anchorIgnoreIfNotPresent": "false",
             }]
 
         if signer.get("full_name_anchor"):
@@ -153,18 +158,13 @@ async def create_envelope(
                 "anchorString": signer["full_name_anchor"],
                 "anchorUnits": "pixels",
                 "anchorXOffset": "0",
-                "anchorYOffset": "0",
+                "anchorYOffset": "6",
+                "anchorIgnoreIfNotPresent": "false",
             }]
 
-        if signer.get("date_signed_anchor"):
-            tabs["dateSignedTabs"] = [{
-                "tabLabel": f"FECHA{idx}",
-                "documentId": "1",
-                "anchorString": signer["date_signed_anchor"],
-                "anchorUnits": "pixels",
-                "anchorXOffset": "0",
-                "anchorYOffset": "0",
-            }]
+        # dateSignedTabs deliberadamente NO se agrega: DocuSign ya estampa
+        # nombre + fecha sobre la propia firma, mostrarlo aparte era redundante
+        # y causaba el texto sin reemplazar "[Fecha de firma DocuSign]".
 
         ds_signers.append({
             "recipientId": recipient_id,
