@@ -545,7 +545,8 @@ def _render_contract_html(template_slug: str, form_data: dict) -> str:
     for key, value in form_data.items():
         html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
     html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
-    html = html.replace("{{FECHA_FIRMA}}", "[Fecha de firma DocuSign]")
+    fecha_firma_value = form_data.get("FECHA_CONTRATO", "")
+    html = html.replace("{{FECHA_FIRMA}}", str(fecha_firma_value) if fecha_firma_value else "___________")
     import re
     html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
     return html
