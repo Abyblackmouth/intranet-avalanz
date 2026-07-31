@@ -507,24 +507,55 @@ async def get_template_fields(template_slug: str, user: dict = Depends(get_curre
         return _json.load(f)
 
 
+def _render_contract_html(template_slug: str, form_data: dict) -> str:
+    """Combina el master layout con el contenido de la plantilla y sustituye variables.
+    Fuente unica de verdad para margenes, titulo, subtitulo, numero de contrato y fecha —
+    todas las plantillas de contrato pasan por aqui."""
+    from fastapi import HTTPException
+
+    master_path = _TEMPLATES_DIR / "_master" / "layout.html"
+    content_path = _TEMPLATES_DIR / template_slug / "template.html"
+    index_path = _TEMPLATES_DIR / "index.json"
+
+    if not content_path.exists():
+        raise HTTPException(status_code=404, detail=f"Template '{template_slug}' no encontrado")
+    if not master_path.exists():
+        raise HTTPException(status_code=500, detail="Master layout no encontrado")
+
+    with open(master_path, "r", encoding="utf-8") as f:
+        master = f.read()
+    with open(content_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    document_title = template_slug
+    document_subtitle = ""
+    if index_path.exists():
+        with open(index_path, "r", encoding="utf-8") as f:
+            index_data = _json.load(f)
+        for t in index_data.get("templates", []):
+            if t.get("slug") == template_slug:
+                document_title = t.get("document_title", template_slug)
+                document_subtitle = t.get("document_subtitle", "")
+                break
+
+    html = master.replace("{{CONTENIDO}}", content)
+    html = html.replace("{{DOCUMENT_TITLE}}", document_title)
+    html = html.replace("{{DOCUMENT_SUBTITLE}}", document_subtitle)
+
+    for key, value in form_data.items():
+        html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
+    html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
+    html = html.replace("{{FECHA_FIRMA}}", "[Fecha de firma DocuSign]")
+    import re
+    html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
+    return html
+
+
 @router.post("/contract-templates/{template_slug}/preview", tags=["Templates"])
 async def preview_template(template_slug: str, form_data: dict, user: dict = Depends(get_current_user)):
     """Genera el HTML del contrato con los datos del formulario sustituidos."""
     from fastapi.responses import HTMLResponse
-    html_path = _TEMPLATES_DIR / template_slug / "template.html"
-    if not html_path.exists():
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail=f"Template HTML '{template_slug}' no encontrado")
-    with open(html_path, "r", encoding="utf-8") as f:
-        html = f.read()
-    for key, value in form_data.items():
-        html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
-    # Campos auto-llenados
-    html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
-    html = html.replace("{{FECHA_FIRMA}}", "[Fecha de firma DocuSign]")
-    # Limpiar campos no sustituidos
-    import re
-    html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
+    html = _render_contract_html(template_slug, form_data)
     return HTMLResponse(content=html)
 
 
@@ -533,18 +564,7 @@ async def preview_template_pdf(template_slug: str, form_data: dict, user: dict =
     """Genera un PDF del contrato con los datos del formulario."""
     from fastapi.responses import Response
     from weasyprint import HTML
-    html_path = _TEMPLATES_DIR / template_slug / "template.html"
-    if not html_path.exists():
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail=f"Template '{template_slug}' no encontrado")
-    with open(html_path, "r", encoding="utf-8") as f:
-        html = f.read()
-    for key, value in form_data.items():
-        html = html.replace(f"{{{{{key}}}}}", str(value) if value else "___________")
-    html = html.replace("{{NUMERO_CONTRATO}}", "ENV-2026-XXXX")
-    html = html.replace("{{FECHA_FIRMA}}", "[Fecha de firma DocuSign]")
-    import re
-    html = re.sub(r'\{\{[A-Z_]+\}\}', '___________', html)
+    html = _render_contract_html(template_slug, form_data)
     pdf_bytes = HTML(string=html, base_url="/").write_pdf()
     return Response(
         content=pdf_bytes,

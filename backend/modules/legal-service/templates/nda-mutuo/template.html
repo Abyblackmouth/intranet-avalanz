@@ -1,71 +1,3 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Times New Roman', Times, serif;
-    font-size: 12pt;
-    line-height: 1.5;
-    color: #000;
-    background: #fff;
-    padding: 2.5cm 3cm 2.5cm 3.5cm;
-    max-width: 21cm;
-    margin: 0 auto;
-  }
-  .titulo {
-    text-align: center;
-    font-size: 14pt;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-  }
-  .subtitulo {
-    text-align: center;
-    font-size: 11pt;
-    margin-bottom: 16px;
-  }
-  .datos-header {
-    text-align: center;
-    margin-bottom: 20px;
-    font-size: 11pt;
-  }
-  hr { border: none; border-top: 1.5px solid #000; margin: 16px 0; }
-  hr.thin { border-top: 0.5px solid #999; margin: 12px 0; }
-  .seccion-titulo {
-    font-weight: bold;
-    font-size: 12pt;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin: 18px 0 8px 0;
-  }
-  p { text-align: justify; margin-bottom: 10px; }
-  .clausula { margin-bottom: 12px; text-align: justify; page-break-inside: avoid; }
-  .firmas-tabla { width: 100%; border-collapse: collapse; margin-top: 24px; page-break-inside: avoid; }
-  .firmas-tabla td { padding: 6px 8px; vertical-align: top; width: 45%; }
-  .firmas-tabla .sep { width: 10%; }
-  .firma-box { border-top: 2px solid #000; padding-top: 8px; }
-  .firma-espacio { height: 70px; }
-  .firma-linea { border-bottom: 1px solid #555; margin: 6px 0; }
-  .campo { color: #000; }
-  @media print {
-    body { padding: 1.5cm 2.5cm 1.5cm 3cm; }
-    @page { size: letter; margin: 0; }
-  }
-</style>
-</head>
-<body>
-
-<div class="titulo">ACUERDO DE CONFIDENCIALIDAD Y NO DIVULGACIÓN</div>
-<div class="subtitulo">(NDA Mutuo — Acuerdo Bilateral de Confidencialidad)</div>
-<div class="datos-header">
-  Contrato No. <strong>{{NUMERO_CONTRATO}}</strong>&nbsp;&nbsp;&nbsp;&nbsp;Fecha: <strong>{{FECHA_CONTRATO}}</strong>
-</div>
-
-<hr>
-
 <div class="seccion-titulo">Comparecientes</div>
 
 <p>El presente Acuerdo de Confidencialidad y No Divulgación (en adelante el <strong>"Acuerdo"</strong>), se celebra entre las siguientes partes:</p>
@@ -116,10 +48,9 @@
       <strong>POR LA PARTE "A"</strong><br>
       <strong>{{EMPRESA_SOLICITANTE}}</strong>
       <div class="firma-espacio">
-        <!-- Anclas DocuSign Parte A — texto invisible, mismo color que fondo -->
+        <!-- Anclas DocuSign Parte A — firma y nombre completo, invisibles hasta que DocuSign las llena -->
         <span style="color:#ffffff;font-size:1px;line-height:0;">*FIRMA1*</span>
         <span style="color:#ffffff;font-size:1px;line-height:0;">*NOMBRE1*</span>
-        <span style="color:#ffffff;font-size:1px;line-height:0;">*FECHA_FIRMA1*</span>
       </div>
       <div class="firma-linea"></div>
       <br>
@@ -127,17 +58,16 @@
       <div class="firma-linea"></div>
       Cargo: <strong>{{CARGO_FIRMANTE_1}}</strong><br>
       <div class="firma-linea"></div>
-      Fecha: <strong>{{FECHA_FIRMA}}</strong>
+      Fecha: <span style="color:#ffffff;font-size:1px;line-height:0;">*FECHA_FIRMA1*</span>
     </td>
     <td class="sep"></td>
     <td class="firma-box">
       <strong>POR LA PARTE "B"</strong><br>
       <strong>{{EMPRESA_CONTRAPARTE}}</strong>
       <div class="firma-espacio">
-        <!-- Anclas DocuSign Parte B — texto invisible, mismo color que fondo -->
+        <!-- Anclas DocuSign Parte B — firma y nombre completo, invisibles hasta que DocuSign las llena -->
         <span style="color:#ffffff;font-size:1px;line-height:0;">*FIRMA2*</span>
         <span style="color:#ffffff;font-size:1px;line-height:0;">*NOMBRE2*</span>
-        <span style="color:#ffffff;font-size:1px;line-height:0;">*FECHA_FIRMA2*</span>
       </div>
       <div class="firma-linea"></div>
       <br>
@@ -145,10 +75,7 @@
       <div class="firma-linea"></div>
       Cargo: <strong>{{CARGO_FIRMANTE_2}}</strong><br>
       <div class="firma-linea"></div>
-      Fecha: <strong>{{FECHA_FIRMA}}</strong>
+      Fecha: <span style="color:#ffffff;font-size:1px;line-height:0;">*FECHA_FIRMA2*</span>
     </td>
   </tr>
 </table>
-
-</body>
-</html>

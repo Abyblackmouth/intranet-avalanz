@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ── Márgenes de página — fuente única de verdad para TODAS las plantillas ──
+     Usar @page en vez de padding en body: el padding del body solo se aplica
+     en la primera y ultima pagina cuando el contenido se parte en varias hojas
+     (fragmentacion CSS). @page se aplica de forma identica en cada pagina. */
+  @page {
+    size: letter;
+    margin: 2.5cm 3cm 2.5cm 3.5cm;
+  }
+  /* Primera pagina: margen superior extra para reservar el espacio del sello NOM151 */
+  @page :first {
+    margin-top: 6cm;
+  }
+
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #000;
+    background: #fff;
+  }
+
+  .titulo {
+    text-align: center;
+    font-size: 14pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .subtitulo {
+    text-align: center;
+    font-size: 11pt;
+    margin-bottom: 16px;
+  }
+  .datos-header {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 11pt;
+  }
+  hr { border: none; border-top: 1.5px solid #000; margin: 16px 0; }
+  hr.thin { border-top: 0.5px solid #999; margin: 12px 0; }
+  .seccion-titulo {
+    font-weight: bold;
+    font-size: 12pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 18px 0 8px 0;
+  }
+  p { text-align: justify; margin-bottom: 10px; }
+  .clausula { margin-bottom: 12px; text-align: justify; page-break-inside: avoid; }
+  .firmas-tabla { width: 100%; border-collapse: collapse; margin-top: 24px; page-break-inside: avoid; }
+  .firmas-tabla td { padding: 6px 8px; vertical-align: top; width: 45%; }
+  .firmas-tabla .sep { width: 10%; }
+  .firma-box { border-top: 2px solid #000; padding-top: 8px; }
+  .firma-espacio { height: 70px; }
+  .firma-linea { border-bottom: 1px solid #555; margin: 6px 0; }
+  .campo { color: #000; }
+</style>
+</head>
+<body>
+
+<!-- Sello NOM-151: espacio reservado por @page :first (margin-top: 6cm en la primera hoja).
+     Cuando se integre el proveedor certificado, el sello se coloca aqui. -->
+
+<div class="titulo">{{DOCUMENT_TITLE}}</div>
+<div class="subtitulo">{{DOCUMENT_SUBTITLE}}</div>
+<div class="datos-header">
+  Contrato No. <strong>{{NUMERO_CONTRATO}}</strong>&nbsp;&nbsp;&nbsp;&nbsp;Fecha: <strong>{{FECHA_CONTRATO}}</strong>
+</div>
+
+<hr>
+
+{{CONTENIDO}}
+
+</body>
+</html>

@@ -9,7 +9,9 @@
       "sla_business_days": 3,
       "is_active": true,
       "fields_file": "nda-mutuo/fields.json",
-      "contract_type_id": "11111111-1111-1111-1111-111111111111"
+      "contract_type_id": "11111111-1111-1111-1111-111111111111",
+      "document_title": "ACUERDO DE CONFIDENCIALIDAD Y NO DIVULGACIÓN",
+      "document_subtitle": "(NDA Mutuo — Acuerdo Bilateral de Confidencialidad)"
     }
   ]
 }
