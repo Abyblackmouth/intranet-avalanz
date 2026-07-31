@@ -8,14 +8,12 @@
   /* ── Márgenes de página — fuente única de verdad para TODAS las plantillas ──
      Usar @page en vez de padding en body: el padding del body solo se aplica
      en la primera y ultima pagina cuando el contenido se parte en varias hojas
-     (fragmentacion CSS). @page se aplica de forma identica en cada pagina. */
+     (fragmentacion CSS). @page se aplica de forma identica en cada pagina.
+     Margen uniforme en las 4 direcciones y en todas las paginas (incluida la
+     primera): el sello NOM151 es pequeño y no requiere espacio extra reservado. */
   @page {
     size: letter;
-    margin: 2.5cm 3cm 2.5cm 3.5cm;
-  }
-  /* Primera pagina: margen superior extra para reservar el espacio del sello NOM151 */
-  @page :first {
-    margin-top: 6cm;
+    margin: 2cm;
   }
 
   body {
