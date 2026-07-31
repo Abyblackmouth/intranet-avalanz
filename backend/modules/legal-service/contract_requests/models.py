@@ -272,6 +272,34 @@ class EnvelopeActivityLog(Base):
 
 
 
+class EnvelopeDocuSignAuditEvent(Base):
+    """Registro interno de los eventos de auditoria que devuelve DocuSign
+    (audit_events). No es para el reporte de auditoria de usuarios — es
+    respaldo tecnico por si sistemas necesita rastrear algo del proceso
+    de firma (IPs, geolocalizacion, idioma usado, timestamps exactos)."""
+    __tablename__ = "envelope_docusign_audit_events"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    envelope_id = Column(UUID(as_uuid=False), ForeignKey("envelopes.id", ondelete="CASCADE"), nullable=False)
+    docusign_envelope_id = Column(String(100), nullable=False)
+
+    log_time = Column(DateTime(timezone=True), nullable=True)
+    source = Column(String(20), nullable=True)
+    user_name = Column(String(255), nullable=True)
+    docusign_user_id = Column(String(100), nullable=True)
+    action = Column(String(100), nullable=True)
+    message = Column(Text, nullable=True)
+    envelope_status = Column(String(50), nullable=True)
+    client_ip = Column(String(45), nullable=True)
+    information = Column(Text, nullable=True)
+    information_localized = Column(JSON, nullable=True)
+    geo_location = Column(String(255), nullable=True)
+    language = Column(String(50), nullable=True)
+
+    raw_event = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
 class EnvelopeSigner(Base):
     """Signers assigned to an envelope — one row per signer, supports multiple signers per envelope."""
     __tablename__ = "envelope_signers"

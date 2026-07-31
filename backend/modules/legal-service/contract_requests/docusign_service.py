@@ -292,6 +292,33 @@ async def download_completion_certificate(docusign_envelope_id: str) -> bytes:
         return response.content
 
 
+# ── Obtener eventos de auditoria (registro tecnico interno) ───────────────────
+
+async def get_audit_events(docusign_envelope_id: str) -> list[dict]:
+    """
+    Trae el detalle de auditoria del sobre desde DocuSign (audit_events).
+    Uso interno de sistemas — no es el reporte de auditoria de usuarios.
+    Devuelve la lista de eventos ya aplanados (dict simple por evento).
+    """
+    config = _get_config()
+    access_token = await get_access_token()
+
+    url = f"{config['base_uri']}/restapi/v2.1/accounts/{config['account_id']}/envelopes/{docusign_envelope_id}/audit_events"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            url,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    events = []
+    for ev in data.get("auditEvents", []):
+        flat = {f["name"]: f.get("value", "") for f in ev.get("eventFields", [])}
+        events.append(flat)
+    return events
+
+
 # ── Verificar webhook de DocuSign Connect ─────────────────────────────────────
 
 def verify_webhook_payload(payload: dict) -> bool:

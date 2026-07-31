@@ -108,7 +108,7 @@ async def _process_completed_envelope(db: AsyncSession, docusign_envelope_id: st
     Descarga el PDF firmado de DocuSign, lo sube a MinIO,
     registra en envelope_attachments y actualiza el estado del sobre.
     """
-    import boto3, os, uuid as _uuid
+    import boto3, os, uuid as _uuid, json as _json
     from botocore.config import Config as BotoConfig
     from datetime import datetime, timezone as _tz
 
@@ -231,6 +231,48 @@ async def _process_completed_envelope(db: AsyncSession, docusign_envelope_id: st
         db.add(cert_attachment)
     except Exception as e:
         print(f"[docusign] Error descargando/subiendo certificado {envelope.folio}: {e}")
+
+    # Registro interno tecnico de los eventos de auditoria de DocuSign
+    # (no es el reporte de auditoria de usuarios — es respaldo para sistemas).
+    try:
+        from .models import EnvelopeDocuSignAuditEvent
+        from datetime import datetime as _dt
+        events = await ds.get_audit_events(docusign_envelope_id)
+        for ev in events:
+            log_time_raw = ev.get("logTime", "")
+            log_time_parsed = None
+            if log_time_raw:
+                try:
+                    log_time_parsed = _dt.fromisoformat(log_time_raw.replace("Z", "+00:00"))
+                except ValueError:
+                    log_time_parsed = None
+            info_localized_raw = ev.get("InformationLocalized", "")
+            info_localized_parsed = None
+            if info_localized_raw:
+                try:
+                    info_localized_parsed = _json.loads(info_localized_raw)
+                except (ValueError, TypeError):
+                    info_localized_parsed = None
+            db.add(EnvelopeDocuSignAuditEvent(
+                id=str(_uuid.uuid4()),
+                envelope_id=str(envelope.id),
+                docusign_envelope_id=docusign_envelope_id,
+                log_time=log_time_parsed,
+                source=ev.get("Source"),
+                user_name=ev.get("UserName"),
+                docusign_user_id=ev.get("UserId"),
+                action=ev.get("Action"),
+                message=ev.get("Message"),
+                envelope_status=ev.get("EnvelopeStatus"),
+                client_ip=ev.get("ClientIPAddress"),
+                information=ev.get("Information"),
+                information_localized=info_localized_parsed,
+                geo_location=ev.get("GeoLocation") or None,
+                language=ev.get("Language"),
+                raw_event=ev,
+            ))
+    except Exception as e:
+        print(f"[docusign] Error guardando audit events {envelope.folio}: {e}")
 
     # Actualizar firmantes a signed
     await db.execute(
