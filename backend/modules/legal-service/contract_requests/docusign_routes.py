@@ -202,6 +202,36 @@ async def _process_completed_envelope(db: AsyncSession, docusign_envelope_id: st
     )
     db.add(attachment)
 
+    # Certificado de finalizacion (linea de tiempo) — documento de auditoria
+    # que DocuSign genera automaticamente. No es una version del contrato:
+    # se archiva aparte, sin marcar ningun otro PDF como no-actual.
+    try:
+        cert_bytes = await ds.download_completion_certificate(docusign_envelope_id)
+        cert_uuid = str(_uuid.uuid4())[:8]
+        cert_file_name = f"{cert_uuid}_{envelope.folio.lower()}_linea_de_tiempo_docusign.pdf"
+        cert_object_key = f"{company_slug}/legal/envelopes/{envelope.folio}/firmado/{cert_file_name}"
+        s3.put_object(Bucket=bucket, Key=cert_object_key, Body=cert_bytes, ContentType="application/pdf")
+        cert_attachment = EnvelopeAttachment(
+            id=str(_uuid.uuid4()),
+            envelope_id=str(envelope.id),
+            original_name=f"{envelope.folio}_Linea_de_Tiempo_DocuSign.pdf",
+            stored_name=cert_file_name,
+            object_key=cert_object_key,
+            bucket=bucket,
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=len(cert_bytes),
+            uploaded_by_user_id=str(envelope.requested_by_user_id),
+            uploaded_by_name="DocuSign",
+            description=f"Línea de tiempo DocuSign — {envelope.folio}",
+            version_number=1,
+            is_current=True,
+            is_deleted=False,
+        )
+        db.add(cert_attachment)
+    except Exception as e:
+        print(f"[docusign] Error descargando/subiendo certificado {envelope.folio}: {e}")
+
     # Actualizar firmantes a signed
     await db.execute(
         update(EnvelopeSigner)

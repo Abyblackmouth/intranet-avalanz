@@ -270,6 +270,28 @@ async def download_signed_document(docusign_envelope_id: str) -> bytes:
         return download_response.content
 
 
+# ── Descargar certificado de finalizacion (linea de tiempo) ───────────────────
+
+async def download_completion_certificate(docusign_envelope_id: str) -> bytes:
+    """
+    Descarga el Certificado de Finalizacion (Certificate of Completion) del sobre:
+    el documento con la linea de tiempo de auditoria (envio, apertura, firma de
+    cada firmante, IP, fecha/hora). DocuSign lo genera automaticamente para todo
+    sobre completado, incluido en cuentas sandbox.
+    """
+    config = _get_config()
+    access_token = await get_access_token()
+
+    url = f"{config['base_uri']}/restapi/v2.1/accounts/{config['account_id']}/envelopes/{docusign_envelope_id}/documents/certificate"
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.get(
+            url,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        response.raise_for_status()
+        return response.content
+
+
 # ── Verificar webhook de DocuSign Connect ─────────────────────────────────────
 
 def verify_webhook_payload(payload: dict) -> bool:
