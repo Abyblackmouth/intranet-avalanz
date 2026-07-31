@@ -18,7 +18,13 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    """Construye la URL de conexión a partir de variables de entorno."""
+    """Construye la URL de conexión. El legal-service usa DATABASE_URL completa
+    (a diferencia de otros servicios que usan DB_HOST/DB_USER/DB_PASSWORD por
+    separado). Alembic necesita el driver sincrono psycopg2, no asyncpg."""
+    database_url = os.getenv("DATABASE_URL", "")
+    if database_url:
+        return database_url.replace("postgresql+asyncpg://", "postgresql://")
+    # Fallback por si algun dia se usan variables separadas
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
     user = os.getenv("DB_USER", "avalanz_user")
