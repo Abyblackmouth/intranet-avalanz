@@ -307,6 +307,24 @@ from pathlib import Path as _Path
 
 _TEMPLATES_DIR = _Path(__file__).parent.parent / "templates"
 
+_MESES_ES = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+
+def _format_fecha_larga(value: str) -> str:
+    """Convierte una fecha ISO (2026-06-22) al formato legal en espanol
+    (22 de junio de 2026). Si no se puede parsear, devuelve el valor tal cual."""
+    if not value:
+        return value
+    try:
+        from datetime import datetime as _dt
+        d = _dt.strptime(str(value)[:10], "%Y-%m-%d")
+        return f"{d.day} de {_MESES_ES[d.month - 1]} de {d.year}"
+    except (ValueError, IndexError):
+        return value
+
 
 @router.get("/types/{contract_type_id}/attachments", tags=["Templates"])
 async def get_contract_type_attachments(contract_type_id: str, user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
