@@ -172,16 +172,18 @@ export interface EnvelopeAttachment {
 export type ContractAttachment = EnvelopeAttachment
 
 export type LegalRole =
-  | 'solicitante'
-  | 'abogado'
+  | 'super_admin'
   | 'coordinador_legal'
   | 'director'
-  | 'super_admin'
+  | 'abogado'
+  | 'jefe_solicitante'
+  | 'solicitante'
 
 export const resolveLegalRole = (roles: string[]): LegalRole => {
   if (roles.includes('super_admin')) return 'super_admin'
   if (roles.includes('coordinador_legal')) return 'coordinador_legal'
   if (roles.includes('director')) return 'director'
   if (roles.includes('abogado')) return 'abogado'
+  if (roles.includes('jefe_solicitante')) return 'jefe_solicitante'
   return 'solicitante'
 }

@@ -127,7 +127,7 @@ export default function ContractRequestsPage() {
     setPage(1)
   }
 
-  const showNewButton = legalRole === 'solicitante' || legalRole === 'super_admin'
+  const showNewButton = legalRole === 'solicitante' || legalRole === 'jefe_solicitante' || legalRole === 'super_admin'
 
   return (
     <PageWrapper

@@ -302,3 +302,32 @@ async def revoke_single_session(
     )
     await db.commit()
     return {"success": True, "message": "Sesion revocada"}
+
+class UpdateEmailRequest(BaseModel):
+    email: str
+
+
+@router.post("/users/{user_id}/update-email")
+async def update_user_email(
+    user_id: str,
+    body: UpdateEmailRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import update
+
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.is_deleted == False)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        return {"success": False, "message": "Usuario no encontrado"}
+
+    result = await db.execute(
+        select(User).where(User.email == body.email, User.id != user_id, User.is_deleted == False)
+    )
+    if result.scalar_one_or_none():
+        return {"success": False, "message": "El email ya esta en uso"}
+
+    await db.execute(update(User).where(User.id == user_id).values(email=body.email))
+    await db.commit()
+    return {"success": True, "message": "Email actualizado"}
