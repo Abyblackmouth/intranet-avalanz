@@ -132,8 +132,15 @@ async def list_users(
 async def get_user(
     user_id: str,
     db: AsyncSession = Depends(get_db),
-    payload=Depends(validator.require_roles(["super_admin", "admin_empresa"])),
+    payload=Depends(validator.get_current_user()),
 ):
+    # Admin ve cualquier perfil; un usuario normal solo el suyo propio
+    roles = payload.get("roles", [])
+    is_admin = "super_admin" in roles or "admin_empresa" in roles
+    is_owner = str(payload.get("user_id")) == str(user_id)
+    if not is_admin and not is_owner:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver este perfil")
     result = await user_service.get_user_by_id(db=db, user_id=user_id)
     return DataResponse(success=True, message="Usuario obtenido", data=result)
 
