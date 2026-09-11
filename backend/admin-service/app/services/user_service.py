@@ -128,7 +128,15 @@ async def update_user(db, user_id, company_id=None, full_name=None, email=None, 
     if departamento is not None: values["departamento"] = departamento
     if is_active is not None: values["is_active"] = is_active
     if company_id is not None and _is_super_admin(requested_by): values["company_id"] = company_id
+    old_email = user.email
+    email_changed = email is not None and email != old_email
+    if email_changed:
+        _r = await db.execute(select(User).where(User.email == email, User.is_deleted == False, User.id != user_id))
+        if _r.scalar_one_or_none():
+            raise AlreadyExistsException("Email")
     if values:
+        if email_changed:
+            await _sync_email_to_auth(user_id, email)
         await db.execute(update(User).where(User.id == user.id).values(**values))
         await db.commit()
     return await get_user_by_id(db, user_id)
@@ -521,6 +529,17 @@ async def _sync_user_to_auth(user_id, email, full_name, temp_password, temp_pass
             await client.post("http://auth-service:8000/api/v1/auth/internal/users", json={"user_id": user_id, "email": email, "full_name": full_name, "temp_password": temp_password, "temp_password_expires_at": temp_password_expires_at})
     except Exception:
         raise ValidationException("Error al sincronizar usuario con el servicio de autenticacion")
+
+
+async def _sync_email_to_auth(user_id, email):
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.post(
+            f"http://auth-service:8000/api/v1/auth/internal/users/{user_id}/update-email",
+            json={"email": email},
+        )
+        if resp.status_code != 200 or not resp.json().get("success"):
+            msg = resp.json().get("message", "Error al sincronizar el email") if resp.status_code == 200 else "Error al sincronizar el email con auth"
+            raise ValidationException(msg)
 
 
 async def _send_welcome_email(email: str, full_name: str, temp_password: str, user_id: str):

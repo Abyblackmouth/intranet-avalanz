@@ -206,18 +206,25 @@ async def list_envelopes(
     user_roles = get_flat_roles(user)
     is_privileged = any(r in user_roles for r in ["super_admin", "coordinador_legal", "director"])
 
+    requested_by_user_id = None
     if not is_privileged:
         if "abogado" in user_roles:
             lawyer_id = user["user_id"]
+        elif "jefe_solicitante" in user_roles:
+            companies = user.get("companies", [])
+            if companies and not company_id:
+                company_id = companies[0]
         else:
             companies = user.get("companies", [])
             if companies and not company_id:
                 company_id = companies[0]
+            requested_by_user_id = user["user_id"]
 
     items, total = await service.list_envelopes(
         db,
         company_id=company_id,
         lawyer_id=lawyer_id,
+        requested_by_user_id=requested_by_user_id,
         status=status,
         contract_type_id=contract_type_id,
         is_sla_breached=is_sla_breached,

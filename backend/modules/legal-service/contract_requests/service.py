@@ -813,6 +813,7 @@ async def list_envelopes(
     db: AsyncSession,
     company_id: Optional[str] = None,
     lawyer_id: Optional[str] = None,
+    requested_by_user_id: Optional[str] = None,
     status: Optional[str] = None,
     contract_type_id: Optional[str] = None,
     is_sla_breached: Optional[bool] = None,
@@ -825,6 +826,8 @@ async def list_envelopes(
         q = q.where(Envelope.company_id == company_id)
     if lawyer_id:
         q = q.where(Envelope.assigned_lawyer_id == lawyer_id)
+    if requested_by_user_id:
+        q = q.where(Envelope.requested_by_user_id == requested_by_user_id)
     if status:
         q = q.where(Envelope.status == status)
     if contract_type_id:
