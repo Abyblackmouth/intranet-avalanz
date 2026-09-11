@@ -9,7 +9,7 @@ import { ContractRequestListItem, ContractType } from '@/types/contract.types'
 import { getEnvelopes, getContractTypes } from '@/services/legalService'
 import { useWSEvent } from '@/hooks/useWebSocket'
 
-type LegalRole = 'solicitante' | 'abogado' | 'coordinador_legal' | 'director' | 'super_admin'
+type LegalRole = 'solicitante' | 'jefe_solicitante' | 'abogado' | 'coordinador_legal' | 'director' | 'super_admin'
 
 const STATUS_OPTIONS = [
   { value: 'all',               label: 'Todos los estados' },
@@ -29,6 +29,7 @@ const resolveLegalRole = (roles: string[]): LegalRole => {
   if (flat.includes('coordinador_legal')) return 'coordinador_legal'
   if (flat.includes('director')) return 'director'
   if (flat.includes('abogado')) return 'abogado'
+  if (flat.includes('jefe_solicitante')) return 'jefe_solicitante'
   return 'solicitante'
 }
 
