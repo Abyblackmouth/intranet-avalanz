@@ -259,6 +259,23 @@ services:
       - avalanz-network
     logging: *default-logging
 
+  it-service-desk-service:
+    build:
+      context: ../../backend
+      dockerfile: modules/it-service-desk-service/Dockerfile
+    container_name: avalanz-it-service-desk
+    restart: unless-stopped
+    env_file:
+      - ../../backend/modules/it-service-desk-service/.env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
   # ── Prometheus ──────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.51.0
