@@ -53,6 +53,9 @@ const ICONS = [
   // Seguridad y acceso
   'shield', 'lock', 'key', 'eye', 'fingerprint',
   'shield-alert', 'scan', 'qr-code', 'badge-check', 'circle-check',
+  // Soporte técnico y TI
+  'headset', 'life-buoy', 'wrench', 'bug', 'ticket',
+  'ticket-check', 'clipboard-check', 'terminal', 'cpu', 'shield-check',
 ]
 
 // Mapa de iconos a componentes de Lucide

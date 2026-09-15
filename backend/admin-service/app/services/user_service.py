@@ -286,6 +286,7 @@ async def get_user_permissions(db, user_id):
             subs = subs_result.scalars().all()
             modules_with_subs.append({
                 "slug": m.slug,
+                "name": m.name,
                 "icon": m.icon,
                 "submodules": [{"slug": s.slug, "icon": s.icon, "name": s.name} for s in subs],
             })
@@ -321,6 +322,7 @@ async def get_user_permissions(db, user_id):
         subs = subs_result.scalars().all()
         modules_with_subs.append({
             "slug": a.Module.slug,
+            "name": a.Module.name,
             "icon": a.Module.icon,
             "submodules": [{"slug": s.slug, "icon": s.icon, "name": s.name} for s in subs],
         })

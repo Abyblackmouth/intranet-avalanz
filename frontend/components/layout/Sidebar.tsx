@@ -130,6 +130,7 @@ export default function Sidebar() {
                   const slug = typeof mod === 'string' ? mod : mod.slug
                   const icon = typeof mod === 'string' ? null : mod.icon
                   const submodules = typeof mod === 'string' ? [] : (mod.submodules ?? [])
+                  const name = typeof mod === 'string' ? null : mod.name
                   const moduleActive = isActive(`/app/${slug}`)
                   const expanded = expandedModules.has(slug)
 
@@ -142,7 +143,7 @@ export default function Sidebar() {
                           title={collapsed ? (slug || '').charAt(0).toUpperCase() + (slug || '').slice(1) : undefined}
                         >
                           <span className="shrink-0">{getModuleIcon(icon)}</span>
-                          {!collapsed && <span className="truncate">{(slug || '').charAt(0).toUpperCase() + (slug || '').slice(1)}</span>}
+                          {!collapsed && <span className="truncate">{name ?? (slug || '').split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</span>}
                         </Link>
                         {!collapsed && submodules.length > 0 && (
                           <button
