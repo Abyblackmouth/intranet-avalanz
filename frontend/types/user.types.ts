@@ -7,6 +7,7 @@ export interface UserRow {
   matricula: string | null
   puesto: string | null
   departamento: string | null
+  phone: string | null
   company_id: string
   company_name: string
   company_slug?: string
@@ -30,6 +31,7 @@ export interface CreateUserPayload {
   matricula?: string
   puesto?: string
   departamento?: string
+  phone?: string
   is_super_admin?: boolean
   global_role_id?: string
   module_accesses?: ModuleAccessPayload[]
@@ -44,6 +46,7 @@ export interface UpdateUserPayload {
   matricula?: string
   puesto?: string
   departamento?: string
+  phone?: string
   is_active?: boolean
 }
 
@@ -63,6 +66,7 @@ export interface CreateUserResponse {
   matricula: string | null
   puesto: string | null
   departamento: string | null
+  phone: string | null
   temp_password: string
   temp_password_expires_at: string
   message: string

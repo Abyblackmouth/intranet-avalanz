@@ -15,7 +15,7 @@ from shared.exceptions.http_exceptions import (
 PROTECTED_SUPER_ADMIN_EMAIL = "admin@avalanz.com"
 
 
-async def create_user(db, company_id, email, full_name, matricula=None, puesto=None, departamento=None, is_super_admin=False, requested_by=None):
+async def create_user(db, company_id, email, full_name, matricula=None, puesto=None, departamento=None, phone=None, is_super_admin=False, requested_by=None):
     if is_super_admin and not _is_super_admin(requested_by):
         raise ForbiddenException("Solo un super admin puede crear otros super admins")
     result = await db.execute(select(User).where(User.email == email, User.is_deleted == False))
@@ -27,13 +27,13 @@ async def create_user(db, company_id, email, full_name, matricula=None, puesto=N
             raise AlreadyExistsException("Matricula")
     temp_password = generate_secure_token(config.TEMP_PASSWORD_LENGTH)
     expires_at = now_utc() + timedelta(hours=config.TEMP_PASSWORD_EXPIRE_HOURS)
-    user = User(company_id=company_id, email=email, full_name=full_name, matricula=matricula, puesto=puesto, departamento=departamento, is_active=True, is_super_admin=is_super_admin)
+    user = User(company_id=company_id, email=email, full_name=full_name, matricula=matricula, puesto=puesto, departamento=departamento, phone=phone, is_active=True, is_super_admin=is_super_admin)
     db.add(user)
     await db.flush()
     await _sync_user_to_auth(str(user.id), email, full_name, temp_password, expires_at.isoformat())
     await _send_welcome_email(email, full_name, temp_password, str(user.id))
     await db.commit()
-    return {"user_id": str(user.id), "email": email, "full_name": full_name, "matricula": matricula, "puesto": puesto, "departamento": departamento, "temp_password": temp_password, "temp_password_expires_at": expires_at.isoformat(), "message": "Usuario creado. La contrasena temporal tiene validez de 24 horas"}
+    return {"user_id": str(user.id), "email": email, "full_name": full_name, "matricula": matricula, "puesto": puesto, "departamento": departamento, "phone": phone, "temp_password": temp_password, "temp_password_expires_at": expires_at.isoformat(), "message": "Usuario creado. La contrasena temporal tiene validez de 24 horas"}
 
 
 async def get_user_by_id(db, user_id):
@@ -104,7 +104,7 @@ async def list_users(db, page=1, per_page=20, company_id=None, is_active=None, i
     return {"data": [_serialize_user(row.User, row.Company.nombre_comercial, row.Company.name, row.Company.rfc, auth_data_map.get(str(row.User.id), {}), roles_map.get(str(row.User.id), [])) for row in rows], "meta": paginate(total, page, per_page)}
 
 
-async def update_user(db, user_id, company_id=None, full_name=None, email=None, matricula=None, puesto=None, departamento=None, is_active=None, requested_by=None):
+async def update_user(db, user_id, company_id=None, full_name=None, email=None, matricula=None, puesto=None, departamento=None, phone=None, is_active=None, requested_by=None):
     result = await db.execute(select(User).where(User.id == user_id, User.is_deleted == False))
     user = result.scalar_one_or_none()
     if not user:
@@ -126,6 +126,7 @@ async def update_user(db, user_id, company_id=None, full_name=None, email=None, 
     if matricula is not None: values["matricula"] = matricula
     if puesto is not None: values["puesto"] = puesto
     if departamento is not None: values["departamento"] = departamento
+    if phone is not None: values["phone"] = phone
     if is_active is not None: values["is_active"] = is_active
     if company_id is not None and _is_super_admin(requested_by): values["company_id"] = company_id
     old_email = user.email
@@ -195,6 +196,20 @@ async def reset_password(db, user_id, new_password, requested_by=None):
             "La contrasena debe tener minimo 8 caracteres, una mayuscula, "
             "una minuscula, un numero y un caracter especial"
         )
+    # Consulta si el usuario nunca ha completado su primer cambio de
+    # contrasena (is_temp_password=True desde su creacion). Si es asi, el
+    # correo de "reset" (que no lleva la contrasena) no le sirve de nada --
+    # se le manda el correo de bienvenida con la contrasena nueva, igual
+    # que si fuera su primera vez.
+    never_activated = True
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            info_resp = await client.get(f"http://auth-service:8000/api/v1/auth/internal/users/{user_id}/info")
+            if info_resp.status_code == 200:
+                never_activated = bool(info_resp.json().get("is_temp_password", True))
+    except httpx.HTTPError:
+        pass  # si no se puede consultar, se asume que nunca activo (mas seguro)
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
@@ -205,7 +220,11 @@ async def reset_password(db, user_id, new_password, requested_by=None):
                 raise ValidationException("Error al resetear la contrasena")
     except httpx.HTTPError:
         raise ValidationException("Error al comunicarse con el servicio de autenticacion")
-    await _send_reset_password_email(user.email, user.full_name, str(user.id))
+
+    if never_activated:
+        await _send_welcome_email(user.email, user.full_name, new_password, str(user.id))
+    else:
+        await _send_reset_password_email(user.email, user.full_name, str(user.id))
 
 
 async def assign_global_role(db, user_id, role_id, requested_by=None):
@@ -459,6 +478,7 @@ def _serialize_user(user, company_name="", company_razon_social="", company_rfc=
         "matricula": user.matricula,
         "puesto": user.puesto,
         "departamento": user.departamento,
+        "phone": user.phone,
         "lock_reason": user.lock_reason,
         "is_active": user.is_active,
         "is_super_admin": user.is_super_admin,

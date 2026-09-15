@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Mail, Hash, Briefcase, Building2, Shield, Layers, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, User, Mail, Hash, Briefcase, Building2, Phone, Shield, Layers, ChevronDown, ChevronUp } from 'lucide-react'
 import { createUser, getCompanies, getGlobalRoles, getModules } from '@/services/adminService'
 import { getOperationalRoles } from '@/services/roleService'
 import { useAuthStore } from '@/store/authStore'
@@ -33,6 +33,7 @@ interface OperationalRole {
   role_id: string
   name: string
   slug: string
+  module_id: string | null
   scope: 'empresa' | 'corporativo'
 }
 
@@ -53,6 +54,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
     matricula: '',
     puesto: '',
     departamento: '',
+    phone: '',
     is_super_admin: false,
     global_role_id: '',
   })
@@ -139,6 +141,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
         matricula: form.matricula || undefined,
         puesto: form.puesto || undefined,
         departamento: form.departamento || undefined,
+        phone: form.phone || undefined,
         is_super_admin: form.is_super_admin,
         global_role_id: form.global_role_id || undefined,
         module_accesses: moduleAccesses.map(a => ({
@@ -294,6 +297,22 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
                 />
               </div>
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                Teléfono
+              </label>
+              <div className="relative">
+                <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  placeholder="Ej. 55 1234 5678"
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
           </div>
 
           <div>
@@ -378,7 +397,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
                       className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                     >
                       <option value="">Seleccionar rol</option>
-                      {operationalRoles.map(r => (
+                      {operationalRoles.filter(r => !selectedModuleId || r.module_id === selectedModuleId || r.module_id === null).map(r => (
                         <option key={r.role_id} value={r.role_id}>{r.name}</option>
                       ))}
                     </select>
