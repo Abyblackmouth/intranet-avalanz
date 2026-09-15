@@ -373,7 +373,7 @@ services:
   cron:
     build:
       context: ../cron
-      dockerfile: modules/legal-service/Dockerfile
+      dockerfile: Dockerfile
     container_name: avalanz-cron
     restart: unless-stopped
     environment:

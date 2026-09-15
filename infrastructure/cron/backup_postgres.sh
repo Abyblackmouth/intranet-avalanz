@@ -69,10 +69,22 @@ MESSAGE="Reporte de backup diario de PostgreSQL.\n\nFecha: $DATE_HUMAN\nExitosos
 
 # ── Enviar correo a cada destinatario ─────────────────────────────────────────
 for EMAIL in $RECIPIENTS; do
-    wget -q -O /dev/null \
-        --post-data="{\"to_email\":\"$EMAIL\",\"full_name\":\"Equipo Avalanz\",\"subject\":\"$SUBJECT\",\"message\":\"$MESSAGE\",\"alert_type\":\"$ALERT_TYPE\"}" \
-        --header="Content-Type: application/json" \
-        "$EMAIL_SERVICE_URL" || echo "$LOG_PREFIX Advertencia: no se pudo enviar correo a $EMAIL"
+    SENT=0
+    for INTENTO in 1 2 3; do
+        wget -q -O /dev/null --timeout=15 \
+            --post-data="{\"to_email\":\"$EMAIL\",\"full_name\":\"Equipo Avalanz\",\"subject\":\"$SUBJECT\",\"message\":\"$MESSAGE\",\"alert_type\":\"$ALERT_TYPE\"}" \
+            --header="Content-Type: application/json" \
+            "$EMAIL_SERVICE_URL"
+        if [ $? -eq 0 ]; then
+            SENT=1
+            break
+        fi
+        echo "$LOG_PREFIX Intento $INTENTO fallido enviando correo a $EMAIL, reintentando en 5s..."
+        sleep 5
+    done
+    if [ "$SENT" -eq 0 ]; then
+        echo "$LOG_PREFIX ERROR: no se pudo enviar correo a $EMAIL tras 3 intentos"
+    fi
 done
 
 if [ "$TOTAL_FAIL" -gt 0 ]; then
