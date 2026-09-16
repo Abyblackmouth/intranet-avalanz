@@ -30,6 +30,20 @@ async def list_actualizaciones():
     return {"data": [], "message": "Listado de Actualizaciones"}
 
 
+@router.get("/usuarios-por-rol")
+async def get_users_by_role(role_slug: str, user: dict = Depends(get_current_user)):
+    """Proxy autenticado hacia admin-service -- el navegador nunca puede
+    llamar directo a un endpoint /internal/, asi que este es el puente
+    real que valida el JWT antes de reenviar la consulta."""
+    import httpx
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": role_slug},
+        )
+        return {"data": resp.json() if resp.status_code == 200 else []}
+
+
 # ------------------------------------------------------------------
 # Sistemas
 # ------------------------------------------------------------------
