@@ -116,6 +116,37 @@ async def internal_get_user_permissions(
     return result
 
 
+@app.get("/internal/users/{user_id}/profile", include_in_schema=False)
+async def internal_get_user_profile(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Snapshot minimo de perfil para otros microservicios (ej. Mesa de
+    Ayuda al crear un ticket) -- nombre, telefono, puesto, departamento,
+    empresa y company_id. Sin JWT, solo alcanzable dentro de la red interna
+    de Docker."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT u.full_name, u.phone, u.puesto, u.departamento,
+               u.company_id, c.nombre_comercial
+        FROM users u
+        JOIN companies c ON c.id = u.company_id
+        WHERE u.id = :user_id AND u.is_deleted = false
+    """), {"user_id": user_id})
+    row = result.fetchone()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {
+        "full_name": row[0],
+        "phone": row[1],
+        "puesto": row[2],
+        "departamento": row[3],
+        "company_id": str(row[4]),
+        "company_name": row[5],
+    }
+
+
 # ── Health check ──────────────────────────────────────────────────────────────
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
