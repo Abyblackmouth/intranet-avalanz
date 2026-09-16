@@ -20,6 +20,7 @@ class CreateUserRequest(BaseModel):
     matricula: Optional[str] = None
     puesto: Optional[str] = None
     departamento: Optional[str] = None
+    phone: Optional[str] = None
     is_super_admin: bool = False
     global_role_id: Optional[str] = None
     module_accesses: Optional[List[dict]] = None
@@ -32,6 +33,7 @@ class UpdateUserRequest(BaseModel):
     matricula: Optional[str] = None
     puesto: Optional[str] = None
     departamento: Optional[str] = None
+    phone: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -79,6 +81,7 @@ async def create_user(
         matricula=body.matricula,
         puesto=body.puesto,
         departamento=body.departamento,
+        phone=body.phone,
         is_super_admin=body.is_super_admin,
         requested_by=payload,
     )
@@ -174,6 +177,7 @@ async def update_user(
         matricula=body.matricula,
         puesto=body.puesto,
         departamento=body.departamento,
+        phone=body.phone,
         is_active=body.is_active,
         requested_by=payload,
     )
