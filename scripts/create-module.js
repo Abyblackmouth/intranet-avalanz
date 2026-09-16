@@ -380,6 +380,22 @@ function createSubmodule(moduleSlug, subSlug) {
     write(path.join(beBase, `app/routes/${subSlugClean}/${subSlugClean}.py`), backendSubRoute(subSlug))
     write(path.join(beBase, `app/services/${subSlugClean}/__init__.py`), '')
     write(path.join(beBase, `app/services/${subSlugClean}/${subSlugClean}_service.py`), backendSubService(subSlug))
+
+    // Conecta el router del submodulo al router principal automaticamente --
+    // se INSERTA, nunca se reescribe el archivo completo, para no borrar
+    // routers de otros submodulos que ya estuvieran conectados antes.
+    const routesInitPath = path.join(beBase, 'app/routes/__init__.py')
+    if (fs.existsSync(routesInitPath)) {
+      let routesInitContent = fs.readFileSync(routesInitPath, 'utf-8')
+      const importLine = `from app.routes.${subSlugClean}.${subSlugClean} import router as ${subSlugClean}_router`
+      const includeLine = `router.include_router(${subSlugClean}_router)`
+      if (!routesInitContent.includes(importLine)) {
+        routesInitContent = importLine + '\n' + routesInitContent
+        routesInitContent = routesInitContent.trimEnd() + '\n' + includeLine + '\n'
+        fs.writeFileSync(routesInitPath, routesInitContent)
+        console.log(`  \u2713 Router de "${subSlug}" conectado automaticamente en routes/__init__.py`)
+      }
+    }
   }
 
   console.log(`\n✓ Submódulo "${subSlug}" creado en "${moduleSlug}" exitosamente.\n`)

@@ -108,6 +108,76 @@ async def _generate_folio(db: AsyncSession, prefix: str, family_clave: str) -> s
 
 
 # ------------------------------------------------------------------
+# Notificacion 1 -- creacion del ticket (submodulo-incidencias-notificaciones.md)
+# ------------------------------------------------------------------
+
+async def _notify_ticket_created(
+    to_email: str, full_name: str, folio: str, title: str,
+    system_name: str, module_name: Optional[str], severity_name: str,
+    created_at: datetime,
+) -> None:
+    modulo_txt = f" / {module_name}" if module_name else ""
+    message = (
+        f"Folio: {folio}\n"
+        f"Titulo: {title}\n"
+        f"Sistema / Modulo: {system_name}{modulo_txt}\n"
+        f"Severidad propuesta: {severity_name}\n"
+        f"Fecha de creacion: {created_at.strftime('%d/%m/%Y %H:%M')}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://email-service:8000/api/v1/email/system-notification",
+                json={
+                    "to_email": to_email,
+                    "full_name": full_name,
+                    "subject": f"Se ha creado un ticket para soporte tecnico #{folio}",
+                    "message": message,
+                    "alert_type": "info",
+                },
+            )
+    except Exception:
+        # Si el correo falla, el ticket ya se guardo bien -- no se pierde
+        # nada, solo no llega el aviso.
+        pass
+
+
+# ------------------------------------------------------------------
+# Notificacion 1 -- creacion del ticket (submodulo-incidencias-notificaciones.md)
+# ------------------------------------------------------------------
+
+async def _notify_ticket_created(
+    to_email: str, full_name: str, folio: str, title: str,
+    system_name: str, module_name: Optional[str], severity_name: str,
+    created_at: datetime,
+) -> None:
+    modulo_txt = f" / {module_name}" if module_name else ""
+    message = (
+        f"Folio: {folio}\n"
+        f"Titulo: {title}\n"
+        f"Sistema / Modulo: {system_name}{modulo_txt}\n"
+        f"Severidad propuesta: {severity_name}\n"
+        f"Fecha de creacion: {created_at.strftime('%d/%m/%Y %H:%M')}"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://email-service:8000/api/v1/email/system-notification",
+                json={
+                    "to_email": to_email,
+                    "full_name": full_name,
+                    "subject": f"Se ha creado un ticket para soporte tecnico #{folio}",
+                    "message": message,
+                    "alert_type": "info",
+                },
+            )
+    except Exception:
+        # Si el correo falla, el ticket ya se guardo bien -- no se pierde
+        # nada, solo no llega el aviso.
+        pass
+
+
+# ------------------------------------------------------------------
 # Crear ticket
 # ------------------------------------------------------------------
 
@@ -205,6 +275,26 @@ async def create_incident(
         # Si RabbitMQ no esta disponible, el ticket ya se guardo bien --
         # se queda en_backlog para asignacion manual, no se pierde nada.
         pass
+
+    # Notificacion 1: correo de creacion al solicitante
+    system_result = await db.execute(select(TicketSystem).where(TicketSystem.id == system_id))
+    system_obj = system_result.scalar_one_or_none()
+    module_name = None
+    if module_id:
+        module_result = await db.execute(select(TicketModule).where(TicketModule.id == module_id))
+        module_obj = module_result.scalar_one_or_none()
+        module_name = module_obj.name if module_obj else None
+
+    await _notify_ticket_created(
+        to_email=user.get("email"),
+        full_name=profile.get("full_name"),
+        folio=incident.folio,
+        title=incident.title,
+        system_name=system_obj.name if system_obj else "N/A",
+        module_name=module_name,
+        severity_name=severity.name,
+        created_at=incident.created_at,
+    )
 
     return {
         "success": True,
