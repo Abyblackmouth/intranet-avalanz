@@ -6,6 +6,7 @@ class Config(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://avalanz_user:password@postgres:5432/avalanz_it_service_desk"
     JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
+    RABBITMQ_URL: str = "amqp://avalanz:Avalanz2026!@rabbitmq:5672/"
 
     class Config:
         env_file = ".env"

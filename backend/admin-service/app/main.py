@@ -128,15 +128,23 @@ async def internal_get_user_profile(
     from sqlalchemy import text
     result = await db.execute(text("""
         SELECT u.full_name, u.phone, u.puesto, u.departamento,
-               u.company_id, c.nombre_comercial
+               u.company_id, c.nombre_comercial, cf.clave
         FROM users u
         JOIN companies c ON c.id = u.company_id
+        LEFT JOIN company_families cf ON cf.id = c.family_id
         WHERE u.id = :user_id AND u.is_deleted = false
     """), {"user_id": user_id})
     row = result.fetchone()
     if not row:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    import re as _re
+    family_clave = row[6]
+    if not family_clave:
+        # Fallback documentado: codigo propio de 4 caracteres, sin acentos ni espacios
+        family_clave = _re.sub(r"[^A-Z0-9]", "", row[5].upper())[:4].ljust(4, "X")
+
     return {
         "full_name": row[0],
         "phone": row[1],
@@ -144,6 +152,7 @@ async def internal_get_user_profile(
         "departamento": row[3],
         "company_id": str(row[4]),
         "company_name": row[5],
+        "family_clave": family_clave,
     }
 
 
