@@ -7,6 +7,7 @@ class Config(BaseSettings):
     JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     RABBITMQ_URL: str = "amqp://avalanz:Avalanz2026!@rabbitmq:5672/"
+    FRONTEND_URL: str = "http://localhost:3000"
 
     class Config:
         env_file = ".env"

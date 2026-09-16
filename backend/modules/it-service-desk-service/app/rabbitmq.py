@@ -35,6 +35,7 @@ async def publish_incident_created(incident_id: str) -> None:
 async def _process_message(body: bytes) -> None:
     from app.database import AsyncSessionLocal
     from app.models.mesa_de_soporte import Incident, IncidentActivityLog
+    from app.assignment import finalize_assignment
     from sqlalchemy import select
 
     data = json.loads(body)
@@ -51,22 +52,15 @@ async def _process_message(body: bytes) -> None:
         )
 
         if assignment["encontrado"]:
-            incident.assigned_team = assignment["equipo_asignado"]
-            incident.assigned_to_user_id = assignment["usuario_asignado"]
-            incident.status = "asignado"
-
-            db.add(IncidentActivityLog(
-                incident_id=incident.id,
+            await finalize_assignment(
+                db, incident,
+                assigned_team=assignment["equipo_asignado"],
+                assigned_to_user_id=assignment["usuario_asignado"],
+                actor_id=SYSTEM_ACTOR_ID,
+                actor_name="Motor de Asignacion",
+                actor_role="sistema",
                 action="motor_asigno",
-                performed_by=SYSTEM_ACTOR_ID,
-                performed_by_name="Motor de Asignacion",
-                performed_by_role="sistema",
-                module_slug="it-service-desk",
-                detail={
-                    "equipo_asignado": assignment["equipo_asignado"],
-                    "usuario_asignado": assignment["usuario_asignado"],
-                },
-            ))
+            )
         else:
             db.add(IncidentActivityLog(
                 incident_id=incident.id,
@@ -77,8 +71,7 @@ async def _process_message(body: bytes) -> None:
                 module_slug="it-service-desk",
                 detail={"nota": "Se queda en backlog para asignacion manual"},
             ))
-
-        await db.commit()
+            await db.commit()
 
 
 async def start_consumer() -> None:

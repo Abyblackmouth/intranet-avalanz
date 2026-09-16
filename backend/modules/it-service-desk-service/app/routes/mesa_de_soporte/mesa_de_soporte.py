@@ -1,9 +1,10 @@
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
 import httpx
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -178,6 +179,128 @@ async def _notify_ticket_created(
 
 
 # ------------------------------------------------------------------
+# Asignacion manual -- Incident Manager asigna un ticket del backlog
+# ------------------------------------------------------------------
+
+class ManualAssignRequest(BaseModel):
+    assigned_team: str
+    assigned_to_user_id: str
+
+
+@router.patch("/incidencias/{incident_id}/asignar")
+async def assign_incident_manual(
+    incident_id: str,
+    body: ManualAssignRequest,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    roles = user.get("roles") or []
+    if "it-service-desk:incident-manager" not in roles and "super_admin" not in roles:
+        raise HTTPException(status_code=403, detail="Solo Incident Manager puede asignar tickets manualmente")
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    from app.assignment import finalize_assignment
+    await finalize_assignment(
+        db, incident,
+        assigned_team=body.assigned_team,
+        assigned_to_user_id=body.assigned_to_user_id,
+        actor_id=user.get("user_id"),
+        actor_name=user.get("full_name", ""),
+        actor_role="incident_manager",
+        action="asignacion_manual",
+    )
+    return {"success": True, "message": "Ticket asignado"}
+
+
+# ------------------------------------------------------------------
+# Atender desde el correo -- sin login, via token de un solo uso
+# ------------------------------------------------------------------
+
+class ResolveViaTokenRequest(BaseModel):
+    resolution_type: str  # causa_raiz | workaround
+    rca_text: Optional[str] = None
+
+
+@router.get("/atender/{token}")
+async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
+    from app.models.mesa_de_soporte import IncidentResolutionToken
+    result = await db.execute(select(IncidentResolutionToken).where(IncidentResolutionToken.token == token))
+    tok = result.scalar_one_or_none()
+    if not tok:
+        raise HTTPException(status_code=404, detail="Enlace invalido")
+    if tok.used_at is not None:
+        raise HTTPException(status_code=410, detail="Este enlace ya fue utilizado")
+    if tok.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Este enlace ha expirado")
+
+    inc_result = await db.execute(select(Incident).where(Incident.id == tok.incident_id))
+    incident = inc_result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    return {
+        "folio": incident.folio,
+        "title": incident.title,
+        "description": incident.description,
+        "status": incident.status,
+        "requester_name": incident.requester_name,
+        "requester_area": incident.requester_area,
+        "requester_company_name": incident.requester_company_name,
+        "created_at": incident.created_at.isoformat(),
+        "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
+        "already_resolved": incident.status in ("resuelto", "cerrado"),
+    }
+
+
+@router.post("/atender/{token}/resolver")
+async def resolve_via_token(token: str, body: ResolveViaTokenRequest, db: AsyncSession = Depends(get_db)):
+    from app.models.mesa_de_soporte import IncidentResolutionToken
+    result = await db.execute(select(IncidentResolutionToken).where(IncidentResolutionToken.token == token))
+    tok = result.scalar_one_or_none()
+    if not tok:
+        raise HTTPException(status_code=404, detail="Enlace invalido")
+    if tok.used_at is not None:
+        raise HTTPException(status_code=410, detail="Este enlace ya fue utilizado")
+    if tok.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Este enlace ha expirado")
+
+    inc_result = await db.execute(select(Incident).where(Incident.id == tok.incident_id))
+    incident = inc_result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if incident.status in ("resuelto", "cerrado"):
+        raise HTTPException(status_code=400, detail="Este ticket ya fue resuelto")
+
+    incident.status = "resuelto"
+    incident.resolved_at = datetime.now(timezone.utc)
+    incident.resolution_type = body.resolution_type
+    if body.rca_text:
+        incident.rca_text = body.rca_text
+    incident.reopen_window_expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+    tok.used_at = datetime.now(timezone.utc)
+
+    resolver_profile = await _get_requester_profile(tok.created_for_user_id)
+
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    db.add(IncidentActivityLog(
+        incident_id=incident.id,
+        action="ticket_resuelto_via_token",
+        performed_by=tok.created_for_user_id,
+        performed_by_name=resolver_profile.get("full_name") or "Desconocido",
+        performed_by_role="asignado",
+        module_slug="it-service-desk",
+        detail={"resolution_type": body.resolution_type, "via": "enlace_correo"},
+    ))
+    await db.commit()
+    return {"success": True, "message": "Ticket marcado como resuelto"}
+
+
+# ------------------------------------------------------------------
 # Crear ticket
 # ------------------------------------------------------------------
 
@@ -209,7 +332,7 @@ async def create_incident(
     family_clave = profile.get("family_clave")
     folio = await _generate_folio(db, "INC", family_clave)
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     sla_response_limit = now + timedelta(minutes=severity.response_sla_minutes)
     sla_resolution_limit = now + timedelta(hours=severity.resolution_sla_hours)
 
@@ -251,7 +374,7 @@ async def create_incident(
                 mime_type=f["content_type"],
                 size_bytes=f["size_bytes"],
                 uploaded_by=user_id,
-                uploaded_at=datetime.utcnow(),
+                uploaded_at=datetime.now(timezone.utc),
             ))
         await db.commit()
 
