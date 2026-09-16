@@ -1,11 +1,10 @@
 import re
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,8 +12,9 @@ from app.config import config
 from app.database import get_db
 from app.models.mesa_de_soporte import (
     Incident, TicketSeverity, TicketSystem, TicketModule, FolioCounter,
+    IncidentAttachment,
 )
-from shared.middleware.jwt_validator import JWTValidator
+from shared.middleware.jwt_validator import JWTValidator, get_token_from_request
 
 router = APIRouter(prefix="/mesa-de-soporte", tags=["Mesa De Soporte"])
 
@@ -28,16 +28,38 @@ async def list_mesa_de_soporte():
 
 
 # ------------------------------------------------------------------
-# Schema de entrada -- los 7 campos que llena el solicitante
+# Subida de evidencia -- llamada al upload-service, mismo patron que
+# ya usa Legal (ver upload-service.md)
 # ------------------------------------------------------------------
 
-class CreateIncidentRequest(BaseModel):
-    title: str
-    system_id: str
-    module_id: Optional[str] = None
-    reported_type: Optional[str] = None
-    severity_reported_id: str
-    description: str
+async def _upload_evidence_files(
+    files: List[UploadFile],
+    company_slug: str,
+    folio: str,
+    raw_token: str,
+) -> List[Dict[str, Any]]:
+    """Sube cada archivo al upload-service y regresa la lista de resultados
+    (object_key, bucket, mime_type, size_bytes) para guardarlos despues en
+    incident_attachments."""
+    uploaded = []
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for f in files:
+            file_bytes = await f.read()
+            resp = await client.post(
+                "http://upload-service:8000/api/v1/upload/",
+                headers={"Authorization": f"Bearer {raw_token}"},
+                files={"file": (f.filename, file_bytes, f.content_type)},
+                data={
+                    "company_slug": company_slug,
+                    "module_slug": "it-service-desk",
+                    "submodule_slug": f"incidencias/{folio}",
+                },
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail=f"No se pudo subir el archivo {f.filename}")
+            data = resp.json().get("data", {})
+            uploaded.append(data)
+    return uploaded
 
 
 # ------------------------------------------------------------------
@@ -91,9 +113,16 @@ async def _generate_folio(db: AsyncSession, prefix: str, family_clave: str) -> s
 
 @router.post("/incidencias")
 async def create_incident(
-    body: CreateIncidentRequest,
+    title: str = Form(...),
+    system_id: str = Form(...),
+    module_id: Optional[str] = Form(None),
+    reported_type: Optional[str] = Form(None),
+    severity_reported_id: str = Form(...),
+    description: str = Form(...),
+    files: List[UploadFile] = File(default=[]),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
+    raw_token: str = Depends(get_token_from_request),
 ):
     user_id = user.get("user_id")
     company_id = user.get("companies", [None])[0] if user.get("companies") else None
@@ -102,7 +131,7 @@ async def create_incident(
 
     profile = await _get_requester_profile(user_id)
 
-    severity_result = await db.execute(select(TicketSeverity).where(TicketSeverity.id == body.severity_reported_id))
+    severity_result = await db.execute(select(TicketSeverity).where(TicketSeverity.id == severity_reported_id))
     severity = severity_result.scalar_one_or_none()
     if not severity:
         raise HTTPException(status_code=404, detail="Severidad no encontrada")
@@ -116,7 +145,7 @@ async def create_incident(
 
     incident = Incident(
         folio=folio,
-        title=body.title,
+        title=title,
         company_id=company_id,
         requester_id=user_id,
         requester_name=profile.get("full_name"),
@@ -124,11 +153,11 @@ async def create_incident(
         requester_puesto=profile.get("puesto"),
         requester_area=profile.get("departamento"),
         requester_company_name=profile.get("company_name"),
-        system_id=body.system_id,
-        module_id=body.module_id,
-        reported_type=body.reported_type,
-        description=body.description,
-        severity_reported_id=body.severity_reported_id,
+        system_id=system_id,
+        module_id=module_id,
+        reported_type=reported_type,
+        description=description,
+        severity_reported_id=severity_reported_id,
         sla_response_limit=sla_response_limit,
         sla_resolution_limit=sla_resolution_limit,
         status="en_backlog",
@@ -136,6 +165,38 @@ async def create_incident(
     db.add(incident)
     await db.commit()
     await db.refresh(incident)
+
+    # Evidencia -- opcional, una o varias imagenes (Fase 1 del formulario)
+    if files:
+        uploaded = await _upload_evidence_files(
+            files, profile.get("company_slug"), folio, raw_token
+        )
+        for f in uploaded:
+            db.add(IncidentAttachment(
+                incident_id=incident.id,
+                attachment_type="evidencia_reporte",
+                reopen_cycle=0,
+                object_key=f["object_key"],
+                bucket=f["bucket"],
+                mime_type=f["content_type"],
+                size_bytes=f["size_bytes"],
+                uploaded_by=user_id,
+                uploaded_at=datetime.utcnow(),
+            ))
+        await db.commit()
+
+    # Bitacora -- se registra la creacion, con el solicitante como actor real
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    db.add(IncidentActivityLog(
+        incident_id=incident.id,
+        action="ticket_creado",
+        performed_by=user_id,
+        performed_by_name=profile.get("full_name"),
+        performed_by_role="solicitante",
+        module_slug="it-service-desk",
+        detail={"evidencia_adjunta": len(files) if files else 0},
+    ))
+    await db.commit()
 
     try:
         from app.rabbitmq import publish_incident_created
@@ -154,5 +215,6 @@ async def create_incident(
             "status": incident.status,
             "sla_response_limit": incident.sla_response_limit.isoformat(),
             "sla_resolution_limit": incident.sla_resolution_limit.isoformat(),
+            "evidencia_subida": len(files) if files else 0,
         },
     }

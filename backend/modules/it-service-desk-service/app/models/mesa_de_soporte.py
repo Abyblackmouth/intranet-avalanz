@@ -131,6 +131,7 @@ class Incident(Base):
 
     assigned_team = Column(String(30), nullable=True)
     assigned_to_user_id = Column(UUID(as_uuid=False), nullable=True)
+    assigned_at = Column(DateTime(timezone=True), nullable=True)
 
     attention_level = Column(String(5), nullable=True)
     first_response_at = Column(DateTime(timezone=True), nullable=True)
