@@ -15,11 +15,21 @@ class Group(BaseModelWithSoftDelete):
     is_active       = Column(Boolean, default=True, nullable=False)
 
 
+class CompanyFamily(BaseModelWithSoftDelete):
+    __tablename__ = "company_families"
+
+    id              = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name            = Column(String(255), nullable=False)
+    clave           = Column(String(4), unique=True, nullable=False)
+    is_active       = Column(Boolean, default=True, nullable=False)
+
+
 class Company(BaseModelWithSoftDelete):
     __tablename__ = "companies"
 
     id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     group_id         = Column(UUID(as_uuid=True), ForeignKey("groups.id", ondelete="RESTRICT"), nullable=False)
+    family_id        = Column(UUID(as_uuid=True), ForeignKey("company_families.id", ondelete="SET NULL"), nullable=True)
     nombre_comercial = Column(String(100), nullable=False)
     name             = Column(String(255), nullable=False)
     slug             = Column(String(255), unique=True, nullable=False, index=True)
