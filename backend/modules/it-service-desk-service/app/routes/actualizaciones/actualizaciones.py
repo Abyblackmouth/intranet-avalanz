@@ -131,13 +131,29 @@ class SpecialistRequest(BaseModel):
 
 @router.get("/especialistas")
 async def list_specialists(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    import httpx
     result = await db.execute(select(SystemSpecialist))
+    specialists = result.scalars().all()
+
+    # Enriquecer con el nombre real -- sin esto, el front tendria que hacer
+    # una llamada aparte por cada fila solo para saber quien es la persona.
+    names_cache: dict = {}
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for s in specialists:
+            if s.specialist_user_id not in names_cache:
+                try:
+                    resp = await client.get(f"http://admin-service:8000/internal/users/{s.specialist_user_id}/profile")
+                    names_cache[s.specialist_user_id] = resp.json().get("full_name") if resp.status_code == 200 else None
+                except Exception:
+                    names_cache[s.specialist_user_id] = None
+
     return {"data": [
         {
             "id": s.id, "system_id": s.system_id, "module_id": s.module_id,
             "team_type": s.team_type, "specialist_user_id": s.specialist_user_id,
+            "specialist_user_name": names_cache.get(s.specialist_user_id),
             "is_active": s.is_active,
-        } for s in result.scalars().all()
+        } for s in specialists
     ]}
 
 
