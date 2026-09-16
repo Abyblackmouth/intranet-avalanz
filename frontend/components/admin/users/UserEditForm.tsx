@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Mail, Hash, Briefcase, Building2, Shield, Layers, Plus, Trash2 } from 'lucide-react'
+import { X, User, Mail, Hash, Briefcase, Building2, Phone, Shield, Layers, Plus, Trash2 } from 'lucide-react'
 import { getUser, updateUser, getGlobalRoles, assignGlobalRole, removeGlobalRole, getModules, assignModuleAccess, revokeModuleAccess } from '@/services/adminService'
 import { getSignedUrl } from '@/services/uploadService'
 import { UserAvatarEditor } from '@/components/admin/users/UserAvatarEditor'
@@ -26,6 +26,7 @@ interface OperationalRole {
   role_id: string
   name: string
   slug: string
+  module_id: string | null
   scope: 'empresa' | 'corporativo'
 }
 
@@ -52,6 +53,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
     matricula: '',
     puesto: '',
     departamento: '',
+    phone: '',
   })
   const [companies, setCompanies] = useState<{ company_id: string; nombre_comercial: string }[]>([])
 
@@ -114,6 +116,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
           matricula: user.matricula || '',
           puesto: user.puesto || '',
           departamento: user.departamento || '',
+          phone: user.phone || '',
         })
 
         // Cargar accesos a módulos del usuario
@@ -186,6 +189,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
         email: form.email || undefined,
         puesto: form.puesto || undefined,
         departamento: form.departamento || undefined,
+        phone: form.phone || undefined,
       }
 
       // matricula solo super_admin puede editarla
@@ -384,6 +388,22 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
                     />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                    Teléfono
+                  </label>
+                  <div className="relative">
+                    <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      name="phone"
+                      value={form.phone}
+                      onChange={handleChange}
+                      placeholder="Ej. 55 1234 5678"
+                      className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Rol global — solo super_admin */}
@@ -474,7 +494,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
                         className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                       >
                         <option value="">Rol</option>
-                        {operationalRoles.map(r => (
+                        {operationalRoles.filter(r => !addingModuleId || r.module_id === addingModuleId || r.module_id === null).map(r => (
                           <option key={r.role_id} value={r.role_id}>{r.name}</option>
                         ))}
                       </select>
