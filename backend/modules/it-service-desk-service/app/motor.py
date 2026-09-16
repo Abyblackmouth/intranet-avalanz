@@ -16,8 +16,8 @@ from app.models.mesa_de_soporte import SystemSpecialist
 SYSTEM_ACTOR_ID = "00000000-0000-0000-0000-000000000000"
 
 TEAM_BY_REPORTED_TYPE = {
-    "funcional": "equipo-funcional",
-    "tecnico": "equipo-tecnico",
+    "funcional": "especialista-funcional",
+    "tecnico": "especialista-tecnico",
 }
 
 
