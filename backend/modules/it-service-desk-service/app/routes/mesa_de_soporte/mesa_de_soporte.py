@@ -13,7 +13,7 @@ from app.config import config
 from app.database import get_db
 from app.models.mesa_de_soporte import (
     Incident, TicketSeverity, TicketSystem, TicketModule, FolioCounter,
-    IncidentAttachment,
+    IncidentAttachment, IncidentActivityLog, IncidentResolutionToken,
 )
 from shared.middleware.jwt_validator import JWTValidator, get_token_from_request
 
@@ -26,6 +26,137 @@ get_current_user = _validator.get_current_user()
 @router.get("/")
 async def list_mesa_de_soporte():
     return {"data": [], "message": "Listado de Mesa De Soporte"}
+
+
+# ------------------------------------------------------------------
+# Catalogo de severidades -- para el formulario de creacion
+# ------------------------------------------------------------------
+
+@router.get("/severidades")
+async def list_severities(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    result = await db.execute(select(TicketSeverity).where(TicketSeverity.is_active == True).order_by(TicketSeverity.code))
+    return {"data": [
+        {"id": s.id, "code": s.code, "name": s.name} for s in result.scalars().all()
+    ]}
+
+
+# ------------------------------------------------------------------
+# Listado de tickets -- visibilidad por rol (roles-mesa-ayuda.md)
+# ------------------------------------------------------------------
+
+MODULE_WIDE_ROLES = {
+    "it-service-desk:incident-manager", "it-service-desk:project-manager",
+    "it-service-desk:auditoria", "it-service-desk:comite-directivo",
+    "it-service-desk:especialista-funcional", "it-service-desk:especialista-tecnico",
+    "it-service-desk:tecnico",
+}
+
+
+@router.get("/incidencias")
+async def list_incidents(
+    status: Optional[str] = None,
+    severity_id: Optional[str] = None,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    roles = set(user.get("roles") or [])
+    is_module_wide = bool(roles & MODULE_WIDE_ROLES) or "super_admin" in roles
+    is_jefe_empresa = "it-service-desk:jefe-empresa" in roles
+
+    query = select(Incident).order_by(Incident.created_at.desc())
+
+    if is_jefe_empresa and not is_module_wide:
+        companies = user.get("companies") or []
+        if companies:
+            query = query.where(Incident.company_id.in_(companies))
+    elif not is_module_wide:
+        # Solicitante -- solo ve lo suyo
+        query = query.where(Incident.requester_id == user.get("user_id"))
+
+    if status:
+        query = query.where(Incident.status == status)
+    if severity_id:
+        query = query.where(
+            (Incident.severity_reported_id == severity_id) | (Incident.severity_validated_id == severity_id)
+        )
+    if search:
+        like = f"%{search}%"
+        query = query.where((Incident.folio.ilike(like)) | (Incident.title.ilike(like)))
+
+    result = await db.execute(query.limit(200))
+    incidents = result.scalars().all()
+
+    return {"data": [
+        {
+            "id": i.id, "folio": i.folio, "title": i.title, "status": i.status,
+            "system_id": i.system_id, "module_id": i.module_id,
+            "severity_reported_id": i.severity_reported_id, "severity_validated_id": i.severity_validated_id,
+            "assigned_team": i.assigned_team, "assigned_to_user_id": i.assigned_to_user_id,
+            "requester_name": i.requester_name, "requester_company_name": i.requester_company_name,
+            "created_at": i.created_at.isoformat(),
+            "sla_response_limit": i.sla_response_limit.isoformat() if i.sla_response_limit else None,
+            "sla_resolution_limit": i.sla_resolution_limit.isoformat() if i.sla_resolution_limit else None,
+            "is_sla_breached": i.is_sla_breached,
+        } for i in incidents
+    ]}
+
+
+@router.get("/incidencias/{incident_id}")
+async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    roles = set(user.get("roles") or [])
+    is_module_wide = bool(roles & MODULE_WIDE_ROLES) or "super_admin" in roles
+    is_jefe_empresa = "it-service-desk:jefe-empresa" in roles
+    is_owner = incident.requester_id == user.get("user_id")
+
+    if not is_module_wide and not is_owner:
+        if is_jefe_empresa:
+            if incident.company_id not in (user.get("companies") or []):
+                raise HTTPException(status_code=403, detail="No tienes acceso a este ticket")
+        else:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este ticket")
+
+    attach_result = await db.execute(select(IncidentAttachment).where(IncidentAttachment.incident_id == incident_id))
+    attachments = attach_result.scalars().all()
+
+    log_result = await db.execute(
+        select(IncidentActivityLog).where(IncidentActivityLog.incident_id == incident_id).order_by(IncidentActivityLog.performed_at)
+    )
+    logs = log_result.scalars().all()
+
+    return {
+        "id": incident.id, "folio": incident.folio, "title": incident.title, "description": incident.description,
+        "status": incident.status,
+        "system_id": incident.system_id, "module_id": incident.module_id, "reported_type": incident.reported_type,
+        "severity_reported_id": incident.severity_reported_id, "severity_validated_id": incident.severity_validated_id,
+        "requester_name": incident.requester_name, "requester_phone": incident.requester_phone,
+        "requester_puesto": incident.requester_puesto, "requester_area": incident.requester_area,
+        "requester_company_name": incident.requester_company_name,
+        "assigned_team": incident.assigned_team, "assigned_to_user_id": incident.assigned_to_user_id,
+        "assigned_at": incident.assigned_at.isoformat() if incident.assigned_at else None,
+        "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+        "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
+        "is_sla_breached": incident.is_sla_breached,
+        "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
+        "resolution_type": incident.resolution_type,
+        "closed_at": incident.closed_at.isoformat() if incident.closed_at else None,
+        "created_at": incident.created_at.isoformat(),
+        "attachments": [
+            {"id": a.id, "attachment_type": a.attachment_type, "object_key": a.object_key, "bucket": a.bucket, "mime_type": a.mime_type}
+            for a in attachments
+        ],
+        "activity_log": [
+            {
+                "action": l.action, "performed_by_name": l.performed_by_name, "performed_by_role": l.performed_by_role,
+                "performed_at": l.performed_at.isoformat(), "detail": l.detail,
+            } for l in logs
+        ],
+    }
 
 
 # ------------------------------------------------------------------
