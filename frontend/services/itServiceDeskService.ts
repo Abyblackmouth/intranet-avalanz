@@ -37,3 +37,20 @@ export const updateSpecialist = (id: string, data: {
 // ── Usuarios por rol (para el desplegable de "asignar tecnico") ───────────
 export const getUsersByRole = (roleSlug: string) =>
   api.get(`/api/v1/it-service-desk/actualizaciones/usuarios-por-rol`, { params: { role_slug: roleSlug } })
+
+// ── Incidencias (tickets) ─────────────────────────────────────────────────
+export const getIncidents = (params?: { status?: string; severity_id?: string; search?: string }) =>
+  api.get('/api/v1/it-service-desk/mesa-de-soporte/incidencias', { params })
+
+export const getIncidentDetail = (id: string) =>
+  api.get(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${id}`)
+
+export const createIncident = (formData: FormData) =>
+  api.post('/api/v1/it-service-desk/mesa-de-soporte/incidencias', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+
+export const assignIncident = (id: string, data: { assigned_team: string; assigned_to_user_id: string }) =>
+  api.patch(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${id}/asignar`, data)
+
+export const getSeverities = () => api.get('/api/v1/it-service-desk/mesa-de-soporte/severidades')

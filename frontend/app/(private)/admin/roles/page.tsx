@@ -12,6 +12,7 @@ import {
   getGlobalRoles, createGlobalRole, updateGlobalRole, deleteGlobalRole,
   getOperationalRoles, createOperationalRole, updateOperationalRole, deleteOperationalRole,
 } from '@/services/roleService'
+import { getModules } from '@/services/adminService'
 
 // ── Badge de scope ────────────────────────────────────────────────────────────
 function ScopeBadge({ scope }: { scope: 'empresa' | 'corporativo' }) {
@@ -145,9 +146,17 @@ function OperationalRoleModal({
     name: role?.name ?? '',
     description: role?.description ?? '',
     scope: role?.scope ?? 'empresa' as 'empresa' | 'corporativo',
+    module_id: role?.module_id ?? '',
   })
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [modules, setModules] = useState<{ module_id: string; name: string }[]>([])
+
+  useEffect(() => {
+    getModules({ per_page: 100 }).then(res => {
+      setModules(res.data.data.data || res.data.data || [])
+    }).catch(() => setModules([]))
+  }, [])
 
   const handleSave = async () => {
     if (!form.name.trim()) return setError('El nombre es obligatorio')
@@ -164,6 +173,7 @@ function OperationalRoleModal({
           name: form.name.trim(),
           description: form.description.trim() || undefined,
           scope: form.scope,
+          module_id: form.module_id || undefined,
         })
       }
       onSaved()
@@ -257,6 +267,24 @@ function OperationalRoleModal({
                 : 'El usuario puede ver datos de todas las empresas del grupo.'}
             </p>
           </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Módulo
+            </label>
+            <select
+              value={form.module_id}
+              onChange={(e) => setForm(p => ({ ...p, module_id: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-900 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
+            >
+              <option value="">Catálogo general (cualquier módulo)</option>
+              {modules.map(m => (
+                <option key={m.module_id} value={m.module_id}>{m.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 mt-1">
+              Si eliges un módulo, este rol solo aparecerá disponible ahí.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200">
@@ -321,13 +349,14 @@ function ConfirmDelete({
 
 // ── Tarjeta de rol ────────────────────────────────────────────────────────────
 function RoleCard({
-  title, slug, description, isActive, badge, onEdit, onDelete, isSuperAdmin,
+  title, slug, description, isActive, scope, moduleName, onEdit, onDelete, isSuperAdmin,
 }: {
   title: string
   slug: string
   description: string | null
   isActive: boolean
-  badge?: React.ReactNode
+  scope?: 'empresa' | 'corporativo'
+  moduleName?: string | null
   onEdit: () => void
   onDelete: () => void
   isSuperAdmin: boolean
@@ -339,7 +368,7 @@ function RoleCard({
   const handleMenuOpen = (e: React.MouseEvent) => {
     e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + window.scrollY + 4, right: window.innerWidth - rect.right })
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
     setOpenMenu(true)
   }
 
@@ -349,13 +378,18 @@ function RoleCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-bold text-slate-800 truncate">{title}</p>
-            {badge}
+            {scope && <ScopeBadge scope={scope} />}
             {isActive
               ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
               : <XCircle size={14} className="text-red-400 shrink-0" />
             }
           </div>
-          <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block">{slug}</span>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <span className="text-xs font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded inline-block">{slug}</span>
+            {moduleName && (
+              <span className="text-xs text-slate-400">{moduleName}</span>
+            )}
+          </div>
         </div>
         {isSuperAdmin && (
           <button
@@ -404,6 +438,7 @@ export default function RolesPage() {
 
   const [globalRoles, setGlobalRoles] = useState<GlobalRoleRow[]>([])
   const [operationalRoles, setOperationalRoles] = useState<OperationalRoleRow[]>([])
+  const [modules, setModules] = useState<{ module_id: string; name: string }[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [scopeFilter, setScopeFilter] = useState<'todos' | 'empresa' | 'corporativo'>('todos')
@@ -436,12 +471,14 @@ export default function RolesPage() {
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     try {
-      const [globalRes, opRes] = await Promise.all([
+      const [globalRes, opRes, modulesRes] = await Promise.all([
         getGlobalRoles({ per_page: 100 }),
         getOperationalRoles({ per_page: 100 }),
+        getModules({ per_page: 100 }),
       ])
       setGlobalRoles(globalRes.data?.data?.data ?? [])
       setOperationalRoles(opRes.data?.data?.data ?? [])
+      setModules(modulesRes.data?.data?.data ?? modulesRes.data?.data ?? [])
     } catch {
       showError('No se pudo cargar la información')
     } finally {
@@ -496,6 +533,16 @@ export default function RolesPage() {
   })
 
   return (
+    <div className="relative min-h-full bg-[#eef0f2] -m-6 p-6 overflow-x-hidden">
+      <div
+        className="absolute -top-20 -right-20 w-[35vw] h-[35vw] rounded-full pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(220,225,235,0.5) 0%, rgba(238,240,242,0) 70%)' }}
+      />
+      <div
+        className="absolute bottom-0 -left-20 w-[30vw] h-[30vw] rounded-full pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(235,228,222,0.45) 0%, rgba(238,240,242,0) 70%)' }}
+      />
+      <div className="relative z-10">
     <PageWrapper
       title="Roles"
       description="Gestión de roles globales y operativos del sistema"
@@ -609,7 +656,8 @@ export default function RolesPage() {
                     slug={role.slug}
                     description={role.description}
                     isActive={role.is_active}
-                    badge={<ScopeBadge scope={role.scope} />}
+                    scope={role.scope}
+                    moduleName={modules.find(m => m.module_id === role.module_id)?.name}
                     isSuperAdmin={isSuperAdmin()}
                     onEdit={() => setEditingOp(role)}
                     onDelete={() => { setDeletingOp(role); setDeleteOpError(null) }}
@@ -661,5 +709,7 @@ export default function RolesPage() {
         />
       )}
     </PageWrapper>
+      </div>
+    </div>
   )
 }
