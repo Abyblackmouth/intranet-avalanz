@@ -253,16 +253,20 @@ async def assign_module_access(db, user_id, module_id, role_id, requested_by=Non
     result = await db.execute(select(Module).where(Module.id == module_id, Module.is_deleted == False))
     if not result.scalar_one_or_none():
         raise NotFoundException("Modulo")
-    # El rol puede ser del catálogo general (sin module_id) o específico del módulo
-    result = await db.execute(
-        select(ModuleRole).where(
-            ModuleRole.id == role_id,
-            ModuleRole.is_deleted == False,
-            ModuleRole.is_active == True,
+    # El rol es opcional -- algunos modulos son de acceso libre para
+    # cualquier usuario autenticado (ej. Mesa de Ayuda: cualquiera puede
+    # ser solicitante sin necesidad de un rol operativo). Si se manda
+    # role_id, si debe existir y estar activo.
+    if role_id is not None:
+        result = await db.execute(
+            select(ModuleRole).where(
+                ModuleRole.id == role_id,
+                ModuleRole.is_deleted == False,
+                ModuleRole.is_active == True,
+            )
         )
-    )
-    if not result.scalar_one_or_none():
-        raise NotFoundException("Rol operativo")
+        if not result.scalar_one_or_none():
+            raise NotFoundException("Rol operativo")
     result = await db.execute(select(UserModuleAccess).where(UserModuleAccess.user_id == user_id, UserModuleAccess.module_id == module_id))
     if result.scalar_one_or_none():
         raise AlreadyExistsException("Acceso al modulo")
@@ -320,7 +324,7 @@ async def get_user_permissions(db, user_id):
     accesses_result = await db.execute(
         select(UserModuleAccess, Module, ModuleRole)
         .join(Module, UserModuleAccess.module_id == Module.id)
-        .join(ModuleRole, UserModuleAccess.role_id == ModuleRole.id)
+        .outerjoin(ModuleRole, UserModuleAccess.role_id == ModuleRole.id)
         .where(
             UserModuleAccess.user_id == user_id,
             UserModuleAccess.is_active == True,
@@ -347,10 +351,11 @@ async def get_user_permissions(db, user_id):
         })
 
     # cross_company es True si alguno de los roles del usuario tiene scope corporativo
-    cross_company = any(a.ModuleRole.scope == "corporativo" for a in accesses)
+    # (accesos sin rol -- role_id nulo -- no cuentan como corporativos)
+    cross_company = any(a.ModuleRole and a.ModuleRole.scope == "corporativo" for a in accesses)
 
     return {
-        "roles": global_roles + [f"{a.Module.slug}:{a.ModuleRole.slug}" for a in accesses],
+        "roles": global_roles + [f"{a.Module.slug}:{a.ModuleRole.slug}" for a in accesses if a.ModuleRole],
         "modules": modules_with_subs,
         "companies": list(set([str(a.Module.company_id) for a in accesses])),
         "permissions": [],
@@ -396,7 +401,7 @@ async def _get_module_accesses_for_report(db, user_id, is_super_admin):
     accesses_result = await db.execute(
         select(UserModuleAccess, Module, ModuleRole)
         .join(Module, UserModuleAccess.module_id == Module.id)
-        .join(ModuleRole, UserModuleAccess.role_id == ModuleRole.id)
+        .outerjoin(ModuleRole, UserModuleAccess.role_id == ModuleRole.id)
         .where(
             UserModuleAccess.user_id == user_id,
             UserModuleAccess.is_active == True,
@@ -419,7 +424,7 @@ async def _get_module_accesses_for_report(db, user_id, is_super_admin):
             "module_id": str(a.Module.id),
             "module_name": a.Module.name,
             "module_slug": a.Module.slug,
-            "role_name": a.ModuleRole.name,
+            "role_name": a.ModuleRole.name if a.ModuleRole else "Sin rol especifico",
             "submodules": [{"slug": s.slug, "name": s.name} for s in subs],
         })
     return result
