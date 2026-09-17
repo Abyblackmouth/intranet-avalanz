@@ -200,13 +200,17 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
       await updateUser(userId, payload)
 
       // Cambio de rol global — solo super_admin
-      if (canEditGlobalRoles && selectedRoleId && selectedRoleId.length > 10) {
+      // "" = sin cambios, "__NONE__" = quitar el rol sin asignar otro,
+      // cualquier otro valor = un role_id real al que cambiar.
+      if (canEditGlobalRoles && selectedRoleId) {
         for (const role of globalRoles) {
           if (currentRoles.includes(role.slug)) {
             try { await removeGlobalRole(userId, role.role_id) } catch {}
           }
         }
-        await assignGlobalRole(userId, selectedRoleId)
+        if (selectedRoleId !== '__NONE__') {
+          await assignGlobalRole(userId, selectedRoleId)
+        }
       }
 
       onSuccess()
@@ -420,6 +424,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
                       className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sin cambios</option>
+                      <option value="__NONE__">Quitar rol global (sin rol)</option>
                       {globalRoles.map(r => (
                         <option key={r.role_id} value={r.role_id}>{r.name}</option>
                       ))}
