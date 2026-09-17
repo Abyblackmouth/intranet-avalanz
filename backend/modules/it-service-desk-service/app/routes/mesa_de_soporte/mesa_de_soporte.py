@@ -13,7 +13,7 @@ from app.config import config
 from app.database import get_db
 from app.models.mesa_de_soporte import (
     Incident, TicketSeverity, TicketSystem, TicketModule, FolioCounter,
-    IncidentAttachment, IncidentActivityLog, IncidentResolutionToken,
+    IncidentAttachment, IncidentActivityLog, IncidentResolutionToken, SystemSpecialist,
 )
 from shared.middleware.jwt_validator import JWTValidator, get_token_from_request
 
@@ -388,22 +388,121 @@ async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
     if not incident:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
 
+    sev_result = await db.execute(
+        select(TicketSeverity).where(TicketSeverity.id == (incident.severity_validated_id or incident.severity_reported_id))
+    )
+    severity = sev_result.scalar_one_or_none()
+
+    attach_result = await db.execute(
+        select(IncidentAttachment).where(
+            IncidentAttachment.incident_id == incident.id,
+            IncidentAttachment.attachment_type == "evidencia_reporte",
+        )
+    )
+    attachments = attach_result.scalars().all()
+
     return {
         "folio": incident.folio,
         "title": incident.title,
         "description": incident.description,
         "status": incident.status,
         "requester_name": incident.requester_name,
+        "requester_phone": incident.requester_phone,
+        "requester_puesto": incident.requester_puesto,
         "requester_area": incident.requester_area,
         "requester_company_name": incident.requester_company_name,
+        "severity_code": severity.code if severity else None,
+        "severity_name": severity.name if severity else None,
         "created_at": incident.created_at.isoformat(),
         "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
         "already_resolved": incident.status in ("resuelto", "cerrado"),
+        "attachments": [{"id": a.id, "object_key": a.object_key, "bucket": a.bucket} for a in attachments],
     }
 
 
+@router.post("/atender/{token}/redirigir")
+async def redirect_via_token(token: str, body: dict, db: AsyncSession = Depends(get_db)):
+    """Cuando quien recibe el ticket determina que no le corresponde:
+    - Si es "Tecnico" (segmento especifico, no especialista completo)
+      -> va automatico al Especialista catch-all de su mismo equipo.
+    - Si es un Especialista completo -> va siempre a Incident Manager.
+    En ambos casos se registra el motivo y se notifica a quien lo recibe."""
+    reason = (body or {}).get("reason", "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Debes indicar un motivo")
+
+    result = await db.execute(select(IncidentResolutionToken).where(IncidentResolutionToken.token == token))
+    tok = result.scalar_one_or_none()
+    if not tok:
+        raise HTTPException(status_code=404, detail="Enlace invalido")
+    if tok.used_at is not None:
+        raise HTTPException(status_code=410, detail="Este enlace ya fue utilizado")
+    if tok.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Este enlace ha expirado")
+
+    inc_result = await db.execute(select(Incident).where(Incident.id == tok.incident_id))
+    incident = inc_result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if incident.status in ("resuelto", "cerrado"):
+        raise HTTPException(status_code=400, detail="Este ticket ya fue resuelto")
+
+    import httpx
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": incident.assigned_team},
+        )
+        especialistas = resp.json() if resp.status_code == 200 else []
+        is_full_specialist = any(u["id"] == tok.created_for_user_id for u in especialistas)
+
+        if is_full_specialist:
+            im_resp = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "it-service-desk", "role_slug": "incident-manager"},
+            )
+            im_users = im_resp.json() if im_resp.status_code == 200 else []
+            if not im_users:
+                raise HTTPException(status_code=500, detail="No hay Incident Manager configurado")
+            target_user_id = im_users[0]["id"]
+        else:
+            spec_result = await db.execute(
+                select(SystemSpecialist).where(
+                    SystemSpecialist.team_type == incident.assigned_team,
+                    SystemSpecialist.system_id.is_(None),
+                    SystemSpecialist.module_id.is_(None),
+                    SystemSpecialist.is_active == True,
+                )
+            )
+            catchall = spec_result.scalars().first()
+            if not catchall:
+                raise HTTPException(status_code=400, detail="No hay un especialista general disponible para este equipo")
+            target_user_id = catchall.specialist_user_id
+
+    from app.assignment import finalize_assignment, _get_user_profile
+    redirecting_profile = await _get_user_profile(tok.created_for_user_id)
+
+    await finalize_assignment(
+        db, incident,
+        assigned_team=incident.assigned_team,
+        assigned_to_user_id=target_user_id,
+        actor_id=tok.created_for_user_id,
+        actor_name=redirecting_profile.get("full_name", "Desconocido"),
+        actor_role="asignado",
+        action="redirigido_no_corresponde",
+        reason=reason,
+    )
+    return {"success": True, "message": "Ticket redirigido"}
+
+
 @router.post("/atender/{token}/resolver")
-async def resolve_via_token(token: str, body: ResolveViaTokenRequest, db: AsyncSession = Depends(get_db)):
+async def resolve_via_token(
+    token: str,
+    resolution_type: str = Form(...),
+    rca_text: Optional[str] = Form(None),
+    files: List[UploadFile] = File(default=[]),
+    db: AsyncSession = Depends(get_db),
+):
     from app.models.mesa_de_soporte import IncidentResolutionToken
     result = await db.execute(select(IncidentResolutionToken).where(IncidentResolutionToken.token == token))
     tok = result.scalar_one_or_none()
@@ -421,16 +520,40 @@ async def resolve_via_token(token: str, body: ResolveViaTokenRequest, db: AsyncS
     if incident.status in ("resuelto", "cerrado"):
         raise HTTPException(status_code=400, detail="Este ticket ya fue resuelto")
 
+    resolver_profile = await _get_requester_profile(tok.created_for_user_id)
+
+    # Si hay evidencia de resolucion, se sube usando un token JWT interno
+    # generado solo para este instante -- upload-service exige JWT real,
+    # y este flujo es sin sesion. El token nunca se persiste ni se
+    # regresa a nadie; vive solo en esta variable y expira en 1 minuto.
+    if files:
+        from shared.utils.jwt import create_access_token
+        internal_token = create_access_token(
+            payload={"user_id": tok.created_for_user_id, "company_id": resolver_profile.get("company_id", "")},
+            secret_key=config.JWT_SECRET_KEY,
+            algorithm=config.JWT_ALGORITHM,
+            expire_minutes=1,
+        )
+        uploaded = await _upload_evidence_files(files, resolver_profile.get("company_slug", "avalanz"), incident.folio, internal_token)
+        for u in uploaded:
+            db.add(IncidentAttachment(
+                incident_id=incident.id,
+                attachment_type="evidencia_resolucion",
+                object_key=u.get("object_key"),
+                bucket=u.get("bucket"),
+                mime_type=u.get("content_type"),
+                size_bytes=u.get("size_bytes"),
+                uploaded_by=tok.created_for_user_id,
+            ))
+
     incident.status = "resuelto"
     incident.resolved_at = datetime.now(timezone.utc)
-    incident.resolution_type = body.resolution_type
-    if body.rca_text:
-        incident.rca_text = body.rca_text
+    incident.resolution_type = resolution_type
+    if rca_text:
+        incident.rca_text = rca_text
     incident.reopen_window_expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
 
     tok.used_at = datetime.now(timezone.utc)
-
-    resolver_profile = await _get_requester_profile(tok.created_for_user_id)
 
     from app.models.mesa_de_soporte import IncidentActivityLog
     db.add(IncidentActivityLog(
@@ -440,7 +563,7 @@ async def resolve_via_token(token: str, body: ResolveViaTokenRequest, db: AsyncS
         performed_by_name=resolver_profile.get("full_name") or "Desconocido",
         performed_by_role="asignado",
         module_slug="it-service-desk",
-        detail={"resolution_type": body.resolution_type, "via": "enlace_correo"},
+        detail={"resolution_type": resolution_type, "via": "enlace_correo"},
     ))
     await db.commit()
     return {"success": True, "message": "Ticket marcado como resuelto"}

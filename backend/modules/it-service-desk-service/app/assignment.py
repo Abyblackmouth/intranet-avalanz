@@ -4,6 +4,7 @@ de atencion y las notificaciones nunca queden duplicados ni se olviden
 en uno de los dos caminos."""
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import httpx
 from sqlalchemy import select
@@ -46,11 +47,19 @@ async def _create_resolution_token(db: AsyncSession, incident_id: str, user_id: 
     return token
 
 
-async def _notify_assignment(to_email: str, full_name: str, folio: str, title: str, token: str, is_reassignment: bool) -> None:
+async def _notify_assignment(
+    to_email: str, full_name: str, folio: str, title: str, token: str,
+    is_reassignment: bool, reason: Optional[str] = None,
+) -> None:
     """Notificacion 2 (se asigna) o 3 (se reasigna) -- incluye la liga
-    de un solo uso para atender el ticket sin iniciar sesion."""
+    de un solo uso para atender el ticket sin iniciar sesion. Si hay un
+    motivo (ej. "no me corresponde, se redirige"), se incluye para que
+    quien lo recibe sepa por que le llego."""
     attend_url = f"{config.FRONTEND_URL}/atender/{token}"
     subject = f"Se te ha reasignado el ticket #{folio}" if is_reassignment else f"Se te ha asignado el ticket #{folio}"
+    message = f"Folio: {folio}\\nTitulo: {title}\\n\\nPuedes atenderlo directo desde el boton, sin necesidad de iniciar sesion."
+    if reason:
+        message = f"Motivo de la reasignacion: {reason}\\n\\n" + message
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
@@ -59,7 +68,7 @@ async def _notify_assignment(to_email: str, full_name: str, folio: str, title: s
                     "to_email": to_email,
                     "full_name": full_name,
                     "subject": subject,
-                    "message": f"Folio: {folio}\\nTitulo: {title}\\n\\nPuedes atenderlo directo desde el boton, sin necesidad de iniciar sesion.",
+                    "message": message,
                     "action_label": "Atender ticket",
                     "action_url": attend_url,
                     "alert_type": "info",
@@ -97,10 +106,13 @@ async def finalize_assignment(
     actor_name: str,
     actor_role: str,
     action: str,
+    reason: Optional[str] = None,
 ) -> None:
-    """Aplica la asignacion (manual o automatica). Si el ticket ya tenia
-    a alguien asignado, se trata como reasignacion: se invalida el token
-    anterior y se avisa tambien al solicitante quien quedo a cargo."""
+    """Aplica la asignacion (manual, automatica, o redireccion desde el
+    enlace de atencion). Si el ticket ya tenia a alguien asignado, se
+    trata como reasignacion: se invalida el token anterior y se avisa
+    tambien al solicitante quien quedo a cargo. Si hay un motivo (ej.
+    redireccion por no corresponder), se incluye en bitacora y correo."""
     is_reassignment = incident.assigned_to_user_id is not None
 
     if is_reassignment:
@@ -115,6 +127,10 @@ async def finalize_assignment(
 
     token = await _create_resolution_token(db, incident.id, assigned_to_user_id)
 
+    detail = {"equipo_asignado": assigned_team, "usuario_asignado": assigned_to_user_id, "es_reasignacion": is_reassignment}
+    if reason:
+        detail["motivo"] = reason
+
     db.add(IncidentActivityLog(
         incident_id=incident.id,
         action=action,
@@ -122,13 +138,13 @@ async def finalize_assignment(
         performed_by_name=actor_name,
         performed_by_role=actor_role,
         module_slug="it-service-desk",
-        detail={"equipo_asignado": assigned_team, "usuario_asignado": assigned_to_user_id, "es_reasignacion": is_reassignment},
+        detail=detail,
     ))
     await db.commit()
 
     profile = await _get_user_profile(assigned_to_user_id)
     if profile.get("email"):
-        await _notify_assignment(profile["email"], profile.get("full_name", ""), incident.folio, incident.title, token, is_reassignment)
+        await _notify_assignment(profile["email"], profile.get("full_name", ""), incident.folio, incident.title, token, is_reassignment, reason)
 
     if is_reassignment:
         requester_profile = await _get_user_profile(incident.requester_id)
