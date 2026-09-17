@@ -184,18 +184,25 @@ async def _upload_evidence_files(
     company_slug: str,
     folio: str,
     raw_token: str,
+    name_prefix: str = "evidencia",
 ) -> List[Dict[str, Any]]:
     """Sube cada archivo al upload-service y regresa la lista de resultados
     (object_key, bucket, mime_type, size_bytes) para guardarlos despues en
-    incident_attachments."""
+    incident_attachments. El nombre original del archivo se descarta --
+    siempre se guarda como {name_prefix}_{numero}{extension}, numerado
+    secuencialmente segun el orden en que se subieron."""
     uploaded = []
     async with httpx.AsyncClient(timeout=30.0) as client:
-        for f in files:
+        for i, f in enumerate(files, start=1):
             file_bytes = await f.read()
+            ext = ""
+            if f.filename and "." in f.filename:
+                ext = "." + f.filename.rsplit(".", 1)[-1].lower()
+            controlled_name = f"{name_prefix}_{i}{ext}"
             resp = await client.post(
                 "http://upload-service:8000/api/v1/upload/",
                 headers={"Authorization": f"Bearer {raw_token}"},
-                files={"file": (f.filename, file_bytes, f.content_type)},
+                files={"file": (controlled_name, file_bytes, f.content_type)},
                 data={
                     "company_slug": company_slug,
                     "module_slug": "it-service-desk",
@@ -203,7 +210,7 @@ async def _upload_evidence_files(
                 },
             )
             if resp.status_code != 200:
-                raise HTTPException(status_code=502, detail=f"No se pudo subir el archivo {f.filename}")
+                raise HTTPException(status_code=502, detail=f"No se pudo subir el archivo {controlled_name}")
             data = resp.json().get("data", {})
             uploaded.append(data)
     return uploaded
@@ -534,7 +541,7 @@ async def resolve_via_token(
             algorithm=config.JWT_ALGORITHM,
             expire_minutes=1,
         )
-        uploaded = await _upload_evidence_files(files, resolver_profile.get("company_slug", "avalanz"), incident.folio, internal_token)
+        uploaded = await _upload_evidence_files(files, resolver_profile.get("company_slug", "avalanz"), incident.folio, internal_token, name_prefix="evidencia_atencion")
         for u in uploaded:
             db.add(IncidentAttachment(
                 incident_id=incident.id,
@@ -631,7 +638,7 @@ async def create_incident(
     # Evidencia -- opcional, una o varias imagenes (Fase 1 del formulario)
     if files:
         uploaded = await _upload_evidence_files(
-            files, profile.get("company_slug"), folio, raw_token
+            files, profile.get("company_slug"), folio, raw_token, name_prefix="evidencia_solicitante"
         )
         for f in uploaded:
             db.add(IncidentAttachment(
