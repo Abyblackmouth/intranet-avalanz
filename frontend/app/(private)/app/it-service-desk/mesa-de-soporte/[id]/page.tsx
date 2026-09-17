@@ -5,7 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import PageWrapper from '@/components/layout/PageWrapper'
 import { getIncidentDetail, getSystems, getSeverities } from '@/services/itServiceDeskService'
+import { getSignedUrl } from '@/services/uploadService'
 import { ArrowLeft, Paperclip } from 'lucide-react'
+import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/AssignIncidentModal'
 
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'En backlog', asignado: 'Asignado', en_atencion: 'En atención',
@@ -83,8 +85,26 @@ export default function IncidentDetailPage() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
+  const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null)
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const handleOpenAttachment = async (attachmentId: string, objectKey: string, bucket: string) => {
+    setOpeningAttachmentId(attachmentId)
+    try {
+      const res = await getSignedUrl(objectKey, bucket)
+      const url = res.data?.data?.url || res.data?.url
+      if (url) window.open(url, '_blank')
+    } catch {
+      // silencioso -- el boton vuelve a su estado normal
+    } finally {
+      setOpeningAttachmentId(null)
+    }
+  }
+
   const roles: string[] = user?.roles ?? []
   const isIncidentManager = roles.includes('it-service-desk:incident-manager') || roles.includes('super_admin')
+  const isEspecialistaFuncional = roles.includes('it-service-desk:especialista-funcional')
+  const isEspecialistaTecnico = roles.includes('it-service-desk:especialista-tecnico')
+  const canAssign = isIncidentManager || isEspecialistaFuncional || isEspecialistaTecnico
 
   const systemName = (id: string) => systems.find(s => s.id === id)?.name ?? '—'
   const sevInfo = (id: string | null) => id ? severities.find(s => s.id === id) : null
@@ -165,9 +185,15 @@ export default function IncidentDetailPage() {
                 {detail.attachments.length > 0 && (
                   <div className="flex gap-2 mt-3 flex-wrap">
                     {detail.attachments.map(a => (
-                      <div key={a.id} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-500/[0.06] rounded-lg text-xs text-slate-600">
-                        <Paperclip size={12} /> {a.attachment_type === 'evidencia_reporte' ? 'Evidencia' : 'Evidencia de resolución'}
-                      </div>
+                      <button
+                        key={a.id}
+                        onClick={() => handleOpenAttachment(a.id, a.object_key, a.bucket)}
+                        disabled={openingAttachmentId === a.id}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-500/[0.06] hover:bg-slate-500/[0.12] rounded-lg text-xs text-slate-600 transition disabled:opacity-50"
+                      >
+                        <Paperclip size={12} />
+                        {openingAttachmentId === a.id ? 'Abriendo...' : (a.attachment_type === 'evidencia_reporte' ? 'Evidencia' : 'Evidencia de resolución')}
+                      </button>
                     ))}
                   </div>
                 )}
@@ -175,7 +201,17 @@ export default function IncidentDetailPage() {
             </section>
 
             <section>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Asignación</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Asignación</p>
+                {canAssign && (
+                  <button
+                    onClick={() => setShowAssignModal(true)}
+                    className="text-[11px] font-medium text-[#7c2d12] hover:underline"
+                  >
+                    {detail.assigned_to_user_id ? 'Reasignar' : 'Asignar'}
+                  </button>
+                )}
+              </div>
               <div className="bg-white/50 rounded-xl border border-slate-500/10 p-4 text-sm">
                 {detail.assigned_to_user_id ? (
                   <>
@@ -250,6 +286,15 @@ export default function IncidentDetailPage() {
           </div>
         )}
       </div>
+
+      {showAssignModal && (
+        <AssignIncidentModal
+          incidentId={detail.id}
+          folio={detail.folio}
+          onClose={() => setShowAssignModal(false)}
+          onAssigned={() => { setShowAssignModal(false); fetchAll() }}
+        />
+      )}
     </PageWrapper>
   )
 }

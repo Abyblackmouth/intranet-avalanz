@@ -87,12 +87,27 @@ async def list_incidents(
     result = await db.execute(query.limit(200))
     incidents = result.scalars().all()
 
+    # Enriquecer con el nombre real de quien esta asignado -- sin esto el
+    # frontend tendria que resolverlo con una llamada aparte por cada fila.
+    import httpx
+    names_cache: dict = {}
+    unique_assignees = {i.assigned_to_user_id for i in incidents if i.assigned_to_user_id}
+    if unique_assignees:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            for uid in unique_assignees:
+                try:
+                    resp = await client.get(f"http://admin-service:8000/internal/users/{uid}/profile")
+                    names_cache[uid] = resp.json().get("full_name") if resp.status_code == 200 else None
+                except Exception:
+                    names_cache[uid] = None
+
     return {"data": [
         {
             "id": i.id, "folio": i.folio, "title": i.title, "status": i.status,
             "system_id": i.system_id, "module_id": i.module_id,
             "severity_reported_id": i.severity_reported_id, "severity_validated_id": i.severity_validated_id,
             "assigned_team": i.assigned_team, "assigned_to_user_id": i.assigned_to_user_id,
+            "assigned_to_name": names_cache.get(i.assigned_to_user_id) if i.assigned_to_user_id else None,
             "requester_name": i.requester_name, "requester_company_name": i.requester_company_name,
             "created_at": i.created_at.isoformat(),
             "sla_response_limit": i.sla_response_limit.isoformat() if i.sla_response_limit else None,

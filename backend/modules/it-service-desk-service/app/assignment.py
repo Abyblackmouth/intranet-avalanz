@@ -49,7 +49,7 @@ async def _create_resolution_token(db: AsyncSession, incident_id: str, user_id: 
 async def _notify_assignment(to_email: str, full_name: str, folio: str, title: str, token: str, is_reassignment: bool) -> None:
     """Notificacion 2 (se asigna) o 3 (se reasigna) -- incluye la liga
     de un solo uso para atender el ticket sin iniciar sesion."""
-    attend_url = f"{config.FRONTEND_URL}/app/it-service-desk/mesa-de-soporte/atender/{token}"
+    attend_url = f"{config.FRONTEND_URL}/atender/{token}"
     subject = f"Se te ha reasignado el ticket #{folio}" if is_reassignment else f"Se te ha asignado el ticket #{folio}"
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
