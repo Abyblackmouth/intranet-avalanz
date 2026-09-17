@@ -1,61 +1,20 @@
 'use client'
 
-import { useAuthStore } from '@/store/authStore'
-import { usePathname } from 'next/navigation'
-import Link from 'next/link'
-import * as LucideIcons from 'lucide-react'
-
-function SubIcon({ icon }: { icon?: string | null }) {
-  if (!icon) return <LucideIcons.Box size={15} />
-  const name = icon.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
-  const Icon = (LucideIcons as any)[name]
-  return Icon ? <Icon size={15} /> : <LucideIcons.Box size={15} />
-}
-
+// La navegacion entre submodulos ya la resuelve el Sidebar general
+// (arbol expandible por modulo) -- este layout ya no duplica esa
+// navegacion en un panel aparte.
 export default function ItServiceDeskLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthStore()
-  const pathname = usePathname()
-  const mod = (user?.modules ?? []).find((m: any) => m.slug === 'it-service-desk')
-  const submodules: any[] = (mod as any)?.submodules ?? []
-
   return (
-    <div className="flex h-full">
-      {submodules.length > 0 && (
-        <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 px-2 gap-0.5">
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest px-2 mb-2">
-            It Service Desk
-          </p>
-          {submodules.map((sub: any) => {
-            const href = `/app/it-service-desk/${sub.slug}`
-            const active = pathname.startsWith(href)
-            return (
-              <Link
-                key={sub.slug}
-                href={href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-[#1a4fa0] text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <SubIcon icon={sub.icon} />
-                {sub.name}
-              </Link>
-            )
-          })}
-        </aside>
-      )}
-      <div className="flex-1 overflow-auto relative bg-[#eef0f2] overflow-x-hidden">
-        <div
-          className="absolute -top-24 -left-24 w-[40vw] h-[40vw] rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(220,225,235,0.55) 0%, rgba(238,240,242,0) 70%)' }}
-        />
-        <div
-          className="absolute bottom-0 -right-24 w-[45vw] h-[45vw] rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(235,228,222,0.5) 0%, rgba(238,240,242,0) 70%)' }}
-        />
-        <div className="relative z-10 h-full">{children}</div>
-      </div>
+    <div className="relative h-full overflow-auto overflow-x-hidden bg-[#eef0f2]">
+      <div
+        className="absolute -top-24 -left-24 w-[40vw] h-[40vw] rounded-full pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(220,225,235,0.55) 0%, rgba(238,240,242,0) 70%)' }}
+      />
+      <div
+        className="absolute bottom-0 -right-24 w-[45vw] h-[45vw] rounded-full pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(235,228,222,0.5) 0%, rgba(238,240,242,0) 70%)' }}
+      />
+      <div className="relative z-10 h-full">{children}</div>
     </div>
   )
 }
