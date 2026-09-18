@@ -62,7 +62,7 @@ function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandlePro
       onDoubleClick={onDoubleClick}
       {...(unlocked ? dragHandleProps : {})}
       className={`bg-white rounded-xl border p-3.5 transition select-none h-[150px] flex flex-col ${
-        unlocked ? 'border-[#7c2d12] ring-2 ring-[#7c2d12]/20 cursor-grab shadow-md' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
+        unlocked ? 'border-[#7c2d12] ring-2 ring-[#7c2d12]/20 cursor-move shadow-md' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
