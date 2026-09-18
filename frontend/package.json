@@ -11,6 +11,8 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "axios": "^1.14.0",
+    "echarts": "^6.1.0",
+    "echarts-for-react": "^3.0.6",
     "js-cookie": "^3.0.5",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",

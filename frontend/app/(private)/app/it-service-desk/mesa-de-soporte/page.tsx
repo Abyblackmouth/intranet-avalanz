@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import PageWrapper from '@/components/layout/PageWrapper'
-import { getIncidents, getSystems, getSeverities, getSpecialists, createSpecialist, updateSpecialist } from '@/services/itServiceDeskService'
-import { Search, Eye, Plus, UserPlus, Clock } from 'lucide-react'
+import { getIncidents, getSystems, getSeverities, getSpecialists, createSpecialist, updateSpecialist, exportIncidentsExcel } from '@/services/itServiceDeskService'
+import { Search, Eye, Plus, UserPlus, Clock, Download } from 'lucide-react'
 import CreateIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateIncidentModal'
 import IncidentDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/IncidentDetailModal'
 import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/AssignIncidentModal'
@@ -82,6 +82,7 @@ export default function MesaDeSoportePage() {
   const [myFuncionalRow, setMyFuncionalRow] = useState<{ id: string } | null>(null)
   const [myTecnicoRow, setMyTecnicoRow] = useState<{ id: string } | null>(null)
   const [togglingTeam, setTogglingTeam] = useState<string | null>(null)
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   const fetchMySpecialistStatus = useCallback(async () => {
     if (!isIncidentManager || !user?.user_id) return
@@ -95,6 +96,25 @@ export default function MesaDeSoportePage() {
       // silencioso -- el panel simplemente no mostrara estado activo
     }
   }, [isIncidentManager, user?.user_id])
+
+  const handleExportExcel = async () => {
+    setExportingExcel(true)
+    try {
+      const res = await exportIncidentsExcel()
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `concentrado_incidencias_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      alert('No se pudo generar el reporte')
+    } finally {
+      setExportingExcel(false)
+    }
+  }
 
   const handleToggleSpecialist = async (team: 'especialista-funcional' | 'especialista-tecnico') => {
     if (!user?.user_id) return
@@ -196,6 +216,14 @@ export default function MesaDeSoportePage() {
             }`}
           >
             {togglingTeam === 'especialista-tecnico' ? '...' : `Especialista Tecnico: ${myTecnicoRow ? 'Activo' : 'Inactivo'}`}
+          </button>
+          <button
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="ml-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-50 hover:opacity-90" style={{ backgroundColor: "#217346" }}
+          >
+            <Download size={13} />
+            {exportingExcel ? 'Generando...' : 'Exportar Excel'}
           </button>
         </div>
       )}

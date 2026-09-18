@@ -54,3 +54,11 @@ export const assignIncident = (id: string, data: { assigned_team: string; assign
   api.patch(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${id}/asignar`, data)
 
 export const getSeverities = () => api.get('/api/v1/it-service-desk/mesa-de-soporte/severidades')
+
+// ── Dashboard de metricas ──────────────────────────────────────────────────
+export const getDashboardStats = (params?: { date_from?: string; date_to?: string }) =>
+  api.get('/api/v1/it-service-desk/mesa-de-soporte/estadisticas', { params })
+
+// ── Exportar concentrado a Excel ────────────────────────────────────────────
+export const exportIncidentsExcel = () =>
+  api.get('/api/v1/it-service-desk/mesa-de-soporte/reportes/incidencias-excel', { responseType: 'blob' })

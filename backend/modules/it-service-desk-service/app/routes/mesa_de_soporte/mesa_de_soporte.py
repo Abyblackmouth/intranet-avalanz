@@ -966,3 +966,330 @@ async def validate_severity(
     ))
     await db.commit()
     return {"success": True, "message": "Severidad validada"}
+
+
+# ------------------------------------------------------------------
+# Dashboard de metricas -- Incident Manager, Project Manager y Comite
+# Directivo ven todo; los especialistas solo ven lo de su propio equipo.
+# Jefe Empresa, Auditoria y solicitantes no tienen acceso a este endpoint.
+# ------------------------------------------------------------------
+
+DASHBOARD_FULL_ACCESS_ROLES = {
+    "it-service-desk:incident-manager", "it-service-desk:project-manager",
+    "it-service-desk:comite-directivo",
+}
+
+
+@router.get("/estadisticas")
+async def get_dashboard_stats(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    roles = set(user.get("roles") or [])
+    has_full_access = bool(roles & DASHBOARD_FULL_ACCESS_ROLES) or "super_admin" in roles
+    is_especialista_funcional = "it-service-desk:especialista-funcional" in roles
+    is_especialista_tecnico = "it-service-desk:especialista-tecnico" in roles
+
+    if not has_full_access and not is_especialista_funcional and not is_especialista_tecnico:
+        raise HTTPException(status_code=403, detail="No tienes acceso al dashboard de metricas")
+
+    # El frontend manda fechas en calendario local (hora de Ciudad de
+    # Mexico, UTC-6, sin horario de verano desde 2022), pero la BD guarda
+    # todo en UTC. Sin este ajuste, un ticket creado a las 7pm hora local
+    # queda guardado como la 1am UTC del dia siguiente y se le "escapa"
+    # al filtro de fecha aunque el usuario lo vea como "hoy".
+    MEXICO_UTC_OFFSET = timedelta(hours=6)
+    now = datetime.now(timezone.utc)
+    if date_to:
+        end_local = datetime.fromisoformat(date_to)
+        # Si solo se manda la fecha (sin hora), se interpreta como el
+        # final de ese dia en hora local (23:59:59), no en UTC.
+        if end_local.hour == 0 and end_local.minute == 0 and end_local.second == 0:
+            end_local = end_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+        end = (end_local + MEXICO_UTC_OFFSET).replace(tzinfo=timezone.utc)
+    else:
+        end = now
+    if date_from:
+        start_local = datetime.fromisoformat(date_from)
+        start = (start_local + MEXICO_UTC_OFFSET).replace(tzinfo=timezone.utc)
+    else:
+        start = end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    query = select(Incident).where(Incident.created_at >= start, Incident.created_at <= end)
+
+    scope = "completo"
+    my_team = None
+    if not has_full_access:
+        my_team = "especialista-funcional" if is_especialista_funcional else "especialista-tecnico"
+        query = query.where(Incident.assigned_team == my_team)
+        scope = my_team
+
+    result = await db.execute(query)
+    incidents = result.scalars().all()
+
+    def is_open(i):
+        return i.status not in ("resuelto", "cerrado")
+
+    def is_overdue(i):
+        return bool(i.sla_resolution_limit and i.sla_resolution_limit < now)
+
+    REPORTED_TYPE_TO_TEAM = {"funcional": "especialista-funcional", "tecnico": "especialista-tecnico"}
+
+    def equipo_de(i):
+        """Un ticket en backlog no tiene assigned_team todavia -- se usa
+        el tipo que reporto el solicitante como equipo "destino" para
+        poder contarlo dentro de su especialidad correspondiente."""
+        return i.assigned_team or REPORTED_TYPE_TO_TEAM.get(i.reported_type)
+
+    def categoria(i):
+        """En backlog es su propia categoria, sin importar si ya vencio
+        su SLA -- distingue "nunca se atendio" de "se atendio tarde".
+        Por vencer: aun no vence, pero faltan 2 horas o menos."""
+        if i.status == "en_backlog":
+            return "en_backlog"
+        if is_overdue(i):
+            return "vencido"
+        if i.sla_resolution_limit and (i.sla_resolution_limit - now) <= timedelta(hours=2):
+            return "por_vencer"
+        return "a_tiempo"
+
+    total_completados = sum(1 for i in incidents if not is_open(i))
+
+    open_incidents = [i for i in incidents if is_open(i)]
+    sla_general = {
+        "a_tiempo": sum(1 for i in open_incidents if categoria(i) == "a_tiempo"),
+        "vencido": sum(1 for i in open_incidents if categoria(i) == "vencido"),
+        "en_backlog": sum(1 for i in open_incidents if categoria(i) == "en_backlog"),
+        "por_vencer": sum(1 for i in open_incidents if categoria(i) == "por_vencer"),
+    }
+
+    por_especialidad = None
+    sla_tecnico = None
+    sla_funcional = None
+    por_usuario = None
+    if has_full_access:
+        por_especialidad = {
+            "funcional": sum(1 for i in incidents if equipo_de(i) == "especialista-funcional"),
+            "tecnico": sum(1 for i in incidents if equipo_de(i) == "especialista-tecnico"),
+        }
+        # Backlog no se atribuye a ningun equipo aqui -- un ticket sin
+        # asignar es responsabilidad del Incident Manager (el motor no
+        # encontro a quien turnarselo), no una falla del equipo tecnico
+        # o funcional que nunca llego a verlo. Por eso estas dos vistas
+        # solo consideran tickets que SI tienen assigned_team real.
+        tecnico_open = [i for i in open_incidents if i.assigned_team == "especialista-tecnico"]
+        sla_tecnico = {
+            "a_tiempo": sum(1 for i in tecnico_open if categoria(i) == "a_tiempo"),
+            "vencido": sum(1 for i in tecnico_open if categoria(i) == "vencido"),
+            "por_vencer": sum(1 for i in tecnico_open if categoria(i) == "por_vencer"),
+        }
+        funcional_open = [i for i in open_incidents if i.assigned_team == "especialista-funcional"]
+        sla_funcional = {
+            "a_tiempo": sum(1 for i in funcional_open if categoria(i) == "a_tiempo"),
+            "vencido": sum(1 for i in funcional_open if categoria(i) == "vencido"),
+            "por_vencer": sum(1 for i in funcional_open if categoria(i) == "por_vencer"),
+        }
+
+        # Por persona -- solo tickets abiertos, con desglose de a_tiempo/vencido
+        # (los completados no tienen "estado de SLA" vigente que reportar aqui)
+        conteo_por_usuario: Dict[str, Dict[str, int]] = {}
+        for i in open_incidents:
+            if not i.assigned_to_user_id:
+                continue
+            if i.assigned_to_user_id not in conteo_por_usuario:
+                conteo_por_usuario[i.assigned_to_user_id] = {"a_tiempo": 0, "vencido": 0}
+            if is_overdue(i):
+                conteo_por_usuario[i.assigned_to_user_id]["vencido"] += 1
+            else:
+                conteo_por_usuario[i.assigned_to_user_id]["a_tiempo"] += 1
+
+        nombres_cache: Dict[str, str] = {}
+        for uid in conteo_por_usuario:
+            perfil = await _get_requester_profile(uid)
+            nombres_cache[uid] = perfil.get("full_name") or "Desconocido"
+
+        por_usuario = sorted(
+            [
+                {"nombre": nombres_cache[uid], "a_tiempo": v["a_tiempo"], "vencido": v["vencido"], "total": v["a_tiempo"] + v["vencido"]}
+                for uid, v in conteo_por_usuario.items()
+            ],
+            key=lambda x: -x["total"],
+        )
+
+    histograma_map: Dict[str, int] = {}
+    cursor = start
+    while cursor.date() <= end.date():
+        histograma_map[cursor.date().isoformat()] = 0
+        cursor += timedelta(days=1)
+    for i in incidents:
+        key = i.created_at.date().isoformat()
+        if key in histograma_map:
+            histograma_map[key] += 1
+    histograma = [{"fecha": k, "cantidad": v} for k, v in sorted(histograma_map.items())]
+
+    return {
+        "scope": scope,
+        "rango": {"desde": start.isoformat(), "hasta": end.isoformat()},
+        "total_completados_periodo": total_completados,
+        "sla_general": sla_general,
+        "por_especialidad": por_especialidad,
+        "sla_tecnico": sla_tecnico,
+        "sla_funcional": sla_funcional,
+        "histograma": histograma,
+        "por_usuario": por_usuario,
+    }
+
+
+# ------------------------------------------------------------------
+# Exportar concentrado completo a Excel
+# ------------------------------------------------------------------
+
+@router.get("/reportes/incidencias-excel")
+async def export_incidents_excel(
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    roles = set(user.get("roles") or [])
+    has_full_access = bool(roles & DASHBOARD_FULL_ACCESS_ROLES) or "super_admin" in roles
+    if not has_full_access:
+        raise HTTPException(status_code=403, detail="No tienes permiso para exportar el concentrado")
+
+    result = await db.execute(select(Incident).order_by(Incident.created_at))
+    incidents = result.scalars().all()
+
+    sev_result = await db.execute(select(TicketSeverity))
+    severities = {s.id: s for s in sev_result.scalars().all()}
+    sys_result = await db.execute(select(TicketSystem))
+    systems = {s.id: s for s in sys_result.scalars().all()}
+    mod_result = await db.execute(select(TicketModule))
+    modules = {m.id: m for m in mod_result.scalars().all()}
+
+    now = datetime.now(timezone.utc)
+
+    perfil_cache: Dict[str, Dict[str, Any]] = {}
+    async def perfil(uid: Optional[str]) -> Dict[str, Any]:
+        if not uid:
+            return {}
+        if uid not in perfil_cache:
+            perfil_cache[uid] = await _get_requester_profile(uid)
+        return perfil_cache[uid]
+
+    filas = []
+    for i in incidents:
+        sev = severities.get(i.severity_validated_id or i.severity_reported_id)
+        sistema = systems.get(i.system_id)
+        modulo = modules.get(i.module_id) if i.module_id else None
+        requester_profile = await perfil(i.requester_id)
+        assignee_profile = await perfil(i.assigned_to_user_id)
+
+        es_final = i.status in ("resuelto", "cerrado")
+        vencido = bool(i.sla_resolution_limit and not es_final and i.sla_resolution_limit < now)
+        cumplio_final = bool(i.resolved_at and i.sla_resolution_limit and i.resolved_at <= i.sla_resolution_limit)
+
+        dias_transcurridos = ((i.resolved_at or now) - i.created_at).days
+        dias_vencido = (now - i.sla_resolution_limit).days if vencido and i.sla_resolution_limit else 0
+
+        equipo = "Backlog" if i.status == "en_backlog" else (
+            "Funcional" if i.assigned_team == "especialista-funcional" else
+            "Tecnico" if i.assigned_team == "especialista-tecnico" else (i.assigned_team or "")
+        )
+
+        # Cumplimiento SLA 1 (respuesta -- se usa la asignacion como primer contacto)
+        if i.assigned_at and i.sla_response_limit:
+            delta1 = (i.assigned_at - i.created_at).total_seconds() / 60
+            sla1_horas = f"{delta1/60:.1f} h"
+            sla1_estado = "Cumplido" if i.assigned_at <= i.sla_response_limit else "Incumplido"
+        else:
+            sla1_horas = ""
+            sla1_estado = "Pendiente"
+
+        # Cumplimiento SLA 2 (resolucion)
+        if i.resolved_at and i.sla_resolution_limit:
+            delta2 = (i.resolved_at - i.created_at).total_seconds() / 60
+            sla2_horas = f"{delta2/60:.1f} h"
+            sla2_estado = "Cumplido" if cumplio_final else "Incumplido"
+        else:
+            sla2_horas = ""
+            sla2_estado = "Pendiente" if not es_final else "N/A"
+
+        # Horas en el estatus actual (desde el ultimo evento de bitacora, o desde creacion)
+        log_result = await db.execute(
+            select(IncidentActivityLog)
+            .where(IncidentActivityLog.incident_id == i.id)
+            .order_by(IncidentActivityLog.performed_at.desc())
+            .limit(1)
+        )
+        ultimo_evento = log_result.scalar_one_or_none()
+        referencia = ultimo_evento.performed_at if ultimo_evento else i.created_at
+        horas_estatus = round((now - referencia).total_seconds() / 3600, 1)
+
+        filas.append({
+            "Folio": i.folio,
+            "Familia": requester_profile.get("family_clave", ""),
+            "Empresa": i.requester_company_name,
+            "Creado por": i.requester_name,
+            "Fecha de creación": i.created_at.replace(tzinfo=None) if i.created_at else None,
+            "Nivel crítico": f"{sev.code} - {sev.name}" if sev else "",
+            "Sistema": sistema.name if sistema else "",
+            "Módulo": modulo.name if modulo else "",
+            "Estatus": STATUS_LABEL_ES.get(i.status, i.status),
+            "Con quién está (equipo)": equipo,
+            "Asignado a": assignee_profile.get("full_name", "") if i.assigned_to_user_id else "",
+            "Fecha inicial SLA": i.created_at.replace(tzinfo=None) if i.created_at else None,
+            "Fecha final SLA (resolución)": i.sla_resolution_limit.replace(tzinfo=None) if i.sla_resolution_limit else None,
+            "Horas en estatus actual": horas_estatus,
+            "A tiempo / Vencido": "En backlog" if i.status == "en_backlog" else ("Vencido" if vencido else "A tiempo") if not es_final else ("Cumplió SLA" if cumplio_final else "Se venció"),
+            "Días transcurridos": dias_transcurridos,
+            "Días vencido": dias_vencido,
+            "Cumplimiento SLA 1 (respuesta)": sla1_estado,
+            "Tiempo real SLA 1": sla1_horas,
+            "Cumplimiento SLA 2 (resolución)": sla2_estado,
+            "Tiempo real SLA 2": sla2_horas,
+        })
+
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from fastapi.responses import StreamingResponse
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Concentrado de Incidencias"
+
+    headers = list(filas[0].keys()) if filas else []
+    ws.append(headers)
+    header_fill = PatternFill(start_color="7C2D12", end_color="7C2D12", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    for col_idx, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for fila in filas:
+        ws.append(list(fila.values()))
+
+    for col_idx, header in enumerate(headers, start=1):
+        max_len = max([len(str(header))] + [len(str(f.get(header, ""))) for f in filas]) if filas else len(header)
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = min(max_len + 3, 40)
+
+    ws.freeze_panes = "A2"
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    filename = f"concentrado_incidencias_{now.strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+STATUS_LABEL_ES = {
+    "en_backlog": "En backlog", "asignado": "Asignado", "en_atencion": "En atención",
+    "escalado": "Escalado", "resuelto": "Resuelto", "cerrado": "Cerrado",
+}
