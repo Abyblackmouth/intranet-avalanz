@@ -584,6 +584,15 @@ async def resolve_via_token(
         detail={"resolution_type": resolution_type, "via": "enlace_correo"},
     ))
     await db.commit()
+
+    from app.assignment import _notify_inapp
+    if incident.requester_id:
+        await _notify_inapp(
+            incident.requester_id, f"Ticket #{incident.folio} resuelto",
+            f"{incident.title} — Ya fue marcado como resuelto", "success",
+            {"incident_id": incident.id, "folio": incident.folio},
+        )
+
     return {"success": True, "message": "Ticket marcado como resuelto"}
 
 
@@ -706,6 +715,13 @@ async def create_incident(
         created_at=incident.created_at,
     )
 
+    from app.assignment import _notify_inapp
+    await _notify_inapp(
+        user.get("user_id"), f"Ticket #{incident.folio} creado",
+        f"Registramos tu ticket: {incident.title}", "success",
+        {"incident_id": incident.id, "folio": incident.folio},
+    )
+
     return {
         "success": True,
         "message": "Ticket creado",
@@ -777,6 +793,15 @@ async def resolve_logged_in(
         detail={"resolution_type": resolution_type},
     ))
     await db.commit()
+
+    from app.assignment import _notify_inapp
+    if incident.requester_id:
+        await _notify_inapp(
+            incident.requester_id, f"Ticket #{incident.folio} resuelto",
+            f"{incident.title} — Ya fue marcado como resuelto", "success",
+            {"incident_id": incident.id, "folio": incident.folio},
+        )
+
     return {"success": True, "message": "Ticket marcado como resuelto"}
 
 

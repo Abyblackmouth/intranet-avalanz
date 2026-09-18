@@ -62,3 +62,9 @@ export const getDashboardStats = (params?: { date_from?: string; date_to?: strin
 // ── Exportar concentrado a Excel ────────────────────────────────────────────
 export const exportIncidentsExcel = () =>
   api.get('/api/v1/it-service-desk/mesa-de-soporte/reportes/incidencias-excel', { responseType: 'blob' })
+
+// ── Resolver estando logueado ───────────────────────────────────────────────
+export const resolveIncident = (incidentId: string, data: FormData) =>
+  api.post(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/resolver`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })

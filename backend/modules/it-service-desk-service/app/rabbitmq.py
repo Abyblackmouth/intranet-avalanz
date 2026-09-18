@@ -73,6 +73,24 @@ async def _process_message(body: bytes) -> None:
             ))
             await db.commit()
 
+            from app.assignment import _notify_inapp
+            import httpx
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    im_resp = await client.get(
+                        "http://admin-service:8000/internal/users/by-module-role",
+                        params={"module_slug": "it-service-desk", "role_slug": "incident-manager"},
+                    )
+                    im_users = im_resp.json() if im_resp.status_code == 200 else []
+                for im in im_users:
+                    await _notify_inapp(
+                        im["id"], f"Ticket #{incident.folio} sin especialista disponible",
+                        f"{incident.title} — Quedó en backlog, requiere asignación manual", "warning",
+                        {"incident_id": incident.id, "folio": incident.folio},
+                    )
+            except Exception:
+                pass
+
 
 async def start_consumer() -> None:
     connection = await aio_pika.connect_robust(config.RABBITMQ_URL)
