@@ -144,6 +144,12 @@ async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_d
     )
     logs = log_result.scalars().all()
 
+    requester_profile = await _get_requester_profile(incident.requester_id)
+
+    assignee_profile = {}
+    if incident.assigned_to_user_id:
+        assignee_profile = await _get_requester_profile(incident.assigned_to_user_id)
+
     return {
         "id": incident.id, "folio": incident.folio, "title": incident.title, "description": incident.description,
         "status": incident.status,
@@ -152,7 +158,12 @@ async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_d
         "requester_name": incident.requester_name, "requester_phone": incident.requester_phone,
         "requester_puesto": incident.requester_puesto, "requester_area": incident.requester_area,
         "requester_company_name": incident.requester_company_name,
+        "requester_photo_object_key": requester_profile.get("photo_object_key"),
         "assigned_team": incident.assigned_team, "assigned_to_user_id": incident.assigned_to_user_id,
+        "assigned_to_name": assignee_profile.get("full_name"),
+        "assigned_to_phone": assignee_profile.get("phone"),
+        "assigned_to_puesto": assignee_profile.get("puesto"),
+        "assigned_to_photo_object_key": assignee_profile.get("photo_object_key"),
         "assigned_at": incident.assigned_at.isoformat() if incident.assigned_at else None,
         "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
         "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
@@ -707,3 +718,251 @@ async def create_incident(
             "evidencia_subida": len(files) if files else 0,
         },
     }
+
+
+# ------------------------------------------------------------------
+# Resolver estando logueado (sin pasar por el enlace de correo)
+# ------------------------------------------------------------------
+
+@router.post("/incidencias/{incident_id}/resolver")
+async def resolve_logged_in(
+    incident_id: str,
+    resolution_type: str = Form(...),
+    rca_text: Optional[str] = Form(None),
+    files: List[UploadFile] = File(default=[]),
+    raw_token: str = Depends(get_token_from_request),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if incident.status in ("resuelto", "cerrado"):
+        raise HTTPException(status_code=400, detail="Este ticket ya fue resuelto")
+
+    roles = set(user.get("roles") or [])
+    is_incident_manager = "it-service-desk:incident-manager" in roles or "super_admin" in roles
+    is_assignee = user.get("user_id") == incident.assigned_to_user_id
+    if not is_incident_manager and not is_assignee:
+        raise HTTPException(status_code=403, detail="Solo la persona asignada o Incident Manager puede resolver este ticket")
+
+    if files:
+        profile = await _get_requester_profile(user.get("user_id"))
+        uploaded = await _upload_evidence_files(files, profile.get("company_slug", "avalanz"), incident.folio, raw_token, name_prefix="evidencia_atencion")
+        for u in uploaded:
+            db.add(IncidentAttachment(
+                incident_id=incident.id, attachment_type="evidencia_resolucion",
+                object_key=u.get("object_key"), bucket=u.get("bucket"),
+                mime_type=u.get("content_type"), size_bytes=u.get("size_bytes"),
+                uploaded_by=user.get("user_id"),
+            ))
+
+    incident.status = "resuelto"
+    incident.resolved_at = datetime.now(timezone.utc)
+    incident.resolution_type = resolution_type
+    if rca_text:
+        incident.rca_text = rca_text
+    incident.reopen_window_expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+    # Invalidar cualquier token de atencion pendiente -- ya se resolvio por otro medio
+    from app.assignment import _invalidate_previous_tokens
+    await _invalidate_previous_tokens(db, incident.id)
+
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="ticket_resuelto",
+        performed_by=user.get("user_id"), performed_by_name=user.get("full_name", ""),
+        performed_by_role="incident_manager" if is_incident_manager else "asignado",
+        module_slug="it-service-desk",
+        detail={"resolution_type": resolution_type},
+    ))
+    await db.commit()
+    return {"success": True, "message": "Ticket marcado como resuelto"}
+
+
+# ------------------------------------------------------------------
+# Reapertura -- solo dentro de la ventana de 24h tras resolver
+# ------------------------------------------------------------------
+
+@router.post("/incidencias/{incident_id}/reabrir")
+async def reopen_incident(
+    incident_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    reason = (body or {}).get("reason", "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Debes indicar un motivo para reabrir")
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if incident.status != "resuelto":
+        raise HTTPException(status_code=400, detail="Solo se puede reabrir un ticket resuelto")
+    if not incident.reopen_window_expires_at or incident.reopen_window_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="La ventana de reapertura de 24 horas ya expiro")
+
+    roles = set(user.get("roles") or [])
+    is_incident_manager = "it-service-desk:incident-manager" in roles or "super_admin" in roles
+    is_requester = user.get("user_id") == incident.requester_id
+    if not is_incident_manager and not is_requester:
+        raise HTTPException(status_code=403, detail="Solo el solicitante o Incident Manager pueden reabrir este ticket")
+
+    incident.status = "asignado" if incident.assigned_to_user_id else "en_backlog"
+    incident.resolved_at = None
+    incident.resolution_type = None
+    incident.reopen_window_expires_at = None
+
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="ticket_reabierto",
+        performed_by=user.get("user_id"), performed_by_name=user.get("full_name", ""),
+        performed_by_role="incident_manager" if is_incident_manager else "solicitante",
+        module_slug="it-service-desk", detail={"motivo": reason},
+    ))
+    await db.commit()
+    return {"success": True, "message": "Ticket reabierto"}
+
+
+# ------------------------------------------------------------------
+# Cierre formal -- solo Incident Manager
+# ------------------------------------------------------------------
+
+@router.post("/incidencias/{incident_id}/cerrar")
+async def close_incident(
+    incident_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    roles = user.get("roles") or []
+    if "it-service-desk:incident-manager" not in roles and "super_admin" not in roles:
+        raise HTTPException(status_code=403, detail="Solo Incident Manager puede cerrar formalmente un ticket")
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if incident.status != "resuelto":
+        raise HTTPException(status_code=400, detail="Solo se puede cerrar un ticket ya resuelto")
+
+    incident.status = "cerrado"
+    incident.closed_at = datetime.now(timezone.utc)
+
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="ticket_cerrado",
+        performed_by=user.get("user_id"), performed_by_name=user.get("full_name", ""),
+        performed_by_role="incident_manager", module_slug="it-service-desk", detail={},
+    ))
+    await db.commit()
+    return {"success": True, "message": "Ticket cerrado formalmente"}
+
+
+# ------------------------------------------------------------------
+# Escalamiento
+# ------------------------------------------------------------------
+
+@router.post("/incidencias/{incident_id}/escalar")
+async def escalate_incident(
+    incident_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    reason = (body or {}).get("reason", "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Debes indicar un motivo para escalar")
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if incident.status in ("resuelto", "cerrado"):
+        raise HTTPException(status_code=400, detail="No se puede escalar un ticket ya resuelto o cerrado")
+
+    roles = set(user.get("roles") or [])
+    is_incident_manager = "it-service-desk:incident-manager" in roles or "super_admin" in roles
+    is_assignee = user.get("user_id") == incident.assigned_to_user_id
+    if not is_incident_manager and not is_assignee:
+        raise HTTPException(status_code=403, detail="Solo la persona asignada o Incident Manager puede escalar este ticket")
+
+    # Escalar reasigna a Incident Manager como coordinador del siguiente nivel (N3)
+    import httpx
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        im_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "incident-manager"},
+        )
+        im_users = im_resp.json() if im_resp.status_code == 200 else []
+
+    incident.status = "escalado"
+
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="ticket_escalado",
+        performed_by=user.get("user_id"), performed_by_name=user.get("full_name", ""),
+        performed_by_role="incident_manager" if is_incident_manager else "asignado",
+        module_slug="it-service-desk", detail={"motivo": reason},
+    ))
+    await db.commit()
+
+    if im_users:
+        from app.assignment import _get_user_profile
+        im_profile = await _get_user_profile(im_users[0]["id"])
+        if im_profile.get("email"):
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    await client.post(
+                        "http://email-service:8000/api/v1/email/system-notification",
+                        json={
+                            "to_email": im_profile["email"], "full_name": im_profile.get("full_name", ""),
+                            "subject": f"Ticket escalado: #{incident.folio}",
+                            "message": f"Folio: {incident.folio}\\nMotivo: {reason}",
+                            "alert_type": "warning",
+                        },
+                    )
+            except Exception:
+                pass
+
+    return {"success": True, "message": "Ticket escalado"}
+
+
+# ------------------------------------------------------------------
+# Validar/ajustar severidad en triage -- solo Incident Manager
+# ------------------------------------------------------------------
+
+@router.patch("/incidencias/{incident_id}/severidad")
+async def validate_severity(
+    incident_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    severity_id = (body or {}).get("severity_id", "").strip()
+    if not severity_id:
+        raise HTTPException(status_code=400, detail="Debes indicar la severidad validada")
+
+    roles = user.get("roles") or []
+    if "it-service-desk:incident-manager" not in roles and "super_admin" not in roles:
+        raise HTTPException(status_code=403, detail="Solo Incident Manager puede validar la severidad")
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    sev_result = await db.execute(select(TicketSeverity).where(TicketSeverity.id == severity_id))
+    severity = sev_result.scalar_one_or_none()
+    if not severity:
+        raise HTTPException(status_code=404, detail="Severidad no encontrada")
+
+    old_severity_id = incident.severity_validated_id or incident.severity_reported_id
+    incident.severity_validated_id = severity_id
+
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="severidad_validada",
+        performed_by=user.get("user_id"), performed_by_name=user.get("full_name", ""),
+        performed_by_role="incident_manager", module_slug="it-service-desk",
+        detail={"severidad_anterior": old_severity_id, "severidad_nueva": severity_id},
+    ))
+    await db.commit()
+    return {"success": True, "message": "Severidad validada"}

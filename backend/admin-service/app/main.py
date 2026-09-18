@@ -128,7 +128,7 @@ async def internal_get_user_profile(
     from sqlalchemy import text
     result = await db.execute(text("""
         SELECT u.full_name, u.phone, u.puesto, u.departamento,
-               u.company_id, c.nombre_comercial, cf.clave, c.slug, u.email
+               u.company_id, c.nombre_comercial, cf.clave, c.slug, u.email, u.photo_object_key
         FROM users u
         JOIN companies c ON c.id = u.company_id
         LEFT JOIN company_families cf ON cf.id = c.family_id
@@ -155,6 +155,7 @@ async def internal_get_user_profile(
         "company_slug": row[7],
         "family_clave": family_clave,
         "email": row[8],
+        "photo_object_key": row[9],
     }
 
 
