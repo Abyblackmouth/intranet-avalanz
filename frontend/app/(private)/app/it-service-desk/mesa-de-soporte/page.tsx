@@ -9,6 +9,8 @@ import { Search, Eye, Plus, UserPlus, Clock, Download } from 'lucide-react'
 import CreateIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateIncidentModal'
 import IncidentDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/IncidentDetailModal'
 import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/AssignIncidentModal'
+import KanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/KanbanBoard'
+import { LayoutGrid, List } from 'lucide-react'
 
 interface IncidentRow {
   id: string; folio: string; title: string; status: string
@@ -148,6 +150,7 @@ export default function MesaDeSoportePage() {
   const [showCreate, setShowCreate] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)
   const [viewingTicketId, setViewingTicketId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'tabla' | 'tablero'>('tabla')
   const [page, setPage] = useState(1)
   const PER_PAGE = 11
 
@@ -196,8 +199,9 @@ export default function MesaDeSoportePage() {
         </button>
       }
     >
+      <div className="flex flex-col h-full">
       {isIncidentManager && (
-        <div className="flex items-center gap-3 mb-3 px-1 sticky top-0 z-10 bg-white py-2">
+        <div className="flex items-center gap-3 mb-1 px-1 sticky top-0 z-10 bg-white py-0.5 shrink-0">
           <span className="text-xs font-medium text-slate-500">Activarme como especialista general:</span>
           <button
             onClick={() => handleToggleSpecialist('especialista-funcional')}
@@ -228,7 +232,29 @@ export default function MesaDeSoportePage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-400 shadow-xl overflow-hidden relative flex flex-col" style={{ height: "780px" }}>
+      <div className="flex items-center gap-2 mb-1.5 shrink-0">
+        <button
+          onClick={() => setViewMode('tabla')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${viewMode === 'tabla' ? 'bg-[#7c2d12] text-white' : 'bg-white text-slate-500 border border-slate-300'}`}
+        >
+          <List size={13} /> Tabla
+        </button>
+        <button
+          onClick={() => setViewMode('tablero')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${viewMode === 'tablero' ? 'bg-[#7c2d12] text-white' : 'bg-white text-slate-500 border border-slate-300'}`}
+        >
+          <LayoutGrid size={13} /> Tablero
+        </button>
+      </div>
+
+      {viewMode === 'tablero' && (
+        <div className="flex-1 min-h-0">
+          <KanbanBoard onChanged={fetchAll} />
+        </div>
+      )}
+
+      {viewMode === 'tabla' && (
+      <div className="bg-white rounded-2xl border border-slate-400 shadow-xl overflow-hidden relative flex flex-col flex-1 min-h-0">
                 <div className="p-4 border-b border-slate-200 bg-slate-50/80 pt-5">
           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
@@ -370,6 +396,8 @@ export default function MesaDeSoportePage() {
               </button>
             </div>
           </div>
+      </div>
+      )}
       </div>
 
       {showCreate && (

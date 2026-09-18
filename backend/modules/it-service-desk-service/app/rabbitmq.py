@@ -86,7 +86,7 @@ async def _process_message(body: bytes) -> None:
                     await _notify_inapp(
                         im["id"], f"Ticket #{incident.folio} sin especialista disponible",
                         f"{incident.title} — Quedó en backlog, requiere asignación manual", "warning",
-                        {"incident_id": incident.id, "folio": incident.folio},
+                        {"incident_id": str(incident.id), "folio": incident.folio},
                     )
             except Exception:
                 pass

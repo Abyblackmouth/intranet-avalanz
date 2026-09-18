@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List
 import httpx
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import config
@@ -57,6 +57,9 @@ async def list_incidents(
     status: Optional[str] = None,
     severity_id: Optional[str] = None,
     search: Optional[str] = None,
+    order: Optional[str] = "desc",
+    limit: Optional[int] = 200,
+    offset: Optional[int] = 0,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
@@ -64,7 +67,8 @@ async def list_incidents(
     is_module_wide = bool(roles & MODULE_WIDE_ROLES) or "super_admin" in roles
     is_jefe_empresa = "it-service-desk:jefe-empresa" in roles
 
-    query = select(Incident).order_by(Incident.created_at.desc())
+    order_col = Incident.created_at.asc() if order == "asc" else Incident.created_at.desc()
+    query = select(Incident).order_by(order_col)
 
     if is_jefe_empresa and not is_module_wide:
         companies = user.get("companies") or []
@@ -84,7 +88,11 @@ async def list_incidents(
         like = f"%{search}%"
         query = query.where((Incident.folio.ilike(like)) | (Incident.title.ilike(like)))
 
-    result = await db.execute(query.limit(200))
+    count_query = query.with_only_columns(func.count()).order_by(None)
+    total_result = await db.execute(count_query)
+    total_count = total_result.scalar_one()
+
+    result = await db.execute(query.limit(limit).offset(offset))
     incidents = result.scalars().all()
 
     # Enriquecer con el nombre real de quien esta asignado -- sin esto el
@@ -114,7 +122,7 @@ async def list_incidents(
             "sla_resolution_limit": i.sla_resolution_limit.isoformat() if i.sla_resolution_limit else None,
             "is_sla_breached": i.is_sla_breached,
         } for i in incidents
-    ]}
+    ], "total_count": total_count}
 
 
 @router.get("/incidencias/{incident_id}")
@@ -590,7 +598,7 @@ async def resolve_via_token(
         await _notify_inapp(
             incident.requester_id, f"Ticket #{incident.folio} resuelto",
             f"{incident.title} — Ya fue marcado como resuelto", "success",
-            {"incident_id": incident.id, "folio": incident.folio},
+            {"incident_id": str(incident.id), "folio": incident.folio},
         )
 
     return {"success": True, "message": "Ticket marcado como resuelto"}
@@ -715,13 +723,6 @@ async def create_incident(
         created_at=incident.created_at,
     )
 
-    from app.assignment import _notify_inapp
-    await _notify_inapp(
-        user.get("user_id"), f"Ticket #{incident.folio} creado",
-        f"Registramos tu ticket: {incident.title}", "success",
-        {"incident_id": incident.id, "folio": incident.folio},
-    )
-
     return {
         "success": True,
         "message": "Ticket creado",
@@ -799,7 +800,7 @@ async def resolve_logged_in(
         await _notify_inapp(
             incident.requester_id, f"Ticket #{incident.folio} resuelto",
             f"{incident.title} — Ya fue marcado como resuelto", "success",
-            {"incident_id": incident.id, "folio": incident.folio},
+            {"incident_id": str(incident.id), "folio": incident.folio},
         )
 
     return {"success": True, "message": "Ticket marcado como resuelto"}
@@ -880,6 +881,15 @@ async def close_incident(
         performed_by_role="incident_manager", module_slug="it-service-desk", detail={},
     ))
     await db.commit()
+
+    from app.assignment import _notify_inapp
+    if incident.requester_id:
+        await _notify_inapp(
+            incident.requester_id, f"Ticket #{incident.folio} cerrado",
+            f"{incident.title} — Se cerró formalmente el caso", "neutral",
+            {"incident_id": str(incident.id), "folio": incident.folio},
+        )
+
     return {"success": True, "message": "Ticket cerrado formalmente"}
 
 

@@ -170,7 +170,7 @@ async def finalize_assignment(
     cuerpo_inapp = f"{incident.title}" + (f" — Motivo: {reason}" if reason else "")
     await _notify_inapp(
         assigned_to_user_id, titulo_inapp, cuerpo_inapp, "info",
-        {"incident_id": incident.id, "folio": incident.folio},
+        {"incident_id": str(incident.id), "folio": incident.folio},
     )
 
     if is_reassignment:
@@ -183,5 +183,5 @@ async def finalize_assignment(
             await _notify_inapp(
                 incident.requester_id, f"Tu ticket #{incident.folio} fue reasignado",
                 f"Ahora está a cargo de {profile.get('full_name', '')}", "info",
-                {"incident_id": incident.id, "folio": incident.folio},
+                {"incident_id": str(incident.id), "folio": incident.folio},
             )
