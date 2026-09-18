@@ -77,54 +77,13 @@ function checkSubmoduleExists(moduleSlug, subSlug) {
 
 const moduleLayoutTsx = (slug) => `'use client'
 
-import { useAuthStore } from '@/store/authStore'
-import { usePathname } from 'next/navigation'
-import Link from 'next/link'
-import * as LucideIcons from 'lucide-react'
-
-function SubIcon({ icon }: { icon?: string | null }) {
-  if (!icon) return <LucideIcons.Box size={15} />
-  const name = icon.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
-  const Icon = (LucideIcons as any)[name]
-  return Icon ? <Icon size={15} /> : <LucideIcons.Box size={15} />
-}
-
+// La navegacion entre submodulos ya la resuelve el Sidebar general
+// (arbol expandible por modulo) -- este layout ya NO duplica esa
+// navegacion en un panel aparte. Se deja como punto de extension por
+// si el modulo necesita envolver sus paginas con algo propio despues
+// (fondo, providers, etc.), sin volver a agregar un menu redundante.
 export default function ${toPascal(slug)}Layout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthStore()
-  const pathname = usePathname()
-  const mod = (user?.modules ?? []).find((m: any) => m.slug === '${slug}')
-  const submodules: any[] = (mod as any)?.submodules ?? []
-
-  return (
-    <div className="flex h-full">
-      {submodules.length > 0 && (
-        <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col py-4 px-2 gap-0.5">
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest px-2 mb-2">
-            ${toTitle(slug)}
-          </p>
-          {submodules.map((sub: any) => {
-            const href = \`/app/${slug}/\${sub.slug}\`
-            const active = pathname.startsWith(href)
-            return (
-              <Link
-                key={sub.slug}
-                href={href}
-                className={\`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors \${
-                  active
-                    ? 'bg-[#1a4fa0] text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }\`}
-              >
-                <SubIcon icon={sub.icon} />
-                {sub.name}
-              </Link>
-            )
-          })}
-        </aside>
-      )}
-      <div className="flex-1 overflow-auto">{children}</div>
-    </div>
-  )
+  return <div className="h-full overflow-auto">{children}</div>
 }
 `
 
@@ -380,6 +339,22 @@ function createSubmodule(moduleSlug, subSlug) {
     write(path.join(beBase, `app/routes/${subSlugClean}/${subSlugClean}.py`), backendSubRoute(subSlug))
     write(path.join(beBase, `app/services/${subSlugClean}/__init__.py`), '')
     write(path.join(beBase, `app/services/${subSlugClean}/${subSlugClean}_service.py`), backendSubService(subSlug))
+
+    // Conecta el router del submodulo al router principal automaticamente --
+    // se INSERTA, nunca se reescribe el archivo completo, para no borrar
+    // routers de otros submodulos que ya estuvieran conectados antes.
+    const routesInitPath = path.join(beBase, 'app/routes/__init__.py')
+    if (fs.existsSync(routesInitPath)) {
+      let routesInitContent = fs.readFileSync(routesInitPath, 'utf-8')
+      const importLine = `from app.routes.${subSlugClean}.${subSlugClean} import router as ${subSlugClean}_router`
+      const includeLine = `router.include_router(${subSlugClean}_router)`
+      if (!routesInitContent.includes(importLine)) {
+        routesInitContent = importLine + '\n' + routesInitContent
+        routesInitContent = routesInitContent.trimEnd() + '\n' + includeLine + '\n'
+        fs.writeFileSync(routesInitPath, routesInitContent)
+        console.log(`  \u2713 Router de "${subSlug}" conectado automaticamente en routes/__init__.py`)
+      }
+    }
   }
 
   console.log(`\n✓ Submódulo "${subSlug}" creado en "${moduleSlug}" exitosamente.\n`)

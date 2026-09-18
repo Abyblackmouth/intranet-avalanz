@@ -116,6 +116,49 @@ async def internal_get_user_permissions(
     return result
 
 
+@app.get("/internal/users/{user_id}/profile", include_in_schema=False)
+async def internal_get_user_profile(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Snapshot minimo de perfil para otros microservicios (ej. Mesa de
+    Ayuda al crear un ticket) -- nombre, telefono, puesto, departamento,
+    empresa y company_id. Sin JWT, solo alcanzable dentro de la red interna
+    de Docker."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT u.full_name, u.phone, u.puesto, u.departamento,
+               u.company_id, c.nombre_comercial, cf.clave, c.slug, u.email, u.photo_object_key
+        FROM users u
+        JOIN companies c ON c.id = u.company_id
+        LEFT JOIN company_families cf ON cf.id = c.family_id
+        WHERE u.id = :user_id AND u.is_deleted = false
+    """), {"user_id": user_id})
+    row = result.fetchone()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    import re as _re
+    family_clave = row[6]
+    if not family_clave:
+        # Fallback documentado: codigo propio de 4 caracteres, sin acentos ni espacios
+        family_clave = _re.sub(r"[^A-Z0-9]", "", row[5].upper())[:4].ljust(4, "X")
+
+    return {
+        "full_name": row[0],
+        "phone": row[1],
+        "puesto": row[2],
+        "departamento": row[3],
+        "company_id": str(row[4]),
+        "company_name": row[5],
+        "company_slug": row[7],
+        "family_clave": family_clave,
+        "email": row[8],
+        "photo_object_key": row[9],
+    }
+
+
 # ── Health check ──────────────────────────────────────────────────────────────
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
