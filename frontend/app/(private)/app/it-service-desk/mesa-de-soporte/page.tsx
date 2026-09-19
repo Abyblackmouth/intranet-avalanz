@@ -320,7 +320,7 @@ export default function MesaDeSoportePage() {
                 paginated.map(t => {
                   const sev = sevInfo(t.severity_validated_id ?? t.severity_reported_id)
                   return (
-                    <tr key={t.id} className="hover:bg-white/50 transition cursor-pointer" onClick={() => setViewingTicketId(t.id)}>
+                    <tr key={t.id} className="hover:bg-slate-50 transition cursor-pointer" onClick={() => setViewingTicketId(t.id)}>
                       <td className="px-4 py-2 font-mono text-xs text-slate-500">
                         <span className="inline-flex items-center gap-1">
                           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT[t.status] ?? 'bg-slate-300'}`} />

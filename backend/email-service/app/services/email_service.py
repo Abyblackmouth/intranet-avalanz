@@ -193,15 +193,28 @@ async def send_system_notification_email(
     action_label: Optional[str] = None,
     action_url: Optional[str] = None,
     alert_type: Optional[str] = None,
+    fields: Optional[list] = None,
 ) -> None:
+    """fields (opcional): lista de {"label", "value", "mono": bool} que se
+    renderiza como tabla organizada via _credentials() en vez de aventar
+    todo el mensaje en un solo parrafo -- antes un mensaje con varios
+    "Folio: X\nTitulo: Y\n..." se veia todo junto porque el \n no
+    se traduce a salto de linea en HTML. Retrocompatible: si no se manda
+    fields, el comportamiento es identico al de antes."""
     action_btn = _btn(action_url, action_label) if action_label and action_url else ""
-    if alert_type:
-        message_block = _alert(alert_type, subject, message)
+    fields_block = ""
+    if fields:
+        fields_block = _credentials([(f["label"], f["value"], f.get("mono", False)) for f in fields])
+    if alert_type and not fields:
+        message_block = _alert(alert_type, subject, message.replace("\n", "<br>"))
+    elif message:
+        message_block = _p(message.replace("\n", "<br>"))
     else:
-        message_block = _p(message)
+        message_block = ""
     content = (
         _h2(subject) +
         _p(f"Hola <strong>{full_name}</strong>,") +
+        fields_block +
         message_block +
         action_btn
     )

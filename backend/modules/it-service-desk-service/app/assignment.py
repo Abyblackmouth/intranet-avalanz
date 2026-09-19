@@ -57,9 +57,9 @@ async def _notify_assignment(
     quien lo recibe sepa por que le llego."""
     attend_url = f"{config.FRONTEND_URL}/atender/{token}"
     subject = f"Se te ha reasignado el ticket #{folio}" if is_reassignment else f"Se te ha asignado el ticket #{folio}"
-    message = f"Folio: {folio}\\nTitulo: {title}\\n\\nPuedes atenderlo directo desde el boton, sin necesidad de iniciar sesion."
+    fields = [{"label": "Folio", "value": folio, "mono": True}, {"label": "Titulo", "value": title, "mono": False}]
     if reason:
-        message = f"Motivo de la reasignacion: {reason}\\n\\n" + message
+        fields.append({"label": "Motivo", "value": reason, "mono": False})
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
@@ -68,7 +68,7 @@ async def _notify_assignment(
                     "to_email": to_email,
                     "full_name": full_name,
                     "subject": subject,
-                    "message": message,
+                    "message": "Puedes atenderlo directo desde el boton, sin necesidad de iniciar sesion.", "fields": fields,
                     "action_label": "Atender ticket",
                     "action_url": attend_url,
                     "alert_type": "info",
@@ -109,7 +109,7 @@ async def _notify_requester_of_reassignment(to_email: str, requester_name: str, 
                     "to_email": to_email,
                     "full_name": requester_name,
                     "subject": f"Tu ticket #{folio} fue reasignado",
-                    "message": f"Tu ticket #{folio} ahora esta a cargo de {new_assignee_name}.",
+                    "message": "", "fields": [{"label": "Folio", "value": folio, "mono": True}, {"label": "Ahora a cargo de", "value": new_assignee_name, "mono": False}],
                     "alert_type": "info",
                 },
             )

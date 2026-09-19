@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from app.config import config
 from app.services.email_service import (
@@ -47,6 +47,7 @@ class SystemNotificationEmailRequest(BaseModel):
     action_label: Optional[str] = None
     action_url: Optional[str] = None
     alert_type: Optional[str] = None
+    fields: Optional[List[Dict[str, Any]]] = None
 
 
 class ModuleEmailRequest(BaseModel):
@@ -100,6 +101,7 @@ async def system_notification_email(body: SystemNotificationEmailRequest):
         action_label=body.action_label,
         action_url=body.action_url,
         alert_type=body.alert_type,
+        fields=body.fields,
     )
     return BaseResponse(success=True, message="Notificacion enviada")
 

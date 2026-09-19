@@ -289,14 +289,13 @@ async def _notify_ticket_created(
     system_name: str, module_name: Optional[str], severity_name: str,
     created_at: datetime,
 ) -> None:
-    modulo_txt = f" / {module_name}" if module_name else ""
-    message = (
-        f"Folio: {folio}\n"
-        f"Titulo: {title}\n"
-        f"Sistema / Modulo: {system_name}{modulo_txt}\n"
-        f"Severidad propuesta: {severity_name}\n"
-        f"Fecha de creacion: {created_at.strftime('%d/%m/%Y %H:%M')}"
-    )
+    fields = [
+        {"label": "Folio", "value": folio, "mono": True},
+        {"label": "Titulo", "value": title, "mono": False},
+        {"label": "Sistema", "value": f"{system_name}{' / ' + module_name if module_name else ''}", "mono": False},
+        {"label": "Severidad", "value": severity_name, "mono": False},
+        {"label": "Creado", "value": created_at.strftime('%d/%m/%Y %H:%M'), "mono": False},
+    ]
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
@@ -305,8 +304,9 @@ async def _notify_ticket_created(
                     "to_email": to_email,
                     "full_name": full_name,
                     "subject": f"Se ha creado un ticket para soporte tecnico #{folio}",
-                    "message": message,
+                    "message": "Registramos tu ticket con los siguientes datos:",
                     "alert_type": "info",
+                    "fields": fields,
                 },
             )
     except Exception:
@@ -319,19 +319,17 @@ async def _notify_ticket_created(
 # Notificacion 1 -- creacion del ticket (submodulo-incidencias-notificaciones.md)
 # ------------------------------------------------------------------
 
-async def _notify_ticket_created(
-    to_email: str, full_name: str, folio: str, title: str,
-    system_name: str, module_name: Optional[str], severity_name: str,
-    created_at: datetime,
-) -> None:
-    modulo_txt = f" / {module_name}" if module_name else ""
-    message = (
-        f"Folio: {folio}\n"
-        f"Titulo: {title}\n"
-        f"Sistema / Modulo: {system_name}{modulo_txt}\n"
-        f"Severidad propuesta: {severity_name}\n"
-        f"Fecha de creacion: {created_at.strftime('%d/%m/%Y %H:%M')}"
-    )
+async def _notify_ticket_resolved(to_email: str, full_name: str, folio: str, title: str, resolution_type: str, rca_text: Optional[str]) -> None:
+    """Correo al solicitante cuando su ticket se resuelve -- antes solo
+    existia la notificacion in-app; un usuario real reporto no haber
+    recibido ningun aviso, y al revisar, el correo nunca se habia
+    construido para este paso (si para creacion y (re)asignacion)."""
+    tipo_txt = "Causa raiz" if resolution_type == "causa_raiz" else "Workaround"
+    fields = [
+        {"label": "Folio", "value": folio, "mono": True},
+        {"label": "Titulo", "value": title, "mono": False},
+        {"label": "Resolucion", "value": tipo_txt, "mono": False},
+    ]
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
@@ -339,14 +337,13 @@ async def _notify_ticket_created(
                 json={
                     "to_email": to_email,
                     "full_name": full_name,
-                    "subject": f"Se ha creado un ticket para soporte tecnico #{folio}",
-                    "message": message,
-                    "alert_type": "info",
+                    "subject": f"Tu ticket #{folio} fue resuelto",
+                    "message": f"Notas: {rca_text}" if rca_text else "",
+                    "alert_type": "success",
+                    "fields": fields,
                 },
             )
     except Exception:
-        # Si el correo falla, el ticket ya se guardo bien -- no se pierde
-        # nada, solo no llega el aviso.
         pass
 
 
@@ -600,6 +597,12 @@ async def resolve_via_token(
             f"{incident.title} — Ya fue marcado como resuelto", "success",
             {"incident_id": str(incident.id), "folio": incident.folio},
         )
+        req_profile = await _get_requester_profile(incident.requester_id)
+        if req_profile.get("email"):
+            await _notify_ticket_resolved(
+                req_profile["email"], incident.requester_name, incident.folio,
+                incident.title, resolution_type, rca_text,
+            )
 
     return {"success": True, "message": "Ticket marcado como resuelto"}
 
@@ -802,6 +805,12 @@ async def resolve_logged_in(
             f"{incident.title} — Ya fue marcado como resuelto", "success",
             {"incident_id": str(incident.id), "folio": incident.folio},
         )
+        req_profile = await _get_requester_profile(incident.requester_id)
+        if req_profile.get("email"):
+            await _notify_ticket_resolved(
+                req_profile["email"], incident.requester_name, incident.folio,
+                incident.title, resolution_type, rca_text,
+            )
 
     return {"success": True, "message": "Ticket marcado como resuelto"}
 
