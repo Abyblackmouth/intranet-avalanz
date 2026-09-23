@@ -1396,6 +1396,23 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
         return salida
 
     import httpx
+    import base64
+    from app.cron.chart_generator import generar_histograma_volumen
+
+    hoy = now.date()
+    volumen_map: Dict[str, int] = {(hoy - timedelta(days=d)).isoformat(): 0 for d in range(6, -1, -1)}
+    result_7d = await db.execute(
+        select(Incident.created_at).where(Incident.created_at >= now - timedelta(days=7))
+    )
+    for (creado,) in result_7d.all():
+        key = creado.date().isoformat()
+        if key in volumen_map:
+            volumen_map[key] += 1
+    datos_histograma = [{"fecha": k, "cantidad": v} for k, v in sorted(volumen_map.items())]
+    histograma_png = generar_histograma_volumen(datos_histograma)
+    histograma_b64 = base64.b64encode(histograma_png).decode("ascii")
+    HISTOGRAMA_CID = "histograma_volumen"
+
     enviados = []
     fecha_texto = now.strftime("%A %d de %B de %Y, %I:%M %p")
 
@@ -1413,6 +1430,7 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
             vencidos=await build_ticket_dicts(vencidos_items),
             por_vencer=await build_ticket_dicts(por_vencer_items),
             frontend_url=config.FRONTEND_URL,
+            histograma_cid=HISTOGRAMA_CID,
         )
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -1423,6 +1441,7 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
                         "full_name": profile.get("full_name", ""),
                         "subject": f"Solicitudes de tickets vencidos — {len(vencidos_items)} vencido(s), {len(por_vencer_items)} por vencer",
                         "html_content": html,
+                        "inline_images": [{"content_id": HISTOGRAMA_CID, "data_base64": histograma_b64, "subtype": "png"}],
                     },
                 )
             enviados.append(profile["email"])

@@ -1,6 +1,11 @@
 """Plantilla HTML del reporte diario de SLA -- diseno propio, aprobado
 con datos de muestra antes de conectarse a datos reales. No se envuelve
-en base.html (se manda via /api/v1/email/raw-html)."""
+en base.html (se manda via /api/v1/email/raw-html).
+
+v2: columnas reordenadas (Asignado a al final), folio sin salto de
+linea, encabezado reducido, severidad/horas mas angostas para dar
+espacio al titulo -- iteracion de diseno hecha directamente contra
+capturas reales de Outlook Web."""
 
 SEV_COLORS = {
     "S1": ("#fef2f2", "#b91c1c", "#dc2626"),
@@ -13,7 +18,7 @@ SEV_COLORS = {
 def _sev_badge(code: str) -> str:
     bg, tc, bc = SEV_COLORS.get(code, ("#f1f5f9", "#475569", "#94a3b8"))
     return (
-        f'<span style="display:inline-block;padding:2px 8px;background-color:{bg};'
+        f'<span style="display:inline-block;padding:2px 7px;background-color:{bg};'
         f'color:{tc};border:1px solid {bc};font-family:Arial,Helvetica,sans-serif;'
         f'font-size:11px;font-weight:bold;">{code}</span>'
     )
@@ -24,11 +29,11 @@ def _ticket_row(folio: str, title: str, assigned_name: str, sev_code: str, hours
     title_safe = (title[:55] + "...") if len(title) > 55 else title
     return f'''
                 <tr>
-                  <td style="padding:10px 12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#1e293b;{border}">{folio}</td>
-                  <td style="padding:10px 12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1e293b;{border}">{title_safe}</td>
-                  <td class="hide-mobile" style="padding:10px 12px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#475569;{border}">{assigned_name}</td>
-                  <td class="hide-mobile" style="padding:10px 12px;{border}">{_sev_badge(sev_code)}</td>
-                  <td style="padding:10px 12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:{hours_color};font-weight:bold;text-align:right;{border}">{hours_text}</td>
+                  <td style="padding:10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;color:#1e293b;white-space:nowrap;{border}">{folio}</td>
+                  <td style="padding:10px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1e293b;{border}">{title_safe}</td>
+                  <td class="hide-mobile" style="padding:10px;{border}">{_sev_badge(sev_code)}</td>
+                  <td style="padding:10px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:{hours_color};font-weight:bold;text-align:right;white-space:nowrap;{border}">{hours_text}</td>
+                  <td class="hide-mobile" style="padding:10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#475569;{border}">{assigned_name}</td>
                 </tr>'''
 
 
@@ -55,23 +60,44 @@ def _tabla_seccion(titulo: str, header_derecha: str, border_color: str, tickets:
             <td class="px-mobile" style="padding:8px 40px 0;">
               <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1.5px solid #cbd5e1;">
                 <tr style="background-color:#f1f5f9;">
-                  <td class="hide-mobile" style="padding:8px 12px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;width:100px;">Folio</td>
-                  <td style="padding:8px 12px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;">Titulo</td>
-                  <td class="hide-mobile" style="padding:8px 12px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;width:130px;">Asignado a</td>
-                  <td class="hide-mobile" style="padding:8px 12px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;width:70px;">Severidad</td>
-                  <td style="padding:8px 12px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;width:90px;text-align:right;">{header_derecha}</td>
+                  <td style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;white-space:nowrap;">Folio</td>
+                  <td style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;">Titulo</td>
+                  <td class="hide-mobile" style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;width:48px;">Sev.</td>
+                  <td style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;width:65px;text-align:right;white-space:nowrap;">{header_derecha}</td>
+                  <td class="hide-mobile" style="padding:8px 10px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;color:#64748b;text-transform:uppercase;border-bottom:1.5px solid #cbd5e1;width:120px;">Asignado a</td>
                 </tr>{filas}
               </table>
             </td>
           </tr>'''
 
 
-def build_sla_report_html(full_name: str, fecha_texto: str, vencidos: list, por_vencer: list, frontend_url: str) -> str:
+def build_sla_report_html(full_name: str, fecha_texto: str, vencidos: list, por_vencer: list, frontend_url: str, histograma_cid: str = None) -> str:
     """vencidos / por_vencer: listas de dicts con folio, title, assigned_name,
-    sev_code, hours_text (ej. '48.5 h'), hours_color (hex)."""
+    sev_code, hours_text (ej. '48.5 h'), hours_color (hex).
+    histograma_cid: content-id de la imagen del histograma ya adjunta al
+    correo (ver chart_generator.py) -- si se manda, se agrega esa seccion."""
     total_riesgo = len(vencidos) + len(por_vencer)
     seccion_vencidos = _tabla_seccion("Vencidos — requieren atencion inmediata", "Vencido hace", "#dc2626", vencidos)
     seccion_por_vencer = _tabla_seccion("Por vencer — dentro de las proximas 2 horas", "Vence en", "#f97316", por_vencer)
+    seccion_histograma = ""
+    if histograma_cid:
+        seccion_histograma = f'''
+          <tr>
+            <td class="px-mobile" style="padding:24px 40px 4px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="border-left:4px solid #1a4fa0;padding-left:10px;">
+                    <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#0f172a;text-transform:uppercase;letter-spacing:0.03em;">Tendencia de volumen</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:12px 40px 4px;">
+              <img src="cid:{histograma_cid}" alt="Volumen diario de tickets" width="560" style="max-width:100%;height:auto;display:block;border:1px solid #e2e8f0;" />
+            </td>
+          </tr>'''
 
     return f'''<!DOCTYPE html>
 <html lang="es" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -91,7 +117,7 @@ def build_sla_report_html(full_name: str, fecha_texto: str, vencidos: list, por_
     @media only screen and (max-width:640px){{
       .container{{width:100%!important;}}
       .stack{{display:block!important;width:100%!important;}}
-      .kpi-cell{{display:block!important;width:100%!important;padding-bottom:12px!important;}}
+      .kpi-cell{{display:block!important;width:100%!important;padding-bottom:12px!important;padding-left:0!important;padding-right:0!important;}}
       .hide-mobile{{display:none!important;}}
       .px-mobile{{padding-left:16px!important;padding-right:16px!important;}}
     }}
@@ -105,7 +131,7 @@ def build_sla_report_html(full_name: str, fecha_texto: str, vencidos: list, por_
           <tr><td style="background-color:#1a4fa0;height:6px;line-height:6px;font-size:1px;">&nbsp;</td></tr>
           <tr>
             <td align="center" style="padding:28px 40px 18px;background-color:#ffffff;border-bottom:2px solid #cbd5e1;">
-              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:39px;font-weight:bold;color:#1a4fa0;letter-spacing:1px;text-transform:uppercase;">IT Service Desk</p>
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:31px;font-weight:bold;color:#1a4fa0;letter-spacing:1px;text-transform:uppercase;">IT Service Desk</p>
             </td>
           </tr>
           <tr>
@@ -146,6 +172,7 @@ def build_sla_report_html(full_name: str, fecha_texto: str, vencidos: list, por_
               </table>
             </td>
           </tr>
+          {seccion_histograma}
           {seccion_vencidos}
           {seccion_por_vencer}
           <tr>

@@ -85,12 +85,35 @@ async def send_email(
     subject: str,
     html_body: str,
     to_name: Optional[str] = None,
+    inline_images: Optional[list] = None,
 ) -> None:
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
-    msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    """inline_images (opcional): lista de {"content_id": str, "data": bytes,
+    "subtype": str (ej. "png")} para imagenes embebidas via cid: -- el HTML
+    las referencia como <img src="cid:CONTENT_ID">. Si se manda, el mensaje
+    se arma como multipart/related en vez de multipart/alternative, que es
+    el formato correcto para que los clientes de correo (incluido Outlook)
+    muestren la imagen embebida en vez de tratarla como adjunto suelto."""
+    from email.mime.image import MIMEImage
+
+    if inline_images:
+        msg = MIMEMultipart("related")
+        msg["Subject"] = subject
+        msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
+        msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(html_body, "html", "utf-8"))
+        msg.attach(alt)
+        for img in inline_images:
+            part = MIMEImage(img["data"], _subtype=img.get("subtype", "png"))
+            part.add_header("Content-ID", f"<{img['content_id']}>")
+            part.add_header("Content-Disposition", "inline", filename=f"{img['content_id']}.{img.get('subtype', 'png')}")
+            msg.attach(part)
+    else:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
+        msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
     try:
         await aiosmtplib.send(
             msg,
@@ -237,5 +260,5 @@ async def send_module_email(
 # que ya traen su propio <html>/header/footer y no deben anidarse dentro
 # del template generico.
 
-async def send_raw_html_email(to_email: str, full_name: str, subject: str, html_content: str) -> None:
-    await send_email(to_email, subject, html_content, full_name)
+async def send_raw_html_email(to_email: str, full_name: str, subject: str, html_content: str, inline_images: Optional[list] = None) -> None:
+    await send_email(to_email, subject, html_content, full_name, inline_images=inline_images)
