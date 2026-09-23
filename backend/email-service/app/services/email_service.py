@@ -230,3 +230,12 @@ async def send_module_email(
     html_content: str,
 ) -> None:
     await send_email(to_email, subject, _render(html_content, subject), full_name)
+
+
+# ── Correo con HTML completo propio -- no se envuelve en base.html ──────────
+# Para reportes con su propio diseño de marca (ej. reporte diario de SLA),
+# que ya traen su propio <html>/header/footer y no deben anidarse dentro
+# del template generico.
+
+async def send_raw_html_email(to_email: str, full_name: str, subject: str, html_content: str) -> None:
+    await send_email(to_email, subject, html_content, full_name)

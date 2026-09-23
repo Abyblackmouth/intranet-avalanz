@@ -32,5 +32,16 @@ while true; do
     /scripts/verify_backups.sh >> /var/log/cron/verify_backups.log 2>&1
   fi
 
+  # Reporte diario de SLA (IT Service Desk) a las 11:00 y a las 16:00
+  if [ "$HOUR" = "11" ] && [ "$MIN" = "00" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ejecutando reporte de SLA (IT Service Desk)..."
+    /scripts/it_service_desk_sla_report.sh >> /var/log/cron/it_service_desk_sla_report.log 2>&1
+  fi
+
+  if [ "$HOUR" = "16" ] && [ "$MIN" = "00" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ejecutando reporte de SLA (IT Service Desk)..."
+    /scripts/it_service_desk_sla_report.sh >> /var/log/cron/it_service_desk_sla_report.log 2>&1
+  fi
+
   sleep 60
 done

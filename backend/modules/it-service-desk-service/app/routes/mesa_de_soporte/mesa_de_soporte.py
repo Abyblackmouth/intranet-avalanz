@@ -1337,3 +1337,151 @@ STATUS_LABEL_ES = {
     "en_backlog": "En backlog", "asignado": "Asignado", "en_atencion": "En atención",
     "escalado": "Escalado", "resuelto": "Resuelto", "cerrado": "Cerrado",
 }
+
+
+# ------------------------------------------------------------------
+# Reporte diario de SLA -- vencidos y por vencer, por rol.
+# Interno (sin JWT) -- lo dispara el cron de infrastructure/cron/,
+# no un usuario desde el navegador. Usa el HTML propio del reporte
+# (no se envuelve en base.html, ver /api/v1/email/raw-html).
+# ------------------------------------------------------------------
+
+@router.post("/internal/reportes/sla-diario", include_in_schema=False)
+async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
+    from app.cron.templates.sla_report_template import build_sla_report_html
+
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Incident).where(Incident.status.notin_(["resuelto", "cerrado"]))
+    )
+    incidents = result.scalars().all()
+
+    def categoria(i):
+        if not i.sla_resolution_limit:
+            return None
+        if i.sla_resolution_limit < now:
+            return "vencido"
+        if (i.sla_resolution_limit - now) <= timedelta(hours=2):
+            return "por_vencer"
+        return None
+
+    relevantes = [(i, categoria(i)) for i in incidents]
+    relevantes = [(i, c) for i, c in relevantes if c is not None]
+
+    # Cache de nombres de quien tiene cada ticket -- para la columna "Asignado a"
+    nombres_cache: Dict[str, str] = {}
+    async def nombre_de(user_id: Optional[str]) -> str:
+        if not user_id:
+            return "Sin asignar"
+        if user_id not in nombres_cache:
+            perfil = await _get_requester_profile(user_id)
+            nombres_cache[user_id] = perfil.get("full_name") or "Desconocido"
+        return nombres_cache[user_id]
+
+    async def build_ticket_dicts(items: list) -> list:
+        salida = []
+        for i, c in sorted(items, key=lambda x: x[0].sla_resolution_limit):
+            delta_h = abs((i.sla_resolution_limit - now).total_seconds()) / 3600
+            sev = i.severity_validated_id or i.severity_reported_id
+            sev_result = await db.execute(select(TicketSeverity).where(TicketSeverity.id == sev))
+            sev_obj = sev_result.scalar_one_or_none()
+            salida.append({
+                "folio": i.folio,
+                "title": i.title,
+                "assigned_name": await nombre_de(i.assigned_to_user_id),
+                "sev_code": sev_obj.code if sev_obj else "S4",
+                "hours_text": f"{delta_h:.1f} h",
+                "hours_color": "#dc2626" if c == "vencido" else "#c2410c",
+            })
+        return salida
+
+    import httpx
+    enviados = []
+    fecha_texto = now.strftime("%A %d de %B de %Y, %I:%M %p")
+
+    async def enviar_a(user_id: str, items: list):
+        if not items:
+            return
+        profile = await _get_requester_profile(user_id)
+        if not profile.get("email"):
+            return
+        vencidos_items = [(i, c) for i, c in items if c == "vencido"]
+        por_vencer_items = [(i, c) for i, c in items if c == "por_vencer"]
+        html = build_sla_report_html(
+            full_name=profile.get("full_name", ""),
+            fecha_texto=fecha_texto,
+            vencidos=await build_ticket_dicts(vencidos_items),
+            por_vencer=await build_ticket_dicts(por_vencer_items),
+            frontend_url=config.FRONTEND_URL,
+        )
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(
+                    "http://email-service:8000/api/v1/email/raw-html",
+                    json={
+                        "to_email": profile["email"],
+                        "full_name": profile.get("full_name", ""),
+                        "subject": f"Solicitudes de tickets vencidos — {len(vencidos_items)} vencido(s), {len(por_vencer_items)} por vencer",
+                        "html_content": html,
+                    },
+                )
+            enviados.append(profile["email"])
+        except Exception:
+            pass
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        im_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "incident-manager"},
+        )
+        pm_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "project-manager"},
+        )
+        comite_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "comite-directivo"},
+        )
+        func_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "especialista-funcional"},
+        )
+        tec_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "especialista-tecnico"},
+        )
+
+    full_access_users = []
+    for resp in (im_resp, pm_resp, comite_resp):
+        if resp.status_code == 200:
+            full_access_users.extend(resp.json())
+    funcional_users = func_resp.json() if func_resp.status_code == 200 else []
+    tecnico_users = tec_resp.json() if tec_resp.status_code == 200 else []
+
+    funcional_items = [(i, c) for i, c in relevantes if i.assigned_team == "especialista-funcional"]
+    tecnico_items = [(i, c) for i, c in relevantes if i.assigned_team == "especialista-tecnico"]
+
+    seen_full_access = set()
+    for u in full_access_users:
+        if u["id"] not in seen_full_access:
+            seen_full_access.add(u["id"])
+            await enviar_a(u["id"], relevantes)
+
+    seen_func = set()
+    for u in funcional_users:
+        if u["id"] not in seen_func:
+            seen_func.add(u["id"])
+            await enviar_a(u["id"], funcional_items)
+
+    seen_tec = set()
+    for u in tecnico_users:
+        if u["id"] not in seen_tec:
+            seen_tec.add(u["id"])
+            await enviar_a(u["id"], tecnico_items)
+
+    return {
+        "success": True,
+        "total_vencidos": sum(1 for _, c in relevantes if c == "vencido"),
+        "total_por_vencer": sum(1 for _, c in relevantes if c == "por_vencer"),
+        "correos_enviados": enviados,
+    }

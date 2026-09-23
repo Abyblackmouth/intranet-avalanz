@@ -9,6 +9,7 @@ from app.services.email_service import (
     send_account_locked_email,
     send_system_notification_email,
     send_module_email,
+    send_raw_html_email,
 )
 from shared.models.responses import BaseResponse
 from shared.middleware.jwt_validator import JWTValidator
@@ -115,3 +116,13 @@ async def module_email(body: ModuleEmailRequest):
         html_content=body.html_content,
     )
     return BaseResponse(success=True, message="Correo de modulo enviado")
+
+@router.post("/raw-html", response_model=BaseResponse, include_in_schema=False)
+async def raw_html_email(body: ModuleEmailRequest):
+    await send_raw_html_email(
+        to_email=body.to_email,
+        full_name=body.full_name,
+        subject=body.subject,
+        html_content=body.html_content,
+    )
+    return BaseResponse(success=True, message="Correo con HTML propio enviado")
