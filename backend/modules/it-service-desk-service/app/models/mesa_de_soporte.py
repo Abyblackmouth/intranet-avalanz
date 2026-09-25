@@ -235,8 +235,8 @@ class ControlCambiosDetalle(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, unique=True)
 
-    sistemas_afectados = Column(ARRAY(String), nullable=False)  # ["ERP TOTVS", "Portal de Proveedores", ...]
-    sistema_otro_detalle = Column(String(255), nullable=True)  # texto libre si se eligio "Otro"
+    system_id = Column(UUID(as_uuid=False), ForeignKey("ticket_systems.id"), nullable=True)  # seleccion unica, igual que Incidente -- "Otro" ya es un renglon real del catalogo
+    module_id = Column(UUID(as_uuid=False), ForeignKey("ticket_modules.id"), nullable=True)
     area_departamento = Column(String(150), nullable=False)
     tipo_solicitud = Column(String(30), nullable=False)  # nueva_funcionalidad | mejora_existente
 

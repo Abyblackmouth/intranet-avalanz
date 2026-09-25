@@ -77,8 +77,8 @@ export const resolveIncident = (incidentId: string, data: FormData) =>
 
 // ── Control de Cambios ──────────────────────────────────────────────────────
 export const createControlCambio = (data: {
-  sistemas_afectados: string[]
-  sistema_otro_detalle?: string
+  system_id: string
+  module_id?: string
   area_departamento: string
   tipo_solicitud: string
   titulo: string

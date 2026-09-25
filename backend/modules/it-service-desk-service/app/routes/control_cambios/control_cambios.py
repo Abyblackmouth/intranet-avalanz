@@ -25,7 +25,7 @@ from reportlab.lib.units import cm
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "static", "logo_avalanz.png")
 
 from app.database import get_db
-from app.models.mesa_de_soporte import Incident, ControlCambiosDetalle
+from app.models.mesa_de_soporte import Incident, ControlCambiosDetalle, TicketSystem, TicketModule
 from app.routes.mesa_de_soporte.mesa_de_soporte import (
     get_current_user, _get_requester_profile, _generate_folio, _broadcast_ticket_update,
 )
@@ -61,7 +61,7 @@ def _generar_pdf_solicitud(datos: dict) -> bytes:
     campo("Puesto", datos.get('solicitante_puesto') or "—")
     campo("Departamento", datos.get('solicitante_departamento') or "—")
     campo("Empresa", datos['empresa'])
-    campo("Sistema(s) / módulo afectado", ", ".join(datos['sistemas']) + (f" — Otro: {datos['sistema_otro']}" if datos.get('sistema_otro') else ""))
+    campo("Sistema / módulo afectado", datos['sistema_nombre'] + (f" / {datos['modulo_nombre']}" if datos.get('modulo_nombre') else ""))
     campo("Área / Departamento de la solicitud", datos['area'])
     campo("Tipo de solicitud", "Nueva funcionalidad" if datos['tipo_solicitud'] == 'nueva_funcionalidad' else "Mejora a funcionalidad existente")
     campo("Título", datos['titulo'])
@@ -108,8 +108,8 @@ async def _subir_archivo(file_bytes: bytes, filename: str, content_type: str, co
 
 
 class ControlCambioCreateRequest(BaseModel):
-    sistemas_afectados: List[str]
-    sistema_otro_detalle: Optional[str] = None
+    system_id: str
+    module_id: Optional[str] = None
     area_departamento: str
     tipo_solicitud: str
     titulo: str
@@ -166,8 +166,8 @@ async def create_control_cambio(
 
     detalle = ControlCambiosDetalle(
         incident_id=incident.id,
-        sistemas_afectados=body.sistemas_afectados,
-        sistema_otro_detalle=body.sistema_otro_detalle,
+        system_id=body.system_id,
+        module_id=body.module_id,
         area_departamento=body.area_departamento,
         tipo_solicitud=body.tipo_solicitud,
         justificacion=body.justificacion,
@@ -179,6 +179,14 @@ async def create_control_cambio(
     )
     db.add(detalle)
 
+    sistema_result = await db.execute(select(TicketSystem).where(TicketSystem.id == body.system_id))
+    sistema_obj = sistema_result.scalar_one_or_none()
+    modulo_nombre = None
+    if body.module_id:
+        modulo_result = await db.execute(select(TicketModule).where(TicketModule.id == body.module_id))
+        modulo_obj = modulo_result.scalar_one_or_none()
+        modulo_nombre = modulo_obj.name if modulo_obj else None
+
     pdf_bytes = _generar_pdf_solicitud({
         "folio": folio,
         "fecha": now.strftime("%d/%m/%Y %H:%M"),
@@ -187,8 +195,8 @@ async def create_control_cambio(
         "solicitante_puesto": profile.get("puesto"),
         "solicitante_departamento": profile.get("departamento"),
         "empresa": profile.get("company_name", ""),
-        "sistemas": body.sistemas_afectados,
-        "sistema_otro": body.sistema_otro_detalle,
+        "sistema_nombre": sistema_obj.name if sistema_obj else "—",
+        "modulo_nombre": modulo_nombre,
         "area": body.area_departamento,
         "tipo_solicitud": body.tipo_solicitud,
         "titulo": body.titulo,

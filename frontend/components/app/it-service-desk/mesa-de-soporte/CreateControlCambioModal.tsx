@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { createControlCambio, getDepartamentos, getMiPerfilCDC } from '@/services/itServiceDeskService'
+import { createControlCambio, getDepartamentos, getMiPerfilCDC, getSystems, getModulesCatalog } from '@/services/itServiceDeskService'
 import { useAuthStore } from '@/store/authStore'
-
-const SISTEMAS_CDC = ['ERP TOTVS', 'Portal de Proveedores', 'CRM Odoo DYCE', 'CRM Odoo Vanta', 'TOTVS V25', 'Otro']
 
 interface CreateControlCambioModalProps {
   onClose: () => void
@@ -20,8 +18,10 @@ export default function CreateControlCambioModal({ onClose, onCreated }: CreateC
   const [step, setStep] = useState(1)
   const total = 5
 
-  const [sistemas, setSistemas] = useState<string[]>([])
-  const [sistemaOtro, setSistemaOtro] = useState('')
+  const [systems, setSystems] = useState<{ id: string; name: string }[]>([])
+  const [modules, setModules] = useState<{ id: string; name: string }[]>([])
+  const [systemId, setSystemId] = useState('')
+  const [moduleId, setModuleId] = useState('')
   const [departamentos, setDepartamentos] = useState<string[]>([])
   const [area, setArea] = useState('')
   const [tipoSolicitud, setTipoSolicitud] = useState('nueva_funcionalidad')
@@ -39,14 +39,16 @@ export default function CreateControlCambioModal({ onClose, onCreated }: CreateC
   useEffect(() => {
     getDepartamentos().then(res => setDepartamentos(res.data.data ?? [])).catch(() => {})
     getMiPerfilCDC().then(res => setMiPerfil(res.data.data ?? {})).catch(() => {})
+    getSystems().then(res => setSystems(res.data?.data ?? [])).catch(() => {})
   }, [])
 
-  const toggleSistema = (s: string) => {
-    setSistemas(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
-  }
+  useEffect(() => {
+    if (!systemId) { setModules([]); return }
+    getModulesCatalog(systemId).then(res => setModules(res.data?.data ?? [])).catch(() => {})
+  }, [systemId])
 
   const puedeAvanzar = (): boolean => {
-    if (step === 2) return sistemas.length > 0 && area.trim() !== ''
+    if (step === 2) return systemId !== '' && area.trim() !== ''
     if (step === 3) return titulo.trim() !== '' && descripcion.trim() !== '' && justificacion.trim() !== ''
     return true
   }
@@ -56,8 +58,8 @@ export default function CreateControlCambioModal({ onClose, onCreated }: CreateC
     setError(null)
     try {
       const res = await createControlCambio({
-        sistemas_afectados: sistemas,
-        sistema_otro_detalle: sistemas.includes('Otro') ? sistemaOtro : undefined,
+        system_id: systemId,
+        module_id: moduleId || undefined,
         area_departamento: area,
         tipo_solicitud: tipoSolicitud,
         titulo,
@@ -158,30 +160,22 @@ export default function CreateControlCambioModal({ onClose, onCreated }: CreateC
               <div>
                 <p className="text-[15px] font-bold text-slate-900 mb-1">Alcance</p>
                 <p className="text-xs text-slate-400 mb-5">¿Dónde aplica este cambio?</p>
-                <label className={labelCls}>Sistema(s) / módulo afectado <span className="text-red-600">*</span></label>
-                <div className="flex flex-wrap gap-2 mb-1">
-                  {SISTEMAS_CDC.map(s => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => toggleSistema(s)}
-                      className={`px-3 py-[7px] rounded-full text-xs font-medium border transition ${
-                        sistemas.includes(s) ? 'bg-[#1a4fa0] border-[#1a4fa0] text-white' : 'border-slate-300 text-slate-600 hover:border-slate-400'
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div>
+                    <label className={labelCls}>Sistema <span className="text-red-600">*</span></label>
+                    <select value={systemId} onChange={e => { setSystemId(e.target.value); setModuleId('') }} className={inputCls}>
+                      <option value="">Selecciona...</option>
+                      {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Módulo <span className="text-slate-400 font-normal">(opcional)</span></label>
+                    <select value={moduleId} onChange={e => setModuleId(e.target.value)} disabled={!systemId || modules.length === 0} className={`${inputCls} disabled:opacity-50`}>
+                      <option value="">General</option>
+                      {modules.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">Selección múltiple. "Otro" habilita un campo de texto libre.</p>
-                {sistemas.includes('Otro') && (
-                  <input
-                    value={sistemaOtro}
-                    onChange={e => setSistemaOtro(e.target.value)}
-                    placeholder="Especifica cuál sistema"
-                    className={`${inputCls} mt-2`}
-                  />
-                )}
                 <div className="grid grid-cols-2 gap-3.5 mt-4">
                   <div>
                     <label className={labelCls}>Área / Departamento <span className="text-red-600">*</span></label>
@@ -265,7 +259,7 @@ export default function CreateControlCambioModal({ onClose, onCreated }: CreateC
                 <p className="text-xs text-slate-400 mb-5">Revisa antes de enviar tu solicitud.</p>
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-600 space-y-1.5 mb-4">
                   <p><b className="text-slate-800">Empresa:</b> {miPerfil.company_name ?? '—'}</p>
-                  <p><b className="text-slate-800">Sistema(s):</b> {sistemas.join(', ') || '—'}</p>
+                  <p><b className="text-slate-800">Sistema:</b> {systems.find(s => s.id === systemId)?.name ?? '—'}{moduleId ? ` / ${modules.find(m => m.id === moduleId)?.name ?? ''}` : ''}</p>
                   <p><b className="text-slate-800">Área:</b> {area || '—'}</p>
                   <p><b className="text-slate-800">Tipo:</b> {tipoSolicitud === 'nueva_funcionalidad' ? 'Nueva funcionalidad' : 'Mejora existente'}</p>
                   <p><b className="text-slate-800">Impacto / Urgencia:</b> {impacto} / {urgencia}</p>
