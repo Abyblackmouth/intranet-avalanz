@@ -47,9 +47,17 @@ async def _process_message(body: bytes) -> None:
         if not incident or incident.status != "en_backlog":
             return
 
-        assignment = await resolve_assignment(
-            db, incident.system_id, incident.module_id, incident.reported_type
-        )
+        # El motor busca especialista por system_id/reported_type -- CDC y
+        # ACC no tienen esos campos (None), y una coincidencia accidental
+        # con un "especialista general" de Incidente los asignaria a la
+        # persona equivocada. Para cualquier tipo que no sea incidente, se
+        # salta la busqueda por completo y se va directo a "sin especialista".
+        if incident.ticket_type == "incidente":
+            assignment = await resolve_assignment(
+                db, incident.system_id, incident.module_id, incident.reported_type
+            )
+        else:
+            assignment = {"encontrado": False}
 
         if assignment["encontrado"]:
             await finalize_assignment(

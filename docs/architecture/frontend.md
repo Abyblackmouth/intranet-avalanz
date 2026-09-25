@@ -23,7 +23,7 @@ Interfaz web de la Intranet Avalanz construida con Next.js 16, Tailwind CSS y sh
 | Excel | SheetJS (xlsx) | 0.18.x |
 | PDF | jsPDF + jspdf-autotable | 2.5.1 + 3.8.2 |
 | Gráficas | Recharts | — |
-| Fuentes | Geist Sans, Geist Mono, Plus Jakarta Sans, Roboto (Google Fonts via Next.js) | — |
+| Fuentes | Stack de fuentes del sistema operativo (-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif) -- cambiado 2026-09-25, antes Geist Sans via Google Fonts | -- |
 
 > jsPDF versión 2.5.1 y jspdf-autotable versión 3.8.2 son las versiones compatibles con Turbopack. No usar versiones 4.x — rompen el build.
 
@@ -229,9 +229,13 @@ const colorIndex = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) %
 
 ### Fuentes
 
+**Cambio 2026-09-25:** el cuerpo general (body) ya no usa Geist Sans -- se cambio al stack de fuentes nativas del sistema operativo, aplicado directamente en `app/layout.tsx`: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`. Motivo: comparado lado a lado contra un mockup de referencia, la fuente de sistema se veia visiblemente mas fina/limpia que Geist a los mismos tamanos declarados -- no era un problema de tamano ni de Tailwind, sino de la tipografia en si.
+
+**Pendiente (anotado 2026-09-25, no resuelto):** 1) auditar componentes con fuente propia hardcodeada que puedan quedar inconsistentes (ej. el modal de creacion de Control de Cambios en IT Service Desk trae su propio estilo de fuente, hecho antes de este cambio global); 2) buscar tipografia distinta para titulos y subtitulos, para dar jerarquia visual mas alla de peso/tamano.
+
 | Fuente | Variable CSS | Uso |
 |---|---|---|
-| Geist Sans | `--font-geist-sans` | Cuerpo general |
+| Geist Sans | `--font-geist-sans` | Fuente de Google importada en layout.tsx, sin referencia activa en ningun componente -- el cuerpo usa fuentes de sistema desde 2026-09-25 (ver nota abajo) |
 | Geist Mono | `--font-geist-mono` | Código y monoespaciado |
 | Plus Jakarta Sans | `--font-jakarta` | Títulos del sidebar y PageWrapper |
 | Roboto | `--font-roboto` | Disponible, no usado actualmente |

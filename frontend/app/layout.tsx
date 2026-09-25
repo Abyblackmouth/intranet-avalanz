@@ -39,7 +39,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${roboto.variable} ${jakarta.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col" style={{ fontFamily: "var(--font-geist-sans), system-ui, sans-serif" }}>{children}</body>
+      <body className="min-h-full flex flex-col" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>{children}</body>
     </html>
   );
 }

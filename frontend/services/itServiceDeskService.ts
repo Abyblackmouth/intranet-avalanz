@@ -74,3 +74,25 @@ export const resolveIncident = (incidentId: string, data: FormData) =>
   api.post(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/resolver`, data, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+
+// ── Control de Cambios ──────────────────────────────────────────────────────
+export const createControlCambio = (data: {
+  sistemas_afectados: string[]
+  sistema_otro_detalle?: string
+  area_departamento: string
+  tipo_solicitud: string
+  titulo: string
+  descripcion_detallada: string
+  justificacion: string
+  impacto_si_no_se_realiza: string
+  urgencia_solicitada: string
+  fecha_requerida?: string
+  comentarios_adicionales?: string
+}) => api.post('/api/v1/it-service-desk/control-cambios', data)
+
+export const getDepartamentos = () =>
+  api.get('/api/v1/it-service-desk/control-cambios/departamentos')
+
+
+export const getMiPerfilCDC = () =>
+  api.get('/api/v1/it-service-desk/control-cambios/mi-perfil')

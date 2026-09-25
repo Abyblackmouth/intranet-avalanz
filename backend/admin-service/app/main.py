@@ -159,6 +159,24 @@ async def internal_get_user_profile(
     }
 
 
+@app.get("/internal/departamentos", include_in_schema=False)
+async def internal_get_departamentos(
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista de departamentos ya registrados en toda la plataforma (todas
+    las empresas), sin duplicados -- se llenan al dar de alta empleados
+    (campo 'departamento' del usuario). Endpoint compartido a nivel raiz
+    para que cualquier modulo lo consuma (ej. IT Service Desk al levantar
+    un Control de Cambios), en vez de duplicar esta consulta por modulo."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT DISTINCT departamento FROM users
+        WHERE departamento IS NOT NULL AND departamento != '' AND is_deleted = false
+        ORDER BY departamento
+    """))
+    return {"data": [row[0] for row in result.fetchall()]}
+
+
 # ── Health check ──────────────────────────────────────────────────────────────
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
