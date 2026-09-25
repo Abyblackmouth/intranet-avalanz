@@ -23,7 +23,7 @@ const OPTIONS = [
     label: 'Control de Cambios',
     desc: 'Funcionalidad nueva o mejora a algo existente',
     color: '#1a4fa0',
-    available: false,
+    available: true,
   },
   {
     type: 'solicitud_acceso' as const,

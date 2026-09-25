@@ -244,3 +244,43 @@ async def upload_evidencia_registro(
             subidos.append(object_key)
 
     return {"success": True, "evidencias_subidas": subidos, "total": len(subidos)}
+
+
+# ------------------------------------------------------------------
+# Catalogo de departamentos -- para el selector del formulario.
+# Puente hacia admin-service (fuente real de verdad, se llenan al
+# dar de alta empleados), no se duplica la consulta aqui.
+# ------------------------------------------------------------------
+
+@router.get("/departamentos")
+async def list_departamentos(user: dict = Depends(get_current_user)):
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get("http://admin-service:8000/internal/departamentos")
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception:
+        pass
+    return {"data": []}
+
+
+# ------------------------------------------------------------------
+# Perfil del solicitante -- puesto, departamento, empresa. El AuthUser
+# del frontend (derivado del JWT) no trae estos campos, solo el
+# company_id, asi que se piden a admin-service via el mismo perfil
+# interno que ya usa create_control_cambio.
+# ------------------------------------------------------------------
+
+@router.get("/mi-perfil")
+async def get_mi_perfil(user: dict = Depends(get_current_user)):
+    try:
+        profile = await _get_requester_profile(user.get("user_id"))
+        return {
+            "data": {
+                "puesto": profile.get("puesto"),
+                "departamento": profile.get("departamento"),
+                "company_name": profile.get("company_name"),
+            }
+        }
+    except Exception:
+        return {"data": {}}

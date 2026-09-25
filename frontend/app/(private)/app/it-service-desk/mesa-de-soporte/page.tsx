@@ -13,6 +13,7 @@ import KanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/Kanban
 import { LayoutGrid, List } from 'lucide-react'
 import TicketRow from '@/components/app/it-service-desk/mesa-de-soporte/TicketRow'
 import NewTicketTypeModal from '@/components/app/it-service-desk/mesa-de-soporte/NewTicketTypeModal'
+import CreateControlCambioModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateControlCambioModal'
 import { useWSEvent } from '@/hooks/useWebSocket'
 
 interface IncidentRow {
@@ -187,6 +188,7 @@ export default function MesaDeSoportePage() {
   const [activeSevs, setActiveSevs] = useState<string[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [showTypePicker, setShowTypePicker] = useState(false)
+  const [showCreateCDC, setShowCreateCDC] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)
   const [viewingTicketId, setViewingTicketId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'tabla' | 'tablero'>('tabla')
@@ -405,6 +407,7 @@ export default function MesaDeSoportePage() {
           onSelect={(type) => {
             setShowTypePicker(false)
             if (type === 'incidente') setShowCreate(true)
+            if (type === 'control_cambio') setShowCreateCDC(true)
           }}
         />
       )}
@@ -413,6 +416,13 @@ export default function MesaDeSoportePage() {
         <CreateIncidentModal
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); fetchAll() }}
+        />
+      )}
+
+      {showCreateCDC && (
+        <CreateControlCambioModal
+          onClose={() => setShowCreateCDC(false)}
+          onCreated={() => { setShowCreateCDC(false); fetchAll() }}
         />
       )}
 
