@@ -67,11 +67,11 @@ A continuación, cada uno con su contexto de negocio, qué puede hacer hoy en el
 
 **Especialista Técnico incluye proveedores externos** — su descripción lo dice explícitamente ("Incluye proveedores externos"), reconociendo que parte del soporte técnico de sistemas como TOTVS puede recaer en soporte de Nivel 3 del propio fabricante, no solo en personal interno.
 
-### 2.4 "Técnico" — rol separado de "Especialista Técnico" (revisar)
+### 2.4 "Técnico" — manos extra, no un duplicado de "Especialista Técnico"
 
-Existe un octavo rol llamado simplemente **"Técnico"** (`tecnico`), con la descripción genérica *"Técnico de soporte para el módulo de IT Service Desk"` — distinto del rol `especialista-tecnico` ya descrito arriba. No se encontró ninguna referencia a este slug (`it-service-desk:tecnico`) en el código de frontend ni backend revisado durante esta sesión ni la anterior — a diferencia de `especialista-tecnico`, que sí se usa activamente (botón de activación, filtro del motor).
+Existe un octavo rol llamado simplemente **"Técnico"** (`tecnico`), distinto del rol `especialista-tecnico`. **Aclarado directamente con el dueño del proyecto:** no es un error de configuración ni un remanente sin uso — se creó como un mecanismo de **ayuda adicional para cualquiera de los dos equipos de especialistas** (funcional o técnico), pensado para el caso de contratar a alguien externo de forma puntual. Un usuario con este rol puede asignarse como especialista adicional, ligado a un sistema o módulo específico, igual que cualquier especialista regular — es, en esencia, una forma de sumar "manos extra" sin necesitar que esa persona tenga ya el rol permanente de Especialista Funcional o Técnico.
 
-**Esto es una bandera a resolver, no una decisión tomada:** puede ser (a) un rol creado por error o duplicado durante la configuración inicial del módulo, (b) un rol pensado para un propósito distinto que nunca se conectó al código, o (c) un remanente de una versión anterior del diseño de roles. Vale la pena confirmar con el dueño del proyecto si se debe desactivar, renombrar, o si tiene un uso planeado que todavía no se construye.
+No se encontró todavía una conexión de este rol en el código de frontend ni backend revisado (el botón de auto-activación descrito en la sección 3 solo cubre `especialista-funcional` y `especialista-tecnico`) — la mecánica de negocio ya está clara, pero su implementación en el sistema de especialistas (`system_specialists`) sigue pendiente de construir.
 
 ### 2.5 Comité Directivo — solo lectura de KPIs
 
@@ -79,17 +79,15 @@ Existe un octavo rol llamado simplemente **"Técnico"** (`tecnico`), con la desc
 
 **Qué puede hacer:** su descripción es explícita y restrictiva — *"Solo visualización de KPIs agregados"*. No aparece en ningún flujo de creación, asignación o resolución en el código revisado. Es, en esencia, un rol de consumo del dashboard (`GET /estadisticas`), no de operación.
 
-### 2.6 Jefe Empresa — el único rol con scope `empresa`
+### 2.6 Jefe Empresa — el único rol con scope `empresa`, solo lectura del resto de su gente
 
-**Por qué existe, y por qué es distinto a los demás:** es el único rol de los 8 que **no** es corporativo — ve solo lo de su propia empresa, no del grupo completo. Su descripción real en el catálogo es: *"Ve todo lo de su propia empresa. Dictamina Controles de Cambio y da Vo.Bo. de Roles y Perfiles."*
+**Por qué existe, y por qué es distinto a los demás:** es el único rol de los 8 que **no** es corporativo — ve solo lo de su propia empresa, no del grupo completo.
 
-**⚠️ Bandera importante — contradice una decisión explícita tomada durante la construcción de CDC:** esta descripción coincide casi textualmente con el concepto de **"Champion"** del documento Verus original (la persona por empresa/sistema que dictamina factibilidad de un Control de Cambios) — un rol que **se decidió explícitamente NO crear** durante la sesión donde se construyó CDC. La decisión tomada entonces fue: ningún rol nuevo, Incident Manager y Project Manager comparten el mismo alcance sobre CDC sin necesitar un "Jefe Empresa" que dictamine.
+**Aclarado directamente con el dueño del proyecto:** el rol tiene exactamente dos capacidades, ni más ni menos — (1) crear sus propios tickets, igual que cualquier solicitante, y (2) **ver** todos los tickets creados por cualquier persona de su misma empresa (por ejemplo, si dos solicitantes de AGIM reportan tickets, el Jefe Empresa de AGIM ve ambos). No puede intervenir, reasignar, resolver, ni tomar ninguna acción sobre los tickets de su gente — es visibilidad total, cero intervención.
 
-Esto deja dos posibilidades, sin resolver todavía:
-1. El rol "Jefe Empresa" ya existía en el catálogo **desde antes** de esa decisión (posiblemente configurado junto con el resto del catálogo inicial, antes de que CDC se diseñara a detalle), y su descripción quedó desactualizada — en ese caso, la descripción debería corregirse para no prometer una función que el código no implementa.
-2. El rol sí tiene un propósito real pendiente de conectar (dictaminar CDC y dar Vo.Bo. de Solicitud de Accesos), y la decisión de "sin rol nuevo" tomada para CDC debería revisarse contra este rol ya existente antes de seguir construyendo las fases siguientes.
+La descripción textual que trae hoy el catálogo (*"Dictamina Controles de Cambio y da Vo.Bo. de Roles y Perfiles"*) **queda confirmada como desactualizada** — no describe ninguna capacidad real del rol. No hay ninguna contradicción con la decisión tomada para CDC (Incident Manager + Project Manager comparten el alcance, sin autoridad nueva): "Jefe Empresa" simplemente no participa en la operación de CDC en absoluto, solo lo ve pasar como cualquier otro tipo de ticket de su empresa.
 
-**Recomendación:** aclarar esto con el dueño del proyecto antes de construir la Fase 2 (En revisión) de CDC — si el plan real es que "Jefe Empresa" SÍ dictamine CDC (contradiciendo lo decidido), cambia por completo el diseño de la Fase 2 que se planeó para mañana.
+> **Pendiente cosmético, no funcional:** actualizar la descripción de este rol en `admin-service` (tabla `module_roles`) para que diga lo que en realidad hace, y no lo que describía originalmente el documento Verus fuente.
 
 ### 2.7 Auditoría — solo trazabilidad, ni KPIs ni operación
 
@@ -182,10 +180,10 @@ La contradicción de la sección 2.6 (rol "Jefe Empresa" ya configurado para "di
 
 ---
 
-## 6. Resumen de banderas abiertas (para no perder de vista)
+## 6. Resumen de banderas — actualizado tras aclarar con el dueño del proyecto
 
-| # | Bandera | Dónde se detectó | Acción sugerida |
-|---|---|---|---|
-| 1 | Rol "Técnico" (`tecnico`) sin uso encontrado en código, separado de "Especialista Técnico" | Catálogo `module_roles` | Confirmar con el dueño si se desactiva, renombra, o tiene uso planeado |
-| 2 | Rol "Jefe Empresa" describe dictaminar CDC — contradice la decisión de "sin rol nuevo" para CDC | Catálogo `module_roles`, descripción textual | Aclarar antes de construir Fase 2 de CDC |
-| 3 | Auditoría no tiene un endpoint propio de bitácora — hoy la trazabilidad solo se ve dentro del detalle de cada ticket | Revisión de endpoints en `mesa_de_soporte.py` | Evaluar si se necesita una vista dedicada para este rol |
+| # | Punto | Estado |
+|---|---|---|
+| 1 | Rol "Técnico" (`tecnico`) | **Resuelto** — es un mecanismo de manos extra/externos, asignable a cualquier equipo (funcional o técnico), ligado a sistema/módulo. Pendiente solo su implementación en `system_specialists`, no su definición de negocio. |
+| 2 | Rol "Jefe Empresa" | **Resuelto** — solo crea sus propios tickets y ve todos los de su empresa; no interviene. La descripción del catálogo está desactualizada y debe corregirse en `admin-service` (pendiente cosmético). Sin contradicción real con la decisión de CDC. |
+| 3 | Auditoría sin endpoint propio de bitácora | **Sigue abierto** — hoy la trazabilidad solo se ve dentro del detalle de cada ticket, sin una vista dedicada para este rol. Evaluar si se necesita construir una.

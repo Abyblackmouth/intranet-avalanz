@@ -256,4 +256,4 @@ Vale la pena decidir esto explícitamente al construir el punto 3 de los pendien
 
 1. ¿`finalize_assignment` se parametriza o se crea una función paralela? (sección 7.2)
 2. ¿El botón "Activarme como: Project Manager" escribe en una tabla nueva, o se agrega una columna/mecanismo distinto ya que `system_specialists` no aplica a CDC? (ver `it-service-desk-roles-y-perfiles.md` sección 3.2)
-3. Pendiente de aclarar con el dueño del proyecto: el rol "Jefe Empresa" ya configurado describe "dictaminar Controles de Cambio" — si eso participa en esta regla nueva, cambia a quién debe asignar el motor al salir de backlog (ver `it-service-desk-roles-y-perfiles.md` sección 2.6).
+3. **Resuelto:** se confirmó con el dueño del proyecto que "Jefe Empresa" no participa en CDC en ningún sentido -- solo tiene visibilidad de su empresa, sin intervenir. La regla nueva del motor asigna exclusivamente a Project Manager (e Incident Manager si está activado), sin necesidad de considerar a Jefe Empresa (ver `it-service-desk-roles-y-perfiles.md` sección 2.6).
