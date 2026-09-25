@@ -11,6 +11,8 @@ import IncidentDetailModal from '@/components/app/it-service-desk/mesa-de-soport
 import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/AssignIncidentModal'
 import KanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/KanbanBoard'
 import { LayoutGrid, List } from 'lucide-react'
+import TicketRow from '@/components/app/it-service-desk/mesa-de-soporte/TicketRow'
+import { useWSEvent } from '@/hooks/useWebSocket'
 
 interface IncidentRow {
   id: string; folio: string; title: string; status: string
@@ -141,6 +143,41 @@ export default function MesaDeSoportePage() {
   }
 
   const [incidents, setIncidents] = useState<IncidentRow[]>([])
+  const [newTicketIds, setNewTicketIds] = useState<Set<string>>(new Set())
+
+  // Tiempo real: cuando alguien crea un ticket, aparece solo en la tabla
+  // sin recargar. Solo se agrega la fila nueva -- las demas (memorizadas
+  // en TicketRow) no se vuelven a dibujar.
+  useWSEvent('it_service_desk.ticket_created', (data: IncidentRow) => {
+    setIncidents(prev => {
+      if (prev.some(i => i.id === data.id)) return prev
+      return [data, ...prev]
+    })
+    setNewTicketIds(prev => new Set(prev).add(data.id))
+    setTimeout(() => {
+      setNewTicketIds(prev => {
+        const next = new Set(prev)
+        next.delete(data.id)
+        return next
+      })
+    }, 4000)
+  })
+
+  // Cuando cambia estatus/asignacion/severidad de un ticket ya existente
+  // (resolver, reasignar, escalar, etc.), se reemplaza solo ESE elemento
+  // del arreglo -- las demas filas conservan su misma referencia, asi
+  // que TicketRow (memorizado) las sigue saltando.
+  useWSEvent('it_service_desk.ticket_updated', (data: IncidentRow) => {
+    // Si el ticket llega antes que su propio evento de "creado" (la
+    // asignacion automatica puede correr antes de que termine de
+    // crearse, dentro de la misma peticion), no lo ignoramos -- lo
+    // agregamos igual, ya con los datos mas recientes.
+    setIncidents(prev => {
+      const existe = prev.some(i => i.id === data.id)
+      if (!existe) return [data, ...prev]
+      return prev.map(i => (i.id === data.id ? data : i))
+    })
+  })
   const [systems, setSystems] = useState<CatalogItem[]>([])
   const [severities, setSeverities] = useState<SeverityItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -317,58 +354,18 @@ export default function MesaDeSoportePage() {
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-sm">Sin tickets que coincidan</td></tr>
               ) : (
-                paginated.map(t => {
-                  const sev = sevInfo(t.severity_validated_id ?? t.severity_reported_id)
-                  return (
-                    <tr key={t.id} className="hover:bg-slate-50 transition cursor-pointer" onClick={() => setViewingTicketId(t.id)}>
-                      <td className="px-4 py-2 font-mono text-xs text-slate-500">
-                        <span className="inline-flex items-center gap-1">
-                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT[t.status] ?? 'bg-slate-300'}`} />
-                          {t.folio}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 font-medium text-slate-800 max-w-xs truncate">{t.title}</td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{t.requester_company_name}</td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{systemName(t.system_id)}</td>
-                      <td className="px-4 py-2 text-center">
-                        {sev && <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold ${SEV_CLASS[sev.code] ?? ''}`}>{sev.code}</span>}
-                      </td>
-                      <td className="px-4 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-medium ${STATUS_CLASS[t.status] ?? ''}`}>
-                          {STATUS_LABEL[t.status] ?? t.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{t.requester_name}</td>
-                      <td className="px-4 py-2 text-xs text-slate-500">
-                        {t.assigned_to_name ?? <span className="italic text-slate-300">Sin asignar</span>}
-                      </td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{fmt(t.created_at)}</td>
-                      <td className="px-4 py-2 text-center">
-                        {t.sla_resolution_limit && <SlaClock limit={t.sla_resolution_limit} status={t.status} />}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {canAssign && t.status === 'en_backlog' && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setAssigningTicket({ id: t.id, folio: t.folio }) }}
-                              title="Asignar"
-                              className="p-1.5 rounded-lg text-[#7c2d12] hover:bg-[#7c2d12]/10 transition"
-                            >
-                              <UserPlus size={22} />
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setViewingTicketId(t.id) }}
-                            title="Ver"
-                            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-500/10 transition"
-                          >
-                            <Eye size={22} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
+                paginated.map(t => (
+                  <TicketRow
+                    key={t.id}
+                    ticket={t}
+                    systems={systems}
+                    severities={severities}
+                    canAssign={canAssign}
+                    onAssign={setAssigningTicket}
+                    onView={setViewingTicketId}
+                    isNew={newTicketIds.has(t.id)}
+                  />
+                ))
               )}
             </tbody>
           </table>

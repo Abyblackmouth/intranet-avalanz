@@ -251,6 +251,77 @@ async def _get_requester_profile(user_id: str) -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------
+# Tiempo real -- avisa que un ticket cambio (estatus, asignacion,
+# severidad, etc.) para que la tabla lo actualice sin recargar.
+# Compartido por todos los endpoints que modifican un ticket ya
+# existente (asignar, resolver, reabrir, cerrar, escalar, redirigir).
+# ------------------------------------------------------------------
+
+async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.ticket_updated") -> None:
+    try:
+        assigned_name_ws = None
+        if incident.assigned_to_user_id:
+            perfil_ws = await _get_requester_profile(incident.assigned_to_user_id)
+            assigned_name_ws = perfil_ws.get("full_name")
+
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            im_resp = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "it-service-desk", "role_slug": "incident-manager"},
+            )
+            pm_resp = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "it-service-desk", "role_slug": "project-manager"},
+            )
+            equipo_resp = None
+            if incident.assigned_team:
+                equipo_resp = await client.get(
+                    "http://admin-service:8000/internal/users/by-module-role",
+                    params={"module_slug": "it-service-desk", "role_slug": incident.assigned_team},
+                )
+
+        destinatarios_ws = set()
+        for resp in (im_resp, pm_resp, equipo_resp):
+            if resp is not None and resp.status_code == 200:
+                for u in resp.json():
+                    destinatarios_ws.add(u["id"])
+
+        if destinatarios_ws:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                await client.post(
+                    "http://websocket-service:8000/ws/broadcast",
+                    json={
+                        "user_ids": list(destinatarios_ws),
+                        "event_type": event_type,
+                        "module_slug": "it-service-desk",
+                        "data": {
+                            "id": str(incident.id),
+                            "folio": incident.folio,
+                            "title": incident.title,
+                            "status": incident.status,
+                            "system_id": incident.system_id,
+                            "module_id": incident.module_id,
+                            "severity_reported_id": incident.severity_reported_id,
+                            "severity_validated_id": incident.severity_validated_id,
+                            "assigned_team": incident.assigned_team,
+                            "assigned_to_user_id": str(incident.assigned_to_user_id) if incident.assigned_to_user_id else None,
+                            "assigned_to_name": assigned_name_ws,
+                            "requester_name": incident.requester_name,
+                            "requester_company_name": incident.requester_company_name,
+                            "created_at": incident.created_at.isoformat(),
+                            "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+                            "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
+                            "is_sla_breached": incident.is_sla_breached if hasattr(incident, "is_sla_breached") else False,
+                        },
+                    },
+                )
+    except Exception:
+        # El cambio ya se guardo bien -- si el aviso en vivo falla, se
+        # vera al refrescar, no se pierde nada.
+        pass
+
+
+# ------------------------------------------------------------------
 # Folio atomico -- por familia (o codigo propio de empresa si no tiene)
 # ------------------------------------------------------------------
 
@@ -604,6 +675,7 @@ async def resolve_via_token(
                 incident.title, resolution_type, rca_text,
             )
 
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket marcado como resuelto"}
 
 
@@ -726,6 +798,10 @@ async def create_incident(
         created_at=incident.created_at,
     )
 
+    # Aviso en tiempo real a quien tenga la tabla de Mesa de Soporte
+    # abierta -- que el ticket aparezca solo, sin refrescar la pagina.
+    await _broadcast_ticket_update(incident, event_type="it_service_desk.ticket_created")
+
     return {
         "success": True,
         "message": "Ticket creado",
@@ -812,6 +888,7 @@ async def resolve_logged_in(
                 incident.title, resolution_type, rca_text,
             )
 
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket marcado como resuelto"}
 
 
@@ -857,6 +934,7 @@ async def reopen_incident(
         module_slug="it-service-desk", detail={"motivo": reason},
     ))
     await db.commit()
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket reabierto"}
 
 
@@ -899,6 +977,7 @@ async def close_incident(
             {"incident_id": str(incident.id), "folio": incident.folio},
         )
 
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket cerrado formalmente"}
 
 
@@ -967,6 +1046,7 @@ async def escalate_incident(
             except Exception:
                 pass
 
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket escalado"}
 
 
@@ -1009,6 +1089,7 @@ async def validate_severity(
         detail={"severidad_anterior": old_severity_id, "severidad_nueva": severity_id},
     ))
     await db.commit()
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Severidad validada"}
 
 

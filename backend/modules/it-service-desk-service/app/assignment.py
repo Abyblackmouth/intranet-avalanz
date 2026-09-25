@@ -185,3 +185,8 @@ async def finalize_assignment(
                 f"Ahora está a cargo de {profile.get('full_name', '')}", "info",
                 {"incident_id": str(incident.id), "folio": incident.folio},
             )
+
+    # Tiempo real -- cubre asignacion manual, reasignacion, y redireccion
+    # desde el enlace de atencion (todas pasan por aqui)
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    await _broadcast_ticket_update(incident)
