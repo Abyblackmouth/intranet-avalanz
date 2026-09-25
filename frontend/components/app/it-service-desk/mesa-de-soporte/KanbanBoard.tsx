@@ -23,7 +23,7 @@ interface KanbanTicket {
 }
 
 const COLUMNS = [
-  { key: 'en_backlog', label: 'Backlog', accent: '#94a3b8', flexGrow: 0.5, pageSize: 8 },
+  { key: 'en_backlog', label: 'Backlog', accent: '#94a3b8', flexGrow: 0.5, pageSize: 4 },
   { key: 'asignado', label: 'Asignado', accent: '#1a4fa0', flexGrow: 1.5, pageSize: 12 },
   { key: 'resuelto', label: 'Resuelto', accent: '#059669', flexGrow: 1, pageSize: 8 },
   { key: 'cerrado', label: 'Cerrado', accent: '#475569', flexGrow: 1, pageSize: 8 },
@@ -196,7 +196,7 @@ function Column({ colKey, label, accent, flexGrow, pageSize, tickets, severities
         ) : (
           <div
             key={page}
-            className={`grid gap-2.5 transition-all duration-300 ease-out ${isExpanded || flexGrow >= 1.5 ? 'grid-cols-3' : 'grid-cols-2'} ${
+            className={`grid gap-2.5 transition-all duration-300 ease-out grid-cols-[repeat(auto-fit,minmax(170px,1fr))] ${
               entering ? 'opacity-0 translate-y-3' : 'opacity-100 translate-y-0'
             }`}
           >

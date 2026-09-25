@@ -156,7 +156,7 @@ async def create_control_cambio(
         reported_type=None,
         description=body.descripcion_detallada,
         severity_reported_id=None,
-        status="registrado",
+        status="en_backlog",  # cae al mismo backlog global de Incidente -- el motor lo procesa igual
         created_at=now,
     )
     db.add(incident)
@@ -209,6 +209,16 @@ async def create_control_cambio(
         detalle.solicitud_pdf_object_key = object_key
 
     await db.commit()
+
+    await _broadcast_ticket_update(incident, event_type="it_service_desk.ticket_created")
+
+    try:
+        from app.rabbitmq import publish_incident_created
+        await publish_incident_created(str(incident.id))
+    except Exception:
+        # Si RabbitMQ no esta disponible, el ticket ya se guardo bien --
+        # se queda en_backlog para asignacion manual, no se pierde nada.
+        pass
 
     return {
         "success": True,

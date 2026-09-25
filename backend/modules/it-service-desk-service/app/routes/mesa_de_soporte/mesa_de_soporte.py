@@ -68,7 +68,11 @@ async def list_incidents(
     is_jefe_empresa = "it-service-desk:jefe-empresa" in roles
 
     order_col = Incident.created_at.asc() if order == "asc" else Incident.created_at.desc()
-    query = select(Incident).where(Incident.ticket_type == "incidente").order_by(order_col)
+    # Backlog es la bandeja universal de "no asignado" -- CDC/ACC entran
+    # aqui igual que Incidente mientras esten en en_backlog. El filtro por
+    # ticket_type se queda solo en metricas/reportes (estadisticas, excel,
+    # SLA diario), no en el listado que alimenta Tabla y Kanban.
+    query = select(Incident).order_by(order_col)
 
     if is_jefe_empresa and not is_module_wide:
         companies = user.get("companies") or []
