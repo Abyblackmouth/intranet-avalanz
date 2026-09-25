@@ -68,7 +68,7 @@ async def list_incidents(
     is_jefe_empresa = "it-service-desk:jefe-empresa" in roles
 
     order_col = Incident.created_at.asc() if order == "asc" else Incident.created_at.desc()
-    query = select(Incident).order_by(order_col)
+    query = select(Incident).where(Incident.ticket_type == "incidente").order_by(order_col)
 
     if is_jefe_empresa and not is_module_wide:
         companies = user.get("companies") or []
@@ -717,6 +717,7 @@ async def create_incident(
 
     incident = Incident(
         folio=folio,
+        ticket_type="incidente",
         title=title,
         company_id=company_id,
         requester_id=user_id,
@@ -1142,7 +1143,7 @@ async def get_dashboard_stats(
     else:
         start = end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    query = select(Incident).where(Incident.created_at >= start, Incident.created_at <= end)
+    query = select(Incident).where(Incident.ticket_type == "incidente", Incident.created_at >= start, Incident.created_at <= end)
 
     scope = "completo"
     my_team = None
@@ -1281,7 +1282,7 @@ async def export_incidents_excel(
     if not has_full_access:
         raise HTTPException(status_code=403, detail="No tienes permiso para exportar el concentrado")
 
-    result = await db.execute(select(Incident).order_by(Incident.created_at))
+    result = await db.execute(select(Incident).where(Incident.ticket_type == "incidente").order_by(Incident.created_at))
     incidents = result.scalars().all()
 
     sev_result = await db.execute(select(TicketSeverity))
@@ -1433,7 +1434,7 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
 
     now = datetime.now(timezone.utc)
     result = await db.execute(
-        select(Incident).where(Incident.status.notin_(["resuelto", "cerrado"]))
+        select(Incident).where(Incident.ticket_type == "incidente", Incident.status.notin_(["resuelto", "cerrado"]))
     )
     incidents = result.scalars().all()
 
@@ -1483,7 +1484,7 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
     hoy = now.date()
     volumen_map: Dict[str, int] = {(hoy - timedelta(days=d)).isoformat(): 0 for d in range(6, -1, -1)}
     result_7d = await db.execute(
-        select(Incident.created_at).where(Incident.created_at >= now - timedelta(days=7))
+        select(Incident.created_at).where(Incident.ticket_type == "incidente", Incident.created_at >= now - timedelta(days=7))
     )
     for (creado,) in result_7d.all():
         key = creado.date().isoformat()
@@ -1598,6 +1599,7 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
     now = datetime.now(timezone.utc)
     result = await db.execute(
         select(Incident).where(
+            Incident.ticket_type == "incidente",
             Incident.status == "resuelto",
             Incident.reopen_window_expires_at.isnot(None),
             Incident.reopen_window_expires_at < now,

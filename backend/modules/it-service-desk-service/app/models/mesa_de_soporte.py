@@ -110,6 +110,7 @@ class Incident(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     folio = Column(String(15), nullable=False, unique=True)
+    ticket_type = Column(String(20), nullable=False, default="incidente")  # incidente | control_cambio | solicitud_acceso
     title = Column(String(150), nullable=False)
 
     company_id = Column(UUID(as_uuid=False), nullable=False)
