@@ -85,8 +85,9 @@ export default function MesaDeSoportePage() {
   const isEspecialistaTecnico = roles.includes('it-service-desk:especialista-tecnico')
   const canAssign = isIncidentManager || isEspecialistaFuncional || isEspecialistaTecnico
 
-  const [myFuncionalRow, setMyFuncionalRow] = useState<{ id: string } | null>(null)
-  const [myTecnicoRow, setMyTecnicoRow] = useState<{ id: string } | null>(null)
+  const [myFuncionalRow, setMyFuncionalRow] = useState<{ id: string; is_active: boolean } | null>(null)
+  const [myTecnicoRow, setMyTecnicoRow] = useState<{ id: string; is_active: boolean } | null>(null)
+  const [myProjectManagerRow, setMyProjectManagerRow] = useState<{ id: string; is_active: boolean } | null>(null)
   const [togglingTeam, setTogglingTeam] = useState<string | null>(null)
   const [exportingExcel, setExportingExcel] = useState(false)
 
@@ -96,8 +97,9 @@ export default function MesaDeSoportePage() {
       const res = await getSpecialists()
       const rows: any[] = res.data?.data ?? []
       const mine = rows.filter(r => r.specialist_user_id === user.user_id && !r.system_id && !r.module_id)
-      setMyFuncionalRow(mine.find(r => r.team_type === 'especialista-funcional' && r.is_active) ?? null)
-      setMyTecnicoRow(mine.find(r => r.team_type === 'especialista-tecnico' && r.is_active) ?? null)
+      setMyFuncionalRow(mine.find(r => r.team_type === 'especialista-funcional') ?? null)
+      setMyTecnicoRow(mine.find(r => r.team_type === 'especialista-tecnico') ?? null)
+      setMyProjectManagerRow(mine.find(r => r.team_type === 'project-manager') ?? null)
     } catch {
       // silencioso -- el panel simplemente no mostrara estado activo
     }
@@ -122,15 +124,17 @@ export default function MesaDeSoportePage() {
     }
   }
 
-  const handleToggleSpecialist = async (team: 'especialista-funcional' | 'especialista-tecnico') => {
+  const handleToggleSpecialist = async (team: 'especialista-funcional' | 'especialista-tecnico' | 'project-manager') => {
     if (!user?.user_id) return
     setTogglingTeam(team)
-    const currentRow = team === 'especialista-funcional' ? myFuncionalRow : myTecnicoRow
+    const currentRow = team === 'especialista-funcional' ? myFuncionalRow : team === 'especialista-tecnico' ? myTecnicoRow : myProjectManagerRow
     try {
       if (currentRow) {
+        // Reutiliza el mismo renglon (exista activo o no) -- solo voltea is_active,
+        // en vez de crear uno nuevo y dejar el anterior huerfano en la tabla.
         await updateSpecialist(currentRow.id, {
           system_id: null, module_id: null, team_type: team,
-          specialist_user_id: user.user_id, is_active: false,
+          specialist_user_id: user.user_id, is_active: !currentRow.is_active,
         })
       } else {
         await createSpecialist({
@@ -248,19 +252,29 @@ export default function MesaDeSoportePage() {
             onClick={() => handleToggleSpecialist('especialista-funcional')}
             disabled={togglingTeam === 'especialista-funcional'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-50 ${
-              myFuncionalRow ? 'bg-[#7c2d12] text-white border-[#7c2d12]' : 'bg-white text-slate-600 border-slate-300'
+              myFuncionalRow?.is_active ? 'bg-[#7c2d12] text-white border-[#7c2d12]' : 'bg-white text-slate-600 border-slate-300'
             }`}
           >
-            {togglingTeam === 'especialista-funcional' ? '...' : `Especialista Funcional: ${myFuncionalRow ? 'Activo' : 'Inactivo'}`}
+            {togglingTeam === 'especialista-funcional' ? '...' : `Especialista Funcional: ${myFuncionalRow?.is_active ? 'Activo' : 'Inactivo'}`}
           </button>
           <button
             onClick={() => handleToggleSpecialist('especialista-tecnico')}
             disabled={togglingTeam === 'especialista-tecnico'}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-50 ${
-              myTecnicoRow ? 'bg-[#7c2d12] text-white border-[#7c2d12]' : 'bg-white text-slate-600 border-slate-300'
+              myTecnicoRow?.is_active ? 'bg-[#7c2d12] text-white border-[#7c2d12]' : 'bg-white text-slate-600 border-slate-300'
             }`}
           >
-            {togglingTeam === 'especialista-tecnico' ? '...' : `Especialista Tecnico: ${myTecnicoRow ? 'Activo' : 'Inactivo'}`}
+            {togglingTeam === 'especialista-tecnico' ? '...' : `Especialista Tecnico: ${myTecnicoRow?.is_active ? 'Activo' : 'Inactivo'}`}
+          </button>
+          <button
+            onClick={() => handleToggleSpecialist('project-manager')}
+            disabled={togglingTeam === 'project-manager'}
+            title="Respaldo para Control de Cambios si no hay Project Manager disponible"
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-50 ${
+              myProjectManagerRow?.is_active ? 'bg-[#1a4fa0] text-white border-[#1a4fa0]' : 'bg-white text-slate-600 border-slate-300'
+            }`}
+          >
+            {togglingTeam === 'project-manager' ? '...' : `Project Manager: ${myProjectManagerRow?.is_active ? 'Activo' : 'Inactivo'}`}
           </button>
           <button
             onClick={handleExportExcel}
