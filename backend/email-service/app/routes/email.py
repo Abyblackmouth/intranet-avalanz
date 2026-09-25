@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from app.config import config
 from app.services.email_service import (
@@ -9,6 +9,7 @@ from app.services.email_service import (
     send_account_locked_email,
     send_system_notification_email,
     send_module_email,
+    send_raw_html_email,
 )
 from shared.models.responses import BaseResponse
 from shared.middleware.jwt_validator import JWTValidator
@@ -47,6 +48,13 @@ class SystemNotificationEmailRequest(BaseModel):
     action_label: Optional[str] = None
     action_url: Optional[str] = None
     alert_type: Optional[str] = None
+    fields: Optional[List[Dict[str, Any]]] = None
+
+
+class InlineImage(BaseModel):
+    content_id: str
+    data_base64: str
+    subtype: str = "png"
 
 
 class ModuleEmailRequest(BaseModel):
@@ -54,6 +62,7 @@ class ModuleEmailRequest(BaseModel):
     full_name: str
     subject: str
     html_content: str
+    inline_images: Optional[List[InlineImage]] = None
 
 
 # ── Endpoints internos ────────────────────────────────────────────────────────
@@ -100,6 +109,7 @@ async def system_notification_email(body: SystemNotificationEmailRequest):
         action_label=body.action_label,
         action_url=body.action_url,
         alert_type=body.alert_type,
+        fields=body.fields,
     )
     return BaseResponse(success=True, message="Notificacion enviada")
 
@@ -113,3 +123,21 @@ async def module_email(body: ModuleEmailRequest):
         html_content=body.html_content,
     )
     return BaseResponse(success=True, message="Correo de modulo enviado")
+
+@router.post("/raw-html", response_model=BaseResponse, include_in_schema=False)
+async def raw_html_email(body: ModuleEmailRequest):
+    import base64
+    imgs = None
+    if body.inline_images:
+        imgs = [
+            {"content_id": img.content_id, "data": base64.b64decode(img.data_base64), "subtype": img.subtype}
+            for img in body.inline_images
+        ]
+    await send_raw_html_email(
+        to_email=body.to_email,
+        full_name=body.full_name,
+        subject=body.subject,
+        html_content=body.html_content,
+        inline_images=imgs,
+    )
+    return BaseResponse(success=True, message="Correo con HTML propio enviado")

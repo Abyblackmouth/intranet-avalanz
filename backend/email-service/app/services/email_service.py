@@ -85,12 +85,35 @@ async def send_email(
     subject: str,
     html_body: str,
     to_name: Optional[str] = None,
+    inline_images: Optional[list] = None,
 ) -> None:
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
-    msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    """inline_images (opcional): lista de {"content_id": str, "data": bytes,
+    "subtype": str (ej. "png")} para imagenes embebidas via cid: -- el HTML
+    las referencia como <img src="cid:CONTENT_ID">. Si se manda, el mensaje
+    se arma como multipart/related en vez de multipart/alternative, que es
+    el formato correcto para que los clientes de correo (incluido Outlook)
+    muestren la imagen embebida en vez de tratarla como adjunto suelto."""
+    from email.mime.image import MIMEImage
+
+    if inline_images:
+        msg = MIMEMultipart("related")
+        msg["Subject"] = subject
+        msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
+        msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(html_body, "html", "utf-8"))
+        msg.attach(alt)
+        for img in inline_images:
+            part = MIMEImage(img["data"], _subtype=img.get("subtype", "png"))
+            part.add_header("Content-ID", f"<{img['content_id']}>")
+            part.add_header("Content-Disposition", "inline", filename=f"{img['content_id']}.{img.get('subtype', 'png')}")
+            msg.attach(part)
+    else:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
+        msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
     try:
         await aiosmtplib.send(
             msg,
@@ -193,15 +216,28 @@ async def send_system_notification_email(
     action_label: Optional[str] = None,
     action_url: Optional[str] = None,
     alert_type: Optional[str] = None,
+    fields: Optional[list] = None,
 ) -> None:
+    """fields (opcional): lista de {"label", "value", "mono": bool} que se
+    renderiza como tabla organizada via _credentials() en vez de aventar
+    todo el mensaje en un solo parrafo -- antes un mensaje con varios
+    "Folio: X\nTitulo: Y\n..." se veia todo junto porque el \n no
+    se traduce a salto de linea en HTML. Retrocompatible: si no se manda
+    fields, el comportamiento es identico al de antes."""
     action_btn = _btn(action_url, action_label) if action_label and action_url else ""
-    if alert_type:
-        message_block = _alert(alert_type, subject, message)
+    fields_block = ""
+    if fields:
+        fields_block = _credentials([(f["label"], f["value"], f.get("mono", False)) for f in fields])
+    if alert_type and not fields:
+        message_block = _alert(alert_type, subject, message.replace("\n", "<br>"))
+    elif message:
+        message_block = _p(message.replace("\n", "<br>"))
     else:
-        message_block = _p(message)
+        message_block = ""
     content = (
         _h2(subject) +
         _p(f"Hola <strong>{full_name}</strong>,") +
+        fields_block +
         message_block +
         action_btn
     )
@@ -217,3 +253,12 @@ async def send_module_email(
     html_content: str,
 ) -> None:
     await send_email(to_email, subject, _render(html_content, subject), full_name)
+
+
+# ── Correo con HTML completo propio -- no se envuelve en base.html ──────────
+# Para reportes con su propio diseño de marca (ej. reporte diario de SLA),
+# que ya traen su propio <html>/header/footer y no deben anidarse dentro
+# del template generico.
+
+async def send_raw_html_email(to_email: str, full_name: str, subject: str, html_content: str, inline_images: Optional[list] = None) -> None:
+    await send_email(to_email, subject, html_content, full_name, inline_images=inline_images)

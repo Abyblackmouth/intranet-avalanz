@@ -187,6 +187,7 @@ async def create_user(body: CreateUserRequest, db: AsyncSession = Depends(get_db
 
 class ResetPasswordRequest(BaseModel):
     new_password: str
+    temp_password_expires_at: Optional[str] = None
 
 
 @router.post("/users/{user_id}/reset-password")
@@ -206,12 +207,21 @@ async def reset_user_password(
         return {"success": False, "message": "Usuario no encontrado"}
 
     hashed = hash_password(body.new_password)
+    values = {
+        "hashed_password": hashed,
+        "is_temp_password": True,
+        "failed_attempts": 0,
+    }
+    # Sin esto, la fecha de expiracion se quedaba con la de la creacion
+    # original de la cuenta -- si el reset ocurria despues de esas horas
+    # (como en el caso real que lo destapo), la contrasena nueva ya
+    # aparecia "vencida" de inmediato, sin importar que tan reciente
+    # fuera el reset.
+    if body.temp_password_expires_at:
+        from datetime import datetime
+        values["temp_password_expires_at"] = datetime.fromisoformat(body.temp_password_expires_at)
     await db.execute(
-        update(User).where(User.id == user_id).values(
-            hashed_password=hashed,
-            is_temp_password=True,
-            failed_attempts=0,
-        )
+        update(User).where(User.id == user_id).values(**values)
     )
     await db.commit()
     return {"success": True, "message": "Contrasena reseteada"}

@@ -210,11 +210,12 @@ async def reset_password(db, user_id, new_password, requested_by=None):
     except httpx.HTTPError:
         pass  # si no se puede consultar, se asume que nunca activo (mas seguro)
 
+    reset_expires_at = now_utc() + timedelta(hours=config.TEMP_PASSWORD_EXPIRE_HOURS)
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
                 f"http://auth-service:8000/api/v1/auth/internal/users/{user_id}/reset-password",
-                json={"new_password": new_password},
+                json={"new_password": new_password, "temp_password_expires_at": reset_expires_at.isoformat()},
             )
             if resp.status_code != 200 or not resp.json().get("success"):
                 raise ValidationException("Error al resetear la contrasena")

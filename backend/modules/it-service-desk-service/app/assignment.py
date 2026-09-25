@@ -57,9 +57,9 @@ async def _notify_assignment(
     quien lo recibe sepa por que le llego."""
     attend_url = f"{config.FRONTEND_URL}/atender/{token}"
     subject = f"Se te ha reasignado el ticket #{folio}" if is_reassignment else f"Se te ha asignado el ticket #{folio}"
-    message = f"Folio: {folio}\\nTitulo: {title}\\n\\nPuedes atenderlo directo desde el boton, sin necesidad de iniciar sesion."
+    fields = [{"label": "Folio", "value": folio, "mono": True}, {"label": "Titulo", "value": title, "mono": False}]
     if reason:
-        message = f"Motivo de la reasignacion: {reason}\\n\\n" + message
+        fields.append({"label": "Motivo", "value": reason, "mono": False})
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
@@ -68,10 +68,30 @@ async def _notify_assignment(
                     "to_email": to_email,
                     "full_name": full_name,
                     "subject": subject,
-                    "message": message,
+                    "message": "Puedes atenderlo directo desde el boton, sin necesidad de iniciar sesion.", "fields": fields,
                     "action_label": "Atender ticket",
                     "action_url": attend_url,
                     "alert_type": "info",
+                },
+            )
+    except Exception:
+        pass
+
+
+async def _notify_inapp(user_id: str, title: str, body: str, notif_type: str = "info", data: dict = None) -> None:
+    """Notificacion in-app (campana + toast en tiempo real) via notify-service.
+    Complementa al correo -- alguien con la app abierta la ve al instante,
+    sin necesitar revisar su bandeja de entrada. Usa /internal/bulk (con una
+    sola persona en la lista) porque esa es la ruta pensada para llamadas
+    servicio-a-servicio sin JWT -- la ruta POST / normal exige un usuario
+    logueado, que no tenemos en este contexto interno."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                "http://notify-service:8000/api/v1/notifications/internal/bulk",
+                json={
+                    "user_ids": [user_id], "type": notif_type, "title": title,
+                    "body": body, "data": data or {}, "module_slug": "it-service-desk",
                 },
             )
     except Exception:
@@ -89,7 +109,7 @@ async def _notify_requester_of_reassignment(to_email: str, requester_name: str, 
                     "to_email": to_email,
                     "full_name": requester_name,
                     "subject": f"Tu ticket #{folio} fue reasignado",
-                    "message": f"Tu ticket #{folio} ahora esta a cargo de {new_assignee_name}.",
+                    "message": "", "fields": [{"label": "Folio", "value": folio, "mono": True}, {"label": "Ahora a cargo de", "value": new_assignee_name, "mono": False}],
                     "alert_type": "info",
                 },
             )
@@ -146,9 +166,27 @@ async def finalize_assignment(
     if profile.get("email"):
         await _notify_assignment(profile["email"], profile.get("full_name", ""), incident.folio, incident.title, token, is_reassignment, reason)
 
+    titulo_inapp = f"Ticket #{incident.folio} reasignado" if is_reassignment else f"Ticket #{incident.folio} asignado"
+    cuerpo_inapp = f"{incident.title}" + (f" — Motivo: {reason}" if reason else "")
+    await _notify_inapp(
+        assigned_to_user_id, titulo_inapp, cuerpo_inapp, "info",
+        {"incident_id": str(incident.id), "folio": incident.folio},
+    )
+
     if is_reassignment:
         requester_profile = await _get_user_profile(incident.requester_id)
         if requester_profile.get("email"):
             await _notify_requester_of_reassignment(
                 requester_profile["email"], incident.requester_name, incident.folio, profile.get("full_name", "")
             )
+        if incident.requester_id:
+            await _notify_inapp(
+                incident.requester_id, f"Tu ticket #{incident.folio} fue reasignado",
+                f"Ahora está a cargo de {profile.get('full_name', '')}", "info",
+                {"incident_id": str(incident.id), "folio": incident.folio},
+            )
+
+    # Tiempo real -- cubre asignacion manual, reasignacion, y redireccion
+    # desde el enlace de atencion (todas pasan por aqui)
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    await _broadcast_ticket_update(incident)

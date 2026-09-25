@@ -4,11 +4,15 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import PageWrapper from '@/components/layout/PageWrapper'
-import { getIncidents, getSystems, getSeverities, getSpecialists, createSpecialist, updateSpecialist } from '@/services/itServiceDeskService'
-import { Search, Eye, Plus, UserPlus, Clock } from 'lucide-react'
+import { getIncidents, getSystems, getSeverities, getSpecialists, createSpecialist, updateSpecialist, exportIncidentsExcel } from '@/services/itServiceDeskService'
+import { Search, Eye, Plus, UserPlus, Clock, Download } from 'lucide-react'
 import CreateIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateIncidentModal'
 import IncidentDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/IncidentDetailModal'
 import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/AssignIncidentModal'
+import KanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/KanbanBoard'
+import { LayoutGrid, List } from 'lucide-react'
+import TicketRow from '@/components/app/it-service-desk/mesa-de-soporte/TicketRow'
+import { useWSEvent } from '@/hooks/useWebSocket'
 
 interface IncidentRow {
   id: string; folio: string; title: string; status: string
@@ -82,6 +86,7 @@ export default function MesaDeSoportePage() {
   const [myFuncionalRow, setMyFuncionalRow] = useState<{ id: string } | null>(null)
   const [myTecnicoRow, setMyTecnicoRow] = useState<{ id: string } | null>(null)
   const [togglingTeam, setTogglingTeam] = useState<string | null>(null)
+  const [exportingExcel, setExportingExcel] = useState(false)
 
   const fetchMySpecialistStatus = useCallback(async () => {
     if (!isIncidentManager || !user?.user_id) return
@@ -95,6 +100,25 @@ export default function MesaDeSoportePage() {
       // silencioso -- el panel simplemente no mostrara estado activo
     }
   }, [isIncidentManager, user?.user_id])
+
+  const handleExportExcel = async () => {
+    setExportingExcel(true)
+    try {
+      const res = await exportIncidentsExcel()
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `concentrado_incidencias_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      alert('No se pudo generar el reporte')
+    } finally {
+      setExportingExcel(false)
+    }
+  }
 
   const handleToggleSpecialist = async (team: 'especialista-funcional' | 'especialista-tecnico') => {
     if (!user?.user_id) return
@@ -119,6 +143,41 @@ export default function MesaDeSoportePage() {
   }
 
   const [incidents, setIncidents] = useState<IncidentRow[]>([])
+  const [newTicketIds, setNewTicketIds] = useState<Set<string>>(new Set())
+
+  // Tiempo real: cuando alguien crea un ticket, aparece solo en la tabla
+  // sin recargar. Solo se agrega la fila nueva -- las demas (memorizadas
+  // en TicketRow) no se vuelven a dibujar.
+  useWSEvent('it_service_desk.ticket_created', (data: IncidentRow) => {
+    setIncidents(prev => {
+      if (prev.some(i => i.id === data.id)) return prev
+      return [data, ...prev]
+    })
+    setNewTicketIds(prev => new Set(prev).add(data.id))
+    setTimeout(() => {
+      setNewTicketIds(prev => {
+        const next = new Set(prev)
+        next.delete(data.id)
+        return next
+      })
+    }, 4000)
+  })
+
+  // Cuando cambia estatus/asignacion/severidad de un ticket ya existente
+  // (resolver, reasignar, escalar, etc.), se reemplaza solo ESE elemento
+  // del arreglo -- las demas filas conservan su misma referencia, asi
+  // que TicketRow (memorizado) las sigue saltando.
+  useWSEvent('it_service_desk.ticket_updated', (data: IncidentRow) => {
+    // Si el ticket llega antes que su propio evento de "creado" (la
+    // asignacion automatica puede correr antes de que termine de
+    // crearse, dentro de la misma peticion), no lo ignoramos -- lo
+    // agregamos igual, ya con los datos mas recientes.
+    setIncidents(prev => {
+      const existe = prev.some(i => i.id === data.id)
+      if (!existe) return [data, ...prev]
+      return prev.map(i => (i.id === data.id ? data : i))
+    })
+  })
   const [systems, setSystems] = useState<CatalogItem[]>([])
   const [severities, setSeverities] = useState<SeverityItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -128,6 +187,7 @@ export default function MesaDeSoportePage() {
   const [showCreate, setShowCreate] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)
   const [viewingTicketId, setViewingTicketId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'tabla' | 'tablero'>('tabla')
   const [page, setPage] = useState(1)
   const PER_PAGE = 11
 
@@ -176,8 +236,9 @@ export default function MesaDeSoportePage() {
         </button>
       }
     >
+      <div className="flex flex-col h-full">
       {isIncidentManager && (
-        <div className="flex items-center gap-3 mb-3 px-1 sticky top-0 z-10 bg-white py-2">
+        <div className="flex items-center gap-3 mb-1 px-1 sticky top-0 z-10 bg-white py-0.5 shrink-0">
           <span className="text-xs font-medium text-slate-500">Activarme como especialista general:</span>
           <button
             onClick={() => handleToggleSpecialist('especialista-funcional')}
@@ -197,10 +258,40 @@ export default function MesaDeSoportePage() {
           >
             {togglingTeam === 'especialista-tecnico' ? '...' : `Especialista Tecnico: ${myTecnicoRow ? 'Activo' : 'Inactivo'}`}
           </button>
+          <button
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="ml-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-50 hover:opacity-90" style={{ backgroundColor: "#217346" }}
+          >
+            <Download size={13} />
+            {exportingExcel ? 'Generando...' : 'Exportar Excel'}
+          </button>
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-400 shadow-xl overflow-hidden relative flex flex-col" style={{ height: "780px" }}>
+      <div className="flex items-center gap-2 mb-1.5 shrink-0">
+        <button
+          onClick={() => setViewMode('tabla')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${viewMode === 'tabla' ? 'bg-[#7c2d12] text-white' : 'bg-white text-slate-500 border border-slate-300'}`}
+        >
+          <List size={13} /> Tabla
+        </button>
+        <button
+          onClick={() => setViewMode('tablero')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${viewMode === 'tablero' ? 'bg-[#7c2d12] text-white' : 'bg-white text-slate-500 border border-slate-300'}`}
+        >
+          <LayoutGrid size={13} /> Tablero
+        </button>
+      </div>
+
+      {viewMode === 'tablero' && (
+        <div className="flex-1 min-h-0">
+          <KanbanBoard onChanged={fetchAll} />
+        </div>
+      )}
+
+      {viewMode === 'tabla' && (
+      <div className="bg-white rounded-2xl border border-slate-400 shadow-xl overflow-hidden relative flex flex-col flex-1 min-h-0">
                 <div className="p-4 border-b border-slate-200 bg-slate-50/80 pt-5">
           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
@@ -263,58 +354,18 @@ export default function MesaDeSoportePage() {
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-sm">Sin tickets que coincidan</td></tr>
               ) : (
-                paginated.map(t => {
-                  const sev = sevInfo(t.severity_validated_id ?? t.severity_reported_id)
-                  return (
-                    <tr key={t.id} className="hover:bg-white/50 transition cursor-pointer" onClick={() => setViewingTicketId(t.id)}>
-                      <td className="px-4 py-2 font-mono text-xs text-slate-500">
-                        <span className="inline-flex items-center gap-1">
-                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT[t.status] ?? 'bg-slate-300'}`} />
-                          {t.folio}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 font-medium text-slate-800 max-w-xs truncate">{t.title}</td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{t.requester_company_name}</td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{systemName(t.system_id)}</td>
-                      <td className="px-4 py-2 text-center">
-                        {sev && <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold ${SEV_CLASS[sev.code] ?? ''}`}>{sev.code}</span>}
-                      </td>
-                      <td className="px-4 py-2">
-                        <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-medium ${STATUS_CLASS[t.status] ?? ''}`}>
-                          {STATUS_LABEL[t.status] ?? t.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{t.requester_name}</td>
-                      <td className="px-4 py-2 text-xs text-slate-500">
-                        {t.assigned_to_name ?? <span className="italic text-slate-300">Sin asignar</span>}
-                      </td>
-                      <td className="px-4 py-2 text-xs text-slate-500">{fmt(t.created_at)}</td>
-                      <td className="px-4 py-2 text-center">
-                        {t.sla_resolution_limit && <SlaClock limit={t.sla_resolution_limit} status={t.status} />}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {canAssign && t.status === 'en_backlog' && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setAssigningTicket({ id: t.id, folio: t.folio }) }}
-                              title="Asignar"
-                              className="p-1.5 rounded-lg text-[#7c2d12] hover:bg-[#7c2d12]/10 transition"
-                            >
-                              <UserPlus size={22} />
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setViewingTicketId(t.id) }}
-                            title="Ver"
-                            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-500/10 transition"
-                          >
-                            <Eye size={22} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
+                paginated.map(t => (
+                  <TicketRow
+                    key={t.id}
+                    ticket={t}
+                    systems={systems}
+                    severities={severities}
+                    canAssign={canAssign}
+                    onAssign={setAssigningTicket}
+                    onView={setViewingTicketId}
+                    isNew={newTicketIds.has(t.id)}
+                  />
+                ))
               )}
             </tbody>
           </table>
@@ -342,6 +393,8 @@ export default function MesaDeSoportePage() {
               </button>
             </div>
           </div>
+      </div>
+      )}
       </div>
 
       {showCreate && (

@@ -39,8 +39,14 @@ export const getUsersByRole = (roleSlug: string) =>
   api.get(`/api/v1/it-service-desk/actualizaciones/usuarios-por-rol`, { params: { role_slug: roleSlug } })
 
 // ── Incidencias (tickets) ─────────────────────────────────────────────────
-export const getIncidents = (params?: { status?: string; severity_id?: string; search?: string }) =>
+export const getIncidents = (params?: { status?: string; severity_id?: string; search?: string; order?: string; limit?: number; offset?: number }) =>
   api.get('/api/v1/it-service-desk/mesa-de-soporte/incidencias', { params })
+
+export const reopenIncident = (incidentId: string, reason: string) =>
+  api.post(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/reabrir`, { reason })
+
+export const closeIncident = (incidentId: string) =>
+  api.post(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/cerrar`)
 
 export const getIncidentDetail = (id: string) =>
   api.get(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${id}`)
@@ -54,3 +60,17 @@ export const assignIncident = (id: string, data: { assigned_team: string; assign
   api.patch(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${id}/asignar`, data)
 
 export const getSeverities = () => api.get('/api/v1/it-service-desk/mesa-de-soporte/severidades')
+
+// ── Dashboard de metricas ──────────────────────────────────────────────────
+export const getDashboardStats = (params?: { date_from?: string; date_to?: string }) =>
+  api.get('/api/v1/it-service-desk/mesa-de-soporte/estadisticas', { params })
+
+// ── Exportar concentrado a Excel ────────────────────────────────────────────
+export const exportIncidentsExcel = () =>
+  api.get('/api/v1/it-service-desk/mesa-de-soporte/reportes/incidencias-excel', { responseType: 'blob' })
+
+// ── Resolver estando logueado ───────────────────────────────────────────────
+export const resolveIncident = (incidentId: string, data: FormData) =>
+  api.post(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/resolver`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })

@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { getIncidentDetail, getSystems, getSeverities } from '@/services/itServiceDeskService'
+import { getIncidentDetail, getSystems, getSeverities, resolveIncident } from '@/services/itServiceDeskService'
 import { getSignedUrl } from '@/services/uploadService'
-import { X, Phone, Briefcase, Building2, UserCog, ImageOff } from 'lucide-react'
+import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip } from 'lucide-react'
 import AssignIncidentModal from './AssignIncidentModal'
 
 interface Attachment { id: string; attachment_type: string; object_key: string; bucket: string; mime_type: string }
@@ -138,6 +138,12 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAssignModal, setShowAssignModal] = useState(false)
+  const [showResolveForm, setShowResolveForm] = useState(false)
+  const [resolutionType, setResolutionType] = useState('causa_raiz')
+  const [rcaText, setRcaText] = useState('')
+  const [resolveFiles, setResolveFiles] = useState<File[]>([])
+  const [submittingResolve, setSubmittingResolve] = useState(false)
+  const [resolveError, setResolveError] = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -163,6 +169,29 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const isEspecialistaFuncional = roles.includes('it-service-desk:especialista-funcional')
   const isEspecialistaTecnico = roles.includes('it-service-desk:especialista-tecnico')
   const canAssign = isIncidentManager || isEspecialistaFuncional || isEspecialistaTecnico
+  const canResolve = detail
+    ? (isIncidentManager || user?.user_id === detail.assigned_to_user_id) && !['resuelto', 'cerrado'].includes(detail.status)
+    : false
+
+  const handleResolve = async () => {
+    if (!detail) return
+    setSubmittingResolve(true)
+    setResolveError(null)
+    try {
+      const formData = new FormData()
+      formData.append('resolution_type', resolutionType)
+      if (rcaText) formData.append('rca_text', rcaText)
+      resolveFiles.forEach(f => formData.append('files', f))
+      await resolveIncident(detail.id, formData)
+      setShowResolveForm(false)
+      fetchAll()
+      onChanged?.()
+    } catch (err: any) {
+      setResolveError(err?.response?.data?.detail ?? 'No se pudo marcar como resuelto')
+    } finally {
+      setSubmittingResolve(false)
+    }
+  }
 
   const systemName = (id: string) => systems.find(s => s.id === id)?.name ?? '—'
   const sevInfo = (id: string | null) => id ? severities.find(s => s.id === id) : null
@@ -285,6 +314,59 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div><p className="text-[10px] text-slate-400 uppercase">Resuelto</p><p className="font-medium text-slate-800">{fmt(detail.resolved_at)}</p></div>
                         <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.resolution_type?.replace('_', ' ')}</p></div>
+                      </div>
+                    ) : canResolve && !showResolveForm ? (
+                      <button
+                        onClick={() => setShowResolveForm(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition"
+                      >
+                        <CheckCircle2 size={16} />
+                        Marcar como resuelto
+                      </button>
+                    ) : canResolve && showResolveForm ? (
+                      <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Tipo de resolución</label>
+                          <select
+                            value={resolutionType}
+                            onChange={e => setResolutionType(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500"
+                          >
+                            <option value="causa_raiz">Causa raíz</option>
+                            <option value="workaround">Workaround</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Notas (opcional)</label>
+                          <textarea
+                            value={rcaText}
+                            onChange={e => setRcaText(e.target.value)}
+                            rows={3}
+                            placeholder="Describe brevemente la solución aplicada"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500 resize-none"
+                          />
+                        </div>
+                        <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-emerald-400 transition">
+                          <Paperclip size={14} />
+                          {resolveFiles.length > 0 ? `${resolveFiles.length} archivo(s) seleccionado(s)` : 'Adjuntar evidencia de resolución (opcional)'}
+                          <input type="file" multiple accept="image/*" className="hidden" onChange={e => setResolveFiles(Array.from(e.target.files ?? []))} />
+                        </label>
+                        {resolveError && <p className="text-xs text-red-600">{resolveError}</p>}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setShowResolveForm(false)}
+                            className="flex-1 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={handleResolve}
+                            disabled={submittingResolve}
+                            className="flex-1 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition"
+                          >
+                            {submittingResolve ? 'Guardando...' : 'Confirmar resolución'}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <p className="text-slate-400 italic text-sm">Aún no se ha resuelto</p>

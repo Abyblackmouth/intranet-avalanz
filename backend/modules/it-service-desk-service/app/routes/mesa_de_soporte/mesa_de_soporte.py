@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List
 import httpx
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import config
@@ -57,6 +57,9 @@ async def list_incidents(
     status: Optional[str] = None,
     severity_id: Optional[str] = None,
     search: Optional[str] = None,
+    order: Optional[str] = "desc",
+    limit: Optional[int] = 200,
+    offset: Optional[int] = 0,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
@@ -64,7 +67,8 @@ async def list_incidents(
     is_module_wide = bool(roles & MODULE_WIDE_ROLES) or "super_admin" in roles
     is_jefe_empresa = "it-service-desk:jefe-empresa" in roles
 
-    query = select(Incident).order_by(Incident.created_at.desc())
+    order_col = Incident.created_at.asc() if order == "asc" else Incident.created_at.desc()
+    query = select(Incident).order_by(order_col)
 
     if is_jefe_empresa and not is_module_wide:
         companies = user.get("companies") or []
@@ -84,7 +88,11 @@ async def list_incidents(
         like = f"%{search}%"
         query = query.where((Incident.folio.ilike(like)) | (Incident.title.ilike(like)))
 
-    result = await db.execute(query.limit(200))
+    count_query = query.with_only_columns(func.count()).order_by(None)
+    total_result = await db.execute(count_query)
+    total_count = total_result.scalar_one()
+
+    result = await db.execute(query.limit(limit).offset(offset))
     incidents = result.scalars().all()
 
     # Enriquecer con el nombre real de quien esta asignado -- sin esto el
@@ -114,7 +122,7 @@ async def list_incidents(
             "sla_resolution_limit": i.sla_resolution_limit.isoformat() if i.sla_resolution_limit else None,
             "is_sla_breached": i.is_sla_breached,
         } for i in incidents
-    ]}
+    ], "total_count": total_count}
 
 
 @router.get("/incidencias/{incident_id}")
@@ -243,6 +251,77 @@ async def _get_requester_profile(user_id: str) -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------
+# Tiempo real -- avisa que un ticket cambio (estatus, asignacion,
+# severidad, etc.) para que la tabla lo actualice sin recargar.
+# Compartido por todos los endpoints que modifican un ticket ya
+# existente (asignar, resolver, reabrir, cerrar, escalar, redirigir).
+# ------------------------------------------------------------------
+
+async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.ticket_updated") -> None:
+    try:
+        assigned_name_ws = None
+        if incident.assigned_to_user_id:
+            perfil_ws = await _get_requester_profile(incident.assigned_to_user_id)
+            assigned_name_ws = perfil_ws.get("full_name")
+
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            im_resp = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "it-service-desk", "role_slug": "incident-manager"},
+            )
+            pm_resp = await client.get(
+                "http://admin-service:8000/internal/users/by-module-role",
+                params={"module_slug": "it-service-desk", "role_slug": "project-manager"},
+            )
+            equipo_resp = None
+            if incident.assigned_team:
+                equipo_resp = await client.get(
+                    "http://admin-service:8000/internal/users/by-module-role",
+                    params={"module_slug": "it-service-desk", "role_slug": incident.assigned_team},
+                )
+
+        destinatarios_ws = set()
+        for resp in (im_resp, pm_resp, equipo_resp):
+            if resp is not None and resp.status_code == 200:
+                for u in resp.json():
+                    destinatarios_ws.add(u["id"])
+
+        if destinatarios_ws:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                await client.post(
+                    "http://websocket-service:8000/ws/broadcast",
+                    json={
+                        "user_ids": list(destinatarios_ws),
+                        "event_type": event_type,
+                        "module_slug": "it-service-desk",
+                        "data": {
+                            "id": str(incident.id),
+                            "folio": incident.folio,
+                            "title": incident.title,
+                            "status": incident.status,
+                            "system_id": incident.system_id,
+                            "module_id": incident.module_id,
+                            "severity_reported_id": incident.severity_reported_id,
+                            "severity_validated_id": incident.severity_validated_id,
+                            "assigned_team": incident.assigned_team,
+                            "assigned_to_user_id": str(incident.assigned_to_user_id) if incident.assigned_to_user_id else None,
+                            "assigned_to_name": assigned_name_ws,
+                            "requester_name": incident.requester_name,
+                            "requester_company_name": incident.requester_company_name,
+                            "created_at": incident.created_at.isoformat(),
+                            "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+                            "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
+                            "is_sla_breached": incident.is_sla_breached if hasattr(incident, "is_sla_breached") else False,
+                        },
+                    },
+                )
+    except Exception:
+        # El cambio ya se guardo bien -- si el aviso en vivo falla, se
+        # vera al refrescar, no se pierde nada.
+        pass
+
+
+# ------------------------------------------------------------------
 # Folio atomico -- por familia (o codigo propio de empresa si no tiene)
 # ------------------------------------------------------------------
 
@@ -281,14 +360,13 @@ async def _notify_ticket_created(
     system_name: str, module_name: Optional[str], severity_name: str,
     created_at: datetime,
 ) -> None:
-    modulo_txt = f" / {module_name}" if module_name else ""
-    message = (
-        f"Folio: {folio}\n"
-        f"Titulo: {title}\n"
-        f"Sistema / Modulo: {system_name}{modulo_txt}\n"
-        f"Severidad propuesta: {severity_name}\n"
-        f"Fecha de creacion: {created_at.strftime('%d/%m/%Y %H:%M')}"
-    )
+    fields = [
+        {"label": "Folio", "value": folio, "mono": True},
+        {"label": "Titulo", "value": title, "mono": False},
+        {"label": "Sistema", "value": f"{system_name}{' / ' + module_name if module_name else ''}", "mono": False},
+        {"label": "Severidad", "value": severity_name, "mono": False},
+        {"label": "Creado", "value": created_at.strftime('%d/%m/%Y %H:%M'), "mono": False},
+    ]
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
@@ -297,8 +375,9 @@ async def _notify_ticket_created(
                     "to_email": to_email,
                     "full_name": full_name,
                     "subject": f"Se ha creado un ticket para soporte tecnico #{folio}",
-                    "message": message,
+                    "message": "Registramos tu ticket con los siguientes datos:",
                     "alert_type": "info",
+                    "fields": fields,
                 },
             )
     except Exception:
@@ -311,19 +390,17 @@ async def _notify_ticket_created(
 # Notificacion 1 -- creacion del ticket (submodulo-incidencias-notificaciones.md)
 # ------------------------------------------------------------------
 
-async def _notify_ticket_created(
-    to_email: str, full_name: str, folio: str, title: str,
-    system_name: str, module_name: Optional[str], severity_name: str,
-    created_at: datetime,
-) -> None:
-    modulo_txt = f" / {module_name}" if module_name else ""
-    message = (
-        f"Folio: {folio}\n"
-        f"Titulo: {title}\n"
-        f"Sistema / Modulo: {system_name}{modulo_txt}\n"
-        f"Severidad propuesta: {severity_name}\n"
-        f"Fecha de creacion: {created_at.strftime('%d/%m/%Y %H:%M')}"
-    )
+async def _notify_ticket_resolved(to_email: str, full_name: str, folio: str, title: str, resolution_type: str, rca_text: Optional[str]) -> None:
+    """Correo al solicitante cuando su ticket se resuelve -- antes solo
+    existia la notificacion in-app; un usuario real reporto no haber
+    recibido ningun aviso, y al revisar, el correo nunca se habia
+    construido para este paso (si para creacion y (re)asignacion)."""
+    tipo_txt = "Causa raiz" if resolution_type == "causa_raiz" else "Workaround"
+    fields = [
+        {"label": "Folio", "value": folio, "mono": True},
+        {"label": "Titulo", "value": title, "mono": False},
+        {"label": "Resolucion", "value": tipo_txt, "mono": False},
+    ]
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
@@ -331,14 +408,13 @@ async def _notify_ticket_created(
                 json={
                     "to_email": to_email,
                     "full_name": full_name,
-                    "subject": f"Se ha creado un ticket para soporte tecnico #{folio}",
-                    "message": message,
-                    "alert_type": "info",
+                    "subject": f"Tu ticket #{folio} fue resuelto",
+                    "message": f"Notas: {rca_text}" if rca_text else "",
+                    "alert_type": "success",
+                    "fields": fields,
                 },
             )
     except Exception:
-        # Si el correo falla, el ticket ya se guardo bien -- no se pierde
-        # nada, solo no llega el aviso.
         pass
 
 
@@ -584,6 +660,22 @@ async def resolve_via_token(
         detail={"resolution_type": resolution_type, "via": "enlace_correo"},
     ))
     await db.commit()
+
+    from app.assignment import _notify_inapp
+    if incident.requester_id:
+        await _notify_inapp(
+            incident.requester_id, f"Ticket #{incident.folio} resuelto",
+            f"{incident.title} — Ya fue marcado como resuelto", "success",
+            {"incident_id": str(incident.id), "folio": incident.folio},
+        )
+        req_profile = await _get_requester_profile(incident.requester_id)
+        if req_profile.get("email"):
+            await _notify_ticket_resolved(
+                req_profile["email"], incident.requester_name, incident.folio,
+                incident.title, resolution_type, rca_text,
+            )
+
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket marcado como resuelto"}
 
 
@@ -706,6 +798,10 @@ async def create_incident(
         created_at=incident.created_at,
     )
 
+    # Aviso en tiempo real a quien tenga la tabla de Mesa de Soporte
+    # abierta -- que el ticket aparezca solo, sin refrescar la pagina.
+    await _broadcast_ticket_update(incident, event_type="it_service_desk.ticket_created")
+
     return {
         "success": True,
         "message": "Ticket creado",
@@ -777,6 +873,22 @@ async def resolve_logged_in(
         detail={"resolution_type": resolution_type},
     ))
     await db.commit()
+
+    from app.assignment import _notify_inapp
+    if incident.requester_id:
+        await _notify_inapp(
+            incident.requester_id, f"Ticket #{incident.folio} resuelto",
+            f"{incident.title} — Ya fue marcado como resuelto", "success",
+            {"incident_id": str(incident.id), "folio": incident.folio},
+        )
+        req_profile = await _get_requester_profile(incident.requester_id)
+        if req_profile.get("email"):
+            await _notify_ticket_resolved(
+                req_profile["email"], incident.requester_name, incident.folio,
+                incident.title, resolution_type, rca_text,
+            )
+
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket marcado como resuelto"}
 
 
@@ -822,6 +934,7 @@ async def reopen_incident(
         module_slug="it-service-desk", detail={"motivo": reason},
     ))
     await db.commit()
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket reabierto"}
 
 
@@ -855,6 +968,16 @@ async def close_incident(
         performed_by_role="incident_manager", module_slug="it-service-desk", detail={},
     ))
     await db.commit()
+
+    from app.assignment import _notify_inapp
+    if incident.requester_id:
+        await _notify_inapp(
+            incident.requester_id, f"Ticket #{incident.folio} cerrado",
+            f"{incident.title} — Se cerró formalmente el caso", "neutral",
+            {"incident_id": str(incident.id), "folio": incident.folio},
+        )
+
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket cerrado formalmente"}
 
 
@@ -923,6 +1046,7 @@ async def escalate_incident(
             except Exception:
                 pass
 
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Ticket escalado"}
 
 
@@ -965,4 +1089,549 @@ async def validate_severity(
         detail={"severidad_anterior": old_severity_id, "severidad_nueva": severity_id},
     ))
     await db.commit()
+    await _broadcast_ticket_update(incident)
     return {"success": True, "message": "Severidad validada"}
+
+
+# ------------------------------------------------------------------
+# Dashboard de metricas -- Incident Manager, Project Manager y Comite
+# Directivo ven todo; los especialistas solo ven lo de su propio equipo.
+# Jefe Empresa, Auditoria y solicitantes no tienen acceso a este endpoint.
+# ------------------------------------------------------------------
+
+DASHBOARD_FULL_ACCESS_ROLES = {
+    "it-service-desk:incident-manager", "it-service-desk:project-manager",
+    "it-service-desk:comite-directivo",
+}
+
+
+@router.get("/estadisticas")
+async def get_dashboard_stats(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    roles = set(user.get("roles") or [])
+    has_full_access = bool(roles & DASHBOARD_FULL_ACCESS_ROLES) or "super_admin" in roles
+    is_especialista_funcional = "it-service-desk:especialista-funcional" in roles
+    is_especialista_tecnico = "it-service-desk:especialista-tecnico" in roles
+
+    if not has_full_access and not is_especialista_funcional and not is_especialista_tecnico:
+        raise HTTPException(status_code=403, detail="No tienes acceso al dashboard de metricas")
+
+    # El frontend manda fechas en calendario local (hora de Ciudad de
+    # Mexico, UTC-6, sin horario de verano desde 2022), pero la BD guarda
+    # todo en UTC. Sin este ajuste, un ticket creado a las 7pm hora local
+    # queda guardado como la 1am UTC del dia siguiente y se le "escapa"
+    # al filtro de fecha aunque el usuario lo vea como "hoy".
+    MEXICO_UTC_OFFSET = timedelta(hours=6)
+    now = datetime.now(timezone.utc)
+    if date_to:
+        end_local = datetime.fromisoformat(date_to)
+        # Si solo se manda la fecha (sin hora), se interpreta como el
+        # final de ese dia en hora local (23:59:59), no en UTC.
+        if end_local.hour == 0 and end_local.minute == 0 and end_local.second == 0:
+            end_local = end_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+        end = (end_local + MEXICO_UTC_OFFSET).replace(tzinfo=timezone.utc)
+    else:
+        end = now
+    if date_from:
+        start_local = datetime.fromisoformat(date_from)
+        start = (start_local + MEXICO_UTC_OFFSET).replace(tzinfo=timezone.utc)
+    else:
+        start = end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    query = select(Incident).where(Incident.created_at >= start, Incident.created_at <= end)
+
+    scope = "completo"
+    my_team = None
+    if not has_full_access:
+        my_team = "especialista-funcional" if is_especialista_funcional else "especialista-tecnico"
+        query = query.where(Incident.assigned_team == my_team)
+        scope = my_team
+
+    result = await db.execute(query)
+    incidents = result.scalars().all()
+
+    def is_open(i):
+        return i.status not in ("resuelto", "cerrado")
+
+    def is_overdue(i):
+        return bool(i.sla_resolution_limit and i.sla_resolution_limit < now)
+
+    REPORTED_TYPE_TO_TEAM = {"funcional": "especialista-funcional", "tecnico": "especialista-tecnico"}
+
+    def equipo_de(i):
+        """Un ticket en backlog no tiene assigned_team todavia -- se usa
+        el tipo que reporto el solicitante como equipo "destino" para
+        poder contarlo dentro de su especialidad correspondiente."""
+        return i.assigned_team or REPORTED_TYPE_TO_TEAM.get(i.reported_type)
+
+    def categoria(i):
+        """En backlog es su propia categoria, sin importar si ya vencio
+        su SLA -- distingue "nunca se atendio" de "se atendio tarde".
+        Por vencer: aun no vence, pero faltan 2 horas o menos."""
+        if i.status == "en_backlog":
+            return "en_backlog"
+        if is_overdue(i):
+            return "vencido"
+        if i.sla_resolution_limit and (i.sla_resolution_limit - now) <= timedelta(hours=2):
+            return "por_vencer"
+        return "a_tiempo"
+
+    total_completados = sum(1 for i in incidents if not is_open(i))
+
+    open_incidents = [i for i in incidents if is_open(i)]
+    sla_general = {
+        "a_tiempo": sum(1 for i in open_incidents if categoria(i) == "a_tiempo"),
+        "vencido": sum(1 for i in open_incidents if categoria(i) == "vencido"),
+        "en_backlog": sum(1 for i in open_incidents if categoria(i) == "en_backlog"),
+        "por_vencer": sum(1 for i in open_incidents if categoria(i) == "por_vencer"),
+    }
+
+    por_especialidad = None
+    sla_tecnico = None
+    sla_funcional = None
+    por_usuario = None
+    if has_full_access:
+        por_especialidad = {
+            "funcional": sum(1 for i in incidents if equipo_de(i) == "especialista-funcional"),
+            "tecnico": sum(1 for i in incidents if equipo_de(i) == "especialista-tecnico"),
+        }
+        # Backlog no se atribuye a ningun equipo aqui -- un ticket sin
+        # asignar es responsabilidad del Incident Manager (el motor no
+        # encontro a quien turnarselo), no una falla del equipo tecnico
+        # o funcional que nunca llego a verlo. Por eso estas dos vistas
+        # solo consideran tickets que SI tienen assigned_team real.
+        tecnico_open = [i for i in open_incidents if i.assigned_team == "especialista-tecnico"]
+        sla_tecnico = {
+            "a_tiempo": sum(1 for i in tecnico_open if categoria(i) == "a_tiempo"),
+            "vencido": sum(1 for i in tecnico_open if categoria(i) == "vencido"),
+            "por_vencer": sum(1 for i in tecnico_open if categoria(i) == "por_vencer"),
+        }
+        funcional_open = [i for i in open_incidents if i.assigned_team == "especialista-funcional"]
+        sla_funcional = {
+            "a_tiempo": sum(1 for i in funcional_open if categoria(i) == "a_tiempo"),
+            "vencido": sum(1 for i in funcional_open if categoria(i) == "vencido"),
+            "por_vencer": sum(1 for i in funcional_open if categoria(i) == "por_vencer"),
+        }
+
+        # Por persona -- solo tickets abiertos, con desglose de a_tiempo/vencido
+        # (los completados no tienen "estado de SLA" vigente que reportar aqui)
+        conteo_por_usuario: Dict[str, Dict[str, int]] = {}
+        for i in open_incidents:
+            if not i.assigned_to_user_id:
+                continue
+            if i.assigned_to_user_id not in conteo_por_usuario:
+                conteo_por_usuario[i.assigned_to_user_id] = {"a_tiempo": 0, "vencido": 0}
+            if is_overdue(i):
+                conteo_por_usuario[i.assigned_to_user_id]["vencido"] += 1
+            else:
+                conteo_por_usuario[i.assigned_to_user_id]["a_tiempo"] += 1
+
+        nombres_cache: Dict[str, str] = {}
+        for uid in conteo_por_usuario:
+            perfil = await _get_requester_profile(uid)
+            nombres_cache[uid] = perfil.get("full_name") or "Desconocido"
+
+        por_usuario = sorted(
+            [
+                {"nombre": nombres_cache[uid], "a_tiempo": v["a_tiempo"], "vencido": v["vencido"], "total": v["a_tiempo"] + v["vencido"]}
+                for uid, v in conteo_por_usuario.items()
+            ],
+            key=lambda x: -x["total"],
+        )
+
+    histograma_map: Dict[str, int] = {}
+    cursor = start
+    while cursor.date() <= end.date():
+        histograma_map[cursor.date().isoformat()] = 0
+        cursor += timedelta(days=1)
+    for i in incidents:
+        key = i.created_at.date().isoformat()
+        if key in histograma_map:
+            histograma_map[key] += 1
+    histograma = [{"fecha": k, "cantidad": v} for k, v in sorted(histograma_map.items())]
+
+    return {
+        "scope": scope,
+        "rango": {"desde": start.isoformat(), "hasta": end.isoformat()},
+        "total_completados_periodo": total_completados,
+        "sla_general": sla_general,
+        "por_especialidad": por_especialidad,
+        "sla_tecnico": sla_tecnico,
+        "sla_funcional": sla_funcional,
+        "histograma": histograma,
+        "por_usuario": por_usuario,
+    }
+
+
+# ------------------------------------------------------------------
+# Exportar concentrado completo a Excel
+# ------------------------------------------------------------------
+
+@router.get("/reportes/incidencias-excel")
+async def export_incidents_excel(
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    roles = set(user.get("roles") or [])
+    has_full_access = bool(roles & DASHBOARD_FULL_ACCESS_ROLES) or "super_admin" in roles
+    if not has_full_access:
+        raise HTTPException(status_code=403, detail="No tienes permiso para exportar el concentrado")
+
+    result = await db.execute(select(Incident).order_by(Incident.created_at))
+    incidents = result.scalars().all()
+
+    sev_result = await db.execute(select(TicketSeverity))
+    severities = {s.id: s for s in sev_result.scalars().all()}
+    sys_result = await db.execute(select(TicketSystem))
+    systems = {s.id: s for s in sys_result.scalars().all()}
+    mod_result = await db.execute(select(TicketModule))
+    modules = {m.id: m for m in mod_result.scalars().all()}
+
+    now = datetime.now(timezone.utc)
+
+    perfil_cache: Dict[str, Dict[str, Any]] = {}
+    async def perfil(uid: Optional[str]) -> Dict[str, Any]:
+        if not uid:
+            return {}
+        if uid not in perfil_cache:
+            perfil_cache[uid] = await _get_requester_profile(uid)
+        return perfil_cache[uid]
+
+    filas = []
+    for i in incidents:
+        sev = severities.get(i.severity_validated_id or i.severity_reported_id)
+        sistema = systems.get(i.system_id)
+        modulo = modules.get(i.module_id) if i.module_id else None
+        requester_profile = await perfil(i.requester_id)
+        assignee_profile = await perfil(i.assigned_to_user_id)
+
+        es_final = i.status in ("resuelto", "cerrado")
+        vencido = bool(i.sla_resolution_limit and not es_final and i.sla_resolution_limit < now)
+        cumplio_final = bool(i.resolved_at and i.sla_resolution_limit and i.resolved_at <= i.sla_resolution_limit)
+
+        dias_transcurridos = ((i.resolved_at or now) - i.created_at).days
+        dias_vencido = (now - i.sla_resolution_limit).days if vencido and i.sla_resolution_limit else 0
+
+        equipo = "Backlog" if i.status == "en_backlog" else (
+            "Funcional" if i.assigned_team == "especialista-funcional" else
+            "Tecnico" if i.assigned_team == "especialista-tecnico" else (i.assigned_team or "")
+        )
+
+        # Cumplimiento SLA 1 (respuesta -- se usa la asignacion como primer contacto)
+        if i.assigned_at and i.sla_response_limit:
+            delta1 = (i.assigned_at - i.created_at).total_seconds() / 60
+            sla1_horas = f"{delta1/60:.1f} h"
+            sla1_estado = "Cumplido" if i.assigned_at <= i.sla_response_limit else "Incumplido"
+        else:
+            sla1_horas = ""
+            sla1_estado = "Pendiente"
+
+        # Cumplimiento SLA 2 (resolucion)
+        if i.resolved_at and i.sla_resolution_limit:
+            delta2 = (i.resolved_at - i.created_at).total_seconds() / 60
+            sla2_horas = f"{delta2/60:.1f} h"
+            sla2_estado = "Cumplido" if cumplio_final else "Incumplido"
+        else:
+            sla2_horas = ""
+            sla2_estado = "Pendiente" if not es_final else "N/A"
+
+        # Horas en el estatus actual (desde el ultimo evento de bitacora, o desde creacion)
+        log_result = await db.execute(
+            select(IncidentActivityLog)
+            .where(IncidentActivityLog.incident_id == i.id)
+            .order_by(IncidentActivityLog.performed_at.desc())
+            .limit(1)
+        )
+        ultimo_evento = log_result.scalar_one_or_none()
+        referencia = ultimo_evento.performed_at if ultimo_evento else i.created_at
+        horas_estatus = round((now - referencia).total_seconds() / 3600, 1)
+
+        filas.append({
+            "Folio": i.folio,
+            "Familia": requester_profile.get("family_clave", ""),
+            "Empresa": i.requester_company_name,
+            "Creado por": i.requester_name,
+            "Fecha de creación": i.created_at.replace(tzinfo=None) if i.created_at else None,
+            "Nivel crítico": f"{sev.code} - {sev.name}" if sev else "",
+            "Sistema": sistema.name if sistema else "",
+            "Módulo": modulo.name if modulo else "",
+            "Estatus": STATUS_LABEL_ES.get(i.status, i.status),
+            "Con quién está (equipo)": equipo,
+            "Asignado a": assignee_profile.get("full_name", "") if i.assigned_to_user_id else "",
+            "Fecha inicial SLA": i.created_at.replace(tzinfo=None) if i.created_at else None,
+            "Fecha final SLA (resolución)": i.sla_resolution_limit.replace(tzinfo=None) if i.sla_resolution_limit else None,
+            "Horas en estatus actual": horas_estatus,
+            "A tiempo / Vencido": "En backlog" if i.status == "en_backlog" else ("Vencido" if vencido else "A tiempo") if not es_final else ("Cumplió SLA" if cumplio_final else "Se venció"),
+            "Días transcurridos": dias_transcurridos,
+            "Días vencido": dias_vencido,
+            "Cumplimiento SLA 1 (respuesta)": sla1_estado,
+            "Tiempo real SLA 1": sla1_horas,
+            "Cumplimiento SLA 2 (resolución)": sla2_estado,
+            "Tiempo real SLA 2": sla2_horas,
+        })
+
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from fastapi.responses import StreamingResponse
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Concentrado de Incidencias"
+
+    headers = list(filas[0].keys()) if filas else []
+    ws.append(headers)
+    header_fill = PatternFill(start_color="7C2D12", end_color="7C2D12", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    for col_idx, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for fila in filas:
+        ws.append(list(fila.values()))
+
+    for col_idx, header in enumerate(headers, start=1):
+        max_len = max([len(str(header))] + [len(str(f.get(header, ""))) for f in filas]) if filas else len(header)
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = min(max_len + 3, 40)
+
+    ws.freeze_panes = "A2"
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    filename = f"concentrado_incidencias_{now.strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+STATUS_LABEL_ES = {
+    "en_backlog": "En backlog", "asignado": "Asignado", "en_atencion": "En atención",
+    "escalado": "Escalado", "resuelto": "Resuelto", "cerrado": "Cerrado",
+}
+
+
+# ------------------------------------------------------------------
+# Reporte diario de SLA -- vencidos y por vencer, por rol.
+# Interno (sin JWT) -- lo dispara el cron de infrastructure/cron/,
+# no un usuario desde el navegador. Usa el HTML propio del reporte
+# (no se envuelve en base.html, ver /api/v1/email/raw-html).
+# ------------------------------------------------------------------
+
+@router.post("/internal/reportes/sla-diario", include_in_schema=False)
+async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
+    from app.cron.templates.sla_report_template import build_sla_report_html
+
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Incident).where(Incident.status.notin_(["resuelto", "cerrado"]))
+    )
+    incidents = result.scalars().all()
+
+    def categoria(i):
+        if not i.sla_resolution_limit:
+            return None
+        if i.sla_resolution_limit < now:
+            return "vencido"
+        if (i.sla_resolution_limit - now) <= timedelta(hours=2):
+            return "por_vencer"
+        return None
+
+    relevantes = [(i, categoria(i)) for i in incidents]
+    relevantes = [(i, c) for i, c in relevantes if c is not None]
+
+    # Cache de nombres de quien tiene cada ticket -- para la columna "Asignado a"
+    nombres_cache: Dict[str, str] = {}
+    async def nombre_de(user_id: Optional[str]) -> str:
+        if not user_id:
+            return "Sin asignar"
+        if user_id not in nombres_cache:
+            perfil = await _get_requester_profile(user_id)
+            nombres_cache[user_id] = perfil.get("full_name") or "Desconocido"
+        return nombres_cache[user_id]
+
+    async def build_ticket_dicts(items: list) -> list:
+        salida = []
+        for i, c in sorted(items, key=lambda x: x[0].sla_resolution_limit):
+            delta_h = abs((i.sla_resolution_limit - now).total_seconds()) / 3600
+            sev = i.severity_validated_id or i.severity_reported_id
+            sev_result = await db.execute(select(TicketSeverity).where(TicketSeverity.id == sev))
+            sev_obj = sev_result.scalar_one_or_none()
+            salida.append({
+                "folio": i.folio,
+                "title": i.title,
+                "assigned_name": await nombre_de(i.assigned_to_user_id),
+                "sev_code": sev_obj.code if sev_obj else "S4",
+                "hours_text": f"{delta_h:.1f} h",
+                "hours_color": "#dc2626" if c == "vencido" else "#c2410c",
+            })
+        return salida
+
+    import httpx
+    import base64
+    from app.cron.chart_generator import generar_histograma_volumen
+
+    hoy = now.date()
+    volumen_map: Dict[str, int] = {(hoy - timedelta(days=d)).isoformat(): 0 for d in range(6, -1, -1)}
+    result_7d = await db.execute(
+        select(Incident.created_at).where(Incident.created_at >= now - timedelta(days=7))
+    )
+    for (creado,) in result_7d.all():
+        key = creado.date().isoformat()
+        if key in volumen_map:
+            volumen_map[key] += 1
+    datos_histograma = [{"fecha": k, "cantidad": v} for k, v in sorted(volumen_map.items())]
+    histograma_png = generar_histograma_volumen(datos_histograma)
+    histograma_b64 = base64.b64encode(histograma_png).decode("ascii")
+    HISTOGRAMA_CID = "histograma_volumen"
+
+    enviados = []
+    fecha_texto = now.strftime("%A %d de %B de %Y, %I:%M %p")
+
+    async def enviar_a(user_id: str, items: list):
+        if not items:
+            return
+        profile = await _get_requester_profile(user_id)
+        if not profile.get("email"):
+            return
+        vencidos_items = [(i, c) for i, c in items if c == "vencido"]
+        por_vencer_items = [(i, c) for i, c in items if c == "por_vencer"]
+        html = build_sla_report_html(
+            full_name=profile.get("full_name", ""),
+            fecha_texto=fecha_texto,
+            vencidos=await build_ticket_dicts(vencidos_items),
+            por_vencer=await build_ticket_dicts(por_vencer_items),
+            frontend_url=config.FRONTEND_URL,
+            histograma_cid=HISTOGRAMA_CID,
+        )
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(
+                    "http://email-service:8000/api/v1/email/raw-html",
+                    json={
+                        "to_email": profile["email"],
+                        "full_name": profile.get("full_name", ""),
+                        "subject": f"Solicitudes de tickets vencidos — {len(vencidos_items)} vencido(s), {len(por_vencer_items)} por vencer",
+                        "html_content": html,
+                        "inline_images": [{"content_id": HISTOGRAMA_CID, "data_base64": histograma_b64, "subtype": "png"}],
+                    },
+                )
+            enviados.append(profile["email"])
+        except Exception:
+            pass
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        im_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "incident-manager"},
+        )
+        pm_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "project-manager"},
+        )
+        comite_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "comite-directivo"},
+        )
+        func_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "especialista-funcional"},
+        )
+        tec_resp = await client.get(
+            "http://admin-service:8000/internal/users/by-module-role",
+            params={"module_slug": "it-service-desk", "role_slug": "especialista-tecnico"},
+        )
+
+    full_access_users = []
+    for resp in (im_resp, pm_resp, comite_resp):
+        if resp.status_code == 200:
+            full_access_users.extend(resp.json())
+    funcional_users = func_resp.json() if func_resp.status_code == 200 else []
+    tecnico_users = tec_resp.json() if tec_resp.status_code == 200 else []
+
+    funcional_items = [(i, c) for i, c in relevantes if i.assigned_team == "especialista-funcional"]
+    tecnico_items = [(i, c) for i, c in relevantes if i.assigned_team == "especialista-tecnico"]
+
+    seen_full_access = set()
+    for u in full_access_users:
+        if u["id"] not in seen_full_access:
+            seen_full_access.add(u["id"])
+            await enviar_a(u["id"], relevantes)
+
+    seen_func = set()
+    for u in funcional_users:
+        if u["id"] not in seen_func:
+            seen_func.add(u["id"])
+            await enviar_a(u["id"], funcional_items)
+
+    seen_tec = set()
+    for u in tecnico_users:
+        if u["id"] not in seen_tec:
+            seen_tec.add(u["id"])
+            await enviar_a(u["id"], tecnico_items)
+
+    return {
+        "success": True,
+        "total_vencidos": sum(1 for _, c in relevantes if c == "vencido"),
+        "total_por_vencer": sum(1 for _, c in relevantes if c == "por_vencer"),
+        "correos_enviados": enviados,
+    }
+
+
+# ------------------------------------------------------------------
+# Cierre automatico -- tickets resueltos cuya ventana de 24h para
+# reabrir ya vencio, sin que nadie los reabriera. Interno (sin JWT),
+# lo dispara el cron cada cierto tiempo (ver infrastructure/cron/).
+# ------------------------------------------------------------------
+
+@router.post("/internal/reportes/cierre-automatico", include_in_schema=False)
+async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Incident).where(
+            Incident.status == "resuelto",
+            Incident.reopen_window_expires_at.isnot(None),
+            Incident.reopen_window_expires_at < now,
+        )
+    )
+    incidentes = result.scalars().all()
+
+    from app.motor import SYSTEM_ACTOR_ID
+    for incident in incidentes:
+        incident.status = "cerrado"
+        incident.closed_at = now
+
+        db.add(IncidentActivityLog(
+            incident_id=incident.id, action="cierre_automatico",
+            performed_by=SYSTEM_ACTOR_ID, performed_by_name="Sistema (cierre automatico)",
+            performed_by_role="sistema", module_slug="it-service-desk",
+            detail={"motivo": "Ventana de 24h para reabrir vencida sin accion"},
+        ))
+
+    # Solo se notifica y se avisa en vivo DESPUES de que el guardado en
+    # base de datos ya tuvo exito -- si el commit fallara, no queremos
+    # que ya hayan salido avisos de un cierre que en realidad no se aplico.
+    cerrados = [i.folio for i in incidentes]
+    if incidentes:
+        await db.commit()
+
+        from app.assignment import _notify_inapp
+        for incident in incidentes:
+            if incident.requester_id:
+                await _notify_inapp(
+                    incident.requester_id, f"Ticket #{incident.folio} cerrado",
+                    f"{incident.title} — Se cerró automáticamente tras 24h sin reapertura", "neutral",
+                    {"incident_id": str(incident.id), "folio": incident.folio},
+                )
+            await _broadcast_ticket_update(incident)
+
+    return {"success": True, "cerrados": cerrados, "total": len(cerrados)}
