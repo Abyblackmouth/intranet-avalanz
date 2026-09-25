@@ -6,6 +6,7 @@ import {
   PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent,
 } from '@dnd-kit/core'
 import { useAuthStore } from '@/store/authStore'
+import { useWSEvent } from '@/hooks/useWebSocket'
 import { getIncidents, getSeverities, closeIncident } from '@/services/itServiceDeskService'
 import { Building2, GripVertical, AlertTriangle, ChevronsRight } from 'lucide-react'
 import AssignIncidentModal from './AssignIncidentModal'
@@ -50,13 +51,15 @@ function fmtShort(iso: string) {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
 }
 
-function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandleProps, accent }: {
+function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandleProps, accent, isNew, isExiting }: {
   ticket: KanbanTicket
   severities: { id: string; code: string; name: string }[]
   unlocked: boolean
   onDoubleClick: () => void
   dragHandleProps: any
   accent?: string
+  isNew?: boolean
+  isExiting?: boolean
 }) {
   const sev = severities.find(s => s.id === (ticket.severity_validated_id ?? ticket.severity_reported_id))
   const overdue = ticket.sla_resolution_limit && !['resuelto', 'cerrado'].includes(ticket.status) && new Date(ticket.sla_resolution_limit) < new Date()
@@ -65,9 +68,15 @@ function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandlePro
     <div
       onDoubleClick={onDoubleClick}
       {...(unlocked ? dragHandleProps : {})}
-      style={accent && !unlocked ? { borderTop: `3px solid ${accent}` } : undefined}
-      className={`bg-white rounded-xl border p-3.5 transition select-none h-[165px] flex flex-col ${
-        unlocked ? 'border-[#7c2d12] ring-2 ring-[#7c2d12]/20 cursor-move shadow-md' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
+      style={{
+        ...(accent && !unlocked ? { borderTop: `3px solid ${accent}` } : {}),
+        opacity: isExiting ? 0 : 1,
+        transform: isExiting ? 'scale(0.9)' : 'scale(1)',
+      }}
+      className={`bg-white rounded-xl border p-3.5 transition-all duration-300 select-none h-[165px] flex flex-col ${
+        unlocked ? 'border-[#7c2d12] ring-2 ring-[#7c2d12]/20 cursor-move shadow-md' :
+        isNew ? 'border-[#1a4fa0] ring-2 ring-[#1a4fa0]/25 shadow-md' :
+        'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -101,8 +110,10 @@ function DraggableCard(props: {
   severities: { id: string; code: string; name: string }[]
   canDrag: boolean
   accent?: string
+  isNew?: boolean
+  isExiting?: boolean
 }) {
-  const { ticket, severities, canDrag, accent } = props
+  const { ticket, severities, canDrag, accent, isNew, isExiting } = props
   const [unlocked, setUnlocked] = useState(false)
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -132,16 +143,19 @@ function DraggableCard(props: {
         onDoubleClick={handleDoubleClick}
         dragHandleProps={{ ...attributes, ...listeners }}
         accent={accent}
+        isNew={isNew}
+        isExiting={isExiting}
       />
     </div>
   )
 }
 
-function Column({ colKey, label, accent, flexGrow, pageSize, tickets, severities, total, page, loadingMore, onLoadMore, canDrag, isExpanded, isCollapsed, onToggleExpand }: {
+function Column({ colKey, label, accent, flexGrow, pageSize, tickets, severities, total, page, loadingMore, onLoadMore, canDrag, isExpanded, isCollapsed, onToggleExpand, newIds, exitingIds }: {
   colKey: string; label: string; accent: string; flexGrow: number; pageSize: number
   tickets: KanbanTicket[]; severities: { id: string; code: string; name: string }[]
   total: number; page: number; loadingMore: boolean; onLoadMore: () => void; canDrag: boolean
   isExpanded: boolean; isCollapsed: boolean; onToggleExpand: () => void
+  newIds: Set<string>; exitingIds: Set<string>
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: colKey })
   const [entering, setEntering] = useState(false)
@@ -186,7 +200,17 @@ function Column({ colKey, label, accent, flexGrow, pageSize, tickets, severities
               entering ? 'opacity-0 translate-y-3' : 'opacity-100 translate-y-0'
             }`}
           >
-            {tickets.map(t => <DraggableCard key={t.id} ticket={t} severities={severities} canDrag={canDrag} accent={accent} />)}
+            {tickets.map(t => (
+              <DraggableCard
+                key={t.id}
+                ticket={t}
+                severities={severities}
+                canDrag={canDrag}
+                accent={accent}
+                isNew={newIds.has(t.id)}
+                isExiting={exitingIds.has(t.id)}
+              />
+            ))}
           </div>
         )}
         {total > pageSize && (
@@ -216,6 +240,76 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
   const [pendingAction, setPendingAction] = useState<{ type: string; ticket: KanbanTicket } | null>(null)
   const [blockedMsg, setBlockedMsg] = useState<string | null>(null)
   const [expandedCol, setExpandedCol] = useState<string | null>(null)
+  const [newIds, setNewIds] = useState<Set<string>>(new Set())
+  const [exitingIds, setExitingIds] = useState<Set<string>>(new Set())
+
+  const flashNew = (id: string) => {
+    setNewIds(prev => new Set(prev).add(id))
+    setTimeout(() => setNewIds(prev => { const n = new Set(prev); n.delete(id); return n }), 2500)
+  }
+
+  // Tiempo real: un ticket nuevo aparece directo en su columna
+  useWSEvent('it_service_desk.ticket_created', (data: KanbanTicket) => {
+    setColumnsData(prev => {
+      const col = data.status
+      const existentes = prev[col]?.tickets ?? []
+      if (existentes.some(t => t.id === data.id)) return prev
+      return { ...prev, [col]: { tickets: [data, ...existentes].slice(0, getPageSize(col)), total: (prev[col]?.total ?? existentes.length) + 1 } }
+    })
+    flashNew(data.id)
+  })
+
+  // Tiempo real: un ticket cambia de fase -- se desvanece de su columna
+  // actual y aparece resaltado en la nueva, sin recargar la pagina.
+  useWSEvent('it_service_desk.ticket_updated', (data: KanbanTicket) => {
+    setColumnsData(prev => {
+      let colActual: string | null = null
+      for (const key of Object.keys(prev)) {
+        if (prev[key].tickets.some(t => t.id === data.id)) { colActual = key; break }
+      }
+
+      if (colActual === data.status) {
+        // Sigue en la misma columna -- solo se actualizan sus datos
+        if (!colActual) return prev
+        return {
+          ...prev,
+          [colActual]: { ...prev[colActual], tickets: prev[colActual].tickets.map(t => (t.id === data.id ? data : t)) },
+        }
+      }
+
+      if (colActual) {
+        // Cambio de columna: se marca la salida, y tras la transicion
+        // se mueve de verdad y se resalta en su nueva columna.
+        setExitingIds(p => new Set(p).add(data.id))
+        setTimeout(() => {
+          setExitingIds(p => { const n = new Set(p); n.delete(data.id); return n })
+          setColumnsData(p2 => {
+            const origen = p2[colActual as string]
+            const sinEl = origen
+              ? { tickets: origen.tickets.filter(t => t.id !== data.id), total: Math.max(0, origen.total - 1) }
+              : origen
+            const destKey = data.status
+            const destino = p2[destKey]?.tickets ?? []
+            const yaEsta = destino.some(t => t.id === data.id)
+            const conEl = yaEsta
+              ? { tickets: destino.map(t => (t.id === data.id ? data : t)), total: p2[destKey]?.total ?? destino.length }
+              : { tickets: [data, ...destino].slice(0, getPageSize(destKey)), total: (p2[destKey]?.total ?? destino.length) + 1 }
+            return { ...p2, [colActual as string]: sinEl, [destKey]: conEl }
+          })
+          flashNew(data.id)
+        }, 320)
+        return prev
+      }
+
+      // No estaba cargado en ninguna columna local (ej. pagina distinta) --
+      // se agrega directo a su columna de destino si corresponde.
+      const destKey = data.status
+      const destino = prev[destKey]?.tickets ?? []
+      if (destino.some(t => t.id === data.id)) return prev
+      flashNew(data.id)
+      return { ...prev, [destKey]: { tickets: [data, ...destino].slice(0, getPageSize(destKey)), total: (prev[destKey]?.total ?? destino.length) + 1 } }
+    })
+  })
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -322,6 +416,8 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
               isExpanded={expandedCol === col.key}
               isCollapsed={expandedCol !== null && expandedCol !== col.key}
               onToggleExpand={() => setExpandedCol(prev => (prev === col.key ? null : col.key))}
+              newIds={newIds}
+              exitingIds={exitingIds}
             />
           ))}
         </div>
