@@ -101,6 +101,7 @@ async def internal_get_users_by_module_role(
         WHERE mr.slug = :role_slug
           AND m.slug = :module_slug
           AND u.is_active = true
+          AND u.is_locked = false
           AND uma.is_active = true
         ORDER BY u.full_name
     """), {"role_slug": role_slug, "module_slug": module_slug})

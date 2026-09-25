@@ -190,3 +190,61 @@ async def finalize_assignment(
     # desde el enlace de atencion (todas pasan por aqui)
     from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
     await _broadcast_ticket_update(incident)
+
+
+async def finalize_cdc_assignment(
+    db: AsyncSession,
+    incident: Incident,
+    assigned_to_user_id: str,
+    via: str,
+    actor_id: str,
+    actor_name: str,
+) -> None:
+    """Aplica la asignacion automatica de un Control de Cambios al salir
+    de backlog -- version simplificada de finalize_assignment: cambia a
+    en_revision (no "asignado", que es vocabulario de Incidente), y no
+    genera token de atencion por correo (ese flujo aun no existe para CDC).
+    Separada a proposito, no una version parametrizada de la de Incidente,
+    para no forzar un comportamiento compartido que no aplica todavia."""
+    incident.assigned_to_user_id = assigned_to_user_id
+    incident.assigned_at = datetime.now(timezone.utc)
+    incident.status = "en_revision"
+
+    db.add(IncidentActivityLog(
+        incident_id=incident.id,
+        action="motor_asigno_cdc",
+        performed_by=actor_id,
+        performed_by_name=actor_name,
+        performed_by_role="sistema",
+        module_slug="it-service-desk",
+        detail={"usuario_asignado": assigned_to_user_id, "via": via},
+    ))
+    await db.commit()
+
+    profile = await _get_user_profile(assigned_to_user_id)
+    await _notify_inapp(
+        assigned_to_user_id,
+        f"Control de Cambios #{incident.folio} para revisar",
+        incident.title,
+        "info",
+        {"incident_id": str(incident.id), "folio": incident.folio},
+    )
+    if profile.get("email"):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                await client.post(
+                    "http://email-service:8000/api/v1/email/system-notification",
+                    json={
+                        "to_email": profile["email"],
+                        "full_name": profile.get("full_name", ""),
+                        "subject": f"Control de Cambios #{incident.folio} para revisar",
+                        "message": "Se te asigno un Control de Cambios para revision.",
+                        "fields": [{"label": "Folio", "value": incident.folio, "mono": True}, {"label": "Titulo", "value": incident.title, "mono": False}],
+                        "alert_type": "info",
+                    },
+                )
+        except Exception:
+            pass
+
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    await _broadcast_ticket_update(incident)

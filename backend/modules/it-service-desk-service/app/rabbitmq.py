@@ -34,8 +34,9 @@ async def publish_incident_created(incident_id: str) -> None:
 
 async def _process_message(body: bytes) -> None:
     from app.database import AsyncSessionLocal
-    from app.models.mesa_de_soporte import Incident, IncidentActivityLog
-    from app.assignment import finalize_assignment
+    from app.models.mesa_de_soporte import Incident, IncidentActivityLog, ControlCambiosDetalle
+    from app.assignment import finalize_assignment, finalize_cdc_assignment
+    from app.motor import resolve_cdc_assignment
     from sqlalchemy import select
 
     data = json.loads(body)
@@ -48,18 +49,36 @@ async def _process_message(body: bytes) -> None:
             return
 
         # El motor busca especialista por system_id/reported_type -- CDC y
-        # ACC no tienen esos campos (None), y una coincidencia accidental
-        # con un "especialista general" de Incidente los asignaria a la
-        # persona equivocada. Para cualquier tipo que no sea incidente, se
-        # salta la busqueda por completo y se va directo a "sin especialista".
+        # ACC no tienen esos campos en incidents (None), y una coincidencia
+        # accidental con un "especialista general" de Incidente los
+        # asignaria a la persona equivocada. Incidente usa resolve_assignment
+        # (busqueda por especialista funcional/tecnico); Control de Cambios
+        # usa su propia regla (resolve_cdc_assignment); Solicitud de Accesos
+        # (aun no construida) cae directo a "sin especialista".
         if incident.ticket_type == "incidente":
             assignment = await resolve_assignment(
                 db, incident.system_id, incident.module_id, incident.reported_type
             )
+        elif incident.ticket_type == "control_cambio":
+            detalle_result = await db.execute(
+                select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident.id)
+            )
+            detalle = detalle_result.scalar_one_or_none()
+            assignment = await resolve_cdc_assignment(
+                db, detalle.system_id if detalle else None, detalle.module_id if detalle else None
+            )
         else:
             assignment = {"encontrado": False}
 
-        if assignment["encontrado"]:
+        if assignment["encontrado"] and incident.ticket_type == "control_cambio":
+            await finalize_cdc_assignment(
+                db, incident,
+                assigned_to_user_id=assignment["usuario_asignado"],
+                via=assignment.get("via", "desconocido"),
+                actor_id=SYSTEM_ACTOR_ID,
+                actor_name="Motor de Asignacion",
+            )
+        elif assignment["encontrado"]:
             await finalize_assignment(
                 db, incident,
                 assigned_team=assignment["equipo_asignado"],

@@ -22,6 +22,7 @@ interface UserOption { id: string; name: string; email: string }
 const TEAM_TYPE_LABEL: Record<string, string> = {
   'especialista-funcional': 'Especialista Funcional',
   'especialista-tecnico': 'Especialista Tecnico',
+  'incident-manager': 'Incident Manager (ligado a sistema/modulo)',
 }
 
 export default function ActualizacionesPage() {
@@ -466,6 +467,7 @@ function SpecialistFormModal({ spec, systems, modules, onClose, onSaved }: {
         >
           <option value="especialista-funcional">Funcional</option>
           <option value="especialista-tecnico">Técnico</option>
+          <option value="incident-manager">Incident Manager (para Control de Cambios)</option>
         </select>
 
         <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Alcance</label>
