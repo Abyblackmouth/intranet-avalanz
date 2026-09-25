@@ -224,8 +224,8 @@ Un renglón por ticket `control_cambio`, ligado 1:1 por `incident_id`.
 |---|---|---|---|
 | id | uuid | No | PK |
 | incident_id | uuid FK → incidents.id | No | **Único** — garantiza el 1:1. `ON DELETE CASCADE` |
-| sistemas_afectados | varchar[] (ARRAY) | No | Multi-selección — ej. `{"ERP TOTVS","Portal de Proveedores"}` |
-| sistema_otro_detalle | varchar(255) | Sí | Texto libre si se eligió "Otro" |
+| system_id | uuid FK → ticket_systems.id | Sí | Selección única, igual que Incidente -- ver nota de evolución abajo |
+| module_id | uuid FK → ticket_modules.id | Sí | Opcional, en cascada según el sistema elegido |
 | area_departamento | varchar(150) | No | Viene del catálogo real de departamentos de `admin-service` |
 | tipo_solicitud | varchar(30) | No | `nueva_funcionalidad` / `mejora_existente` |
 | justificacion | text | No | |
@@ -244,7 +244,7 @@ Foreign-key constraints:
     "control_cambios_detalle_incident_id_fkey" FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
 ```
 
-`sistemas_afectados` como `ARRAY(String)` de Postgres (no una tabla pivote aparte) — decisión pragmática dado que es una lista corta y cerrada de opciones (5-6 sistemas + "Otro"), sin necesidad de metadatos propios por combinación.
+> **Evolución del esquema (2026-09-25, mismo día, sesión siguiente):** el diseño original de esta tabla (arriba en el texto de la sección 1.2, y en las líneas de razonamiento de la sección 1) usaba `sistemas_afectados` como `ARRAY(String)` con multi-selección de texto libre, más `sistema_otro_detalle` para "Otro". Se migró (`5c0967de0571`) a `system_id`/`module_id` como FKs reales -- decisión tomada al conectar el formulario al catálogo real de `/actualizaciones` y decidir que CDC pasa a selección única (un sistema, un módulo opcional), igual que Incidente, en vez de multi-selección. "Otro" dejó de ser texto libre -- ahora es un renglón real en `ticket_systems` (y un módulo "Otro" por cada sistema), así que no necesita una columna de detalle aparte. Los 13 renglones de prueba existentes al momento de la migración perdieron su valor anterior (aceptable, eran solo pruebas).
 
 ---
 

@@ -252,8 +252,78 @@ Vale la pena decidir esto explícitamente al construir el punto 3 de los pendien
 
 ---
 
-## 9. Preguntas para resolver antes de construir la regla nueva de CDC (mañana)
+## 9. Preguntas resueltas -- construidas y verificadas
 
-1. ¿`finalize_assignment` se parametriza o se crea una función paralela? (sección 7.2)
-2. ¿El botón "Activarme como: Project Manager" escribe en una tabla nueva, o se agrega una columna/mecanismo distinto ya que `system_specialists` no aplica a CDC? (ver `it-service-desk-roles-y-perfiles.md` sección 3.2)
-3. **Resuelto:** se confirmó con el dueño del proyecto que "Jefe Empresa" no participa en CDC en ningún sentido -- solo tiene visibilidad de su empresa, sin intervenir. La regla nueva del motor asigna exclusivamente a Project Manager (e Incident Manager si está activado), sin necesidad de considerar a Jefe Empresa (ver `it-service-desk-roles-y-perfiles.md` sección 2.6).
+1. **Resuelto:** se creó una función paralela (`finalize_cdc_assignment`), no se parametrizó `finalize_assignment`. Ver sección 10.2.
+2. **Resuelto:** el botón reutiliza `system_specialists` con un `team_type` nuevo (`project-manager`), sin tabla nueva -- decisión explícita del dueño del proyecto, dado que la tabla ya modela exactamente esta forma (persona activada en general, sin sistema/módulo).
+3. **Resuelto:** confirmado que "Jefe Empresa" no participa en CDC en ningún sentido -- ver `it-service-desk-roles-y-perfiles.md` sección 2.6.
+
+---
+
+## 10. La regla nueva de CDC -- `resolve_cdc_assignment` (construida)
+
+### 10.1 Prioridad, confirmada explícitamente paso por paso con el dueño del proyecto
+
+A diferencia de Incidente (motor "cerrado", sin tocar), esta es una función **paralela y separada**, con su propia lógica de negocio -- no una variación de `resolve_assignment`.
+
+Paso 1 -- Incident Manager ligado especificamente al sistema/modulo del CDC.
+Configurado en Actualizaciones -> Especialistas, con el team_type nuevo
+"incident-manager" (agregado a la pantalla de administracion -- antes
+solo ofrecia Funcional/Tecnico). Si existe, se le asigna sin mas.
+
+Paso 2 -- El Project Manager real (tiene ese rol de modulo).
+Consultado via GET /internal/users/by-module-role hacia admin-service,
+que ya filtra usuarios dados de baja (is_active) y, desde hoy,
+tambien bloqueados (is_locked -- ver 10.3). Se toma el primero
+de la lista si existe.
+
+Paso 3 -- Incident Manager activado con el boton general.
+Solo se llega aqui si el Paso 2 no encontro a nadie. Busca en
+system_specialists (team_type='project-manager', system_id y
+module_id ambos NULL) -- el mismo mecanismo que el boton
+"Activarme como: Project Manager". Se cruza contra la lista de
+Incident Managers activos (misma llamada a by-module-role) para
+no asignar a alguien que se activo el boton y despues fue
+bloqueado o dado de baja.
+
+Paso 4 -- Nada de lo anterior aplica.
+Se queda sin asignar en backlog, igual que hoy para Incidente.
+
+Punto clave verificado con pruebas reales, no solo leyendo el codigo:
+el Paso 2 tiene prioridad sobre el Paso 3 siempre, incluso si el
+Incident Manager tiene su boton activado al mismo tiempo que existe
+un Project Manager real. Se probo explicitamente a peticion del dueno
+del proyecto: con un Project Manager real activo Y el boton de
+respaldo del Incident Manager activado simultaneamente, el ticket
+cayo correctamente en el Project Manager real (via: project_manager_real),
+ignorando el respaldo, tal como se diseno.
+
+### 10.2 finalize_cdc_assignment -- por que es una funcion separada, no una version parametrizada
+
+Se descarto explicitamente parametrizar finalize_assignment (la opcion
+que dejamos abierta en la seccion 7.2). Se construyo finalize_cdc_assignment
+en su lugar, mas simple:
+
+- Cambia el estatus a en_revision (no "asignado", que es vocabulario de Incidente)
+- No genera token de atencion por correo -- ese flujo (atender sin login) no existe para CDC todavia
+- Notifica in-app y por correo al asignado, sin el mecanismo de reasignacion/notificacion al solicitante que si tiene la version de Incidente
+- Transmite en tiempo real igual que la version de Incidente (reutiliza _broadcast_ticket_update)
+
+### 10.3 Hallazgo corregido de paso: by-module-role no filtraba bloqueados
+
+Al construir el Paso 2, se encontro que GET /internal/users/by-module-role
+(en admin-service) ya filtraba usuarios dados de baja (is_active = true)
+pero no usuarios bloqueados (is_locked -- una columna cache que sincroniza
+el estado real de bloqueo desde auth-service). Se corrigio ahi mismo,
+agregando AND u.is_locked = false a la consulta -- mejora general, no
+especifica de CDC, ya que cualquier otro consumidor de ese endpoint
+(hoy Legal, y el propio broadcast de este servicio) se beneficia igual.
+
+### 10.4 De donde saca system_id/module_id para un ticket CDC
+
+A diferencia de Incidente (que los tiene directo en incidents), un CDC
+los tiene en su tabla de detalle (control_cambios_detalle.system_id /
+.module_id). El consumidor de RabbitMQ hace una consulta extra a esa
+tabla antes de llamar a resolve_cdc_assignment, especificamente para
+el caso ticket_type == "control_cambio".
+

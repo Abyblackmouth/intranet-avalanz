@@ -767,9 +767,9 @@ Ver `frontend.md` para convenciones generales de UI de toda la plataforma. Espec
 
 Lista viva — actualizar conforme se resuelva cada punto.
 
-1. **CDC — Alcance:** conectar "Sistema(s) / módulo afectado" al catálogo real de `/actualizaciones` (con opción "Otro"), reemplazando la lista fija actual del frontend.
-2. **Botón "Activarme como: Project Manager"** — construir, paralelo a los de Especialista Funcional/Técnico.
-3. **Regla de asignación del motor para CDC** — backlog → asigna automático al Project Manager (e Incident Manager si está activado), cambia estatus a `en_revision`.
+1. **Hecho — CDC Alcance:** "Sistema"/"Módulo" ahora usan el catálogo real de `/actualizaciones` (selección única en cascada, igual que Incidente), con "Otro" agregado como renglón real del catálogo (no texto libre) -- incluyendo un módulo "Otro" por cada uno de los 17 sistemas existentes.
+2. **Hecho — Botón "Activarme como: Project Manager"** -- visible solo para Incident Manager, reutiliza `system_specialists` con `team_type='project-manager'`.
+3. **Hecho — Regla de asignación del motor para CDC** -- prioridad de 4 pasos, verificada con pruebas reales (ver `it-service-desk-motor-asignacion.md` sección 10).
 4. **Fase "En revisión" de CDC** — lógica de la etapa una vez resueltos los 3 puntos anteriores.
 5. **RCA** — flujo de captura y recordatorio (columnas ya existen en `incidents`).
 6. **Filtro de Backlog cuando exista el Tablero Proyectos propio de CDC** — hoy CDC y Incidente comparten la misma vista de Backlog a propósito; cuando CDC tenga su propio tablero, se agrega un filtro de visualización (no un cambio al modelo de datos compartido).

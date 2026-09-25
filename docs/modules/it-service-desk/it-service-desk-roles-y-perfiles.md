@@ -168,15 +168,11 @@ Un usuario puede tener **más de un rol de módulo** simultáneamente (por ejemp
 
 Ningún rol nuevo para CDC. Incident Manager y Project Manager comparten el mismo alcance sobre tickets de tipo `control_cambio` — mismos permisos, sin una autoridad separada tipo "Champion". La etiqueta visible al usuario durante la etapa "En revisión" debe leerse como *"En revisión por Gerencia de Proyectos"*, sin implicar un rol técnico nuevo en el sistema de permisos.
 
-### 5.2 Pendiente de construir (orden acordado)
+### 5.2 Construido y verificado
 
-1. Botón "Activarme como: Project Manager" — mecanismo propio, no reutiliza `system_specialists` (ver sección 3.2)
-2. Regla nueva del motor: al procesar un CDC en backlog, asigna automático al Project Manager (e Incident Manager, si tiene el botón activado) y cambia el estatus a `en_revision`
-3. Lógica de la Fase 2 ("En revisión") en sí, una vez resuelto lo anterior
-
-### 5.3 Pendiente de aclarar antes de construir lo anterior
-
-La contradicción de la sección 2.6 (rol "Jefe Empresa" ya configurado para "dictaminar Controles de Cambio") debe resolverse **antes** de construir la Fase 2 — si ese rol sí participa, cambia el diseño de a quién asigna el motor al salir de backlog.
+1. **Hecho:** botón "Activarme como: Project Manager" -- reutiliza `system_specialists` con `team_type='project-manager'` (system_id/module_id NULL), no una tabla nueva -- ver sección 3.2 (decisión explícita del dueño del proyecto, contrario a lo que esa sección dejaba como pregunta abierta).
+2. **Hecho:** regla nueva del motor -- prioridad de 4 pasos (Incident Manager ligado a sistema/módulo → Project Manager real → Incident Manager con botón activado → sin asignar en backlog). Ver `it-service-desk-motor-asignacion.md` sección 10 para el detalle completo, incluyendo la verificación real de que el Project Manager real gana sobre el botón de respaldo aunque ambos estén "activos" al mismo tiempo.
+3. **Pendiente:** la lógica de la Fase 2 ("En revisión") en sí -- el ticket ya llega ahí correctamente asignado, falta qué pasa una vez que la persona asignada empieza a trabajarlo (documentos que se agregan, cuándo pasa a Aprobado/Rechazado, etc.).
 
 ---
 
