@@ -22,11 +22,15 @@ interface KanbanTicket {
 }
 
 const COLUMNS = [
-  { key: 'en_backlog', label: 'Backlog', accent: '#94a3b8' },
-  { key: 'asignado', label: 'Asignado', accent: '#1a4fa0' },
-  { key: 'resuelto', label: 'Resuelto', accent: '#059669' },
-  { key: 'cerrado', label: 'Cerrado', accent: '#475569' },
+  { key: 'en_backlog', label: 'Backlog', accent: '#94a3b8', flexGrow: 0.5, pageSize: 8 },
+  { key: 'asignado', label: 'Asignado', accent: '#1a4fa0', flexGrow: 1.5, pageSize: 12 },
+  { key: 'resuelto', label: 'Resuelto', accent: '#059669', flexGrow: 1, pageSize: 8 },
+  { key: 'cerrado', label: 'Cerrado', accent: '#475569', flexGrow: 1, pageSize: 8 },
 ]
+
+function getPageSize(colKey: string): number {
+  return COLUMNS.find(c => c.key === colKey)?.pageSize ?? 8
+}
 
 const ALLOWED: Record<string, string[]> = {
   en_backlog: ['asignado'],
@@ -35,7 +39,6 @@ const ALLOWED: Record<string, string[]> = {
   cerrado: [],
 }
 
-const PAGE_SIZE = 8
 const SEV_CLASS: Record<string, string> = {
   S1: 'bg-red-50 text-red-700 border-red-200',
   S2: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -47,12 +50,13 @@ function fmtShort(iso: string) {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
 }
 
-function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandleProps }: {
+function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandleProps, accent }: {
   ticket: KanbanTicket
   severities: { id: string; code: string; name: string }[]
   unlocked: boolean
   onDoubleClick: () => void
   dragHandleProps: any
+  accent?: string
 }) {
   const sev = severities.find(s => s.id === (ticket.severity_validated_id ?? ticket.severity_reported_id))
   const overdue = ticket.sla_resolution_limit && !['resuelto', 'cerrado'].includes(ticket.status) && new Date(ticket.sla_resolution_limit) < new Date()
@@ -61,7 +65,8 @@ function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandlePro
     <div
       onDoubleClick={onDoubleClick}
       {...(unlocked ? dragHandleProps : {})}
-      className={`bg-white rounded-xl border p-3.5 transition select-none h-[150px] flex flex-col ${
+      style={accent && !unlocked ? { borderTop: `3px solid ${accent}` } : undefined}
+      className={`bg-white rounded-xl border p-3.5 transition select-none h-[165px] flex flex-col ${
         unlocked ? 'border-[#7c2d12] ring-2 ring-[#7c2d12]/20 cursor-move shadow-md' : 'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
       }`}
     >
@@ -79,7 +84,7 @@ function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandlePro
       {ticket.assigned_to_name && (
         <p className="text-[11px] text-slate-500 truncate mb-1">→ {ticket.assigned_to_name}</p>
       )}
-      <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
+      <div className={`flex items-center justify-between mt-auto -mx-3.5 -mb-3.5 px-3.5 py-1.5 rounded-b-xl ${overdue ? 'bg-red-50' : 'bg-slate-50'}`}>
         <span className="text-[10px] text-slate-400">{fmtShort(ticket.created_at)}</span>
         {overdue && (
           <span className="flex items-center gap-1 text-[10px] font-semibold text-red-600">
@@ -95,8 +100,9 @@ function DraggableCard(props: {
   ticket: KanbanTicket
   severities: { id: string; code: string; name: string }[]
   canDrag: boolean
+  accent?: string
 }) {
-  const { ticket, severities, canDrag } = props
+  const { ticket, severities, canDrag, accent } = props
   const [unlocked, setUnlocked] = useState(false)
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -125,13 +131,14 @@ function DraggableCard(props: {
         unlocked={unlocked}
         onDoubleClick={handleDoubleClick}
         dragHandleProps={{ ...attributes, ...listeners }}
+        accent={accent}
       />
     </div>
   )
 }
 
-function Column({ colKey, label, accent, tickets, severities, total, page, loadingMore, onLoadMore, canDrag, isExpanded, isCollapsed, onToggleExpand }: {
-  colKey: string; label: string; accent: string
+function Column({ colKey, label, accent, flexGrow, pageSize, tickets, severities, total, page, loadingMore, onLoadMore, canDrag, isExpanded, isCollapsed, onToggleExpand }: {
+  colKey: string; label: string; accent: string; flexGrow: number; pageSize: number
   tickets: KanbanTicket[]; severities: { id: string; code: string; name: string }[]
   total: number; page: number; loadingMore: boolean; onLoadMore: () => void; canDrag: boolean
   isExpanded: boolean; isCollapsed: boolean; onToggleExpand: () => void
@@ -163,7 +170,7 @@ function Column({ colKey, label, accent, tickets, severities, total, page, loadi
   }
 
   return (
-    <div className={`flex flex-col h-full transition-all ${isExpanded ? 'flex-[2]' : 'flex-1'} min-w-0`}>
+    <div className="flex flex-col h-full transition-all min-w-0" style={{ flexGrow: isExpanded ? flexGrow * 2 : flexGrow, flexBasis: 0 }}>
       <button onClick={onToggleExpand} className="flex items-center gap-2 mb-2 px-1 group shrink-0">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: accent }} />
         <p className="text-xs font-bold uppercase tracking-wide text-slate-600 group-hover:text-[#7c2d12] transition">{label}</p>
@@ -175,20 +182,20 @@ function Column({ colKey, label, accent, tickets, severities, total, page, loadi
         ) : (
           <div
             key={page}
-            className={`grid gap-2.5 transition-all duration-300 ease-out ${isExpanded ? 'grid-cols-3' : 'grid-cols-2'} ${
+            className={`grid gap-2.5 transition-all duration-300 ease-out ${isExpanded || flexGrow >= 1.5 ? 'grid-cols-3' : 'grid-cols-2'} ${
               entering ? 'opacity-0 translate-y-3' : 'opacity-100 translate-y-0'
             }`}
           >
-            {tickets.map(t => <DraggableCard key={t.id} ticket={t} severities={severities} canDrag={canDrag} />)}
+            {tickets.map(t => <DraggableCard key={t.id} ticket={t} severities={severities} canDrag={canDrag} accent={accent} />)}
           </div>
         )}
-        {total > PAGE_SIZE && (
+        {total > pageSize && (
           <button
             onClick={onLoadMore}
             disabled={loadingMore}
             className="w-full py-2 mt-auto text-xs font-medium text-slate-500 hover:text-[#7c2d12] transition disabled:opacity-50 shrink-0"
           >
-            {loadingMore ? 'Cargando...' : (page + 1) * PAGE_SIZE < total ? `Ver más (${total - (page + 1) * PAGE_SIZE})` : 'Ver primeros'}
+            {loadingMore ? 'Cargando...' : (page + 1) * pageSize < total ? `Ver más (${total - (page + 1) * pageSize})` : 'Ver primeros'}
           </button>
         )}
       </div>
@@ -213,7 +220,8 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const fetchColumn = useCallback(async (colKey: string, page: number) => {
-    const res = await getIncidents({ status: colKey, order: 'asc', limit: PAGE_SIZE, offset: page * PAGE_SIZE })
+    const pageSize = getPageSize(colKey)
+    const res = await getIncidents({ status: colKey, order: 'asc', limit: pageSize, offset: page * pageSize })
     setColumnsData(prev => ({ ...prev, [colKey]: { tickets: res.data.data, total: res.data.total_count } }))
   }, [])
 
@@ -237,7 +245,8 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
   const handleLoadMore = async (colKey: string) => {
     const total = columnsData[colKey]?.total ?? 0
     const current = pages[colKey] ?? 0
-    const nextPage = (current + 1) * PAGE_SIZE < total ? current + 1 : 0
+    const pageSize = getPageSize(colKey)
+    const nextPage = (current + 1) * pageSize < total ? current + 1 : 0
     setLoadingMore(colKey)
     setPages(prev => ({ ...prev, [colKey]: nextPage }))
     await fetchColumn(colKey, nextPage)
@@ -308,6 +317,8 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
               loadingMore={loadingMore === col.key}
               onLoadMore={() => handleLoadMore(col.key)}
               canDrag={canDrag}
+              flexGrow={col.flexGrow}
+              pageSize={col.pageSize}
               isExpanded={expandedCol === col.key}
               isCollapsed={expandedCol !== null && expandedCol !== col.key}
               onToggleExpand={() => setExpandedCol(prev => (prev === col.key ? null : col.key))}
