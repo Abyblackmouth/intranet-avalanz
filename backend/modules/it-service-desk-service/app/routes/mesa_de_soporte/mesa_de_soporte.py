@@ -1585,3 +1585,53 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
         "total_por_vencer": sum(1 for _, c in relevantes if c == "por_vencer"),
         "correos_enviados": enviados,
     }
+
+
+# ------------------------------------------------------------------
+# Cierre automatico -- tickets resueltos cuya ventana de 24h para
+# reabrir ya vencio, sin que nadie los reabriera. Interno (sin JWT),
+# lo dispara el cron cada cierto tiempo (ver infrastructure/cron/).
+# ------------------------------------------------------------------
+
+@router.post("/internal/reportes/cierre-automatico", include_in_schema=False)
+async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(Incident).where(
+            Incident.status == "resuelto",
+            Incident.reopen_window_expires_at.isnot(None),
+            Incident.reopen_window_expires_at < now,
+        )
+    )
+    incidentes = result.scalars().all()
+
+    from app.motor import SYSTEM_ACTOR_ID
+    for incident in incidentes:
+        incident.status = "cerrado"
+        incident.closed_at = now
+
+        db.add(IncidentActivityLog(
+            incident_id=incident.id, action="cierre_automatico",
+            performed_by=SYSTEM_ACTOR_ID, performed_by_name="Sistema (cierre automatico)",
+            performed_by_role="sistema", module_slug="it-service-desk",
+            detail={"motivo": "Ventana de 24h para reabrir vencida sin accion"},
+        ))
+
+    # Solo se notifica y se avisa en vivo DESPUES de que el guardado en
+    # base de datos ya tuvo exito -- si el commit fallara, no queremos
+    # que ya hayan salido avisos de un cierre que en realidad no se aplico.
+    cerrados = [i.folio for i in incidentes]
+    if incidentes:
+        await db.commit()
+
+        from app.assignment import _notify_inapp
+        for incident in incidentes:
+            if incident.requester_id:
+                await _notify_inapp(
+                    incident.requester_id, f"Ticket #{incident.folio} cerrado",
+                    f"{incident.title} — Se cerró automáticamente tras 24h sin reapertura", "neutral",
+                    {"incident_id": str(incident.id), "folio": incident.folio},
+                )
+            await _broadcast_ticket_update(incident)
+
+    return {"success": True, "cerrados": cerrados, "total": len(cerrados)}

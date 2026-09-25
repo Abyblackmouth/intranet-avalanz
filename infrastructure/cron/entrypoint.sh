@@ -43,5 +43,11 @@ while true; do
     /scripts/it_service_desk_sla_report.sh >> /var/log/cron/it_service_desk_sla_report.log 2>&1
   fi
 
+  # Cierre automatico de tickets resueltos con ventana de 24h vencida --
+  # revisa cada 15 minutos, no necesita ser exacto a una hora especifica.
+  if [ $((10#$MIN % 15)) = "0" ]; then
+    /scripts/it_service_desk_auto_close.sh >> /var/log/cron/it_service_desk_auto_close.log 2>&1
+  fi
+
   sleep 60
 done
