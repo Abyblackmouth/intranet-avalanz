@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Text, Integer,
+    Column, String, Boolean, DateTime, Date, Text, Integer,
     ForeignKey, Enum as SAEnum, BigInteger, JSON, UniqueConstraint
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -122,12 +122,12 @@ class Incident(Base):
     requester_area = Column(String(255), nullable=True)
     requester_company_name = Column(String(255), nullable=False)
 
-    system_id = Column(UUID(as_uuid=False), ForeignKey("ticket_systems.id"), nullable=False)
+    system_id = Column(UUID(as_uuid=False), ForeignKey("ticket_systems.id"), nullable=True)  # null para CDC/ACC -- Incidente lo sigue requiriendo a nivel de negocio
     module_id = Column(UUID(as_uuid=False), ForeignKey("ticket_modules.id"), nullable=True)
     reported_type = Column(String(20), nullable=True)
     description = Column(Text, nullable=False)
 
-    severity_reported_id = Column(UUID(as_uuid=False), ForeignKey("ticket_severities.id"), nullable=False)
+    severity_reported_id = Column(UUID(as_uuid=False), ForeignKey("ticket_severities.id"), nullable=True)  # null para CDC/ACC, que no usan severidad
     severity_validated_id = Column(UUID(as_uuid=False), ForeignKey("ticket_severities.id"), nullable=True)
 
     assigned_team = Column(String(30), nullable=True)
@@ -160,6 +160,8 @@ class Incident(Base):
     status = Column(
         SAEnum(
             "en_backlog", "asignado", "en_atencion", "escalado", "resuelto", "cerrado",
+            "registrado", "en_revision", "aprobado", "rechazado", "priorizado",
+            "en_desarrollo", "en_pruebas", "terminado", "cancelado",
             name="incident_status_enum",
         ),
         nullable=False,
@@ -222,3 +224,28 @@ class IncidentResolutionToken(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class ControlCambiosDetalle(Base):
+    """Campos propios de Control de Cambios -- tabla separada de incidents
+    para no llenar esa tabla compartida de columnas que Incidente nunca usa.
+    Un renglon por ticket de tipo control_cambio, ligado por incident_id."""
+    __tablename__ = "control_cambios_detalle"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, unique=True)
+
+    sistemas_afectados = Column(ARRAY(String), nullable=False)  # ["ERP TOTVS", "Portal de Proveedores", ...]
+    sistema_otro_detalle = Column(String(255), nullable=True)  # texto libre si se eligio "Otro"
+    area_departamento = Column(String(150), nullable=False)
+    tipo_solicitud = Column(String(30), nullable=False)  # nueva_funcionalidad | mejora_existente
+
+    justificacion = Column(Text, nullable=False)
+    impacto_si_no_se_realiza = Column(String(10), nullable=False)  # alto | medio | bajo
+    urgencia_solicitada = Column(String(10), nullable=False)  # alta | media | baja
+    fecha_requerida = Column(Date, nullable=True)
+    comentarios_adicionales = Column(Text, nullable=True)
+
+    solicitud_pdf_object_key = Column(String(500), nullable=True)  # ruta del PDF "SOLICITUD" en MinIO
+
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now())

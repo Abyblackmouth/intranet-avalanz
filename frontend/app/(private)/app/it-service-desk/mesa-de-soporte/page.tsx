@@ -12,6 +12,7 @@ import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soport
 import KanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/KanbanBoard'
 import { LayoutGrid, List } from 'lucide-react'
 import TicketRow from '@/components/app/it-service-desk/mesa-de-soporte/TicketRow'
+import NewTicketTypeModal from '@/components/app/it-service-desk/mesa-de-soporte/NewTicketTypeModal'
 import { useWSEvent } from '@/hooks/useWebSocket'
 
 interface IncidentRow {
@@ -185,6 +186,7 @@ export default function MesaDeSoportePage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [activeSevs, setActiveSevs] = useState<string[]>([])
   const [showCreate, setShowCreate] = useState(false)
+  const [showTypePicker, setShowTypePicker] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)
   const [viewingTicketId, setViewingTicketId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'tabla' | 'tablero'>('tabla')
@@ -229,7 +231,7 @@ export default function MesaDeSoportePage() {
       description="Tickets de soporte técnico y funcional"
       actions={
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => setShowTypePicker(true)}
           className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[#7c2d12] rounded-lg hover:bg-[#6b2610] transition"
         >
           <Plus size={15} /> Nuevo ticket
@@ -396,6 +398,16 @@ export default function MesaDeSoportePage() {
       </div>
       )}
       </div>
+
+      {showTypePicker && (
+        <NewTicketTypeModal
+          onClose={() => setShowTypePicker(false)}
+          onSelect={(type) => {
+            setShowTypePicker(false)
+            if (type === 'incidente') setShowCreate(true)
+          }}
+        />
+      )}
 
       {showCreate && (
         <CreateIncidentModal
