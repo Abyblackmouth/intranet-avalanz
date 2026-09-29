@@ -11,7 +11,7 @@ from typing import Optional, List
 
 import httpx
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -233,7 +233,7 @@ async def create_control_cambio(
         await _build_cdc_pdf_data(db, incident, detalle, profile.get("email", ""))
     )
 
-    fecha_str = now.strftime("%Y%m%d_%H%M%S")
+    fecha_str = _hora_local(now).strftime("%Y%m%d_%H%M%S")
     pdf_filename = f"SOLICITUD_{folio}_{fecha_str}.pdf"
     submodule = f"control-de-cambios/{folio}"
 
@@ -327,3 +327,301 @@ async def get_mi_perfil(user: dict = Depends(get_current_user)):
         }
     except Exception:
         return {"data": {}}
+
+
+# ------------------------------------------------------------------
+# Detalle de un Control de Cambios
+# Va al final del archivo a proposito: /{incident_id} debe registrarse
+# despues de /departamentos y /mi-perfil para no capturarlas.
+# ------------------------------------------------------------------
+
+CDC_MANAGER_ROLES = {"it-service-desk:incident-manager", "it-service-desk:project-manager", "super_admin"}
+
+
+@router.get("/{incident_id}")
+async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import IncidentAttachment, IncidentActivityLog
+    from app.routes.mesa_de_soporte.mesa_de_soporte import MODULE_WIDE_ROLES
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+
+    # Mismas reglas de lectura que el detalle de Incidente
+    roles = set(user.get("roles") or [])
+    is_module_wide = bool(roles & MODULE_WIDE_ROLES) or "super_admin" in roles
+    is_owner = incident.requester_id == user.get("user_id")
+    if not is_module_wide and not is_owner:
+        if "it-service-desk:jefe-empresa" in roles:
+            if incident.company_id not in (user.get("companies") or []):
+                raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+        else:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+
+    det_result = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det_result.scalar_one_or_none()
+
+    system_name, module_name = None, None
+    system_id = incident.system_id or (detalle.system_id if detalle else None)
+    module_id = incident.module_id or (detalle.module_id if detalle else None)
+    if system_id:
+        res = await db.execute(select(TicketSystem).where(TicketSystem.id == system_id))
+        s = res.scalar_one_or_none()
+        system_name = s.name if s else None
+    if module_id:
+        res = await db.execute(select(TicketModule).where(TicketModule.id == module_id))
+        m = res.scalar_one_or_none()
+        module_name = m.name if m else None
+
+    attach_result = await db.execute(select(IncidentAttachment).where(IncidentAttachment.incident_id == incident_id))
+    attachments = attach_result.scalars().all()
+
+    log_result = await db.execute(
+        select(IncidentActivityLog).where(IncidentActivityLog.incident_id == incident_id).order_by(IncidentActivityLog.performed_at.desc())
+    )
+    logs = log_result.scalars().all()
+
+    requester_profile = await _get_requester_profile(incident.requester_id)
+    assignee_profile = await _get_requester_profile(incident.assigned_to_user_id) if incident.assigned_to_user_id else {}
+
+    # Expediente: un documento por etapa (hoy solo la solicitud) + anexos
+    documentos = []
+    if detalle and detalle.solicitud_pdf_object_key:
+        documentos.append({
+            "tipo": "solicitud", "etapa": "registrado",
+            "nombre": f"SOLICITUD_{incident.folio}.pdf",
+            "object_key": detalle.solicitud_pdf_object_key, "bucket": "dirdoc",
+            "fecha": incident.created_at.isoformat(),
+        })
+    for a in attachments:
+        documentos.append({
+            "tipo": "anexo", "etapa": a.attachment_type,
+            "nombre": a.object_key.rsplit("/", 1)[-1],
+            "object_key": a.object_key, "bucket": a.bucket, "mime_type": a.mime_type,
+            "fecha": None,
+        })
+
+    from app.models.mesa_de_soporte import ControlCambiosEtapa
+    etapas_result = await db.execute(
+        select(ControlCambiosEtapa).where(ControlCambiosEtapa.incident_id == incident_id).order_by(ControlCambiosEtapa.created_at)
+    )
+    etapas = etapas_result.scalars().all()
+    for e in etapas:
+        if e.documento_object_key:
+            documentos.append({
+                "tipo": "dictamen" if e.etapa == "en_revision" else "etapa", "etapa": e.etapa,
+                "nombre": f"DICTAMEN_{incident.folio}.pdf" if e.etapa == "en_revision" else e.documento_object_key.rsplit("/", 1)[-1],
+                "object_key": e.documento_object_key, "bucket": "dirdoc", "fecha": e.created_at.isoformat(),
+            })
+        for a in (e.anexos or []):
+            documentos.append({
+                "tipo": "anexo", "etapa": e.etapa, "nombre": a.get("nombre"),
+                "object_key": a.get("object_key"), "bucket": a.get("bucket", "dirdoc"), "fecha": e.created_at.isoformat(),
+            })
+    ajuste_pendiente = any(
+        e.etapa == "en_revision" and e.resultado == "ajuste_alcance" and (e.datos or {}).get("ajuste_estado") == "pendiente"
+        for e in etapas
+    )
+
+    return {
+        "id": incident.id, "folio": incident.folio, "title": incident.title,
+        "description": incident.description, "status": incident.status,
+        "created_at": incident.created_at.isoformat(),
+        "requester": {
+            "id": incident.requester_id, "name": incident.requester_name,
+            "email": requester_profile.get("email"), "puesto": incident.requester_puesto,
+            "area": incident.requester_area, "company_name": incident.requester_company_name,
+            "photo_object_key": requester_profile.get("photo_object_key"),
+        },
+        "assigned_to": {
+            "id": incident.assigned_to_user_id, "name": assignee_profile.get("full_name"),
+            "puesto": assignee_profile.get("puesto"),
+            "assigned_at": incident.assigned_at.isoformat() if incident.assigned_at else None,
+        } if incident.assigned_to_user_id else None,
+        "detalle": {
+            "system_id": system_id, "system_name": system_name,
+            "module_id": module_id, "module_name": module_name,
+            "area_departamento": detalle.area_departamento if detalle else None,
+            "tipo_solicitud": detalle.tipo_solicitud if detalle else None,
+            "justificacion": detalle.justificacion if detalle else None,
+            "impacto_si_no_se_realiza": detalle.impacto_si_no_se_realiza if detalle else None,
+            "urgencia_solicitada": detalle.urgencia_solicitada if detalle else None,
+            "fecha_requerida": detalle.fecha_requerida.isoformat() if detalle and detalle.fecha_requerida else None,
+            "comentarios_adicionales": detalle.comentarios_adicionales if detalle else None,
+        },
+        "documentos": documentos,
+        "activity_log": [
+            {"action": l.action, "performed_by_name": l.performed_by_name, "performed_by_role": l.performed_by_role,
+             "performed_at": l.performed_at.isoformat(), "detail": l.detail}
+            for l in logs
+        ],
+        "etapas": [
+            {"id": e.id, "etapa": e.etapa, "resultado": e.resultado, "datos": e.datos,
+             "anexos": e.anexos or [], "documento_object_key": e.documento_object_key,
+             "realizado_por_nombre": e.realizado_por_nombre, "created_at": e.created_at.isoformat()}
+            for e in etapas
+        ],
+        "ajuste_pendiente": ajuste_pendiente,
+        "can_manage": bool(roles & CDC_MANAGER_ROLES),
+    }
+
+
+
+# ------------------------------------------------------------------
+# Etapa En revision: emitir dictamen
+# ------------------------------------------------------------------
+
+class SesionRevision(BaseModel):
+    fecha: str
+    tipo: Optional[str] = None
+    participantes: Optional[str] = None
+    notas: str
+
+
+class RevisionPayload(BaseModel):
+    sesiones: list[SesionRevision] = []
+    factibilidad: str
+    impacto: str
+    esfuerzo: str
+    riesgos: Optional[str] = None
+    resultado: str
+    alcance_original: Optional[str] = None
+    alcance_propuesto: Optional[str] = None
+    motivo_ajuste: Optional[str] = None
+    motivo_rechazo_categoria: Optional[str] = None
+    motivo_rechazo: Optional[str] = None
+    comentarios: Optional[str] = None
+
+
+RESULTADOS_REVISION = {"procede", "ajuste_alcance", "no_procede"}
+STATUS_POR_RESULTADO = {"procede": "aprobado", "no_procede": "rechazado", "ajuste_alcance": "en_revision"}
+MAX_ANEXO_BYTES = 10 * 1024 * 1024
+
+
+@router.post("/{incident_id}/revision")
+async def emitir_dictamen_revision(
+    incident_id: str,
+    payload: str = Form(...),
+    # Sin Optional a proposito: envuelto en Optional, FastAPI no lo detecta como
+    # lista de archivos y entrega uno solo suelto (422 list_type)
+    files: list[UploadFile] = File(default=[]),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    raw_token: str = Depends(get_token_from_request),
+):
+    import json
+    from pydantic import ValidationError
+    from app.models.mesa_de_soporte import IncidentActivityLog, ControlCambiosEtapa
+    from app.services.control_cambios.pdf_dictamen import generar_pdf_dictamen
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+
+    roles = set(user.get("roles") or [])
+    if not roles & CDC_MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Solo Gerencia de Proyectos puede emitir el dictamen")
+
+    try:
+        body = RevisionPayload(**json.loads(payload))
+    except (ValueError, ValidationError):
+        raise HTTPException(status_code=422, detail="Los datos del dictamen no son validos")
+
+    def req(value, msg):
+        if not (value or "").strip():
+            raise HTTPException(status_code=422, detail=msg)
+    req(body.factibilidad, "Describe la factibilidad para emitir el dictamen")
+    if body.impacto not in {"alto", "medio", "bajo"} or body.esfuerzo not in {"alto", "medio", "bajo"}:
+        raise HTTPException(status_code=422, detail="Impacto y esfuerzo son obligatorios")
+    if body.resultado not in RESULTADOS_REVISION:
+        raise HTTPException(status_code=422, detail="Elige un dictamen")
+    if body.resultado == "ajuste_alcance":
+        req(body.alcance_propuesto, "Describe el alcance propuesto")
+        req(body.motivo_ajuste, "Explica el motivo del ajuste")
+    if body.resultado == "no_procede":
+        req(body.motivo_rechazo_categoria, "Elige la categoria del rechazo")
+        req(body.motivo_rechazo, "Explica al solicitante por que no procede")
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+    if incident.status != "en_revision":
+        raise HTTPException(status_code=409, detail="El proyecto ya no esta en revision")
+
+    pend = await db.execute(select(ControlCambiosEtapa).where(
+        ControlCambiosEtapa.incident_id == incident_id, ControlCambiosEtapa.etapa == "en_revision",
+        ControlCambiosEtapa.resultado == "ajuste_alcance"))
+    if any((e.datos or {}).get("ajuste_estado") == "pendiente" for e in pend.scalars().all()):
+        raise HTTPException(status_code=409, detail="Hay un ajuste de alcance esperando la aprobacion del solicitante")
+
+    det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det.scalar_one_or_none()
+    solicitante = await _get_requester_profile(incident.requester_id)
+    company_slug = solicitante.get("company_slug")
+    submodule = f"control-de-cambios/{incident.folio}"
+
+    reviso_nombre = user.get("full_name") or "Gerencia de Proyectos"
+    reviso_rol = ("project-manager" if "it-service-desk:project-manager" in roles
+                  else "incident-manager" if "it-service-desk:incident-manager" in roles else "super_admin")
+    reviso_rol_label = {"project-manager": "Project Manager", "incident-manager": "Incident Manager"}.get(reviso_rol, "Administrador")
+    now = datetime.now(timezone.utc)
+    local = _hora_local(now)
+
+    # Anexos de la etapa
+    anexos = []
+    for f in files or []:
+        content = await f.read()
+        if len(content) > MAX_ANEXO_BYTES:
+            raise HTTPException(status_code=413, detail=f"{f.filename} excede 10 MB")
+        key = await _subir_archivo(content, f.filename, f.content_type or "application/octet-stream", company_slug, submodule, raw_token)
+        if not key:
+            raise HTTPException(status_code=502, detail=f"No se pudo subir {f.filename}")
+        anexos.append({"nombre": f.filename, "object_key": key, "bucket": "dirdoc", "mime_type": f.content_type})
+
+    datos = body.model_dump()
+    if body.resultado == "ajuste_alcance":
+        datos["ajuste_estado"] = "pendiente"
+
+    # Documento de la etapa
+    alcance = "—"
+    if detalle:
+        pdf_base = await _build_cdc_pdf_data(db, incident, detalle, solicitante.get("email", ""))
+        alcance = pdf_base["sistema_nombre"] + (f" / {pdf_base['modulo_nombre']}" if pdf_base.get("modulo_nombre") else "")
+    pdf_bytes = generar_pdf_dictamen({
+        **datos, "folio": incident.folio, "titulo": incident.title, "fecha_emision": local.strftime("%d/%m/%Y %H:%M"),
+        "solicitante": " · ".join(filter(None, [incident.requester_name, incident.requester_area, incident.requester_company_name])),
+        "solicitante_nombre": incident.requester_name, "alcance": alcance,
+        "reviso": f"{reviso_nombre} · {reviso_rol_label}", "reviso_nombre": reviso_nombre, "reviso_rol": reviso_rol_label,
+        "anexos": [a["nombre"] for a in anexos],
+    })
+    pdf_filename = f"DICTAMEN_{incident.folio}_{local.strftime('%Y%m%d_%H%M%S')}.pdf"
+    pdf_key = await _subir_archivo(pdf_bytes, pdf_filename, "application/pdf", company_slug, submodule, raw_token)
+
+    etapa = ControlCambiosEtapa(
+        id=str(uuid.uuid4()), incident_id=incident.id, etapa="en_revision", resultado=body.resultado,
+        datos=datos, documento_object_key=pdf_key, anexos=anexos,
+        realizado_por=user.get("user_id"), realizado_por_nombre=reviso_nombre, created_at=now,
+    )
+    db.add(etapa)
+    incident.status = STATUS_POR_RESULTADO[body.resultado]
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_dictamen_emitido", performed_by=user.get("user_id"),
+        performed_by_name=reviso_nombre, performed_by_role=reviso_rol, module_slug="it-service-desk",
+        detail={"resultado": body.resultado, "etapa_id": etapa.id},
+    ))
+    await db.commit()
+
+    await _broadcast_ticket_update(incident)
+
+    # Notificar al solicitante (si falla, el dictamen ya quedo guardado)
+    try:
+        from app.assignment import _notify_inapp
+        from app.services.control_cambios.notificaciones import send_cdc_dictamen_email, RESULTADO_LABEL
+        await _notify_inapp(incident.requester_id, f"Dictamen de tu Control de Cambios #{incident.folio}",
+                            RESULTADO_LABEL[body.resultado], "info", {"incident_id": str(incident.id), "folio": incident.folio})
+        if solicitante.get("email"):
+            await send_cdc_dictamen_email(solicitante["email"], incident.requester_name, incident.folio, incident.title,
+                                          f"{reviso_nombre} · {reviso_rol_label}", datos, pdf_bytes, pdf_filename)
+    except Exception as e:
+        print(f"[CDC] Error notificando dictamen {incident.folio}: {e}")
+
+    return {"success": True, "status": incident.status, "etapa_id": etapa.id}

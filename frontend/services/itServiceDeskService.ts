@@ -96,3 +96,11 @@ export const getDepartamentos = () =>
 
 export const getMiPerfilCDC = () =>
   api.get('/api/v1/it-service-desk/control-cambios/mi-perfil')
+
+// ── Control de Cambios ────────────────────────────────────────────────────
+export const getControlCambioDetail = (id: string) =>
+  api.get(`/api/v1/it-service-desk/control-cambios/${id}`)
+export const submitCdcRevision = (id: string, formData: FormData) =>
+  api.post(`/api/v1/it-service-desk/control-cambios/${id}/revision`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })

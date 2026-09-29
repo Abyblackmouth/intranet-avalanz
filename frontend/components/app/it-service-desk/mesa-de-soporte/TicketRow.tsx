@@ -10,7 +10,7 @@ const STATUS_LABEL: Record<string, string> = {
   rechazado: 'Rechazado', priorizado: 'Priorizado', en_desarrollo: 'En desarrollo',
   en_pruebas: 'En pruebas (UAT)', terminado: 'Terminado', cancelado: 'Cancelado',
 }
-const STATUS_CLASS: Record<string, string> = {
+export const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-500/[0.12] text-slate-600',
   asignado: 'bg-blue-500/[0.12] text-blue-700',
   en_atencion: 'bg-[#7c2d12]/[0.10] text-[#7c2d12]',

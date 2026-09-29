@@ -155,3 +155,76 @@ async def send_cdc_revision_email(db, incident, destinatario: dict) -> None:
             },
         )
         resp.raise_for_status()
+
+
+# ── Dictamen de revision -> solicitante ──────────────────────────────────────
+
+DICTAMEN_MAIL = {
+    "procede": (("#f0fdf4", "#22c55e", "#166534", "#14532d"), "Tu solicitud fue aprobada",
+                "Gerencia de Proyectos revisó tu Control de Cambios y procede. El siguiente paso es la priorización, donde se define la fecha estimada de entrega."),
+    "ajuste_alcance": (("#fffbeb", "#f59e0b", "#92400e", "#78350f"), "Se propone un ajuste de alcance",
+                       "Gerencia de Proyectos revisó tu solicitud y propone ajustar el alcance. El proyecto continúa cuando apruebes el ajuste."),
+    "no_procede": (("#fef2f2", "#ef4444", "#991b1b", "#7f1d1d"), "Tu solicitud no procede",
+                   "Gerencia de Proyectos revisó tu Control de Cambios y determinó que no procede. Abajo está el motivo; el dictamen completo va adjunto."),
+}
+RESULTADO_LABEL = {"procede": "Procede", "ajuste_alcance": "Procede con ajuste de alcance", "no_procede": "No procede"}
+
+
+def build_cdc_dictamen_html(solicitante_nombre: str, folio: str, titulo: str, reviso: str, datos: dict) -> str:
+    (bg, bl, tc, bc), alert_t, alert_b = DICTAMEN_MAIL[datos["resultado"]]
+    folio_html = f'<span style="font-family:Courier New,Courier,monospace;font-size:13px;color:#1a4fa0;background-color:#dbeafe;padding:3px 10px;display:inline-block;">{_e(folio)}</span>'
+    filas = "".join([
+        _fila("Folio", folio_html), _fila("Proyecto", _e(titulo)),
+        _fila("Resultado", f'<span style="color:{tc};">{_e(RESULTADO_LABEL[datos["resultado"]])}</span>'),
+        _fila("Revisó", _e(reviso)),
+    ])
+    extra = ""
+    if datos["resultado"] == "ajuste_alcance":
+        extra = f'''
+    <p style="{FONT}font-size:11px;color:#94a3b8;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 6px;">Alcance propuesto</p>
+    <p style="{FONT}font-size:14px;color:#334155;line-height:1.6;margin:0 0 14px;">{_parrafo(datos.get("alcance_propuesto"), 600)}</p>
+    <p style="{FONT}font-size:11px;color:#94a3b8;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 6px;">Motivo del ajuste</p>
+    <p style="{FONT}font-size:14px;color:#334155;line-height:1.6;margin:0 0 14px;">{_parrafo(datos.get("motivo_ajuste"), 400)}</p>'''
+    if datos["resultado"] == "no_procede":
+        extra = f'''
+    <p style="{FONT}font-size:11px;color:#94a3b8;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 6px;">Motivo · {_e(datos.get("motivo_rechazo_categoria"))}</p>
+    <p style="{FONT}font-size:14px;color:#334155;line-height:1.6;margin:0 0 14px;">{_parrafo(datos.get("motivo_rechazo"), 600)}</p>'''
+    if datos.get("comentarios"):
+        extra += f'''
+    <p style="{FONT}font-size:11px;color:#94a3b8;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 6px;">Comentarios de Gerencia de Proyectos</p>
+    <p style="{FONT}font-size:14px;color:#334155;line-height:1.6;margin:0 0 14px;">{_parrafo(datos.get("comentarios"), 600)}</p>'''
+
+    frontend_url = (getattr(config, "FRONTEND_URL", "") or "").rstrip("/")
+    boton = f'''
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
+      <tr><td style="background-color:#1a4fa0;border-radius:10px;">
+        <a href="{frontend_url}/app/it-service-desk/mesa-de-soporte" style="display:inline-block;padding:12px 28px;{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Ver mi solicitud</a>
+      </td></tr>
+    </table>''' if frontend_url else ""
+
+    return f'''
+    <p style="{FONT}font-size:15px;color:#1e293b;margin:0 0 12px;">Hola {_e(solicitante_nombre)},</p>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:{bg};border-left:4px solid {bl};margin:12px 0 16px;">
+      <tr><td style="padding:12px 16px;{FONT}font-size:13px;color:{bc};line-height:1.55;">
+        <strong style="color:{tc};display:block;margin-bottom:4px;">{alert_t}</strong>{alert_b}
+      </td></tr>
+    </table>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f8fafc;border:1px solid #e2e8f0;margin:16px 0 20px;">{filas}</table>
+    {extra}{boton}
+    <p style="{FONT}font-size:12px;color:#64748b;margin:16px 0 0;">📎 Adjunto: dictamen de revisión en PDF.</p>'''
+
+
+async def send_cdc_dictamen_email(to_email: str, solicitante_nombre: str, folio: str, titulo: str,
+                                  reviso: str, datos: dict, pdf_bytes: bytes, pdf_filename: str) -> None:
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.post(
+            "http://email-service:8000/api/v1/email/module",
+            json={
+                "to_email": to_email,
+                "full_name": solicitante_nombre,
+                "subject": f"Dictamen de tu Control de Cambios {folio}",
+                "html_content": build_cdc_dictamen_html(solicitante_nombre, folio, titulo, reviso, datos),
+                "attachments": [{"filename": pdf_filename, "content_base64": base64.b64encode(pdf_bytes).decode("ascii"), "subtype": "pdf"}],
+            },
+        )
+        resp.raise_for_status()

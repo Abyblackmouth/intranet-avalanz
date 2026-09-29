@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Date, Text, Integer,
     ForeignKey, Enum as SAEnum, BigInteger, JSON, UniqueConstraint
@@ -249,3 +250,22 @@ class ControlCambiosDetalle(Base):
     solicitud_pdf_object_key = Column(String(500), nullable=True)  # ruta del PDF "SOLICITUD" en MinIO
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now())
+
+
+class ControlCambiosEtapa(Base):
+    """Un renglon por etapa cerrada de un Control de Cambios (dictamen de
+    revision, priorizacion, UAT...). Lo que captura el formulario de cada
+    etapa va en `datos` (JSONB) para que las etapas nuevas no requieran
+    migracion; solo lo transversal (resultado, documento, autor) es columna."""
+    __tablename__ = "control_cambios_etapas"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    etapa = Column(String(30), nullable=False)       # en_revision | priorizado | en_pruebas ...
+    resultado = Column(String(30), nullable=True)    # en_revision: procede | ajuste_alcance | no_procede
+    datos = Column(JSONB, nullable=False, default=dict)
+    documento_object_key = Column(String(500), nullable=True)  # PDF generado por la etapa (ej. DICTAMEN_...)
+    anexos = Column(JSONB, nullable=False, default=list)       # [{nombre, object_key, bucket, mime_type}]
+    realizado_por = Column(UUID(as_uuid=False), nullable=False)
+    realizado_por_nombre = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
