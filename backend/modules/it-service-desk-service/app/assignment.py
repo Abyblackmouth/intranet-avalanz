@@ -231,20 +231,10 @@ async def finalize_cdc_assignment(
     )
     if profile.get("email"):
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(
-                    "http://email-service:8000/api/v1/email/system-notification",
-                    json={
-                        "to_email": profile["email"],
-                        "full_name": profile.get("full_name", ""),
-                        "subject": f"Control de Cambios #{incident.folio} para revisar",
-                        "message": "Se te asigno un Control de Cambios para revision.",
-                        "fields": [{"label": "Folio", "value": incident.folio, "mono": True}, {"label": "Titulo", "value": incident.title, "mono": False}],
-                        "alert_type": "info",
-                    },
-                )
-        except Exception:
-            pass
+            from app.services.control_cambios.notificaciones import send_cdc_revision_email
+            await send_cdc_revision_email(db, incident, profile)
+        except Exception as e:
+            print(f"[CDC] Error enviando correo de revision {incident.folio}: {e}")
 
     from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
     await _broadcast_ticket_update(incident)

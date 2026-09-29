@@ -86,34 +86,50 @@ async def send_email(
     html_body: str,
     to_name: Optional[str] = None,
     inline_images: Optional[list] = None,
+    attachments: Optional[list] = None,
 ) -> None:
     """inline_images (opcional): lista de {"content_id": str, "data": bytes,
     "subtype": str (ej. "png")} para imagenes embebidas via cid: -- el HTML
-    las referencia como <img src="cid:CONTENT_ID">. Si se manda, el mensaje
-    se arma como multipart/related en vez de multipart/alternative, que es
-    el formato correcto para que los clientes de correo (incluido Outlook)
-    muestren la imagen embebida en vez de tratarla como adjunto suelto."""
+    las referencia como <img src="cid:CONTENT_ID">.
+
+    attachments (opcional): lista de {"filename": str, "data": bytes,
+    "subtype": str (ej. "pdf")} para archivos adjuntos descargables.
+
+    Estructura MIME resultante:
+      - solo HTML            -> multipart/alternative
+      - HTML + imagenes      -> multipart/related  [alternative, imagenes]
+      - con adjuntos         -> multipart/mixed    [cuerpo anterior, adjuntos]
+    Es el anidado estandar para que Outlook/Gmail muestren las imagenes
+    embebidas dentro del cuerpo y los adjuntos como archivos aparte."""
     from email.mime.image import MIMEImage
+    from email.mime.application import MIMEApplication
+
+    body = MIMEMultipart("alternative")
+    body.attach(MIMEText(html_body, "html", "utf-8"))
 
     if inline_images:
-        msg = MIMEMultipart("related")
-        msg["Subject"] = subject
-        msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
-        msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
-        alt = MIMEMultipart("alternative")
-        alt.attach(MIMEText(html_body, "html", "utf-8"))
-        msg.attach(alt)
+        related = MIMEMultipart("related")
+        related.attach(body)
         for img in inline_images:
             part = MIMEImage(img["data"], _subtype=img.get("subtype", "png"))
             part.add_header("Content-ID", f"<{img['content_id']}>")
             part.add_header("Content-Disposition", "inline", filename=f"{img['content_id']}.{img.get('subtype', 'png')}")
+            related.attach(part)
+        body = related
+
+    if attachments:
+        msg = MIMEMultipart("mixed")
+        msg.attach(body)
+        for att in attachments:
+            part = MIMEApplication(att["data"], _subtype=att.get("subtype", "pdf"))
+            part.add_header("Content-Disposition", "attachment", filename=att["filename"])
             msg.attach(part)
     else:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
-        msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        msg = body
+
+    msg["Subject"] = subject
+    msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
+    msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
     try:
         await aiosmtplib.send(
             msg,
@@ -251,8 +267,13 @@ async def send_module_email(
     full_name: str,
     subject: str,
     html_content: str,
+    inline_images: Optional[list] = None,
+    attachments: Optional[list] = None,
 ) -> None:
-    await send_email(to_email, subject, _render(html_content, subject), full_name)
+    await send_email(
+        to_email, subject, _render(html_content, subject), full_name,
+        inline_images=inline_images, attachments=attachments,
+    )
 
 
 # ── Correo con HTML completo propio -- no se envuelve en base.html ──────────

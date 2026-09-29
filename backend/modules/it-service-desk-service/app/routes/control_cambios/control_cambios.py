@@ -107,6 +107,56 @@ async def _subir_archivo(file_bytes: bytes, filename: str, content_type: str, co
     return None
 
 
+def _hora_local(dt: datetime) -> datetime:
+    """Convierte a hora de Monterrey. Si el contenedor no trae tzdata,
+    cae a UTC-6 fijo (Mexico no tiene horario de verano desde 2022)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return dt.astimezone(ZoneInfo("America/Monterrey"))
+    except Exception:
+        from datetime import timedelta
+        return dt.astimezone(timezone(timedelta(hours=-6)))
+
+
+async def _build_cdc_pdf_data(db: AsyncSession, incident: Incident, detalle: ControlCambiosDetalle, solicitante_correo: str) -> dict:
+    """Arma el diccionario que recibe _generar_pdf_solicitud a partir de lo
+    ya guardado (incidente + detalle), no del body de la peticion. Asi lo
+    reutilizan tanto la creacion como el correo de revision al PM, que corre
+    despues en el consumidor de RabbitMQ sin acceso al body original -- y
+    ambos producen exactamente el mismo documento."""
+    sistema_nombre = "—"
+    if detalle.system_id:
+        res = await db.execute(select(TicketSystem).where(TicketSystem.id == detalle.system_id))
+        sistema = res.scalar_one_or_none()
+        sistema_nombre = sistema.name if sistema else "—"
+    modulo_nombre = None
+    if detalle.module_id:
+        res = await db.execute(select(TicketModule).where(TicketModule.id == detalle.module_id))
+        modulo = res.scalar_one_or_none()
+        modulo_nombre = modulo.name if modulo else None
+
+    return {
+        "folio": incident.folio,
+        "fecha": _hora_local(incident.created_at).strftime("%d/%m/%Y %H:%M"),
+        "solicitante_nombre": incident.requester_name or "",
+        "solicitante_correo": solicitante_correo or "",
+        "solicitante_puesto": incident.requester_puesto,
+        "solicitante_departamento": incident.requester_area,
+        "empresa": incident.requester_company_name or "",
+        "sistema_nombre": sistema_nombre,
+        "modulo_nombre": modulo_nombre,
+        "area": detalle.area_departamento,
+        "tipo_solicitud": detalle.tipo_solicitud,
+        "titulo": incident.title,
+        "descripcion": incident.description,
+        "justificacion": detalle.justificacion,
+        "impacto": detalle.impacto_si_no_se_realiza,
+        "urgencia": detalle.urgencia_solicitada,
+        "fecha_requerida": detalle.fecha_requerida.isoformat() if detalle.fecha_requerida else None,
+        "comentarios": detalle.comentarios_adicionales,
+    }
+
+
 class ControlCambioCreateRequest(BaseModel):
     system_id: str
     module_id: Optional[str] = None
@@ -151,8 +201,8 @@ async def create_control_cambio(
         requester_puesto=profile.get("puesto"),
         requester_area=profile.get("departamento"),
         requester_company_name=profile.get("company_name", ""),
-        system_id=None,
-        module_id=None,
+        system_id=body.system_id,  # seleccion unica igual que Incidente: la tabla, filtros y busqueda lo leen de aqui
+        module_id=body.module_id,
         reported_type=None,
         description=body.descripcion_detallada,
         severity_reported_id=None,
@@ -179,34 +229,9 @@ async def create_control_cambio(
     )
     db.add(detalle)
 
-    sistema_result = await db.execute(select(TicketSystem).where(TicketSystem.id == body.system_id))
-    sistema_obj = sistema_result.scalar_one_or_none()
-    modulo_nombre = None
-    if body.module_id:
-        modulo_result = await db.execute(select(TicketModule).where(TicketModule.id == body.module_id))
-        modulo_obj = modulo_result.scalar_one_or_none()
-        modulo_nombre = modulo_obj.name if modulo_obj else None
-
-    pdf_bytes = _generar_pdf_solicitud({
-        "folio": folio,
-        "fecha": now.strftime("%d/%m/%Y %H:%M"),
-        "solicitante_nombre": profile.get("full_name", ""),
-        "solicitante_correo": profile.get("email", ""),
-        "solicitante_puesto": profile.get("puesto"),
-        "solicitante_departamento": profile.get("departamento"),
-        "empresa": profile.get("company_name", ""),
-        "sistema_nombre": sistema_obj.name if sistema_obj else "—",
-        "modulo_nombre": modulo_nombre,
-        "area": body.area_departamento,
-        "tipo_solicitud": body.tipo_solicitud,
-        "titulo": body.titulo,
-        "descripcion": body.descripcion_detallada,
-        "justificacion": body.justificacion,
-        "impacto": body.impacto_si_no_se_realiza,
-        "urgencia": body.urgencia_solicitada,
-        "fecha_requerida": body.fecha_requerida,
-        "comentarios": body.comentarios_adicionales,
-    })
+    pdf_bytes = _generar_pdf_solicitud(
+        await _build_cdc_pdf_data(db, incident, detalle, profile.get("email", ""))
+    )
 
     fecha_str = now.strftime("%Y%m%d_%H%M%S")
     pdf_filename = f"SOLICITUD_{folio}_{fecha_str}.pdf"

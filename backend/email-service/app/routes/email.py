@@ -1,3 +1,4 @@
+import base64
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict, Any
@@ -57,12 +58,19 @@ class InlineImage(BaseModel):
     subtype: str = "png"
 
 
+class Attachment(BaseModel):
+    filename: str
+    content_base64: str
+    subtype: str = "pdf"
+
+
 class ModuleEmailRequest(BaseModel):
     to_email: EmailStr
     full_name: str
     subject: str
     html_content: str
     inline_images: Optional[List[InlineImage]] = None
+    attachments: Optional[List[Attachment]] = None
 
 
 # ── Endpoints internos ────────────────────────────────────────────────────────
@@ -121,6 +129,14 @@ async def module_email(body: ModuleEmailRequest):
         full_name=body.full_name,
         subject=body.subject,
         html_content=body.html_content,
+        inline_images=[
+            {"content_id": i.content_id, "data": base64.b64decode(i.data_base64), "subtype": i.subtype}
+            for i in body.inline_images
+        ] if body.inline_images else None,
+        attachments=[
+            {"filename": a.filename, "data": base64.b64decode(a.content_base64), "subtype": a.subtype}
+            for a in body.attachments
+        ] if body.attachments else None,
     )
     return BaseResponse(success=True, message="Correo de modulo enviado")
 
