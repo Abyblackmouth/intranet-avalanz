@@ -113,10 +113,35 @@ async def list_incidents(
                 except Exception:
                     names_cache[uid] = None
 
+    # CDC guarda su sistema/modulo en control_cambios_detalle, no en
+    # incidents (que se queda NULL para CDC) -- se resuelve aqui para
+    # que la Tabla y el Kanban no muestren el sistema en blanco.
+    cdc_ids = [i.id for i in incidents if i.ticket_type == "control_cambio"]
+    cdc_detalle_cache: dict = {}
+    if cdc_ids:
+        from app.models.mesa_de_soporte import ControlCambiosDetalle
+        detalle_result = await db.execute(
+            select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id.in_(cdc_ids))
+        )
+        for d in detalle_result.scalars().all():
+            cdc_detalle_cache[d.incident_id] = d
+
+    def _system_id(i):
+        if i.ticket_type == "control_cambio":
+            d = cdc_detalle_cache.get(i.id)
+            return d.system_id if d else None
+        return i.system_id
+
+    def _module_id(i):
+        if i.ticket_type == "control_cambio":
+            d = cdc_detalle_cache.get(i.id)
+            return d.module_id if d else None
+        return i.module_id
+
     return {"data": [
         {
             "id": i.id, "folio": i.folio, "title": i.title, "status": i.status,
-            "system_id": i.system_id, "module_id": i.module_id,
+            "system_id": _system_id(i), "module_id": _module_id(i),
             "severity_reported_id": i.severity_reported_id, "severity_validated_id": i.severity_validated_id,
             "assigned_team": i.assigned_team, "assigned_to_user_id": i.assigned_to_user_id,
             "assigned_to_name": names_cache.get(i.assigned_to_user_id) if i.assigned_to_user_id else None,

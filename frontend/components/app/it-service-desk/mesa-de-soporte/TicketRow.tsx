@@ -6,6 +6,9 @@ import { Eye, UserPlus, Clock } from 'lucide-react'
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'En backlog', asignado: 'Asignado', en_atencion: 'En atención',
   escalado: 'Escalado', resuelto: 'Resuelto', cerrado: 'Cerrado',
+  registrado: 'Registrado', en_revision: 'En revisión', aprobado: 'Aprobado',
+  rechazado: 'Rechazado', priorizado: 'Priorizado', en_desarrollo: 'En desarrollo',
+  en_pruebas: 'En pruebas (UAT)', terminado: 'Terminado', cancelado: 'Cancelado',
 }
 const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-500/[0.12] text-slate-600',
@@ -14,6 +17,15 @@ const STATUS_CLASS: Record<string, string> = {
   escalado: 'bg-red-500/[0.12] text-red-700',
   resuelto: 'bg-emerald-500/[0.14] text-emerald-700',
   cerrado: 'bg-slate-500/[0.14] text-slate-600',
+  registrado: 'bg-slate-500/[0.12] text-slate-600',
+  en_revision: 'bg-blue-500/[0.12] text-blue-700',
+  aprobado: 'bg-emerald-500/[0.12] text-emerald-700',
+  rechazado: 'bg-red-500/[0.12] text-red-700',
+  priorizado: 'bg-indigo-500/[0.12] text-indigo-700',
+  en_desarrollo: 'bg-amber-500/[0.14] text-amber-700',
+  en_pruebas: 'bg-orange-500/[0.12] text-orange-700',
+  terminado: 'bg-teal-600/[0.14] text-teal-800',
+  cancelado: 'bg-slate-600/[0.14] text-slate-700',
 }
 const STATUS_DOT: Record<string, string> = {
   en_backlog: 'bg-slate-400',
@@ -22,6 +34,15 @@ const STATUS_DOT: Record<string, string> = {
   escalado: 'bg-red-500',
   resuelto: 'bg-emerald-500',
   cerrado: 'bg-slate-400',
+  registrado: 'bg-slate-400',
+  en_revision: 'bg-blue-500',
+  aprobado: 'bg-emerald-500',
+  rechazado: 'bg-red-500',
+  priorizado: 'bg-indigo-500',
+  en_desarrollo: 'bg-amber-500',
+  en_pruebas: 'bg-orange-500',
+  terminado: 'bg-teal-600',
+  cancelado: 'bg-slate-500',
 }
 const SEV_CLASS: Record<string, string> = {
   S1: 'bg-red-500/[0.10] text-red-700 border border-red-500/25',
