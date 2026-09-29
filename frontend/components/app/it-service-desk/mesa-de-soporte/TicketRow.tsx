@@ -3,6 +3,15 @@
 import { memo, useState } from 'react'
 import { Eye, UserPlus, Clock } from 'lucide-react'
 
+// Prioridad de CDC (definida por el PM al priorizar). Letra P para no
+// confundirse con las S1-S4 de severidad de Incidente.
+export const PRIO_CODE: Record<string, string> = { alta: 'P1', media: 'P2', baja: 'P3' }
+export const PRIO_CLASS: Record<string, string> = {
+  alta: 'bg-red-500/[0.12] text-red-700',
+  media: 'bg-amber-500/[0.14] text-amber-700',
+  baja: 'bg-sky-500/[0.14] text-sky-700',
+}
+
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'En backlog', asignado: 'Asignado', en_atencion: 'En atención',
   escalado: 'Escalado', resuelto: 'Resuelto', cerrado: 'Cerrado',
@@ -103,7 +112,12 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
       <td className="px-4 py-2 text-xs text-slate-500">{t.requester_company_name}</td>
       <td className="px-4 py-2 text-xs text-slate-500">{sysName}</td>
       <td className="px-4 py-2 text-center">
-        {sev && <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold ${SEV_CLASS[sev.code] ?? ''}`}>{sev.code}</span>}
+        {((t as any).ticket_type === 'control_cambio' || t.folio?.startsWith('CDC-'))
+          ? ((t as any).cdc_prioridad
+              ? <span title={t.status === 'rechazado' ? 'Urgencia indicada por el solicitante: el proyecto no llegó a priorización' : 'Prioridad definida por Gerencia de Proyectos'}
+                  className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold ${PRIO_CLASS[(t as any).cdc_prioridad] ?? ''} ${t.status === 'rechazado' ? 'opacity-60' : ''}`}>{PRIO_CODE[(t as any).cdc_prioridad]}</span>
+              : <span className="text-slate-300">—</span>)
+          : sev && <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold ${SEV_CLASS[sev.code] ?? ''}`}>{sev.code}</span>}
       </td>
       <td className="px-4 py-2">
         <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-medium ${STATUS_CLASS[t.status] ?? ''}`}>

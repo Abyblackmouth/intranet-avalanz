@@ -411,7 +411,7 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
         if e.documento_object_key:
             documentos.append({
                 "tipo": "dictamen" if e.etapa == "en_revision" else "etapa", "etapa": e.etapa,
-                "nombre": f"DICTAMEN_{incident.folio}.pdf" if e.etapa == "en_revision" else e.documento_object_key.rsplit("/", 1)[-1],
+                "nombre": f'{ {"en_revision": "DICTAMEN", "priorizado": "PRIORIZACION"}.get(e.etapa, e.etapa.upper())}_{incident.folio}.pdf',
                 "object_key": e.documento_object_key, "bucket": "dirdoc", "fecha": e.created_at.isoformat(),
             })
         for a in (e.anexos or []):
@@ -428,6 +428,7 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
         "id": incident.id, "folio": incident.folio, "title": incident.title,
         "description": incident.description, "status": incident.status,
         "created_at": incident.created_at.isoformat(),
+        "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
         "requester": {
             "id": incident.requester_id, "name": incident.requester_name,
             "email": requester_profile.get("email"), "puesto": incident.requester_puesto,
@@ -449,6 +450,10 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
             "urgencia_solicitada": detalle.urgencia_solicitada if detalle else None,
             "fecha_requerida": detalle.fecha_requerida.isoformat() if detalle and detalle.fecha_requerida else None,
             "comentarios_adicionales": detalle.comentarios_adicionales if detalle else None,
+            "prioridad": detalle.prioridad if detalle else None,
+            "clasificacion": detalle.clasificacion if detalle else None,
+            "impacto_confirmado": detalle.impacto_confirmado if detalle else None,
+            "fecha_compromiso": detalle.fecha_compromiso.isoformat() if detalle and detalle.fecha_compromiso else None,
         },
         "documentos": documentos,
         "activity_log": [
@@ -603,6 +608,10 @@ async def emitir_dictamen_revision(
     )
     db.add(etapa)
     incident.status = STATUS_POR_RESULTADO[body.resultado]
+    if body.resultado == "no_procede" and detalle and not detalle.prioridad:
+        # Un rechazado nunca llega a priorizacion: se registra la urgencia que
+        # indico el solicitante para que la tabla y el reporte no queden vacios
+        detalle.prioridad = detalle.urgencia_solicitada
     db.add(IncidentActivityLog(
         incident_id=incident.id, action="cdc_dictamen_emitido", performed_by=user.get("user_id"),
         performed_by_name=reviso_nombre, performed_by_role=reviso_rol, module_slug="it-service-desk",
@@ -610,7 +619,7 @@ async def emitir_dictamen_revision(
     ))
     await db.commit()
 
-    await _broadcast_ticket_update(incident)
+    await _broadcast_ticket_update(incident, extra={"cdc_prioridad": detalle.prioridad if detalle else None})
 
     # Notificar al solicitante (si falla, el dictamen ya quedo guardado)
     try:
@@ -625,3 +634,221 @@ async def emitir_dictamen_revision(
         print(f"[CDC] Error notificando dictamen {incident.folio}: {e}")
 
     return {"success": True, "status": incident.status, "etapa_id": etapa.id}
+
+
+# ------------------------------------------------------------------
+# Etapa Priorizacion
+# ------------------------------------------------------------------
+
+PRIO_CODE = {"alta": "P1", "media": "P2", "baja": "P3"}
+URGENCIA_LABEL = {"alta": "Alta", "media": "Media", "baja": "Baja"}
+IMPACTO_LABEL = {"alto": "Alto", "medio": "Medio", "bajo": "Bajo"}
+DESARROLLA_LABEL = {"equipo_interno": "Equipo interno", "proveedor_totvs": "Proveedor TOTVS", "proveedor_externo": "Proveedor externo"}
+CLASIFICACION_LABEL = {"cambio": "Cambio", "proyecto": "Proyecto"}
+ROLES_GOBIERNO = {"patrocinador": "Patrocinador", "gerente_proyecto": "Gerente del proyecto", "project_manager": "Project Manager",
+                  "lider_tecnico": "Líder técnico", "validador": "Usuario validador"}
+CAMPOS_A_CONFIRMAR = ("urgencia", "impacto", "fecha")
+
+
+class PriorizacionPayload(BaseModel):
+    urgencia: str
+    impacto: str
+    fecha_compromiso: str
+    confirmaciones: dict[str, str]
+    desarrolla: str
+    responsable_desarrollo: Optional[str] = None
+    notas_comite: Optional[str] = None
+    clasificacion: str = ""
+    gobierno: Optional[dict[str, dict]] = None
+
+
+def _fin_de_dia_local(d) -> datetime:
+    """23:59:59 hora de Monterrey del dia comprometido, en UTC -- es el
+    limite de SLA del CDC a partir de la priorizacion."""
+    from datetime import time as dtime, timedelta
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo("America/Monterrey")
+    except Exception:
+        tz = timezone(timedelta(hours=-6))
+    return datetime.combine(d, dtime(23, 59, 59), tzinfo=tz).astimezone(timezone.utc)
+
+
+def _fecha_label(iso):
+    if not iso:
+        return "Sin fecha"
+    y, m, d = iso.split("-")
+    return f"{d}/{m}/{y}"
+
+
+@router.post("/{incident_id}/priorizacion")
+async def guardar_priorizacion(
+    incident_id: str,
+    payload: str = Form(...),
+    files: list[UploadFile] = File(default=[]),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    raw_token: str = Depends(get_token_from_request),
+):
+    import json
+    from pydantic import ValidationError
+    from app.models.mesa_de_soporte import IncidentActivityLog, ControlCambiosEtapa
+    from app.services.control_cambios.pdf_priorizacion import generar_pdf_priorizacion
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+
+    roles = set(user.get("roles") or [])
+    if not roles & CDC_MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Solo Gerencia de Proyectos puede priorizar")
+
+    try:
+        body = PriorizacionPayload(**json.loads(payload))
+    except (ValueError, ValidationError):
+        raise HTTPException(status_code=422, detail="Los datos de la priorizacion no son validos")
+
+    if body.urgencia not in PRIO_CODE:
+        raise HTTPException(status_code=422, detail="Confirma la urgencia")
+    if body.impacto not in IMPACTO_LABEL:
+        raise HTTPException(status_code=422, detail="Confirma el impacto")
+    if body.desarrolla not in DESARROLLA_LABEL:
+        raise HTTPException(status_code=422, detail="Indica quien lo desarrolla")
+    if body.clasificacion not in CLASIFICACION_LABEL:
+        raise HTTPException(status_code=422, detail="Indica si se gestiona como Cambio o como Proyecto")
+    if body.clasificacion == "proyecto":
+        faltan = [lbl for key, lbl in ROLES_GOBIERNO.items() if not ((body.gobierno or {}).get(key) or {}).get("id")]
+        if faltan:
+            raise HTTPException(status_code=422, detail=f"Asigna los roles del proyecto: {', '.join(faltan)}")
+    else:
+        body.gobierno = None
+    try:
+        fecha = date.fromisoformat(body.fecha_compromiso)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="La fecha comprometida no es valida")
+    if fecha < _hora_local(datetime.now(timezone.utc)).date():
+        raise HTTPException(status_code=422, detail="La fecha comprometida no puede ser anterior a hoy")
+    for campo in CAMPOS_A_CONFIRMAR:
+        if body.confirmaciones.get(campo) not in {"confirmado", "ajustado"}:
+            raise HTTPException(status_code=422, detail=f"Confirma o ajusta el dato de {campo} que indico el solicitante")
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = result.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+    if incident.status != "aprobado":
+        raise HTTPException(status_code=409, detail="Solo se puede priorizar un proyecto aprobado")
+    det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det.scalar_one_or_none()
+    if not detalle:
+        raise HTTPException(status_code=409, detail="El proyecto no tiene detalle de solicitud")
+
+    # Lo "confirmado" debe coincidir con lo que pidio el solicitante
+    solicitado = {
+        "urgencia": detalle.urgencia_solicitada, "impacto": detalle.impacto_si_no_se_realiza,
+        "fecha": detalle.fecha_requerida.isoformat() if detalle.fecha_requerida else None,
+    }
+    definido = {"urgencia": body.urgencia, "impacto": body.impacto, "fecha": body.fecha_compromiso}
+    for campo in CAMPOS_A_CONFIRMAR:
+        if body.confirmaciones[campo] == "confirmado" and definido[campo] != solicitado[campo]:
+            raise HTTPException(status_code=422, detail=f"El dato de {campo} se marco como confirmado pero no coincide con lo que indico el solicitante")
+
+    solicitante = await _get_requester_profile(incident.requester_id)
+    company_slug = solicitante.get("company_slug")
+    submodule = f"control-de-cambios/{incident.folio}"
+    reviso_nombre = user.get("full_name") or "Gerencia de Proyectos"
+    reviso_rol = ("project-manager" if "it-service-desk:project-manager" in roles
+                  else "incident-manager" if "it-service-desk:incident-manager" in roles else "super_admin")
+    reviso_rol_label = {"project-manager": "Project Manager", "incident-manager": "Incident Manager"}.get(reviso_rol, "Administrador")
+    now = datetime.now(timezone.utc)
+    local = _hora_local(now)
+
+    anexos = []
+    for f in files:
+        content = await f.read()
+        if len(content) > MAX_ANEXO_BYTES:
+            raise HTTPException(status_code=413, detail=f"{f.filename} excede 10 MB")
+        key = await _subir_archivo(content, f.filename, f.content_type or "application/octet-stream", company_slug, submodule, raw_token)
+        if not key:
+            raise HTTPException(status_code=502, detail=f"No se pudo subir {f.filename}")
+        anexos.append({"nombre": f.filename, "object_key": key, "bucket": "dirdoc", "mime_type": f.content_type})
+
+    codigo = PRIO_CODE[body.urgencia]
+    datos = {**body.model_dump(), "solicitado": solicitado, "prioridad_codigo": codigo}
+
+    pdf_base = await _build_cdc_pdf_data(db, incident, detalle, solicitante.get("email", ""))
+    alcance = pdf_base["sistema_nombre"] + (f" / {pdf_base['modulo_nombre']}" if pdf_base.get("modulo_nombre") else "")
+    comparativo = [
+        ("Urgencia", URGENCIA_LABEL.get(solicitado["urgencia"], "—"), URGENCIA_LABEL[body.urgencia], body.confirmaciones["urgencia"]),
+        ("Impacto", IMPACTO_LABEL.get(solicitado["impacto"], "—"), IMPACTO_LABEL[body.impacto], body.confirmaciones["impacto"]),
+        ("Fecha de entrega", _fecha_label(solicitado["fecha"]), _fecha_label(body.fecha_compromiso), body.confirmaciones["fecha"]),
+    ]
+    pdf_bytes = generar_pdf_priorizacion({
+        "folio": incident.folio, "titulo": incident.title, "fecha_emision": local.strftime("%d/%m/%Y %H:%M"),
+        "prioridad_codigo": codigo, "urgencia_label": URGENCIA_LABEL[body.urgencia],
+        "fecha_compromiso_label": _fecha_label(body.fecha_compromiso),
+        "solicitante": " · ".join(filter(None, [incident.requester_name, incident.requester_area, incident.requester_company_name])),
+        "solicitante_nombre": incident.requester_name, "alcance": alcance,
+        "desarrolla_label": DESARROLLA_LABEL[body.desarrolla], "responsable_desarrollo": body.responsable_desarrollo,
+        "reviso": f"{reviso_nombre} · {reviso_rol_label}", "reviso_nombre": reviso_nombre, "reviso_rol": reviso_rol_label,
+        "comparativo": comparativo, "notas_comite": body.notas_comite, "anexos": [a["nombre"] for a in anexos],
+        "clasificacion_label": CLASIFICACION_LABEL[body.clasificacion],
+        "gobierno": [(lbl, (body.gobierno or {}).get(key, {}).get("name", "—")) for key, lbl in ROLES_GOBIERNO.items()] if body.gobierno else None,
+    })
+    pdf_filename = f"PRIORIZACION_{incident.folio}_{local.strftime('%Y%m%d_%H%M%S')}.pdf"
+    pdf_key = await _subir_archivo(pdf_bytes, pdf_filename, "application/pdf", company_slug, submodule, raw_token)
+
+    etapa = ControlCambiosEtapa(
+        id=str(uuid.uuid4()), incident_id=incident.id, etapa="priorizado", resultado=codigo,
+        datos=datos, documento_object_key=pdf_key, anexos=anexos,
+        realizado_por=user.get("user_id"), realizado_por_nombre=reviso_nombre, created_at=now,
+    )
+    db.add(etapa)
+    detalle.prioridad = body.urgencia
+    detalle.impacto_confirmado = body.impacto
+    detalle.fecha_compromiso = fecha
+    detalle.clasificacion = body.clasificacion
+    incident.sla_resolution_limit = _fin_de_dia_local(fecha)   # aqui arranca el SLA del CDC
+    incident.status = "priorizado"
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_priorizado", performed_by=user.get("user_id"),
+        performed_by_name=reviso_nombre, performed_by_role=reviso_rol, module_slug="it-service-desk",
+        detail={"prioridad": codigo, "fecha_compromiso": body.fecha_compromiso, "clasificacion": body.clasificacion, "etapa_id": etapa.id},
+    ))
+    await db.commit()
+
+    await _broadcast_ticket_update(incident, extra={"cdc_prioridad": body.urgencia, "cdc_clasificacion": body.clasificacion})
+
+    try:
+        from app.assignment import _notify_inapp
+        from app.services.control_cambios.notificaciones import send_cdc_priorizacion_email
+        await _notify_inapp(incident.requester_id, f"Tu Control de Cambios #{incident.folio} fue priorizado",
+                            f"Prioridad {codigo} · entrega {_fecha_label(body.fecha_compromiso)}", "info",
+                            {"incident_id": str(incident.id), "folio": incident.folio})
+        if solicitante.get("email"):
+            await send_cdc_priorizacion_email(solicitante["email"], incident.requester_name, incident.folio, incident.title,
+                                              f"{reviso_nombre} · {reviso_rol_label}", codigo, URGENCIA_LABEL[body.urgencia],
+                                              _fecha_label(body.fecha_compromiso), DESARROLLA_LABEL[body.desarrolla],
+                                              pdf_bytes, pdf_filename)
+    except Exception as e:
+        print(f"[CDC] Error notificando priorizacion {incident.folio}: {e}")
+
+    return {"success": True, "status": incident.status, "etapa_id": etapa.id}
+
+
+
+# ------------------------------------------------------------------
+# Catalogos para formularios de CDC
+# (dos segmentos a proposito: no choca con GET /{incident_id})
+# ------------------------------------------------------------------
+
+@router.get("/catalogos/usuarios")
+async def buscar_usuarios_cdc(q: str = "", user: dict = Depends(get_current_user)):
+    roles = set(user.get("roles") or [])
+    if not roles & CDC_MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Sin permiso para buscar usuarios")
+    if len(q.strip()) < 2:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get("http://admin-service:8000/internal/users/search", params={"q": q.strip(), "limit": 15})
+        return resp.json() if resp.status_code == 200 else []
+    except Exception:
+        return []

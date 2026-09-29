@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, type CSSProperties } from 'react'
 import { getControlCambioDetail } from '@/services/itServiceDeskService'
 import { getSignedUrl } from '@/services/uploadService'
 import { X, ChevronDown, Check, Lock, FileText, Paperclip } from 'lucide-react'
-import { STATUS_CLASS } from './TicketRow'
+import { STATUS_CLASS, PRIO_CODE, PRIO_CLASS } from './TicketRow'
 import CdcRevisionForm from './CdcRevisionForm'
+import CdcPriorizacionForm from './CdcPriorizacionForm'
 
 // ════════════════════════════════════════════════════════════════════
 // TEMA -- colores del detalle en un solo lugar. En la v2 de la intranet
@@ -28,7 +29,10 @@ interface CdcDetail {
     tipo_solicitud: string | null; justificacion: string | null
     impacto_si_no_se_realiza: string | null; urgencia_solicitada: string | null
     fecha_requerida: string | null; comentarios_adicionales: string | null
+    prioridad: string | null; impacto_confirmado: string | null; fecha_compromiso: string | null
+    clasificacion: string | null
   }
+  sla_resolution_limit: string | null
   documentos: Documento[]; activity_log: LogEntry[]; etapas: Etapa[]
   ajuste_pendiente: boolean; can_manage: boolean
 }
@@ -38,23 +42,24 @@ const STAGES = [
   { key: 'en_revision', label: 'En revisión', who: 'Project Manager' },
   { key: 'aprobado', label: 'Aprobado', who: 'Project Manager' },
   { key: 'priorizado', label: 'Priorizado', who: 'Project Manager' },
+  { key: 'en_arranque', label: 'Arranque', who: 'Project Manager' },
   { key: 'en_desarrollo', label: 'En desarrollo', who: 'Equipo / proveedor' },
   { key: 'en_pruebas', label: 'En pruebas (UAT)', who: 'Solicitante' },
   { key: 'terminado', label: 'Terminado', who: 'Solicitante / PM' },
 ]
 const STAGE_INDEX: Record<string, number> = {
   en_backlog: 0, registrado: 0, en_revision: 1, rechazado: 1, aprobado: 2,
-  priorizado: 3, en_desarrollo: 4, en_pruebas: 5, terminado: 6,
+  priorizado: 3, en_arranque: 4, en_desarrollo: 5, en_pruebas: 6, terminado: 7,
 }
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'Registrado', registrado: 'Registrado', en_revision: 'En revisión', aprobado: 'Aprobado',
-  rechazado: 'Rechazado', priorizado: 'Priorizado', en_desarrollo: 'En desarrollo',
+  rechazado: 'Rechazado', priorizado: 'Priorizado', en_arranque: 'Arranque', en_desarrollo: 'En desarrollo',
   en_pruebas: 'En pruebas (UAT)', terminado: 'Terminado', cancelado: 'Cancelado',
 }
 const REQUESTER_SEES: Record<string, string> = {
   en_backlog: 'Registrado', registrado: 'Registrado', en_revision: 'En revisión por Gerencia de Proyectos',
   aprobado: 'Aprobado · en espera de priorización', rechazado: 'Rechazado · ver motivo en el dictamen',
-  priorizado: 'Priorizado', en_desarrollo: 'En desarrollo', en_pruebas: 'En pruebas · requiere tu validación',
+  priorizado: 'Priorizado', en_arranque: 'Arranque del proyecto', en_desarrollo: 'En desarrollo', en_pruebas: 'En pruebas · requiere tu validación',
   terminado: 'Terminado', cancelado: 'Cancelado',
 }
 const TIPO_LABEL: Record<string, string> = { nueva_funcionalidad: 'Nueva funcionalidad', mejora_existente: 'Mejora a funcionalidad existente' }
@@ -69,6 +74,7 @@ const RES: Record<string, { label: string; chip: string; icon: string }> = {
 const ACTION_LABEL: Record<string, (l: LogEntry, d: CdcDetail) => string> = {
   motor_asigno_cdc: (_l, d) => `El sistema asignó el proyecto a ${d.assigned_to?.name ?? 'Gerencia de Proyectos'} y lo pasó a En revisión`,
   cdc_dictamen_emitido: l => `${l.performed_by_name} emitió el dictamen: ${RES[l.detail?.resultado]?.label ?? l.detail?.resultado}`,
+  cdc_priorizado: l => `${l.performed_by_name} priorizó el proyecto: ${l.detail?.prioridad ?? ''}, entrega ${l.detail?.fecha_compromiso ? fmtDate(l.detail.fecha_compromiso) : '—'}`,
 }
 
 const TZ = 'America/Monterrey'
@@ -100,7 +106,7 @@ function Avatar({ name, photoKey }: { name: string; photoKey: string | null }) {
 function DocRow({ doc }: { doc: Documento }) {
   const [opening, setOpening] = useState(false)
   const pdf = doc.tipo === 'solicitud' || doc.tipo === 'dictamen' || doc.tipo === 'etapa'
-  const etapaLabel = doc.tipo === 'solicitud' ? 'Registrado' : doc.tipo === 'dictamen' ? 'En revisión' : `Anexo · ${STATUS_LABEL[doc.etapa] ?? doc.etapa}`
+  const etapaLabel = doc.tipo === 'solicitud' ? 'Registrado' : doc.tipo === 'dictamen' ? 'En revisión' : doc.tipo === 'etapa' ? (STATUS_LABEL[doc.etapa] ?? doc.etapa) : `Anexo · ${STATUS_LABEL[doc.etapa] ?? doc.etapa}`
   return (
     <li className="flex items-center gap-3 py-3 border-b border-slate-100 last:border-0">
       <span className={`w-8 h-10 rounded-[5px] flex items-end justify-center pb-1 text-[9px] font-semibold text-white shrink-0 ${pdf ? 'bg-red-600' : 'bg-slate-500'}`}>
@@ -186,6 +192,37 @@ function RevisionSummary({ e }: { e: Etapa }) {
   )
 }
 
+const DESARROLLA_LABEL: Record<string, string> = { equipo_interno: 'Equipo interno', proveedor_totvs: 'Proveedor TOTVS', proveedor_externo: 'Proveedor externo' }
+const GOB_LABEL: Record<string, string> = { patrocinador: 'Patrocinador', gerente_proyecto: 'Gerente del proyecto', project_manager: 'Project Manager', lider_tecnico: 'Líder técnico', validador: 'Usuario validador' }
+
+function PriorizacionSummary({ e }: { e: Etapa }) {
+  const d = e.datos || {}
+  const sol = d.solicitado || {}
+  const c = d.confirmaciones || {}
+  const nota = (campo: string, original: string) => c[campo] === 'ajustado' ? ` · ajustado (el solicitante indicó ${original})` : ' · confirmado'
+  const doc = e.documento_object_key
+  return (
+    <>
+      <Dl rows={[
+        ['Prioridad', `${PRIO_CODE[d.urgencia] ?? ''} · ${NIVEL_LABEL[d.urgencia] ?? d.urgencia}${nota('urgencia', NIVEL_LABEL[sol.urgencia] ?? 'sin dato')}`],
+        ['Impacto', `${NIVEL_LABEL[d.impacto] ?? d.impacto}${nota('impacto', NIVEL_LABEL[sol.impacto] ?? 'sin dato')}`],
+        ['Fecha comprometida', `${d.fecha_compromiso ? fmtDate(d.fecha_compromiso) : '—'}${nota('fecha', sol.fecha ? fmtDate(sol.fecha) : 'sin fecha')}`],
+        ['Se gestiona como', d.clasificacion === 'proyecto' ? 'Proyecto' : d.clasificacion === 'cambio' ? 'Cambio' : null],
+        ['Desarrolla', DESARROLLA_LABEL[d.desarrolla] ?? d.desarrolla],
+        ['Responsable', d.responsable_desarrollo],
+        ['Notas para el Comité', d.notas_comite],
+        ['Roles del proyecto', d.gobierno ? Object.entries(GOB_LABEL).map(([k, l]) => `${l}: ${d.gobierno[k]?.name ?? '—'}`).join('\n') : null],
+        ['Anexos', (e.anexos ?? []).length ? e.anexos.map((a: any) => a.nombre).join('\n') : null],
+      ]} />
+      {doc && (
+        <button type="button" onClick={() => openSigned(doc)} className="mt-4 inline-flex items-center gap-2 text-[13px] font-medium text-[#1a4fa0] hover:underline">
+          <FileText className="w-4 h-4" />Ver priorización en PDF
+        </button>
+      )}
+    </>
+  )
+}
+
 function LockedStage({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
@@ -247,7 +284,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
               <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">Dictamen de revisión</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">Lo que captures aquí genera el documento de dictamen y se agrega al expediente.</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 2 de 7</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 2 de 8</span>
           </header>
           <CdcRevisionForm incidentId={detail.id} originalDescription={detail.description} onDone={onRevisionDone} />
         </section>
@@ -261,7 +298,37 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
         </section>
       )
     }
-    if (status === 'aprobado') return <LockedStage title="Priorización">Se habilita en la siguiente fase de desarrollo. Ahí se definen prioridad y fecha estimada de entrega.</LockedStage>
+    if (status === 'aprobado') {
+      if (!detail.can_manage) return <LockedStage title="Priorización">Gerencia de Proyectos está definiendo la prioridad y la fecha de entrega. Te notificaremos por correo.</LockedStage>
+      return (
+        <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
+          <header className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">Priorización</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">Confirma lo que indicó el solicitante y define el compromiso de entrega. Esta fecha es la que se reporta al Comité Directivo.</p>
+            </div>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 4 de 8</span>
+          </header>
+          <CdcPriorizacionForm incidentId={detail.id}
+            solicitado={{ urgencia: detail.detalle.urgencia_solicitada, impacto: detail.detalle.impacto_si_no_se_realiza, fecha: detail.detalle.fecha_requerida }}
+            esfuerzoRevision={detail.etapas.filter(e => e.etapa === 'en_revision').slice(-1)[0]?.datos?.esfuerzo ?? null}
+            defaults={{
+              project_manager: detail.assigned_to?.id ? { id: detail.assigned_to.id, name: detail.assigned_to.name ?? '', puesto: detail.assigned_to.puesto } : null,
+              validador: { id: detail.requester.id, name: detail.requester.name, puesto: detail.requester.puesto },
+            }}
+            onDone={onRevisionDone} />
+        </section>
+      )
+    }
+    if (status === 'priorizado') return (
+      <LockedStage title="Arranque">
+        {detail.detalle.clasificacion === 'proyecto'
+          ? 'Se habilita en la siguiente entrega: acta de constitución, alcance, resumen ejecutivo y técnico, y cronograma.'
+          : detail.detalle.clasificacion === 'cambio'
+            ? 'Se habilita en la siguiente entrega: plan breve con fecha de inicio, responsable y entregables.'
+            : 'Se habilita en la siguiente entrega. Al iniciar se pedirá clasificarlo como Cambio o Proyecto.'}
+      </LockedStage>
+    )
     if (status === 'terminado' || status === 'cancelado') return null
     return <LockedStage title={STATUS_LABEL[status] ?? status}>El formulario de esta etapa se habilita en una fase posterior.</LockedStage>
   }
@@ -292,7 +359,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
                 <span className="inline-block font-mono text-[13px] text-[#1a4fa0] bg-white border border-slate-200 rounded-md px-2.5 py-0.5">{detail.folio}</span>
                 <h2 id="cdc-title" className="font-[family-name:var(--font-jakarta)] font-bold text-xl md:text-2xl leading-tight tracking-tight text-slate-900 mt-2 mb-1.5 max-w-[44ch]">{detail.title}</h2>
                 <p className="text-[13.5px] text-slate-500 flex flex-wrap gap-x-5 gap-y-1">
-                  <span>Proyecto · <b className="font-medium text-slate-700">{TIPO_LABEL[d.tipo_solicitud ?? ''] ?? d.tipo_solicitud ?? '—'}</b></span>
+                  <span>Control de Cambios{d.clasificacion ? <> · <b className="font-medium text-slate-700">{d.clasificacion === 'proyecto' ? 'Proyecto' : 'Cambio'}</b></> : null} · <b className="font-medium text-slate-700">{TIPO_LABEL[d.tipo_solicitud ?? ''] ?? d.tipo_solicitud ?? '—'}</b></span>
                   <span>{d.system_name ?? '—'}{d.module_name ? <> / <b className="font-medium text-slate-700">{d.module_name}</b></> : null}</span>
                   <span>Registrado <b className="font-medium text-slate-700">{fmtDateTime(detail.created_at)}</b></span>
                 </p>
@@ -307,7 +374,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 md:px-7 py-6">
               <section className="bg-white border border-slate-200 rounded-2xl shadow-sm px-5 pt-5 pb-4 mb-6 overflow-x-auto" aria-label="Etapas del Control de Cambios">
-                <ol className="grid grid-cols-7 min-w-[760px]">
+                <ol className="grid grid-cols-8 min-w-[860px]">
                   {STAGES.map((s, i) => {
                     const done = i < current || (i === current && status === 'terminado')
                     const now = i === current && !done
@@ -340,7 +407,13 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
                   <p className="text-[13px] font-medium text-slate-500 mt-7 mb-2.5 px-0.5">Etapas cerradas</p>
                   <div className="flex flex-col gap-3.5">
-                    {[...detail.etapas].reverse().map(e => e.etapa === 'en_revision' && (
+                    {[...detail.etapas].reverse().map(e => e.etapa === 'priorizado' ? (
+                      <ClosedStage key={e.id} icon="bg-[var(--cdc-done)]" title="Priorizado"
+                        sub={`${e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
+                        chip={{ label: `${PRIO_CODE[e.datos?.urgencia] ?? ''} · entrega ${e.datos?.fecha_compromiso ? fmtDate(e.datos.fecha_compromiso) : '—'}`, cls: 'bg-emerald-50 text-emerald-700' }}>
+                        <PriorizacionSummary e={e} />
+                      </ClosedStage>
+                    ) : e.etapa === 'en_revision' && (
                       <ClosedStage key={e.id} icon={RES[e.resultado ?? '']?.icon ?? 'bg-[var(--cdc-done)]'} title="En revisión"
                         sub={`Dictamen de ${e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
                         chip={e.resultado ? { label: RES[e.resultado]?.label ?? e.resultado, cls: RES[e.resultado]?.chip ?? '' } : undefined}>
@@ -370,10 +443,19 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
                       </div>
                       <div><p className="text-[12.5px] text-slate-500">Alcance</p><p className="text-slate-800">{d.system_name ?? '—'}{d.module_name ? ` → ${d.module_name}` : ''}</p></div>
                       <div className="flex gap-7">
-                        <div><p className="text-[12.5px] text-slate-500">Urgencia</p><p className={`font-semibold ${NIVEL_CLASS[d.urgencia_solicitada ?? ''] ?? 'text-slate-800'}`}>{NIVEL_LABEL[d.urgencia_solicitada ?? ''] ?? '—'}</p></div>
+                        <div><p className="text-[12.5px] text-slate-500">Urgencia · solicitante</p><p className={`font-semibold ${NIVEL_CLASS[d.urgencia_solicitada ?? ''] ?? 'text-slate-800'}`}>{NIVEL_LABEL[d.urgencia_solicitada ?? ''] ?? '—'}</p></div>
                         <div><p className="text-[12.5px] text-slate-500">Impacto si no se hace</p><p className={`font-semibold ${NIVEL_CLASS[d.impacto_si_no_se_realiza ?? ''] ?? 'text-slate-800'}`}>{NIVEL_LABEL[d.impacto_si_no_se_realiza ?? ''] ?? '—'}</p></div>
                       </div>
-                      <div><p className="text-[12.5px] text-slate-500">Requerido para</p><p className="text-slate-800">{d.fecha_requerida ? fmtDate(d.fecha_requerida) : 'Sin fecha definida'}</p></div>
+                      <div><p className="text-[12.5px] text-slate-500">Requerido para · solicitante</p><p className="text-slate-800">{d.fecha_requerida ? fmtDate(d.fecha_requerida) : 'Sin fecha definida'}</p></div>
+                      {d.prioridad && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                          <p className="text-[12.5px] text-slate-500">{status === 'rechazado' ? 'Urgencia del solicitante · no llegó a priorización' : 'Definido por Gerencia de Proyectos'}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold ${PRIO_CLASS[d.prioridad] ?? ''}`}>{PRIO_CODE[d.prioridad]}</span>
+                            {d.fecha_compromiso && <span className="text-slate-800">Entrega {fmtDate(d.fecha_compromiso)}</span>}
+                          </div>
+                        </div>
+                      )}
                       <div><p className="text-[12.5px] text-slate-500">Revisa</p><p className="text-slate-800">{detail.assigned_to?.name ? `${detail.assigned_to.name} · Project Manager` : 'Sin asignar'}</p></div>
                     </div>
                   </Card>

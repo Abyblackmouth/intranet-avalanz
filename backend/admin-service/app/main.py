@@ -108,6 +108,24 @@ async def internal_get_users_by_module_role(
     rows = result.fetchall()
     return [{"id": str(r[0]), "name": r[1], "email": r[2]} for r in rows]
 
+
+@app.get("/internal/users/search", include_in_schema=False)
+async def internal_search_users(q: str, limit: int = 15, db: AsyncSession = Depends(get_db)):
+    """Busqueda de usuarios activos por nombre o correo, para selectores de
+    otros microservicios (ej. roles de gobierno de un Control de Cambios).
+    Sin JWT, solo alcanzable dentro de la red interna de Docker."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT u.id, u.full_name, u.email, u.puesto, u.departamento
+        FROM users u
+        WHERE u.is_active = true
+          AND u.is_locked = false
+          AND (u.full_name ILIKE :q OR u.email ILIKE :q)
+        ORDER BY u.full_name
+        LIMIT :limit
+    """), {"q": f"%{q.strip()}%", "limit": min(max(limit, 1), 30)})
+    return [{"id": str(r[0]), "name": r[1], "email": r[2], "puesto": r[3], "departamento": r[4]} for r in result.fetchall()]
+
 @app.get("/internal/users/{user_id}/permissions", include_in_schema=False)
 async def internal_get_user_permissions(
     user_id: str,

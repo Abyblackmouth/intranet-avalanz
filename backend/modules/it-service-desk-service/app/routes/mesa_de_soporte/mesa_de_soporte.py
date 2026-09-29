@@ -150,6 +150,9 @@ async def list_incidents(
             "sla_response_limit": i.sla_response_limit.isoformat() if i.sla_response_limit else None,
             "sla_resolution_limit": i.sla_resolution_limit.isoformat() if i.sla_resolution_limit else None,
             "is_sla_breached": i.is_sla_breached,
+            "ticket_type": i.ticket_type,
+            "cdc_prioridad": cdc_detalle_cache[i.id].prioridad if i.ticket_type == "control_cambio" and i.id in cdc_detalle_cache else None,
+            "cdc_clasificacion": cdc_detalle_cache[i.id].clasificacion if i.ticket_type == "control_cambio" and i.id in cdc_detalle_cache else None,
         } for i in incidents
     ], "total_count": total_count}
 
@@ -286,7 +289,7 @@ async def _get_requester_profile(user_id: str) -> Dict[str, Any]:
 # existente (asignar, resolver, reabrir, cerrar, escalar, redirigir).
 # ------------------------------------------------------------------
 
-async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.ticket_updated") -> None:
+async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.ticket_updated", extra: dict | None = None) -> None:
     try:
         assigned_name_ws = None
         if incident.assigned_to_user_id:
@@ -341,6 +344,8 @@ async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.
                             "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
                             "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
                             "is_sla_breached": incident.is_sla_breached if hasattr(incident, "is_sla_breached") else False,
+                            "ticket_type": incident.ticket_type,
+                            **(extra or {}),
                         },
                     },
                 )

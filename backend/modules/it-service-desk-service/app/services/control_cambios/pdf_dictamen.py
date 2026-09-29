@@ -7,7 +7,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import HRFlowable, Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 AZUL = colors.HexColor("#1a4fa0")
 GRIS = colors.HexColor("#64748b")
@@ -37,7 +37,7 @@ def _logo():
 def generar_pdf_dictamen(d: dict) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=2 * cm, rightMargin=2 * cm,
-                            topMargin=1.6 * cm, bottomMargin=1.6 * cm, title=f"Dictamen {d['folio']}")
+                            topMargin=1.3 * cm, bottomMargin=1.3 * cm, title=f"Dictamen {d['folio']}")
     ss = getSampleStyleSheet()
     body = ParagraphStyle("b", parent=ss["Normal"], fontName="Helvetica", fontSize=9.5, leading=13.5, textColor=colors.HexColor("#1e293b"))
     small = ParagraphStyle("s", parent=body, fontSize=8.5, leading=12, textColor=GRIS)
@@ -107,7 +107,8 @@ def generar_pdf_dictamen(d: dict) -> bytes:
                    colWidths=[8 * cm, 8 * cm], hAlign="CENTER")
     firmas.setStyle(TableStyle([("LINEABOVE", (0, 0), (0, 0), 0.8, colors.black), ("LINEABOVE", (1, 0), (1, 0), 0.8, colors.black),
                                 ("ALIGN", (0, 0), (-1, -1), "CENTER"), ("LEFTPADDING", (0, 0), (-1, -1), 14), ("RIGHTPADDING", (0, 0), (-1, -1), 14)]))
-    story += [Spacer(1, 46), firmas]
+    # Titulo + lineas de firma en un solo bloque: nunca se parte entre paginas
+    story.append(KeepTogether([Paragraph("Firmas", h2), Spacer(1, 30), firmas]))
 
     doc.build(story)
     return buf.getvalue()

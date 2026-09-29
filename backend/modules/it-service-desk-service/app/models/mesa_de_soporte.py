@@ -249,6 +249,14 @@ class ControlCambiosDetalle(Base):
 
     solicitud_pdf_object_key = Column(String(500), nullable=True)  # ruta del PDF "SOLICITUD" en MinIO
 
+    # Definidos por Gerencia de Proyectos en la priorizacion. Separados de
+    # urgencia/impacto/fecha del solicitante, que son solo referencia y
+    # nunca se sobreescriben.
+    prioridad = Column(String(10), nullable=True)            # alta | media | baja  -> P1 | P2 | P3
+    impacto_confirmado = Column(String(10), nullable=True)   # alto | medio | bajo
+    fecha_compromiso = Column(Date, nullable=True)
+    clasificacion = Column(String(10), nullable=True)        # cambio | proyecto -- define el peso de la etapa de Arranque
+
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now())
 
 

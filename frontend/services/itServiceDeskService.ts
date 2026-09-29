@@ -104,3 +104,9 @@ export const submitCdcRevision = (id: string, formData: FormData) =>
   api.post(`/api/v1/it-service-desk/control-cambios/${id}/revision`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+export const submitCdcPriorizacion = (id: string, formData: FormData) =>
+  api.post(`/api/v1/it-service-desk/control-cambios/${id}/priorizacion`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+export const searchCdcUsuarios = (q: string) =>
+  api.get(`/api/v1/it-service-desk/control-cambios/catalogos/usuarios`, { params: { q } })

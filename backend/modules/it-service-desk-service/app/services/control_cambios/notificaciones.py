@@ -228,3 +228,51 @@ async def send_cdc_dictamen_email(to_email: str, solicitante_nombre: str, folio:
             },
         )
         resp.raise_for_status()
+
+
+# ── Priorizacion -> solicitante ──────────────────────────────────────────────
+
+def build_cdc_priorizacion_html(solicitante_nombre: str, folio: str, titulo: str, reviso: str,
+                                prioridad_codigo: str, urgencia_label: str, fecha_label: str, desarrolla_label: str) -> str:
+    folio_html = f'<span style="font-family:Courier New,Courier,monospace;font-size:13px;color:#1a4fa0;background-color:#dbeafe;padding:3px 10px;display:inline-block;">{_e(folio)}</span>'
+    filas = "".join([
+        _fila("Folio", folio_html), _fila("Proyecto", _e(titulo)),
+        _fila("Prioridad", f"{_e(prioridad_codigo)} · {_e(urgencia_label)}"),
+        _fila("Entrega", f'<span style="color:#1a4fa0;">{_e(fecha_label)}</span>'),
+        _fila("Desarrolla", _e(desarrolla_label)), _fila("Priorizó", _e(reviso)),
+    ])
+    frontend_url = (getattr(config, "FRONTEND_URL", "") or "").rstrip("/")
+    boton = f'''
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
+      <tr><td style="background-color:#1a4fa0;border-radius:10px;">
+        <a href="{frontend_url}/app/it-service-desk/mesa-de-soporte" style="display:inline-block;padding:12px 28px;{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Ver mi solicitud</a>
+      </td></tr>
+    </table>''' if frontend_url else ""
+    return f'''
+    <p style="{FONT}font-size:15px;color:#1e293b;margin:0 0 12px;">Hola {_e(solicitante_nombre)},</p>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#eff6ff;border-left:4px solid #3b82f6;margin:12px 0 16px;">
+      <tr><td style="padding:12px 16px;{FONT}font-size:13px;color:#1e3a5f;line-height:1.55;">
+        <strong style="color:#1e40af;display:block;margin-bottom:4px;">Tu proyecto fue priorizado</strong>
+        Gerencia de Proyectos definió la prioridad y el compromiso de entrega de tu Control de Cambios. El siguiente paso es el desarrollo.
+      </td></tr>
+    </table>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f8fafc;border:1px solid #e2e8f0;margin:16px 0 20px;">{filas}</table>
+    {boton}
+    <p style="{FONT}font-size:12px;color:#64748b;margin:16px 0 0;">📎 Adjunto: priorización en PDF.</p>'''
+
+
+async def send_cdc_priorizacion_email(to_email: str, solicitante_nombre: str, folio: str, titulo: str, reviso: str,
+                                      prioridad_codigo: str, urgencia_label: str, fecha_label: str, desarrolla_label: str,
+                                      pdf_bytes: bytes, pdf_filename: str) -> None:
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.post(
+            "http://email-service:8000/api/v1/email/module",
+            json={
+                "to_email": to_email, "full_name": solicitante_nombre,
+                "subject": f"Tu Control de Cambios {folio} fue priorizado",
+                "html_content": build_cdc_priorizacion_html(solicitante_nombre, folio, titulo, reviso, prioridad_codigo,
+                                                            urgencia_label, fecha_label, desarrolla_label),
+                "attachments": [{"filename": pdf_filename, "content_base64": base64.b64encode(pdf_bytes).decode("ascii"), "subtype": "pdf"}],
+            },
+        )
+        resp.raise_for_status()
