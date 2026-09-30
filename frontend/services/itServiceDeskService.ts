@@ -131,3 +131,13 @@ export const generarDiseno = (id: string, fase: string) => api.post(`${CDC}/${id
 export const cerrarDiseno = (id: string, fase: string) => api.post(`${CDC}/${id}/diseno/${fase}/cerrar`)
 export const getDisenoCandidatos = (id: string) => api.get(`${CDC}/${id}/diseno/candidatos`)
 export const reasignarDiseno = (id: string, userId: string) => api.patch(`${CDC}/${id}/diseno/asignar`, { user_id: userId })
+
+// ── En desarrollo ─────────────────────────────────────────────────────────
+export const getDesarrollo = (id: string) => api.get(`${CDC}/${id}/desarrollo`)
+export const registrarAvance = (id: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/desarrollo/avance`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const saveEntregaBorrador = (id: string, datos: any) => api.put(`${CDC}/${id}/desarrollo/entrega/borrador`, { datos })
+export const generarEntrega = (id: string) => api.post(`${CDC}/${id}/desarrollo/entrega/generar`)
+export const liberarPruebas = (id: string) => api.post(`${CDC}/${id}/desarrollo/liberar`)
+export const getDesarrolloCandidatos = (id: string) => api.get(`${CDC}/${id}/desarrollo/candidatos`)
+export const reasignarDesarrollo = (id: string, userId: string) => api.patch(`${CDC}/${id}/desarrollo/asignar`, { user_id: userId })

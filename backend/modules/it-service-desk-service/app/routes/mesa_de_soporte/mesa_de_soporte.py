@@ -957,6 +957,7 @@ async def reopen_incident(
     if not is_incident_manager and not is_requester:
         raise HTTPException(status_code=403, detail="Solo el solicitante o Incident Manager pueden reabrir este ticket")
 
+    resuelto_el = incident.resolved_at  # se guarda antes de limpiarlo, para el correo
     incident.status = "asignado" if incident.assigned_to_user_id else "en_backlog"
     incident.resolved_at = None
     incident.resolution_type = None
@@ -970,6 +971,28 @@ async def reopen_incident(
     ))
     await db.commit()
     await _broadcast_ticket_update(incident)
+
+    # Avisar a quien lo resolvio: el ticket regresa a su bandeja. Si falla,
+    # la reapertura ya quedo guardada.
+    if incident.assigned_to_user_id:
+        try:
+            from zoneinfo import ZoneInfo
+            from app.assignment import _notify_inapp
+            from app.services.mesa_de_soporte.notificaciones import send_reapertura_email
+            tz = ZoneInfo("America/Monterrey")
+            await _notify_inapp(incident.assigned_to_user_id, f"Ticket #{incident.folio} reabierto", reason[:140], "warning",
+                                {"incident_id": str(incident.id), "folio": incident.folio})
+            asignado = await _get_requester_profile(incident.assigned_to_user_id)
+            if asignado.get("email"):
+                await send_reapertura_email(
+                    asignado["email"], asignado.get("full_name", ""), incident.folio, incident.title,
+                    user.get("full_name", ""), "Incident Manager" if is_incident_manager else "Solicitante", reason,
+                    resuelto_el.astimezone(tz).strftime("%d/%m/%Y %H:%M") if resuelto_el else "—",
+                    datetime.now(timezone.utc).astimezone(tz).strftime("%d/%m/%Y %H:%M"),
+                )
+        except Exception as e:
+            print(f"[INC] Error notificando reapertura {incident.folio}: {e}")
+
     return {"success": True, "message": "Ticket reabierto"}
 
 

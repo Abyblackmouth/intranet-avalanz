@@ -429,7 +429,7 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
     for doc in docs_result.scalars().all():
         if doc.object_key:
             documentos.append({
-                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
+                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico", "entrega_pruebas": "en_desarrollo"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
                 "object_key": doc.object_key, "bucket": "dirdoc", "fecha": doc.created_at.isoformat(),
             })
 
@@ -1686,3 +1686,377 @@ async def _gen_diseno_tecnico(db, incident, detalle, datos: dict, version: int, 
 
 
 GENERADORES_DISENO.update({"funcional": _gen_diseno_funcional, "tecnico": _gen_diseno_tecnico})
+
+
+# ------------------------------------------------------------------
+# Etapa En desarrollo (en_desarrollo -> en_pruebas)
+# ------------------------------------------------------------------
+
+ESTADOS_RT = {"pendiente", "en_progreso", "terminado"}
+DOC_LABEL.update({"entrega_pruebas": "Nota de entrega a pruebas"})
+
+
+async def _rts_diseno(db, incident_id: str) -> list:
+    """Requerimientos tecnicos del documento de diseno tecnico vigente."""
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == "diseno_tecnico" and d.estado == "generado"]
+    if not docs:
+        return []
+    out = []
+    for i, r in enumerate((docs[-1].datos or {}).get("requerimientos", []), 1):
+        if not (r.get("descripcion") or "").strip():
+            continue
+        try:
+            horas = float(r["horas"]) if r.get("horas") not in (None, "") else None
+        except (TypeError, ValueError):
+            horas = None
+        out.append({"id": (r.get("id") or f"RT-{i:02d}").strip().upper(), "rf": (r.get("rf") or "").strip().upper(),
+                    "descripcion": r["descripcion"].strip(), "horas_estimadas": horas})
+    return out
+
+
+async def _criterios_funcionales(db, incident_id: str) -> list:
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == "diseno_funcional" and d.estado == "generado"]
+    if not docs:
+        return []
+    return [{"id": (r.get("id") or f"RF-{i:02d}").strip().upper(), "descripcion": (r.get("descripcion") or "").strip(),
+             "criterio": (r.get("criterio") or "").strip()}
+            for i, r in enumerate((docs[-1].datos or {}).get("requerimientos", []), 1) if (r.get("descripcion") or "").strip()]
+
+
+async def _avances_de(db, incident_id: str) -> list:
+    from app.models.mesa_de_soporte import ControlCambiosAvance
+    res = await db.execute(select(ControlCambiosAvance).where(ControlCambiosAvance.incident_id == incident_id).order_by(ControlCambiosAvance.created_at))
+    return list(res.scalars().all())
+
+
+def _rts_con_estado(rts: list, avances: list) -> list:
+    """El estado vigente de cada RT es su ultimo renglon en la bitacora."""
+    ultimo = {}
+    for a in avances:
+        if a.rt_id:
+            ultimo[a.rt_id] = a
+    out = []
+    for r in rts:
+        a = ultimo.get(r["id"])
+        out.append({**r, "estado": a.estado if a else "pendiente", "horas_reales": a.horas if a else None,
+                    "actualizado_por": a.autor_nombre if a else None, "actualizado_en": a.created_at.isoformat() if a else None})
+    return out
+
+
+async def _responsable_tecnico(db, incident_id: str) -> Optional[str]:
+    from app.models.mesa_de_soporte import ControlCambiosEtapa
+    res = await db.execute(select(ControlCambiosEtapa).where(ControlCambiosEtapa.incident_id == incident_id,
+                                                            ControlCambiosEtapa.etapa == "en_diseno_tecnico").order_by(ControlCambiosEtapa.created_at))
+    etapas = res.scalars().all()
+    return ((etapas[-1].datos or {}).get("responsable") or {}).get("id") if etapas else None
+
+
+async def _cargar_cdc_desarrollo(db, incident_id: str, user: dict, editar: bool = False):
+    from app.routes.mesa_de_soporte.mesa_de_soporte import MODULE_WIDE_ROLES
+    res = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = res.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+    det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det.scalar_one_or_none()
+    roles = set(user.get("roles") or [])
+    uid = user.get("user_id")
+    tecnico_id = await _responsable_tecnico(db, incident_id)
+    participantes = {x for x in (detalle.project_manager_id if detalle else None, incident.assigned_to_user_id, tecnico_id) if x}
+    puede_editar = incident.status == "en_desarrollo" and (bool(roles & IM_ROLES) or uid in participantes)
+    if not (roles & MODULE_WIDE_ROLES or uid in participantes or "super_admin" in roles):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+    if editar and incident.status != "en_desarrollo":
+        raise HTTPException(status_code=409, detail="El proyecto no está en desarrollo")
+    if editar and not puede_editar:
+        raise HTTPException(status_code=403, detail="Solo el PM, el especialista técnico o el Incident Manager registran avances")
+    return incident, detalle, roles, puede_editar
+
+
+@router.get("/{incident_id}/desarrollo")
+async def get_desarrollo(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosEtapa
+    incident, detalle, roles, puede_editar = await _cargar_cdc_desarrollo(db, incident_id, user)
+    avances = await _avances_de(db, incident_id)
+    rts = _rts_con_estado(await _rts_diseno(db, incident_id), avances)
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == "entrega_pruebas"]
+    res = await db.execute(select(ControlCambiosEtapa).where(ControlCambiosEtapa.incident_id == incident_id,
+                                                            ControlCambiosEtapa.etapa == "en_diseno_tecnico").order_by(ControlCambiosEtapa.created_at))
+    etapas_tec = res.scalars().all()
+    hoy = _hora_local(datetime.now(timezone.utc)).date()
+    total_est = sum(r["horas_estimadas"] or 0 for r in rts)
+    total_real = sum(r["horas_reales"] or 0 for r in rts)
+    return {
+        "status": incident.status, "puede_editar": puede_editar,
+        "puede_cerrar": _puede_cerrar_desarrollo(roles, user.get("user_id"), detalle, incident),
+        "puede_reasignar": _puede_cerrar_desarrollo(roles, user.get("user_id"), detalle, incident),
+        "responsable": {"id": incident.assigned_to_user_id, "name": await _nombre_usuario(incident.assigned_to_user_id)} if incident.assigned_to_user_id else None,
+        "rts": rts,
+        "resumen": {
+            "total": len(rts), "terminados": sum(1 for r in rts if r["estado"] == "terminado"),
+            "horas_estimadas": total_est, "horas_reales": total_real,
+            "inicio": etapas_tec[-1].created_at.isoformat() if etapas_tec else None,
+            "fecha_compromiso": detalle.fecha_compromiso.isoformat() if detalle and detalle.fecha_compromiso else None,
+            "dias_restantes": (detalle.fecha_compromiso - hoy).days if detalle and detalle.fecha_compromiso else None,
+        },
+        "avances": [
+            {"id": a.id, "rt_id": a.rt_id, "estado": a.estado, "horas": a.horas, "comentario": a.comentario,
+             "anexos": a.anexos or [], "autor_nombre": a.autor_nombre, "created_at": a.created_at.isoformat()}
+            for a in reversed(avances)
+        ],
+        "entrega": [_doc_json(d) for d in docs],
+        "solicitante": {"id": incident.requester_id, "name": incident.requester_name},
+        "project_manager": {"id": detalle.project_manager_id, "name": detalle.project_manager_nombre} if detalle and detalle.project_manager_id else None,
+    }
+
+
+class CambioRt(BaseModel):
+    id: str
+    estado: str
+    horas: Optional[float] = None
+
+
+class AvancePayload(BaseModel):
+    comentario: Optional[str] = None
+    rts: list[CambioRt] = []
+
+
+@router.post("/{incident_id}/desarrollo/avance")
+async def registrar_avance(incident_id: str, payload: str = Form(...), files: list[UploadFile] = File(default=[]),
+                           db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+                           raw_token: str = Depends(get_token_from_request)):
+    import json
+    from pydantic import ValidationError
+    from app.models.mesa_de_soporte import ControlCambiosAvance, IncidentActivityLog
+    incident, detalle, roles, _ = await _cargar_cdc_desarrollo(db, incident_id, user, editar=True)
+    try:
+        body = AvancePayload(**json.loads(payload))
+    except (ValueError, ValidationError):
+        raise HTTPException(status_code=422, detail="Los datos del avance no son válidos")
+    comentario = (body.comentario or "").strip()
+    if not comentario and not body.rts and not files:
+        raise HTTPException(status_code=422, detail="Escribe un comentario o actualiza algún requerimiento")
+    validos = {r["id"] for r in await _rts_diseno(db, incident_id)}
+    for c in body.rts:
+        if c.id.upper() not in validos:
+            raise HTTPException(status_code=422, detail=f"{c.id} no existe en el diseño técnico")
+        if c.estado not in ESTADOS_RT:
+            raise HTTPException(status_code=422, detail=f"Estado no válido para {c.id}")
+        if c.horas is not None and c.horas < 0:
+            raise HTTPException(status_code=422, detail=f"Las horas de {c.id} no pueden ser negativas")
+
+    solicitante = await _get_requester_profile(incident.requester_id)
+    anexos = []
+    for f in files:
+        content = await f.read()
+        if len(content) > MAX_DOC_BYTES:
+            raise HTTPException(status_code=413, detail=f"{f.filename} excede 20 MB")
+        mime = _mime_por_extension(f.filename, f.content_type)
+        key = await _subir_archivo(content, f.filename, mime, solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+        if not key:
+            raise HTTPException(status_code=502, detail=f"No se pudo subir {f.filename}")
+        anexos.append({"nombre": f.filename, "object_key": key, "bucket": "dirdoc", "mime_type": mime})
+
+    autor = user.get("full_name") or ""
+    now = datetime.now(timezone.utc)
+    if comentario or anexos:
+        db.add(ControlCambiosAvance(id=str(uuid.uuid4()), incident_id=incident.id, comentario=comentario or None, anexos=anexos,
+                                    autor_id=user.get("user_id"), autor_nombre=autor, created_at=now))
+    for c in body.rts:
+        db.add(ControlCambiosAvance(id=str(uuid.uuid4()), incident_id=incident.id, rt_id=c.id.upper(), estado=c.estado,
+                                    horas=c.horas, anexos=[], autor_id=user.get("user_id"), autor_nombre=autor, created_at=now))
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_avance_registrado", performed_by=user.get("user_id"),
+        performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"rts": [{"id": c.id.upper(), "estado": c.estado} for c in body.rts], "comentario": comentario[:140], "anexos": len(anexos)},
+    ))
+    await db.commit()
+    return {"success": True}
+
+
+@router.put("/{incident_id}/desarrollo/entrega/borrador")
+async def borrador_entrega(incident_id: str, body: BorradorPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosDocumento
+    incident, detalle, roles, _ = await _cargar_cdc_desarrollo(db, incident_id, user, editar=True)
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == "entrega_pruebas"]
+    ultimo = docs[-1] if docs else None
+    if ultimo and ultimo.estado == "borrador":
+        ultimo.datos = body.datos
+        doc = ultimo
+    else:
+        doc = ControlCambiosDocumento(id=str(uuid.uuid4()), incident_id=incident.id, tipo="entrega_pruebas",
+                                      version=(ultimo.version + 1) if ultimo else 1, estado="borrador", origen="formulario",
+                                      datos=body.datos, creado_por=user.get("user_id"), creado_por_nombre=user.get("full_name") or "")
+        db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_json(doc)
+
+
+@router.post("/{incident_id}/desarrollo/entrega/generar")
+async def generar_entrega(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+                          raw_token: str = Depends(get_token_from_request)):
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_entrega
+    incident, detalle, roles, _ = await _cargar_cdc_desarrollo(db, incident_id, user, editar=True)
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == "entrega_pruebas"]
+    doc = docs[-1] if docs else None
+    if not doc or doc.estado != "borrador":
+        raise HTTPException(status_code=409, detail="No hay un borrador para generar")
+    datos = doc.datos or {}
+    for campo, msg in (("entregado", "qué se entrega"), ("ambiente", "el ambiente de pruebas"), ("instrucciones", "las instrucciones para validar")):
+        if not (datos.get(campo) or "").strip():
+            raise HTTPException(status_code=422, detail=f"Falta {msg}")
+    rts = _rts_con_estado(await _rts_diseno(db, incident_id), await _avances_de(db, incident_id))
+    autor = user.get("full_name") or ""
+    base = await _base_diseno(db, incident, detalle, doc.version, autor)
+    pdf_bytes = generar_pdf_entrega({
+        **base, "pm": detalle.project_manager_nombre or autor,
+        "entregado": datos["entregado"].strip(), "ambiente": datos["ambiente"].strip(), "instrucciones": datos["instrucciones"].strip(),
+        "datos_prueba": (datos.get("datos_prueba") or "").strip(), "limitaciones": (datos.get("limitaciones") or "").strip(),
+        "criterios": await _criterios_funcionales(db, incident_id), "rts": rts,
+        "total_estimado": sum(r["horas_estimadas"] or 0 for r in rts), "total_real": sum(r["horas_reales"] or 0 for r in rts),
+    })
+    solicitante = await _get_requester_profile(incident.requester_id)
+    nombre = f"ENTREGA_A_PRUEBAS_{incident.folio}_v{doc.version}.pdf"
+    key = await _subir_archivo(pdf_bytes, nombre, "application/pdf", solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail="No se pudo guardar el PDF")
+    doc.estado, doc.object_key, doc.nombre, doc.mime_type = "generado", key, nombre, "application/pdf"
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_documento_generado", performed_by=user.get("user_id"),
+        performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"tipo": "entrega_pruebas", "version": doc.version, "documento_id": doc.id},
+    ))
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_json(doc)
+
+
+@router.post("/{incident_id}/desarrollo/liberar")
+async def liberar_a_pruebas(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosEtapa, IncidentActivityLog
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    incident, detalle, roles, _ = await _cargar_cdc_desarrollo(db, incident_id, user, editar=True)
+    if not _puede_cerrar_desarrollo(roles, user.get("user_id"), detalle, incident):
+        raise HTTPException(status_code=403, detail="Solo el Project Manager o el Incident Manager liberan a pruebas")
+    rts = _rts_con_estado(await _rts_diseno(db, incident_id), await _avances_de(db, incident_id))
+    pendientes = [r["id"] for r in rts if r["estado"] != "terminado"]
+    if pendientes:
+        raise HTTPException(status_code=409, detail=f"Faltan requerimientos por terminar: {', '.join(pendientes)}")
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == "entrega_pruebas"]
+    nota = docs[-1] if docs else None
+    if not nota or nota.estado != "generado":
+        raise HTTPException(status_code=409, detail="Genera la nota de entrega a pruebas antes de liberar")
+
+    autor = user.get("full_name") or ""
+    db.add(ControlCambiosEtapa(
+        id=str(uuid.uuid4()), incident_id=incident.id, etapa="en_desarrollo", resultado="liberado",
+        datos={"nota": {"id": nota.id, "version": nota.version, "nombre": nota.nombre},
+               "rts": {"total": len(rts), "horas_estimadas": sum(r["horas_estimadas"] or 0 for r in rts),
+                       "horas_reales": sum(r["horas_reales"] or 0 for r in rts)}},
+        documento_object_key=nota.object_key, anexos=[],
+        realizado_por=user.get("user_id"), realizado_por_nombre=autor, created_at=datetime.now(timezone.utc),
+    ))
+    incident.status = "en_pruebas"
+    incident.assigned_to_user_id = incident.requester_id   # la UAT la hace siempre el solicitante
+    incident.assigned_team = None
+    incident.assigned_at = datetime.now(timezone.utc)
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_liberado_pruebas", performed_by=user.get("user_id"),
+        performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"nota_version": nota.version, "rts": len(rts)},
+    ))
+    await db.commit()
+    await _broadcast_ticket_update(incident)
+
+    try:
+        from app.assignment import _notify_inapp
+        from app.services.control_cambios.notificaciones import send_cdc_pruebas_email
+        await _notify_inapp(incident.requester_id, f"Tu Control de Cambios #{incident.folio} está listo para pruebas",
+                            incident.title, "info", {"incident_id": str(incident.id), "folio": incident.folio})
+        solicitante = await _get_requester_profile(incident.requester_id)
+        if solicitante.get("email"):
+            datos = nota.datos or {}
+            await send_cdc_pruebas_email(solicitante["email"], incident.requester_name, incident.folio, incident.title,
+                                         detalle.project_manager_nombre or autor, datos.get("ambiente", ""), datos.get("instrucciones", ""),
+                                         len(await _criterios_funcionales(db, incident_id)))
+    except Exception as e:
+        print(f"[CDC] Error notificando liberacion a pruebas {incident.folio}: {e}")
+    return {"success": True, "status": incident.status}
+
+
+
+# ── Asignacion del desarrollo ──
+
+ROLES_DESARROLLO = (("especialista-tecnico", "Especialista técnico"), ("especialista-funcional", "Especialista funcional"),
+                    ("incident-manager", "Incident Manager"))
+
+
+def _puede_cerrar_desarrollo(roles: set, uid: Optional[str], detalle, incident) -> bool:
+    """Liberar a pruebas y reasignar el desarrollo: solo PM o Incident Manager.
+    Quien tiene asignado el desarrollo registra avances, pero no cierra la fase."""
+    return incident.status == "en_desarrollo" and bool(
+        roles & IM_ROLES or "it-service-desk:project-manager" in roles or (detalle and uid == detalle.project_manager_id)
+    )
+
+
+async def _activos_por_rol() -> dict:
+    """{user_id: (team_slug, etiqueta, nombre)} de los roles que pueden desarrollar."""
+    out = {}
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for slug, etiqueta in ROLES_DESARROLLO:
+            resp = await client.get("http://admin-service:8000/internal/users/by-module-role",
+                                    params={"module_slug": "it-service-desk", "role_slug": slug})
+            for u in (resp.json() if resp.status_code == 200 else []):
+                out.setdefault(u["id"], (slug, etiqueta, u["name"]))
+    return out
+
+
+@router.get("/{incident_id}/desarrollo/candidatos")
+async def candidatos_desarrollo(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    incident, detalle, roles, _ = await _cargar_cdc_desarrollo(db, incident_id, user)
+    if not _puede_cerrar_desarrollo(roles, user.get("user_id"), detalle, incident):
+        raise HTTPException(status_code=403, detail="Solo el Project Manager o el Incident Manager reasignan el desarrollo")
+    return [{"id": uid, "name": nombre, "rol": etiqueta} for uid, (_, etiqueta, nombre) in (await _activos_por_rol()).items()]
+
+
+@router.patch("/{incident_id}/desarrollo/asignar")
+async def reasignar_desarrollo(incident_id: str, body: AsignarDisenoPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    incident, detalle, roles, _ = await _cargar_cdc_desarrollo(db, incident_id, user)
+    if not _puede_cerrar_desarrollo(roles, user.get("user_id"), detalle, incident):
+        raise HTTPException(status_code=403, detail="Solo el Project Manager o el Incident Manager reasignan el desarrollo")
+    activos = await _activos_por_rol()
+    if body.user_id not in activos:
+        raise HTTPException(status_code=422, detail="Solo se puede asignar a un especialista o Incident Manager activo")
+    slug, etiqueta, nombre = activos[body.user_id]
+    anterior = incident.assigned_to_user_id
+    incident.assigned_to_user_id = body.user_id
+    incident.assigned_team = slug if slug != "incident-manager" else None
+    incident.assigned_at = datetime.now(timezone.utc)
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_desarrollo_reasignado", performed_by=user.get("user_id"),
+        performed_by_name=user.get("full_name") or "", performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"anterior": anterior, "nuevo": body.user_id, "nuevo_nombre": nombre},
+    ))
+    await db.commit()
+    await _broadcast_ticket_update(incident)
+    try:
+        from app.assignment import _notify_inapp
+        await _notify_inapp(body.user_id, f"Control de Cambios #{incident.folio}: desarrollo asignado", incident.title, "info",
+                            {"incident_id": str(incident.id), "folio": incident.folio})
+        perfil = await _get_requester_profile(body.user_id)
+        if perfil.get("email"):
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post("http://email-service:8000/api/v1/email/system-notification", json={
+                    "to_email": perfil["email"], "full_name": perfil.get("full_name", ""),
+                    "subject": f"Control de Cambios {incident.folio}: se te asignó el desarrollo",
+                    "message": "Se te asignó el desarrollo de este Control de Cambios. Registra tus avances y marca los requerimientos técnicos desde la intranet.",
+                    "fields": [{"label": "Folio", "value": incident.folio, "mono": True}, {"label": "Titulo", "value": incident.title, "mono": False}],
+                    "alert_type": "info",
+                })
+    except Exception as e:
+        print(f"[CDC] Error notificando desarrollo {incident.folio}: {e}")
+    return {"success": True, "asignado": {"id": body.user_id, "name": nombre, "rol": etiqueta}}

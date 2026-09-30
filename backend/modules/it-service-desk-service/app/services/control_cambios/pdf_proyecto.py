@@ -297,3 +297,50 @@ def generar_pdf_diseno_tecnico(d: dict) -> bytes:
         story += _contenido(d["riesgos"], st)
     _validacion(story, st, n + 1, (d["responsable"], "Elaboró"), (d["pm"], "Project Manager"))
     return _build(d, "Diseño técnico", story)
+
+
+ESTADO_RT = {"pendiente": "Pendiente", "en_progreso": "En progreso", "terminado": "Terminado"}
+
+
+def generar_pdf_entrega(d: dict) -> bytes:
+    st, story, n = _st(), [], 0
+    _encabezado(story, st, d, "Nota de Entrega a Pruebas")
+
+    def sec(t):
+        nonlocal n
+        n += 1
+        story.append(Paragraph(f"{n}. {t}", st["h"]))
+
+    sec("INFORMACIÓN GENERAL")
+    story.append(_kv([("Proyecto", d["titulo"]), ("Folio", d["folio"]), ("Sistema / Módulo", d["alcance"]),
+                      ("Entrega", d["pm"]), ("Valida", d["solicitante_nombre"]),
+                      ("Entrega comprometida", d["fecha_compromiso_label"]), ("Versión", d["version_label"])], st))
+    sec("QUÉ SE ENTREGA")
+    story += _contenido(d["entregado"], st)
+    sec("AMBIENTE DE PRUEBAS")
+    story += _contenido(d["ambiente"], st)
+    sec("INSTRUCCIONES PARA LA VALIDACIÓN")
+    story += _contenido(d["instrucciones"], st)
+    if d["criterios"]:
+        sec("CRITERIOS DE ACEPTACIÓN A VALIDAR")
+        rows = [["ID", "Requerimiento", "Criterio de aceptación"]] + [[c["id"], c["descripcion"], c["criterio"]] for c in d["criterios"]]
+        story.append(_grid(rows, [1.8 * cm, 6.6 * cm, 8.6 * cm], st))
+    if d["rts"]:
+        sec("AVANCE DEL DESARROLLO")
+        rows = [["RT", "RF", "Requerimiento técnico", "Estimadas", "Reales", "Estado"]]
+        for r in d["rts"]:
+            rows.append([r["id"], r["rf"], r["descripcion"],
+                         f'{r["horas_estimadas"]:g}' if r.get("horas_estimadas") is not None else "—",
+                         f'{r["horas_reales"]:g}' if r.get("horas_reales") is not None else "—",
+                         ESTADO_RT.get(r.get("estado"), "Pendiente")])
+        rows.append(["", "", "Total", f'{d["total_estimado"]:g} h' if d["total_estimado"] else "—",
+                     f'{d["total_real"]:g} h' if d["total_real"] else "—", ""])
+        story.append(_grid(rows, [1.6 * cm, 1.6 * cm, 7.4 * cm, 2 * cm, 2 * cm, 2.4 * cm], st))
+    if d.get("datos_prueba"):
+        sec("DATOS DE PRUEBA")
+        story += _contenido(d["datos_prueba"], st)
+    if d.get("limitaciones"):
+        sec("LIMITACIONES CONOCIDAS")
+        story += _contenido(d["limitaciones"], st)
+    _validacion(story, st, n + 1, (d["pm"], "Entrega (Project Manager)"), (d["solicitante_nombre"], "Recibe para pruebas"))
+    return _build(d, "Entrega a pruebas", story)

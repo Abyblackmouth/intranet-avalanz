@@ -19,6 +19,9 @@ def gen_uuid():
 # Catálogos
 # ─────────────────────────────────────────────────────────────────────────
 
+from sqlalchemy import Float
+
+
 class TicketSeverity(Base):
     """Catálogo de severidades S1-S4. Configurable por incident_manager."""
     __tablename__ = "ticket_severities"
@@ -307,3 +310,22 @@ class ControlCambiosDocumento(Base):
     creado_por_nombre = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ControlCambiosAvance(Base):
+    """Bitacora del desarrollo de un CDC. Solo se agregan renglones, nunca se
+    editan: cada uno es un avance general (rt_id NULL, con comentario y
+    anexos) o un cambio de estado de un requerimiento tecnico. El estado
+    vigente de cada RT es su ultimo renglon, asi queda la historia completa."""
+    __tablename__ = "control_cambios_avances"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    rt_id = Column(String(20), nullable=True)        # RT-01 ... ; NULL = avance general
+    estado = Column(String(15), nullable=True)       # pendiente | en_progreso | terminado
+    horas = Column(Float, nullable=True)             # horas reales ACUMULADAS del RT a la fecha
+    comentario = Column(Text, nullable=True)
+    anexos = Column(JSONB, nullable=False, default=list)
+    autor_id = Column(UUID(as_uuid=False), nullable=False)
+    autor_nombre = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)

@@ -87,9 +87,7 @@ def build_cdc_revision_html(destinatario_nombre: str, datos: dict) -> str:
         boton = f'''
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:24px 0 8px;">
       <tr>
-        <td style="background-color:#1a4fa0;border-radius:10px;">
-          <a href="{frontend_url.rstrip('/')}/app/it-service-desk/mesa-de-soporte" style="display:inline-block;padding:12px 28px;{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Revisar en Tablero Proyectos</a>
-        </td>
+        <td align="center" bgcolor="#1a4fa0" style="background-color:#1a4fa0;border-radius:10px;padding:12px 28px;"><a href="{frontend_url.rstrip('/')}/app/it-service-desk/mesa-de-soporte" style="{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;">Revisar en Tablero Proyectos</a></td>
       </tr>
     </table>'''
 
@@ -197,9 +195,7 @@ def build_cdc_dictamen_html(solicitante_nombre: str, folio: str, titulo: str, re
     frontend_url = (getattr(config, "FRONTEND_URL", "") or "").rstrip("/")
     boton = f'''
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
-      <tr><td style="background-color:#1a4fa0;border-radius:10px;">
-        <a href="{frontend_url}/app/it-service-desk/mesa-de-soporte" style="display:inline-block;padding:12px 28px;{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Ver mi solicitud</a>
-      </td></tr>
+      <tr><td align="center" bgcolor="#1a4fa0" style="background-color:#1a4fa0;border-radius:10px;padding:12px 28px;"><a href="{frontend_url}/app/it-service-desk/mesa-de-soporte" style="{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;">Ver mi solicitud</a></td></tr>
     </table>''' if frontend_url else ""
 
     return f'''
@@ -244,9 +240,7 @@ def build_cdc_priorizacion_html(solicitante_nombre: str, folio: str, titulo: str
     frontend_url = (getattr(config, "FRONTEND_URL", "") or "").rstrip("/")
     boton = f'''
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:20px 0 8px;">
-      <tr><td style="background-color:#1a4fa0;border-radius:10px;">
-        <a href="{frontend_url}/app/it-service-desk/mesa-de-soporte" style="display:inline-block;padding:12px 28px;{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Ver mi solicitud</a>
-      </td></tr>
+      <tr><td align="center" bgcolor="#1a4fa0" style="background-color:#1a4fa0;border-radius:10px;padding:12px 28px;"><a href="{frontend_url}/app/it-service-desk/mesa-de-soporte" style="{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;">Ver mi solicitud</a></td></tr>
     </table>''' if frontend_url else ""
     return f'''
     <p style="{FONT}font-size:15px;color:#1e293b;margin:0 0 12px;">Hola {_e(solicitante_nombre)},</p>
@@ -275,4 +269,42 @@ async def send_cdc_priorizacion_email(to_email: str, solicitante_nombre: str, fo
                 "attachments": [{"filename": pdf_filename, "content_base64": base64.b64encode(pdf_bytes).decode("ascii"), "subtype": "pdf"}],
             },
         )
+        resp.raise_for_status()
+
+
+# ── Liberado a pruebas -> solicitante ────────────────────────────────────────
+
+def build_cdc_pruebas_html(solicitante: str, folio: str, titulo: str, pm: str, ambiente: str, instrucciones: str, n_criterios: int) -> str:
+    folio_html = f'<span style="font-family:Courier New,Courier,monospace;font-size:13px;color:#1a4fa0;background-color:#dbeafe;padding:3px 10px;display:inline-block;">{_e(folio)}</span>'
+    filas = "".join([_fila("Folio", folio_html), _fila("Proyecto", _e(titulo)), _fila("Entrega", _e(pm)),
+                     _fila("A validar", f"{n_criterios} criterio{'s' if n_criterios != 1 else ''} de aceptación" if n_criterios else "Ver nota de entrega")])
+    frontend_url = (getattr(config, "FRONTEND_URL", "") or "").rstrip("/")
+    boton = f'''
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:22px 0 8px;">
+      <tr><td align="center" bgcolor="#1a4fa0" style="background-color:#1a4fa0;border-radius:10px;padding:12px 28px;"><a href="{frontend_url}/app/it-service-desk/mesa-de-soporte" style="{FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;display:inline-block;">Ir a las pruebas</a></td></tr>
+    </table>''' if frontend_url else ""
+    return f'''
+    <p style="{FONT}font-size:15px;color:#1e293b;margin:0 0 12px;">Hola {_e(solicitante)},</p>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0fdf4;border-left:4px solid #22c55e;margin:12px 0 16px;">
+      <tr><td style="padding:12px 16px;{FONT}font-size:13px;color:#14532d;line-height:1.55;">
+        <strong style="color:#166534;display:block;margin-bottom:4px;">Tu proyecto está listo para pruebas</strong>
+        Terminó el desarrollo. Ahora te toca validar que cumple lo que pediste; la nota de entrega completa está en el expediente del proyecto.
+      </td></tr>
+    </table>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f8fafc;border:1px solid #e2e8f0;margin:16px 0 20px;">{filas}</table>
+    <p style="{FONT}font-size:11px;color:#94a3b8;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 6px;">Dónde probar</p>
+    <p style="{FONT}font-size:14px;color:#334155;line-height:1.6;margin:0 0 14px;">{_parrafo(ambiente, 400)}</p>
+    <p style="{FONT}font-size:11px;color:#94a3b8;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 6px;">Cómo validar</p>
+    <p style="{FONT}font-size:14px;color:#334155;line-height:1.6;margin:0 0 8px;">{_parrafo(instrucciones, 600)}</p>
+    {boton}'''
+
+
+async def send_cdc_pruebas_email(to_email: str, solicitante: str, folio: str, titulo: str, pm: str,
+                                 ambiente: str, instrucciones: str, n_criterios: int) -> None:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post("http://email-service:8000/api/v1/email/module", json={
+            "to_email": to_email, "full_name": solicitante,
+            "subject": f"Tu Control de Cambios {folio} está listo para pruebas",
+            "html_content": build_cdc_pruebas_html(solicitante, folio, titulo, pm, ambiente, instrucciones, n_criterios),
+        })
         resp.raise_for_status()

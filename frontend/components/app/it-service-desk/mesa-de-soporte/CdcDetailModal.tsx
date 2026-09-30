@@ -9,6 +9,7 @@ import CdcRevisionForm from './CdcRevisionForm'
 import CdcPriorizacionForm from './CdcPriorizacionForm'
 import CdcArranque from './CdcArranque'
 import CdcDiseno from './CdcDiseno'
+import CdcDesarrollo from './CdcDesarrollo'
 
 // ════════════════════════════════════════════════════════════════════
 // TEMA -- colores del detalle en un solo lugar. En la v2 de la intranet
@@ -83,6 +84,9 @@ const ACTION_LABEL: Record<string, (l: LogEntry, d: CdcDetail) => string> = {
   cdc_documento_generado: l => `${l.performed_by_name} generó ${DOC_LABEL[l.detail?.tipo] ?? l.detail?.tipo} v${l.detail?.version ?? ''}`,
   cdc_documento_subido: l => `${l.performed_by_name} subió ${DOC_LABEL[l.detail?.tipo] ?? l.detail?.tipo}: ${l.detail?.nombre ?? ''}`,
   cdc_desarrollo_iniciado: l => `${l.performed_by_name} inició el desarrollo`,
+  cdc_avance_registrado: l => `${l.performed_by_name} registró un avance${l.detail?.rts?.length ? ` (${l.detail.rts.map((r: any) => r.id).join(', ')})` : ''}`,
+  cdc_desarrollo_reasignado: l => `${l.performed_by_name} asignó el desarrollo a ${l.detail?.nuevo_nombre ?? ''}`,
+  cdc_liberado_pruebas: l => `${l.performed_by_name} liberó el proyecto a pruebas`,
   cdc_arranque_cerrado: l => `${l.performed_by_name} cerró el arranque; pasa a Diseño funcional`,
   cdc_diseno_cerrado: l => `${l.performed_by_name} cerró el ${l.detail?.fase === 'tecnico' ? 'diseño técnico; pasa a En desarrollo' : 'diseño funcional; pasa a Diseño técnico'}`,
   cdc_diseno_reasignado: l => `${l.performed_by_name} reasignó el ${l.detail?.fase === 'tecnico' ? 'diseño técnico' : 'diseño funcional'} a ${l.detail?.nuevo_nombre ?? ''}`,
@@ -205,7 +209,7 @@ function RevisionSummary({ e }: { e: Etapa }) {
 }
 
 const DESARROLLA_LABEL: Record<string, string> = { equipo_interno: 'Equipo interno', proveedor_totvs: 'Proveedor TOTVS', proveedor_externo: 'Proveedor externo' }
-const DOC_LABEL: Record<string, string> = { diseno_funcional: 'Requerimientos funcionales', diseno_tecnico: 'Diseño técnico', plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
+const DOC_LABEL: Record<string, string> = { entrega_pruebas: 'Nota de entrega a pruebas', diseno_funcional: 'Requerimientos funcionales', diseno_tecnico: 'Diseño técnico', plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
 const GOB_LABEL: Record<string, string> = { patrocinador: 'Patrocinador', gerente_proyecto: 'Gerente del proyecto', project_manager: 'Project Manager', lider_tecnico: 'Líder técnico', validador: 'Usuario validador' }
 
 function PriorizacionSummary({ e }: { e: Etapa }) {
@@ -333,6 +337,20 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
         </section>
       )
     }
+    if (status === 'en_desarrollo') {
+      return (
+        <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
+          <header className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">En desarrollo</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">Seguimiento por requerimiento técnico hasta liberar a pruebas con el solicitante.</p>
+            </div>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 8 de 10</span>
+          </header>
+          <CdcDesarrollo incidentId={detail.id} onChanged={onRevisionDone} />
+        </section>
+      )
+    }
     if (status === 'en_diseno_funcional' || status === 'en_diseno_tecnico') {
       const fase = status === 'en_diseno_funcional' ? 'funcional' : 'tecnico'
       return (
@@ -443,7 +461,17 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
                   <p className="text-[13px] font-medium text-slate-500 mt-7 mb-2.5 px-0.5">Etapas cerradas</p>
                   <div className="flex flex-col gap-3.5">
-                    {[...detail.etapas].reverse().map(e => (e.etapa === 'en_diseno_funcional' || e.etapa === 'en_diseno_tecnico') ? (
+                    {[...detail.etapas].reverse().map(e => e.etapa === 'en_desarrollo' ? (
+                      <ClosedStage key={e.id} icon="bg-[var(--cdc-done)]" title="En desarrollo" sub={`${e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
+                        chip={{ label: `Liberado · ${e.datos?.rts?.horas_reales ?? 0} h reales de ${e.datos?.rts?.horas_estimadas ?? 0} h`, cls: 'bg-emerald-50 text-emerald-700' }}>
+                        <Dl rows={[['Requerimientos', `${e.datos?.rts?.total ?? 0} terminados`], ['Horas', `${e.datos?.rts?.horas_reales ?? 0} reales · ${e.datos?.rts?.horas_estimadas ?? 0} estimadas`], ['Nota de entrega', e.datos?.nota?.nombre ?? '—']]} />
+                        {e.documento_object_key && (
+                          <button type="button" onClick={() => openSigned(e.documento_object_key!)} className="mt-4 inline-flex items-center gap-2 text-[13px] font-medium text-[#1a4fa0] hover:underline">
+                            <FileText className="w-4 h-4" />Ver nota de entrega en PDF
+                          </button>
+                        )}
+                      </ClosedStage>
+                    ) : (e.etapa === 'en_diseno_funcional' || e.etapa === 'en_diseno_tecnico') ? (
                       <ClosedStage key={e.id} icon="bg-[var(--cdc-done)]" title={e.etapa === 'en_diseno_funcional' ? 'Diseño funcional' : 'Diseño técnico'}
                         sub={`${e.datos?.responsable?.name || e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
                         chip={{ label: `${e.etapa === 'en_diseno_funcional' ? 'Requerimientos funcionales' : 'Diseño técnico'} v${e.datos?.documento?.version ?? 1}`, cls: 'bg-emerald-50 text-emerald-700' }}>
