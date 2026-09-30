@@ -39,7 +39,7 @@ export const getUsersByRole = (roleSlug: string) =>
   api.get(`/api/v1/it-service-desk/actualizaciones/usuarios-por-rol`, { params: { role_slug: roleSlug } })
 
 // ── Incidencias (tickets) ─────────────────────────────────────────────────
-export const getIncidents = (params?: { status?: string; severity_id?: string; search?: string; order?: string; limit?: number; offset?: number }) =>
+export const getIncidents = (params?: { status?: string; severity_id?: string; search?: string; order?: string; limit?: number; offset?: number; excluir_tipo?: string }) =>
   api.get('/api/v1/it-service-desk/mesa-de-soporte/incidencias', { params })
 
 export const reopenIncident = (incidentId: string, reason: string) =>

@@ -250,6 +250,7 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
 
   // Tiempo real: un ticket nuevo aparece directo en su columna
   useWSEvent('it_service_desk.ticket_created', (data: KanbanTicket) => {
+    if ((data as any).ticket_type === 'control_cambio' || data.folio?.startsWith('CDC-')) return
     setColumnsData(prev => {
       const col = data.status
       const existentes = prev[col]?.tickets ?? []
@@ -262,6 +263,7 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
   // Tiempo real: un ticket cambia de fase -- se desvanece de su columna
   // actual y aparece resaltado en la nueva, sin recargar la pagina.
   useWSEvent('it_service_desk.ticket_updated', (data: KanbanTicket) => {
+    if ((data as any).ticket_type === 'control_cambio' || data.folio?.startsWith('CDC-')) return
     setColumnsData(prev => {
       let colActual: string | null = null
       for (const key of Object.keys(prev)) {
@@ -315,7 +317,7 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
 
   const fetchColumn = useCallback(async (colKey: string, page: number) => {
     const pageSize = getPageSize(colKey)
-    const res = await getIncidents({ status: colKey, order: 'asc', limit: pageSize, offset: page * pageSize })
+    const res = await getIncidents({ status: colKey, order: 'asc', limit: pageSize, offset: page * pageSize, excluir_tipo: 'control_cambio' })
     setColumnsData(prev => ({ ...prev, [colKey]: { tickets: res.data.data, total: res.data.total_count } }))
   }, [])
 

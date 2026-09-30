@@ -60,6 +60,7 @@ async def list_incidents(
     order: Optional[str] = "desc",
     limit: Optional[int] = 200,
     offset: Optional[int] = 0,
+    excluir_tipo: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
@@ -68,10 +69,11 @@ async def list_incidents(
     is_jefe_empresa = "it-service-desk:jefe-empresa" in roles
 
     order_col = Incident.created_at.asc() if order == "asc" else Incident.created_at.desc()
-    # Backlog es la bandeja universal de "no asignado" -- CDC/ACC entran
-    # aqui igual que Incidente mientras esten en en_backlog. El filtro por
-    # ticket_type se queda solo en metricas/reportes (estadisticas, excel,
-    # SLA diario), no en el listado que alimenta Tabla y Kanban.
+    # Backlog es la bandeja universal de "no asignado": todos los tipos entran
+    # aqui con status en_backlog y el motor los toma de la base de datos, no de
+    # este listado. excluir_tipo solo cambia lo que se DEVUELVE para dibujar:
+    # el Tablero incidentes lo pide sin control_cambio y el Tablero proyectos
+    # muestra ese mismo backlog con los CDC. Sin el parametro, todo igual.
     query = select(Incident).order_by(order_col)
 
     if is_jefe_empresa and not is_module_wide:
@@ -91,6 +93,8 @@ async def list_incidents(
     if search:
         like = f"%{search}%"
         query = query.where((Incident.folio.ilike(like)) | (Incident.title.ilike(like)))
+    if excluir_tipo:
+        query = query.where(Incident.ticket_type != excluir_tipo)
 
     count_query = query.with_only_columns(func.count()).order_by(None)
     total_result = await db.execute(count_query)
