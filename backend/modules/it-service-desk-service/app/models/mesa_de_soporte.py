@@ -162,6 +162,7 @@ class Incident(Base):
         SAEnum(
             "en_backlog", "asignado", "en_atencion", "escalado", "resuelto", "cerrado",
             "registrado", "en_revision", "aprobado", "rechazado", "priorizado", "en_arranque",
+            "en_diseno_funcional", "en_diseno_tecnico",
             "en_desarrollo", "en_pruebas", "terminado", "cancelado",
             name="incident_status_enum",
         ),
@@ -256,6 +257,10 @@ class ControlCambiosDetalle(Base):
     impacto_confirmado = Column(String(10), nullable=True)   # alto | medio | bajo
     fecha_compromiso = Column(Date, nullable=True)
     clasificacion = Column(String(10), nullable=True)        # cambio | proyecto -- define el peso de la etapa de Arranque
+    # PM del CDC guardado aparte: durante el diseno 'Asignado' es el especialista,
+    # y al llegar a desarrollo (o si no hay especialista disponible) se vuelve a el
+    project_manager_id = Column(UUID(as_uuid=False), nullable=True)
+    project_manager_nombre = Column(String(255), nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now())
 

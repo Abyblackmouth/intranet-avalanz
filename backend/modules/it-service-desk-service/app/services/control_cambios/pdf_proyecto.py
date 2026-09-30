@@ -202,3 +202,98 @@ def generar_pdf_resumen(d: dict) -> bytes:
         rows += [[r.get("recurso", ""), r.get("especificacion", ""), r.get("proposito", "")] for r in d["infraestructura"]]
         story.append(_grid(rows, [4.2 * cm, 5.8 * cm, 7 * cm], st))
     return _build(d, "Resumen ejecutivo y técnico", story)
+
+
+# ── Documentos de diseño ─────────────────────────────────────────────
+
+PRIORIDAD_RF = {"alta": "Alta", "media": "Media", "baja": "Baja"}
+
+
+def _validacion(story, st, n, elaboro, reviso):
+    filas = [["Nombre", "Rol", "Firma", "Fecha"], [elaboro[0], elaboro[1], "", "____/____/______"], [reviso[0], reviso[1], "", "____/____/______"]]
+    t = _grid(filas, [5.4 * cm, 3.6 * cm, 4.6 * cm, 3.4 * cm], st)
+    t._argH = [None, 1.3 * cm, 1.3 * cm]
+    story.append(KeepTogether([Paragraph(f"{n}. VALIDACIÓN", st["h"]), t]))
+
+
+def _sesiones(story, st, sesiones):
+    if not sesiones:
+        story.append(_p("Sin sesiones registradas.", st["small"]))
+        return
+    rows = [["Fecha", "Tipo", "Participantes", "Acuerdos"]]
+    rows += [[s.get("fecha", ""), s.get("tipo", ""), s.get("participantes", ""), s.get("notas", "")] for s in sesiones]
+    story.append(_grid(rows, [2.5 * cm, 3 * cm, 4.5 * cm, 7 * cm], st))
+
+
+def generar_pdf_diseno_funcional(d: dict) -> bytes:
+    st, story, n = _st(), [], 0
+    _encabezado(story, st, d, "Documento de Requerimientos Funcionales")
+
+    def sec(t):
+        nonlocal n
+        n += 1
+        story.append(Paragraph(f"{n}. {t}", st["h"]))
+
+    sec("INFORMACIÓN GENERAL")
+    story.append(_kv([("Proyecto", d["titulo"]), ("Folio", d["folio"]), ("Sistema / Módulo", d["alcance"]),
+                      ("Elaboró", d["responsable"]), ("Project Manager", d["pm"]), ("Versión", d["version_label"])], st))
+    sec("SESIONES DE ENTENDIMIENTO")
+    _sesiones(story, st, d["sesiones"])
+    sec("OBJETIVO")
+    story += _contenido(d["objetivo"], st)
+    sec("PROCESO ACTUAL")
+    story += _contenido(d["proceso_actual"], st)
+    sec("PROCESO PROPUESTO")
+    story += _contenido(d["proceso_propuesto"], st)
+    sec("REQUERIMIENTOS FUNCIONALES")
+    rows = [["ID", "Requerimiento", "Prioridad", "Criterio de aceptación"]]
+    rows += [[r["id"], r["descripcion"], PRIORIDAD_RF.get(r.get("prioridad"), r.get("prioridad") or "—"), r["criterio"]] for r in d["requerimientos"]]
+    story.append(_grid(rows, [1.8 * cm, 6.4 * cm, 2.2 * cm, 6.6 * cm], st))
+    if d["reglas"]:
+        sec("REGLAS DE NEGOCIO")
+        story += _contenido(d["reglas"], st)
+    if d["pantallas"]:
+        sec("PANTALLAS, REPORTES Y PROCESOS AFECTADOS")
+        story += _contenido(d["pantallas"], st)
+    _validacion(story, st, n + 1, (d["responsable"], "Elaboró"), (d["pm"], "Project Manager"))
+    return _build(d, "Requerimientos funcionales", story)
+
+
+def generar_pdf_diseno_tecnico(d: dict) -> bytes:
+    st, story, n = _st(), [], 0
+    _encabezado(story, st, d, "Documento de Diseño Técnico")
+
+    def sec(t):
+        nonlocal n
+        n += 1
+        story.append(Paragraph(f"{n}. {t}", st["h"]))
+
+    sec("INFORMACIÓN GENERAL")
+    story.append(_kv([("Proyecto", d["titulo"]), ("Folio", d["folio"]), ("Sistema / Módulo", d["alcance"]),
+                      ("Elaboró", d["responsable"]), ("Project Manager", d["pm"]), ("Versión", d["version_label"])], st))
+    sec("SESIONES DE ENTENDIMIENTO")
+    _sesiones(story, st, d["sesiones"])
+    sec("SOLUCIÓN TÉCNICA")
+    story += _contenido(d["solucion"], st)
+    if d["objetos"]:
+        sec("OBJETOS A CREAR O MODIFICAR")
+        rows = [["Tipo", "Objeto", "Acción", "Descripción"]]
+        rows += [[o.get("tipo", ""), o.get("nombre", ""), o.get("accion", ""), o.get("descripcion", "")] for o in d["objetos"]]
+        story.append(_grid(rows, [3 * cm, 4.2 * cm, 2.2 * cm, 7.6 * cm], st))
+    if d["integraciones"]:
+        sec("INTEGRACIONES")
+        story += _contenido(d["integraciones"], st)
+    sec("REQUERIMIENTOS TÉCNICOS")
+    rows = [["ID", "RF", "Requerimiento técnico", "Horas"]]
+    rows += [[r["id"], r["rf"], r["descripcion"], f'{r["horas"]:g}' if r.get("horas") is not None else "—"] for r in d["requerimientos"]]
+    total = sum(r["horas"] for r in d["requerimientos"] if r.get("horas") is not None)
+    rows.append(["", "", "Total estimado", f"{total:g} h" if total else "—"])
+    story.append(_grid(rows, [1.8 * cm, 1.8 * cm, 11 * cm, 2.4 * cm], st))
+    if d["plan_pruebas"]:
+        sec("PLAN DE PRUEBAS TÉCNICAS")
+        story += _contenido(d["plan_pruebas"], st)
+    if d["riesgos"]:
+        sec("RIESGOS TÉCNICOS")
+        story += _contenido(d["riesgos"], st)
+    _validacion(story, st, n + 1, (d["responsable"], "Elaboró"), (d["pm"], "Project Manager"))
+    return _build(d, "Diseño técnico", story)

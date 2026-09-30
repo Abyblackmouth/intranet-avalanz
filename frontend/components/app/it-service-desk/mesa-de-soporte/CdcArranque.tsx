@@ -26,9 +26,9 @@ const DESC: Record<string, string> = {
   alcance: 'Visión general del proyecto, qué incluye, qué no incluye y requerimientos.',
   resumen: 'Componentes y tecnologías, fases de implementación y requerimientos de infraestructura.',
 }
-const inputCls = 'w-full bg-white border-[1.5px] border-slate-200 rounded-[10px] px-3 py-2 text-sm outline-none transition focus:border-[#1a4fa0] focus:ring-[3.5px] focus:ring-[#1a4fa0]/10'
-const btnSec = 'bg-white border-[1.5px] border-slate-300 text-slate-700 rounded-lg px-3 py-1.5 text-[13px] font-medium hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-40 disabled:cursor-not-allowed'
-const btnPri = 'bg-[#1a4fa0] text-white rounded-lg px-3.5 py-1.5 text-[13px] font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed'
+export const inputCls = 'w-full bg-white border-[1.5px] border-slate-200 rounded-[10px] px-3 py-2 text-sm outline-none transition focus:border-[#1a4fa0] focus:ring-[3.5px] focus:ring-[#1a4fa0]/10'
+export const btnSec = 'bg-white border-[1.5px] border-slate-300 text-slate-700 rounded-lg px-3 py-1.5 text-[13px] font-medium hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-40 disabled:cursor-not-allowed'
+export const btnPri = 'bg-[#1a4fa0] text-white rounded-lg px-3.5 py-1.5 text-[13px] font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed'
 const ddmm = (iso: string | null | undefined) => { if (!iso) return '—'; const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}` }
 const errMsg = (err: any, fallback: string) => { const d = err?.response?.data?.detail; return typeof d === 'string' ? d : fallback }
 
@@ -106,7 +106,7 @@ type EditorProps = { inicial: any; ctx: any; busy: boolean; onSave: (d: any) => 
 interface Col { key: string; label: string }
 const lineas = (t?: string | null) => (t ?? '').split('\n').map(x => x.replace(/^[-•]\s*/, '').trim()).filter(Boolean)
 
-function Campo({ label, hint, req, children }: { label: string; hint?: string; req?: boolean; children: React.ReactNode }) {
+export function Campo({ label, hint, req, children }: { label: string; hint?: string; req?: boolean; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-[13px] font-medium text-slate-700 mb-1.5">{label}{req && <span className="text-red-600">*</span>}</label>
@@ -116,7 +116,7 @@ function Campo({ label, hint, req, children }: { label: string; hint?: string; r
   )
 }
 
-function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+export function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="pt-4 mt-4 border-t border-slate-100 first:border-t-0 first:mt-0 first:pt-0">
       <h5 className="text-[13.5px] font-semibold text-[#1a4fa0] uppercase tracking-wide mb-3">{titulo}</h5>
@@ -125,7 +125,7 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
   )
 }
 
-function ListEditor({ items, onChange, placeholder, addLabel }: { items: string[]; onChange: (x: string[]) => void; placeholder: string; addLabel: string }) {
+export function ListEditor({ items, onChange, placeholder, addLabel }: { items: string[]; onChange: (x: string[]) => void; placeholder: string; addLabel: string }) {
   const list = items.length ? items : ['']
   return (
     <div className="flex flex-col gap-2">
@@ -141,7 +141,7 @@ function ListEditor({ items, onChange, placeholder, addLabel }: { items: string[
   )
 }
 
-function TableEditor({ cols, rows, onChange, addLabel }: { cols: Col[]; rows: Record<string, string>[]; onChange: (r: Record<string, string>[]) => void; addLabel: string }) {
+export function TableEditor({ cols, rows, onChange, addLabel }: { cols: Col[]; rows: Record<string, string>[]; onChange: (r: Record<string, string>[]) => void; addLabel: string }) {
   const vacia = () => Object.fromEntries(cols.map(c => [c.key, ''])) as Record<string, string>
   const list = rows.length ? rows : [vacia()]
   const tpl = { gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr)) 28px` }
@@ -425,7 +425,7 @@ export default function CdcArranque({ incidentId, fechaCompromiso, onChanged }: 
         {/* Checklist */}
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 mb-6">
           <div className="flex items-center justify-between gap-3 flex-wrap mb-2.5">
-            <p className="text-[13.5px] font-semibold text-slate-800">Para iniciar desarrollo</p>
+            <p className="text-[13.5px] font-semibold text-slate-800">Para cerrar el arranque</p>
             <span className={`text-[12.5px] font-semibold px-3 py-0.5 rounded-full ${data.faltantes.length ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{cumplidos} de {data.requisitos.length}</span>
           </div>
           <ul className="flex flex-wrap gap-2">
@@ -520,12 +520,12 @@ export default function CdcArranque({ incidentId, fechaCompromiso, onChanged }: 
       <footer className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
         {confirmando ? (
           <>
-            <p className="text-[13.5px] text-slate-700">¿Iniciar desarrollo? El arranque se cierra con los documentos vigentes y el proyecto pasa a <b>En desarrollo</b>.</p>
+            <p className="text-[13.5px] text-slate-700">¿Cerrar el arranque? Se cierra con los documentos vigentes y el proyecto pasa a <b>Diseño funcional</b>, asignado automáticamente al equipo funcional.</p>
             <div className="flex gap-2">
               <button type="button" disabled={!!busy} className="px-4 py-2 text-sm text-slate-600" onClick={() => setConfirmando(false)}>Volver</button>
               <button type="button" disabled={!!busy} className={btnPri}
-                onClick={async () => { await run('iniciar', () => iniciarDesarrollo(incidentId), 'El proyecto pasó a En desarrollo.'); setConfirmando(false) }}>
-                {busy === 'iniciar' ? 'Iniciando…' : 'Sí, iniciar desarrollo'}
+                onClick={async () => { await run('iniciar', () => iniciarDesarrollo(incidentId), 'El proyecto pasó a Diseño funcional.'); setConfirmando(false) }}>
+                {busy === 'iniciar' ? 'Cerrando…' : 'Sí, cerrar arranque'}
               </button>
             </div>
           </>
@@ -534,7 +534,7 @@ export default function CdcArranque({ incidentId, fechaCompromiso, onChanged }: 
             <p className={`text-[12.5px] max-w-[52ch] ${data.faltantes.length ? 'text-amber-700' : 'text-slate-500'}`}>
               {data.faltantes.length ? `Falta: ${data.faltantes.map(t => LABEL[t] ?? t).join(', ')}.` : 'El expediente está completo.'}
             </p>
-            <button type="button" disabled={!!data.faltantes.length || !!busy} className={btnPri} onClick={() => setConfirmando(true)}>Iniciar desarrollo</button>
+            <button type="button" disabled={!!data.faltantes.length || !!busy} className={btnPri} onClick={() => setConfirmando(true)}>Cerrar arranque</button>
           </>
         )}
       </footer>

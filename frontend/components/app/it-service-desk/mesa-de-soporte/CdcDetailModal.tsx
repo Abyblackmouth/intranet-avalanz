@@ -8,6 +8,7 @@ import { STATUS_CLASS, PRIO_CODE, PRIO_CLASS } from './TicketRow'
 import CdcRevisionForm from './CdcRevisionForm'
 import CdcPriorizacionForm from './CdcPriorizacionForm'
 import CdcArranque from './CdcArranque'
+import CdcDiseno from './CdcDiseno'
 
 // ════════════════════════════════════════════════════════════════════
 // TEMA -- colores del detalle en un solo lugar. En la v2 de la intranet
@@ -32,6 +33,7 @@ interface CdcDetail {
     fecha_requerida: string | null; comentarios_adicionales: string | null
     prioridad: string | null; impacto_confirmado: string | null; fecha_compromiso: string | null
     clasificacion: string | null
+    project_manager: { id: string; name: string | null } | null
   }
   sla_resolution_limit: string | null
   documentos: Documento[]; activity_log: LogEntry[]; etapas: Etapa[]
@@ -44,23 +46,25 @@ const STAGES = [
   { key: 'aprobado', label: 'Aprobado', who: 'Project Manager' },
   { key: 'priorizado', label: 'Priorizado', who: 'Project Manager' },
   { key: 'en_arranque', label: 'Arranque', who: 'Project Manager' },
+  { key: 'en_diseno_funcional', label: 'Diseño funcional', who: 'Equipo funcional' },
+  { key: 'en_diseno_tecnico', label: 'Diseño técnico', who: 'Equipo técnico' },
   { key: 'en_desarrollo', label: 'En desarrollo', who: 'Equipo / proveedor' },
   { key: 'en_pruebas', label: 'En pruebas (UAT)', who: 'Solicitante' },
   { key: 'terminado', label: 'Terminado', who: 'Solicitante / PM' },
 ]
 const STAGE_INDEX: Record<string, number> = {
   en_backlog: 0, registrado: 0, en_revision: 1, rechazado: 1, aprobado: 2,
-  priorizado: 3, en_arranque: 4, en_desarrollo: 5, en_pruebas: 6, terminado: 7,
+  priorizado: 3, en_arranque: 4, en_diseno_funcional: 5, en_diseno_tecnico: 6, en_desarrollo: 7, en_pruebas: 8, terminado: 9,
 }
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'Registrado', registrado: 'Registrado', en_revision: 'En revisión', aprobado: 'Aprobado',
-  rechazado: 'Rechazado', priorizado: 'Priorizado', en_arranque: 'Arranque', en_desarrollo: 'En desarrollo',
+  rechazado: 'Rechazado', priorizado: 'Priorizado', en_arranque: 'Arranque', en_diseno_funcional: 'Diseño funcional', en_diseno_tecnico: 'Diseño técnico', en_desarrollo: 'En desarrollo',
   en_pruebas: 'En pruebas (UAT)', terminado: 'Terminado', cancelado: 'Cancelado',
 }
 const REQUESTER_SEES: Record<string, string> = {
   en_backlog: 'Registrado', registrado: 'Registrado', en_revision: 'En revisión por Gerencia de Proyectos',
   aprobado: 'Aprobado · en espera de priorización', rechazado: 'Rechazado · ver motivo en el dictamen',
-  priorizado: 'Priorizado', en_arranque: 'Arranque del proyecto', en_desarrollo: 'En desarrollo', en_pruebas: 'En pruebas · requiere tu validación',
+  priorizado: 'Priorizado', en_arranque: 'Arranque del proyecto', en_diseno_funcional: 'En diseño funcional', en_diseno_tecnico: 'En diseño técnico', en_desarrollo: 'En desarrollo', en_pruebas: 'En pruebas · requiere tu validación',
   terminado: 'Terminado', cancelado: 'Cancelado',
 }
 const TIPO_LABEL: Record<string, string> = { nueva_funcionalidad: 'Nueva funcionalidad', mejora_existente: 'Mejora a funcionalidad existente' }
@@ -79,6 +83,9 @@ const ACTION_LABEL: Record<string, (l: LogEntry, d: CdcDetail) => string> = {
   cdc_documento_generado: l => `${l.performed_by_name} generó ${DOC_LABEL[l.detail?.tipo] ?? l.detail?.tipo} v${l.detail?.version ?? ''}`,
   cdc_documento_subido: l => `${l.performed_by_name} subió ${DOC_LABEL[l.detail?.tipo] ?? l.detail?.tipo}: ${l.detail?.nombre ?? ''}`,
   cdc_desarrollo_iniciado: l => `${l.performed_by_name} inició el desarrollo`,
+  cdc_arranque_cerrado: l => `${l.performed_by_name} cerró el arranque; pasa a Diseño funcional`,
+  cdc_diseno_cerrado: l => `${l.performed_by_name} cerró el ${l.detail?.fase === 'tecnico' ? 'diseño técnico; pasa a En desarrollo' : 'diseño funcional; pasa a Diseño técnico'}`,
+  cdc_diseno_reasignado: l => `${l.performed_by_name} reasignó el ${l.detail?.fase === 'tecnico' ? 'diseño técnico' : 'diseño funcional'} a ${l.detail?.nuevo_nombre ?? ''}`,
   cdc_priorizado: l => `${l.performed_by_name} priorizó el proyecto: ${l.detail?.prioridad ?? ''}, entrega ${l.detail?.fecha_compromiso ? fmtDate(l.detail.fecha_compromiso) : '—'}`,
 }
 
@@ -110,8 +117,8 @@ function Avatar({ name, photoKey }: { name: string; photoKey: string | null }) {
 
 function DocRow({ doc }: { doc: Documento }) {
   const [opening, setOpening] = useState(false)
-  const pdf = doc.tipo === 'solicitud' || doc.tipo === 'dictamen' || doc.tipo === 'etapa'
-  const etapaLabel = doc.tipo === 'solicitud' ? 'Registrado' : doc.tipo === 'dictamen' ? 'En revisión' : doc.tipo === 'etapa' ? (STATUS_LABEL[doc.etapa] ?? doc.etapa) : `Anexo · ${STATUS_LABEL[doc.etapa] ?? doc.etapa}`
+  const pdf = /\.pdf$/i.test(doc.nombre ?? '')
+  const etapaLabel = doc.tipo === 'solicitud' ? 'Registrado' : doc.tipo === 'dictamen' ? 'En revisión' : (doc.tipo === 'etapa' || doc.tipo === 'arranque') ? (STATUS_LABEL[doc.etapa] ?? doc.etapa) : `Anexo · ${STATUS_LABEL[doc.etapa] ?? doc.etapa}`
   return (
     <li className="flex items-center gap-3 py-3 border-b border-slate-100 last:border-0">
       <span className={`w-8 h-10 rounded-[5px] flex items-end justify-center pb-1 text-[9px] font-semibold text-white shrink-0 ${pdf ? 'bg-red-600' : 'bg-slate-500'}`}>
@@ -198,7 +205,7 @@ function RevisionSummary({ e }: { e: Etapa }) {
 }
 
 const DESARROLLA_LABEL: Record<string, string> = { equipo_interno: 'Equipo interno', proveedor_totvs: 'Proveedor TOTVS', proveedor_externo: 'Proveedor externo' }
-const DOC_LABEL: Record<string, string> = { plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
+const DOC_LABEL: Record<string, string> = { diseno_funcional: 'Requerimientos funcionales', diseno_tecnico: 'Diseño técnico', plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
 const GOB_LABEL: Record<string, string> = { patrocinador: 'Patrocinador', gerente_proyecto: 'Gerente del proyecto', project_manager: 'Project Manager', lider_tecnico: 'Líder técnico', validador: 'Usuario validador' }
 
 function PriorizacionSummary({ e }: { e: Etapa }) {
@@ -290,7 +297,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
               <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">Dictamen de revisión</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">Lo que captures aquí genera el documento de dictamen y se agrega al expediente.</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 2 de 8</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 2 de 10</span>
           </header>
           <CdcRevisionForm incidentId={detail.id} originalDescription={detail.description} onDone={onRevisionDone} />
         </section>
@@ -313,7 +320,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
               <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">Priorización</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">Confirma lo que indicó el solicitante y define el compromiso de entrega. Esta fecha es la que se reporta al Comité Directivo.</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 4 de 8</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 4 de 10</span>
           </header>
           <CdcPriorizacionForm incidentId={detail.id}
             solicitado={{ urgencia: detail.detalle.urgencia_solicitada, impacto: detail.detalle.impacto_si_no_se_realiza, fecha: detail.detalle.fecha_requerida }}
@@ -323,6 +330,21 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
               validador: { id: detail.requester.id, name: detail.requester.name, puesto: detail.requester.puesto },
             }}
             onDone={onRevisionDone} />
+        </section>
+      )
+    }
+    if (status === 'en_diseno_funcional' || status === 'en_diseno_tecnico') {
+      const fase = status === 'en_diseno_funcional' ? 'funcional' : 'tecnico'
+      return (
+        <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
+          <header className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">{fase === 'funcional' ? 'Diseño funcional' : 'Diseño técnico'}</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">{fase === 'funcional' ? 'Sesiones de entendimiento con el área y documento de requerimientos funcionales.' : 'Diseño de la solución y requerimientos técnicos ligados a cada requerimiento funcional.'}</p>
+            </div>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa {fase === 'funcional' ? 6 : 7} de 10</span>
+          </header>
+          <CdcDiseno key={fase} incidentId={detail.id} fase={fase} onChanged={onRevisionDone} />
         </section>
       )
     }
@@ -337,7 +359,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
                 ? 'Arma el expediente del proyecto. Cada documento se guarda por separado, así que puedes avanzar en varios días.'
                 : 'Un plan breve basta para un Cambio. Se llena en un par de minutos.'}</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 5 de 8</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 5 de 10</span>
           </header>
           <CdcArranque incidentId={detail.id} fechaCompromiso={detail.detalle.fecha_compromiso} onChanged={onRevisionDone} />
         </section>
@@ -388,7 +410,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 md:px-7 py-6">
               <section className="bg-white border border-slate-200 rounded-2xl shadow-sm px-5 pt-5 pb-4 mb-6 overflow-x-auto" aria-label="Etapas del Control de Cambios">
-                <ol className="grid grid-cols-8 min-w-[860px]">
+                <ol className="grid grid-cols-10 min-w-[1060px]">
                   {STAGES.map((s, i) => {
                     const done = i < current || (i === current && status === 'terminado')
                     const now = i === current && !done
@@ -421,7 +443,18 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
                   <p className="text-[13px] font-medium text-slate-500 mt-7 mb-2.5 px-0.5">Etapas cerradas</p>
                   <div className="flex flex-col gap-3.5">
-                    {[...detail.etapas].reverse().map(e => e.etapa === 'en_arranque' ? (
+                    {[...detail.etapas].reverse().map(e => (e.etapa === 'en_diseno_funcional' || e.etapa === 'en_diseno_tecnico') ? (
+                      <ClosedStage key={e.id} icon="bg-[var(--cdc-done)]" title={e.etapa === 'en_diseno_funcional' ? 'Diseño funcional' : 'Diseño técnico'}
+                        sub={`${e.datos?.responsable?.name || e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
+                        chip={{ label: `${e.etapa === 'en_diseno_funcional' ? 'Requerimientos funcionales' : 'Diseño técnico'} v${e.datos?.documento?.version ?? 1}`, cls: 'bg-emerald-50 text-emerald-700' }}>
+                        <Dl rows={[['Documento', e.datos?.documento?.nombre ?? '—'], ['Responsable', e.datos?.responsable?.name ?? '—'], ['Cerró', e.realizado_por_nombre]]} />
+                        {e.documento_object_key && (
+                          <button type="button" onClick={() => openSigned(e.documento_object_key!)} className="mt-4 inline-flex items-center gap-2 text-[13px] font-medium text-[#1a4fa0] hover:underline">
+                            <FileText className="w-4 h-4" />Ver documento en PDF
+                          </button>
+                        )}
+                      </ClosedStage>
+                    ) : e.etapa === 'en_arranque' ? (
                       <ClosedStage key={e.id} icon="bg-[var(--cdc-done)]" title="Arranque"
                         sub={`${e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
                         chip={{ label: e.resultado === 'proyecto' ? 'Proyecto · expediente completo' : 'Cambio · plan de arranque', cls: 'bg-emerald-50 text-emerald-700' }}>
@@ -476,7 +509,10 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
                           </div>
                         </div>
                       )}
-                      <div><p className="text-[12.5px] text-slate-500">Revisa</p><p className="text-slate-800">{detail.assigned_to?.name ? `${detail.assigned_to.name} · Project Manager` : 'Sin asignar'}</p></div>
+                      <div><p className="text-[12.5px] text-slate-500">Project Manager</p><p className="text-slate-800">{d.project_manager?.name ?? detail.assigned_to?.name ?? 'Sin asignar'}</p></div>
+                      {d.project_manager && detail.assigned_to?.id !== d.project_manager.id && (
+                        <div><p className="text-[12.5px] text-slate-500">Responsable actual</p><p className="text-slate-800">{detail.assigned_to?.name ?? 'Sin asignar'}</p></div>
+                      )}
                     </div>
                   </Card>
 

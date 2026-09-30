@@ -110,3 +110,24 @@ export const submitCdcPriorizacion = (id: string, formData: FormData) =>
   })
 export const searchCdcUsuarios = (q: string) =>
   api.get(`/api/v1/it-service-desk/control-cambios/catalogos/usuarios`, { params: { q } })
+
+// ── Arranque de CDC ───────────────────────────────────────────────────────
+const CDC = '/api/v1/it-service-desk/control-cambios'
+export const getArranque = (id: string) => api.get(`${CDC}/${id}/arranque`)
+export const setArranqueClasificacion = (id: string, clasificacion: string) =>
+  api.put(`${CDC}/${id}/arranque/clasificacion`, { clasificacion })
+export const saveArranqueBorrador = (id: string, tipo: string, datos: any) =>
+  api.put(`${CDC}/${id}/arranque/${tipo}/borrador`, { datos })
+export const generarArranqueDoc = (id: string, tipo: string) =>
+  api.post(`${CDC}/${id}/arranque/${tipo}/generar`)
+export const subirArranqueDoc = (id: string, tipo: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/arranque/${tipo}/archivo`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const iniciarDesarrollo = (id: string) => api.post(`${CDC}/${id}/arranque/cerrar`)  // cierra el arranque -> Diseño funcional
+
+// ── Diseño funcional y técnico ────────────────────────────────────────────
+export const getDiseno = (id: string, fase: string) => api.get(`${CDC}/${id}/diseno/${fase}`)
+export const saveDisenoBorrador = (id: string, fase: string, datos: any) => api.put(`${CDC}/${id}/diseno/${fase}/borrador`, { datos })
+export const generarDiseno = (id: string, fase: string) => api.post(`${CDC}/${id}/diseno/${fase}/generar`)
+export const cerrarDiseno = (id: string, fase: string) => api.post(`${CDC}/${id}/diseno/${fase}/cerrar`)
+export const getDisenoCandidatos = (id: string) => api.get(`${CDC}/${id}/diseno/candidatos`)
+export const reasignarDiseno = (id: string, userId: string) => api.patch(`${CDC}/${id}/diseno/asignar`, { user_id: userId })

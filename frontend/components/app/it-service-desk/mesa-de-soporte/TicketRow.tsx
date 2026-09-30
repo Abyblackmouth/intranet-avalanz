@@ -96,6 +96,10 @@ interface TicketRowProps {
 STATUS_LABEL.en_arranque = 'Arranque'
 STATUS_CLASS.en_arranque = STATUS_CLASS.priorizado ?? STATUS_CLASS.en_backlog
 STATUS_DOT.en_arranque = STATUS_DOT.priorizado ?? STATUS_DOT.en_backlog
+STATUS_LABEL.en_diseno_funcional = 'Diseño funcional'
+STATUS_LABEL.en_diseno_tecnico = 'Diseño técnico'
+STATUS_CLASS.en_diseno_funcional = STATUS_CLASS.en_diseno_tecnico = STATUS_CLASS.priorizado ?? STATUS_CLASS.en_backlog
+STATUS_DOT.en_diseno_funcional = STATUS_DOT.en_diseno_tecnico = STATUS_DOT.priorizado ?? STATUS_DOT.en_backlog
 
 function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, onView, isNew }: TicketRowProps) {
   const sev = severities.find(s => s.id === (t.severity_validated_id ?? t.severity_reported_id))

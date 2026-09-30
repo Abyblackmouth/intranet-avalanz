@@ -429,7 +429,7 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
     for doc in docs_result.scalars().all():
         if doc.object_key:
             documentos.append({
-                "tipo": "arranque", "etapa": "en_arranque", "nombre": doc.nombre,
+                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
                 "object_key": doc.object_key, "bucket": "dirdoc", "fecha": doc.created_at.isoformat(),
             })
 
@@ -466,6 +466,7 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
             "comentarios_adicionales": detalle.comentarios_adicionales if detalle else None,
             "prioridad": detalle.prioridad if detalle else None,
             "clasificacion": detalle.clasificacion if detalle else None,
+            "project_manager": {"id": detalle.project_manager_id, "name": detalle.project_manager_nombre} if detalle and detalle.project_manager_id else None,
             "impacto_confirmado": detalle.impacto_confirmado if detalle else None,
             "fecha_compromiso": detalle.fecha_compromiso.isoformat() if detalle and detalle.fecha_compromiso else None,
         },
@@ -1153,8 +1154,8 @@ async def subir_documento_arranque(incident_id: str, tipo: str, file: UploadFile
     return _doc_json(doc)
 
 
-@router.post("/{incident_id}/arranque/iniciar-desarrollo")
-async def iniciar_desarrollo(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+@router.post("/{incident_id}/arranque/cerrar")
+async def cerrar_arranque(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     from app.models.mesa_de_soporte import ControlCambiosEtapa, IncidentActivityLog
     from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
     incident, detalle, roles = await _cargar_cdc_arranque(db, incident_id, user, estados=("en_arranque",))
@@ -1175,15 +1176,23 @@ async def iniciar_desarrollo(incident_id: str, db: AsyncSession = Depends(get_db
         datos={"documentos": vigentes}, documento_object_key=None, anexos=[],
         realizado_por=user.get("user_id"), realizado_por_nombre=autor, created_at=now,
     ))
-    incident.status = "en_desarrollo"
+    # El PM se guarda aparte: durante el diseno "Asignado" es el especialista
+    ctx = await _contexto_proyecto(db, incident, detalle)
+    pm = ctx["gobierno"].get("project_manager") or {}
+    detalle.project_manager_id = pm.get("id") or incident.assigned_to_user_id
+    detalle.project_manager_nombre = pm.get("name") or (await _nombre_usuario(detalle.project_manager_id) if detalle.project_manager_id else None)
+    incident.status = FASES_DISENO["funcional"]["status"]
+    asignacion = await _asignar_diseno(db, incident, detalle, "funcional")
     db.add(IncidentActivityLog(
-        incident_id=incident.id, action="cdc_desarrollo_iniciado", performed_by=user.get("user_id"),
+        incident_id=incident.id, action="cdc_arranque_cerrado", performed_by=user.get("user_id"),
         performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
-        detail={"clasificacion": detalle.clasificacion},
+        detail={"clasificacion": detalle.clasificacion, "asignado_a": asignacion.get("usuario_asignado"), "via": asignacion.get("via")},
     ))
     await db.commit()
     await _broadcast_ticket_update(incident)
-    return {"success": True, "status": incident.status}
+    if asignacion.get("usuario_asignado"):
+        await _notificar_diseno(incident, asignacion["usuario_asignado"], "funcional")
+    return {"success": True, "status": incident.status, "asignacion": asignacion}
 
 
 # ------------------------------------------------------------------
@@ -1330,3 +1339,350 @@ async def _gen_resumen(db, incident, detalle, datos: dict, version: int, emitido
 
 
 GENERADORES_ARRANQUE.update({"acta": _gen_acta, "alcance": _gen_alcance, "resumen": _gen_resumen})
+
+
+# ------------------------------------------------------------------
+# Etapas de Diseno funcional y Diseno tecnico
+# (en_arranque -> en_diseno_funcional -> en_diseno_tecnico -> en_desarrollo)
+# ------------------------------------------------------------------
+
+FASES_DISENO = {
+    "funcional": {"status": "en_diseno_funcional", "equipo": "especialista-funcional", "doc": "diseno_funcional",
+                  "prefijo": "DOCUMENTO_REQUERIMIENTOS_FUNCIONALES", "label": "Diseño funcional", "asunto": "diseno funcional",
+                  "rol_label": "Especialista funcional"},
+    "tecnico": {"status": "en_diseno_tecnico", "equipo": "especialista-tecnico", "doc": "diseno_tecnico",
+                "prefijo": "DOCUMENTO_DISENO_TECNICO", "label": "Diseño técnico", "asunto": "diseno tecnico",
+                "rol_label": "Especialista técnico"},
+}
+FASE_POR_STATUS = {v["status"]: k for k, v in FASES_DISENO.items()}
+DOC_LABEL.update({"diseno_funcional": "Documento de Requerimientos Funcionales", "diseno_tecnico": "Documento de Diseño Técnico"})
+IM_ROLES = {"it-service-desk:incident-manager", "super_admin"}
+GENERADORES_DISENO: dict = {}
+
+
+async def _nombre_usuario(user_id: Optional[str]) -> str:
+    if not user_id:
+        return ""
+    return (await _get_requester_profile(user_id)).get("full_name") or ""
+
+
+async def _asignar_diseno(db, incident, detalle, fase: str) -> dict:
+    from app.motor import resolve_cdc_design_assignment
+    cfg = FASES_DISENO[fase]
+    r = await resolve_cdc_design_assignment(db, cfg["equipo"], detalle.system_id or incident.system_id,
+                                            detalle.module_id or incident.module_id, detalle.project_manager_id)
+    if r.get("encontrado"):
+        incident.assigned_to_user_id = r["usuario_asignado"]
+        incident.assigned_team = None if r.get("via") == "project_manager" else cfg["equipo"]
+        incident.assigned_at = datetime.now(timezone.utc)
+    return r
+
+
+async def _notificar_diseno(incident, user_id: str, fase: str) -> None:
+    """Aviso in-app y por correo al responsable de una etapa de diseno.
+    Si falla, la asignacion ya quedo guardada."""
+    cfg = FASES_DISENO[fase]
+    try:
+        from app.assignment import _notify_inapp
+        await _notify_inapp(user_id, f"Control de Cambios #{incident.folio}: {cfg['label']}", incident.title, "info",
+                            {"incident_id": str(incident.id), "folio": incident.folio})
+        perfil = await _get_requester_profile(user_id)
+        if perfil.get("email"):
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post("http://email-service:8000/api/v1/email/system-notification", json={
+                    "to_email": perfil["email"], "full_name": perfil.get("full_name", ""),
+                    "subject": f"Control de Cambios {incident.folio} para {cfg['asunto']}",
+                    "message": f"Se te asignó la etapa de {cfg['label']}. Realiza tus sesiones de entendimiento y genera el documento de la etapa desde la intranet.",
+                    "fields": [{"label": "Folio", "value": incident.folio, "mono": True}, {"label": "Titulo", "value": incident.title, "mono": False}],
+                    "alert_type": "info",
+                })
+    except Exception as e:
+        print(f"[CDC] Error notificando {cfg['label']} {incident.folio}: {e}")
+
+
+async def _cargar_cdc_diseno(db, incident_id: str, user: dict, fase: str, editar: bool = False):
+    if fase not in FASES_DISENO:
+        raise HTTPException(status_code=404, detail="Etapa no válida")
+    from app.routes.mesa_de_soporte.mesa_de_soporte import MODULE_WIDE_ROLES
+    res = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = res.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+    det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det.scalar_one_or_none()
+    roles = set(user.get("roles") or [])
+    es_asignado = incident.assigned_to_user_id == user.get("user_id")
+    en_etapa = incident.status == FASES_DISENO[fase]["status"]
+    puede_editar = en_etapa and (es_asignado or bool(roles & IM_ROLES))
+    if not (roles & MODULE_WIDE_ROLES or es_asignado or "super_admin" in roles):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+    if editar and not en_etapa:
+        raise HTTPException(status_code=409, detail=f"El proyecto no está en {FASES_DISENO[fase]['label']}")
+    if editar and not puede_editar:
+        raise HTTPException(status_code=403, detail="Esta etapa la atiende el responsable asignado")
+    return incident, detalle, roles, puede_editar
+
+
+async def _rf_ids(db, incident_id: str) -> list:
+    """IDs de requerimientos funcionales del documento funcional vigente."""
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == "diseno_funcional" and d.estado == "generado"]
+    if not docs:
+        return []
+    return [r.get("id") for r in (docs[-1].datos or {}).get("requerimientos", []) if r.get("id")]
+
+
+# Antes de /{incident_id}/diseno/{fase}: si no, "candidatos" se tomaria como fase
+@router.get("/{incident_id}/diseno/candidatos")
+async def candidatos_diseno(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.motor import _usuarios_activos
+    roles = set(user.get("roles") or [])
+    if not roles & IM_ROLES:
+        raise HTTPException(status_code=403, detail="Solo el Incident Manager puede reasignar")
+    res = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = res.scalar_one_or_none()
+    if not incident or incident.status not in FASE_POR_STATUS:
+        raise HTTPException(status_code=409, detail="El proyecto no está en una etapa de diseño")
+    cfg = FASES_DISENO[FASE_POR_STATUS[incident.status]]
+    salida = []
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for slug, etiqueta in ((cfg["equipo"], cfg["rol_label"]), ("incident-manager", "Incident Manager")):
+            resp = await client.get("http://admin-service:8000/internal/users/by-module-role",
+                                    params={"module_slug": "it-service-desk", "role_slug": slug})
+            for u in (resp.json() if resp.status_code == 200 else []):
+                if not any(x["id"] == u["id"] for x in salida):
+                    salida.append({"id": u["id"], "name": u["name"], "email": u.get("email"), "rol": etiqueta})
+    return salida
+
+
+class AsignarDisenoPayload(BaseModel):
+    user_id: str
+
+
+@router.patch("/{incident_id}/diseno/asignar")
+async def reasignar_diseno(incident_id: str, body: AsignarDisenoPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    from app.motor import _usuarios_activos
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    roles = set(user.get("roles") or [])
+    if not roles & IM_ROLES:
+        raise HTTPException(status_code=403, detail="Solo el Incident Manager puede reasignar")
+    res = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = res.scalar_one_or_none()
+    if not incident or incident.status not in FASE_POR_STATUS:
+        raise HTTPException(status_code=409, detail="El proyecto no está en una etapa de diseño")
+    fase = FASE_POR_STATUS[incident.status]
+    cfg = FASES_DISENO[fase]
+    validos = (await _usuarios_activos([cfg["equipo"], "incident-manager"])) or set()
+    if body.user_id not in validos:
+        raise HTTPException(status_code=422, detail=f"Solo se puede asignar a un {cfg['rol_label'].lower()} o Incident Manager activo")
+    anterior = incident.assigned_to_user_id
+    incident.assigned_to_user_id = body.user_id
+    incident.assigned_team = cfg["equipo"]
+    incident.assigned_at = datetime.now(timezone.utc)
+    nombre = await _nombre_usuario(body.user_id)
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_diseno_reasignado", performed_by=user.get("user_id"),
+        performed_by_name=user.get("full_name") or "Incident Manager", performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"fase": fase, "anterior": anterior, "nuevo": body.user_id, "nuevo_nombre": nombre},
+    ))
+    await db.commit()
+    await _broadcast_ticket_update(incident)
+    await _notificar_diseno(incident, body.user_id, fase)
+    return {"success": True, "asignado": {"id": body.user_id, "name": nombre}}
+
+
+@router.get("/{incident_id}/diseno/{fase}")
+async def get_diseno(incident_id: str, fase: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    incident, detalle, roles, puede_editar = await _cargar_cdc_diseno(db, incident_id, user, fase)
+    cfg = FASES_DISENO[fase]
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == cfg["doc"]]
+    ctx = await _contexto_proyecto(db, incident, detalle)
+    return {
+        "fase": fase, "status": incident.status, "puede_editar": puede_editar,
+        "puede_reasignar": bool(roles & IM_ROLES) and incident.status == cfg["status"],
+        "responsable": {"id": incident.assigned_to_user_id, "name": await _nombre_usuario(incident.assigned_to_user_id)} if incident.assigned_to_user_id else None,
+        "project_manager": {"id": detalle.project_manager_id, "name": detalle.project_manager_nombre} if detalle and detalle.project_manager_id else None,
+        "documentos": [_doc_json(d) for d in docs],
+        "rf_ids": await _rf_ids(db, incident_id) if fase == "tecnico" else [],
+        "contexto": ctx,
+    }
+
+
+@router.put("/{incident_id}/diseno/{fase}/borrador")
+async def borrador_diseno(incident_id: str, fase: str, body: BorradorPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosDocumento
+    incident, detalle, roles, _ = await _cargar_cdc_diseno(db, incident_id, user, fase, editar=True)
+    tipo = FASES_DISENO[fase]["doc"]
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == tipo]
+    ultimo = docs[-1] if docs else None
+    if ultimo and ultimo.estado == "borrador":
+        ultimo.datos = body.datos
+        doc = ultimo
+    else:
+        doc = ControlCambiosDocumento(
+            id=str(uuid.uuid4()), incident_id=incident.id, tipo=tipo, version=(ultimo.version + 1) if ultimo else 1,
+            estado="borrador", origen="formulario", datos=body.datos,
+            creado_por=user.get("user_id"), creado_por_nombre=user.get("full_name") or "",
+        )
+        db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_json(doc)
+
+
+@router.post("/{incident_id}/diseno/{fase}/generar")
+async def generar_diseno(incident_id: str, fase: str, db: AsyncSession = Depends(get_db),
+                         user: dict = Depends(get_current_user), raw_token: str = Depends(get_token_from_request)):
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    incident, detalle, roles, _ = await _cargar_cdc_diseno(db, incident_id, user, fase, editar=True)
+    cfg = FASES_DISENO[fase]
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == cfg["doc"]]
+    doc = docs[-1] if docs else None
+    if not doc or doc.estado != "borrador":
+        raise HTTPException(status_code=409, detail="No hay un borrador para generar")
+    autor = user.get("full_name") or ""
+    pdf_bytes = await GENERADORES_DISENO[fase](db, incident, detalle, doc.datos, doc.version, autor)
+    solicitante = await _get_requester_profile(incident.requester_id)
+    nombre = f"{cfg['prefijo']}_{incident.folio}_v{doc.version}.pdf"
+    key = await _subir_archivo(pdf_bytes, nombre, "application/pdf", solicitante.get("company_slug"),
+                               f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail="No se pudo guardar el PDF")
+    doc.estado, doc.object_key, doc.nombre, doc.mime_type = "generado", key, nombre, "application/pdf"
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_documento_generado", performed_by=user.get("user_id"),
+        performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"tipo": cfg["doc"], "version": doc.version, "documento_id": doc.id},
+    ))
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_json(doc)
+
+
+@router.post("/{incident_id}/diseno/{fase}/cerrar")
+async def cerrar_diseno(incident_id: str, fase: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosEtapa, IncidentActivityLog
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    incident, detalle, roles, _ = await _cargar_cdc_diseno(db, incident_id, user, fase, editar=True)
+    cfg = FASES_DISENO[fase]
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == cfg["doc"]]
+    vigente = docs[-1] if docs else None
+    if not vigente or vigente.estado != "generado":
+        raise HTTPException(status_code=409, detail=f"Genera el {DOC_LABEL[cfg['doc']]} antes de cerrar la etapa")
+    autor = user.get("full_name") or ""
+    responsable = {"id": incident.assigned_to_user_id, "name": await _nombre_usuario(incident.assigned_to_user_id)}
+    db.add(ControlCambiosEtapa(
+        id=str(uuid.uuid4()), incident_id=incident.id, etapa=cfg["status"], resultado=fase,
+        datos={"documento": {"id": vigente.id, "version": vigente.version, "nombre": vigente.nombre}, "responsable": responsable},
+        documento_object_key=vigente.object_key, anexos=[],
+        realizado_por=user.get("user_id"), realizado_por_nombre=autor, created_at=datetime.now(timezone.utc),
+    ))
+    if fase == "funcional":
+        incident.status = FASES_DISENO["tecnico"]["status"]
+        siguiente = await _asignar_diseno(db, incident, detalle, "tecnico")
+    else:
+        # Fin del diseno: el proyecto regresa al PM para el desarrollo
+        incident.status = "en_desarrollo"
+        incident.assigned_to_user_id = detalle.project_manager_id or incident.assigned_to_user_id
+        incident.assigned_team = None
+        incident.assigned_at = datetime.now(timezone.utc)
+        siguiente = {"usuario_asignado": incident.assigned_to_user_id, "via": "project_manager"}
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_diseno_cerrado", performed_by=user.get("user_id"),
+        performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"fase": fase, "siguiente": siguiente.get("usuario_asignado"), "via": siguiente.get("via")},
+    ))
+    await db.commit()
+    await _broadcast_ticket_update(incident)
+    if fase == "funcional" and siguiente.get("usuario_asignado"):
+        await _notificar_diseno(incident, siguiente["usuario_asignado"], "tecnico")
+    return {"success": True, "status": incident.status, "siguiente": siguiente}
+
+
+# ── Generadores de los documentos de diseno ──
+
+def _sesiones_label(sesiones) -> list:
+    out = []
+    for s in sesiones or []:
+        if not (s.get("notas") or "").strip():
+            continue
+        fecha = s.get("fecha") or ""
+        try:
+            fecha = date.fromisoformat(fecha).strftime("%d/%m/%Y")
+        except (TypeError, ValueError):
+            pass
+        out.append({"fecha": fecha, "tipo": s.get("tipo") or "", "participantes": s.get("participantes") or "", "notas": s["notas"].strip()})
+    return out
+
+
+async def _base_diseno(db, incident, detalle, version, emitido_por) -> dict:
+    base = await _base_pdf_arranque(db, incident, detalle, version, emitido_por)
+    return {**base, "version_label": f"{version}.0", "responsable": emitido_por or "—", "pm": detalle.project_manager_nombre or "—"}
+
+
+async def _gen_diseno_funcional(db, incident, detalle, datos: dict, version: int, emitido_por: str) -> bytes:
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_diseno_funcional
+    if not (datos.get("proceso_propuesto") or "").strip():
+        raise HTTPException(status_code=422, detail="Describe el proceso propuesto")
+    reqs, vistos = [], set()
+    for i, r in enumerate(_filas(datos.get("requerimientos"), ("id", "descripcion", "prioridad", "criterio")), 1):
+        if not r["descripcion"]:
+            continue
+        if not r["criterio"]:
+            raise HTTPException(status_code=422, detail=f"Falta el criterio de aceptación de {r['id'] or f'RF-{i:02d}'}")
+        r["id"] = (r["id"] or f"RF-{i:02d}").upper()
+        if r["id"] in vistos:
+            raise HTTPException(status_code=422, detail=f"El ID {r['id']} está repetido")
+        vistos.add(r["id"])
+        reqs.append(r)
+    if not reqs:
+        raise HTTPException(status_code=422, detail="Agrega al menos un requerimiento funcional")
+    base = await _base_diseno(db, incident, detalle, version, emitido_por)
+    return generar_pdf_diseno_funcional({
+        **base, "sesiones": _sesiones_label(datos.get("sesiones")),
+        "objetivo": (datos.get("objetivo") or "").strip(), "proceso_actual": (datos.get("proceso_actual") or "").strip(),
+        "proceso_propuesto": datos["proceso_propuesto"].strip(), "requerimientos": reqs,
+        "reglas": _texto_o_lista(datos.get("reglas")), "pantallas": _texto_o_lista(datos.get("pantallas")),
+    })
+
+
+def _texto_o_lista(valor) -> str:
+    """Campo de texto libre; los borradores anteriores lo guardaban como lista
+    y se convierten a lineas con '-' para que salgan como vinetas."""
+    if isinstance(valor, list):
+        return "\n".join(f"- {x}" for x in _lista(valor))
+    return (valor or "").strip()
+
+
+async def _gen_diseno_tecnico(db, incident, detalle, datos: dict, version: int, emitido_por: str) -> bytes:
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_diseno_tecnico
+    if not (datos.get("solucion") or "").strip():
+        raise HTTPException(status_code=422, detail="Describe la solución técnica")
+    rf_validos = set(await _rf_ids(db, incident.id))
+    reqs = []
+    for i, r in enumerate(_filas(datos.get("requerimientos"), ("id", "rf", "descripcion", "horas")), 1):
+        if not r["descripcion"]:
+            continue
+        r["id"] = (r["id"] or f"RT-{i:02d}").upper()
+        r["rf"] = r["rf"].upper()
+        if not r["rf"]:
+            raise HTTPException(status_code=422, detail=f"{r['id']} debe ligarse a un requerimiento funcional")
+        if rf_validos and r["rf"] not in rf_validos:
+            raise HTTPException(status_code=422, detail=f"{r['rf']} no existe en el documento funcional ({', '.join(sorted(rf_validos))})")
+        try:
+            r["horas"] = float(r["horas"]) if r["horas"] else None
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"Las horas de {r['id']} no son un número")
+        reqs.append(r)
+    if not reqs:
+        raise HTTPException(status_code=422, detail="Agrega al menos un requerimiento técnico")
+    base = await _base_diseno(db, incident, detalle, version, emitido_por)
+    return generar_pdf_diseno_tecnico({
+        **base, "sesiones": _sesiones_label(datos.get("sesiones")), "solucion": datos["solucion"].strip(),
+        "objetos": _filas(datos.get("objetos"), ("tipo", "nombre", "accion", "descripcion")),
+        "integraciones": (datos.get("integraciones") or "").strip(), "requerimientos": reqs,
+        "plan_pruebas": _texto_o_lista(datos.get("plan_pruebas")), "riesgos": (datos.get("riesgos") or "").strip(),
+    })
+
+
+GENERADORES_DISENO.update({"funcional": _gen_diseno_funcional, "tecnico": _gen_diseno_tecnico})
