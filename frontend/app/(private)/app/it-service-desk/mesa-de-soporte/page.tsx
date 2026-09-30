@@ -337,11 +337,15 @@ export default function MesaDeSoportePage() {
             )
           })()}
           <div className="relative group ml-3 pl-3 border-l border-slate-200">
+            {/* Al pasar el mouse, el círculo se extiende a la izquierda como una sola pastilla café */}
+            <span aria-hidden="true"
+              className="pointer-events-none absolute right-0 top-0 h-9 flex items-center rounded-full bg-[#7c2d12] text-white text-[13px] font-semibold whitespace-nowrap pl-4 pr-12 shadow-md z-10 origin-right opacity-0 scale-x-75 transition-all duration-200 ease-out group-hover:opacity-100 group-hover:scale-x-100 group-focus-within:opacity-100 group-focus-within:scale-x-100">
+              Nuevo ticket
+            </span>
             <button type="button" onClick={() => setShowTypePicker(true)} aria-label="Nuevo ticket"
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white bg-[#7c2d12] shadow-sm hover:bg-[#6b2610] hover:shadow-md transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#7c2d12]/30">
+              className="relative z-20 w-9 h-9 rounded-full flex items-center justify-center text-white bg-[#7c2d12] shadow-md transition-all duration-200 ease-out group-hover:scale-[1.18] group-hover:shadow-xl group-hover:shadow-[#7c2d12]/40 group-focus-within:scale-[1.18] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#7c2d12]/30">
               <Plus size={18} />
             </button>
-            <span className="pointer-events-none absolute right-0 top-full mt-1.5 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition z-20">Nuevo ticket</span>
           </div>
         </div>
       </div>
