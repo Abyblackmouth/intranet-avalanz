@@ -209,3 +209,21 @@ async def health():
             "cache": "redis",
         },
     )
+
+@app.get("/internal/companies", include_in_schema=False)
+async def internal_companies(db: AsyncSession = Depends(get_db)):
+    """Empresas con su familia y su grupo, para otros servicios (formatos de acceso, reportes)."""
+    from sqlalchemy import text
+    res = await db.execute(text("""
+        SELECT c.id, c.nombre_comercial, c.name, c.rfc, c.is_active,
+               f.id AS family_id, f.name AS family_name, f.clave AS family_clave, g.name AS group_name
+        FROM companies c
+        LEFT JOIN company_families f ON f.id = c.family_id AND NOT f.is_deleted
+        LEFT JOIN groups g ON g.id = c.group_id
+        WHERE NOT c.is_deleted
+        ORDER BY f.name NULLS LAST, c.nombre_comercial
+    """))
+    return [{"id": str(r.id), "nombre_comercial": r.nombre_comercial, "razon_social": r.name, "rfc": r.rfc,
+             "operando": r.is_active, "grupo": r.group_name,
+             "familia": {"id": str(r.family_id), "nombre": r.family_name, "clave": r.family_clave} if r.family_id else None}
+            for r in res]
