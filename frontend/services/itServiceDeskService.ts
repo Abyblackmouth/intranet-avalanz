@@ -169,3 +169,9 @@ export const subirActaCierreFirmada = (id: string, formData: FormData) =>
 // ── Tablero Proyectos ─────────────────────────────────────────────────────
 export const getTableroProyectos = () => api.get(`${CDC}/tablero/proyectos`)
 export const exportCdcExcel = () => api.get(`${CDC}/reportes/excel`, { responseType: 'blob' })
+
+// ── Ajustes del módulo (solo super admin) ─────────────────────────────────
+export const getAjustes = () => api.get('/api/v1/it-service-desk/ajustes')
+export const getAjustesHistorial = () => api.get('/api/v1/it-service-desk/ajustes/historial')
+export const updateAjuste = (key: string, valor: string | number | boolean) =>
+  api.put(`/api/v1/it-service-desk/ajustes/${encodeURIComponent(key)}`, { valor })

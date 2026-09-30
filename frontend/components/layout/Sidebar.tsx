@@ -10,6 +10,9 @@ import {
 import * as LucideIcons from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 
+// Submódulos que solo ve el super admin (el backend también lo exige)
+const SOLO_SUPER_ADMIN = new Set(['it-service-desk/ajustes'])
+
 interface NavItem {
   label: string
   href: string
@@ -129,7 +132,8 @@ export default function Sidebar() {
                 {modules.map((mod: any) => {
                   const slug = typeof mod === 'string' ? mod : mod.slug
                   const icon = typeof mod === 'string' ? null : mod.icon
-                  const submodules = typeof mod === 'string' ? [] : (mod.submodules ?? [])
+                  const submodules = (typeof mod === 'string' ? [] : (mod.submodules ?? []))
+                    .filter((sub: any) => !SOLO_SUPER_ADMIN.has(`${slug}/${sub.slug}`) || useAuthStore.getState().isSuperAdmin?.())
                   const name = typeof mod === 'string' ? null : mod.name
                   const moduleActive = isActive(`/app/${slug}`)
                   const expanded = expandedModules.has(slug)
