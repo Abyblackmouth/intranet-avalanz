@@ -63,7 +63,7 @@ Plataforma de visualizacion y alertas. Se conecta a Prometheus como datasource y
 
 Acceso servidor provisional: `http://10.12.0.51:3001`
 Acceso local: `http://localhost:3001`
-Credenciales: `admin / Avalanz2026!`
+Credenciales: las del administrador de Grafana. **Pendiente antes de produccion:** cambiar la contrasena inicial, pasarla a una variable de entorno y no volver a escribirla en este documento.
 
 El dashboard se carga automaticamente al levantar el contenedor via provisionamiento desde filesystem — no es necesario importarlo manualmente.
 
@@ -112,7 +112,8 @@ infrastructure/
 └── grafana/
     ├── datasources.yml        conexion automatica de Grafana con Prometheus (UID fijo)
     ├── dashboards.yml         provisionamiento automatico del dashboard desde filesystem
-    └── avalanz-services-dashboard.json   dashboard principal
+    ├── avalanz-services-dashboard.json   dashboard principal (plataforma)
+    └── avalanz-modulos-dashboard.json    dashboard de modulos operativos (IT Service Desk, Legal)
 ```
 
 ### Como se agrego a cada servicio FastAPI
@@ -231,6 +232,8 @@ En produccion reemplazar `mailpit:1025` con el servidor SMTP corporativo real.
 | PostgreSQL | postgres | postgres-exporter:9187 | Activo |
 | Redis | redis | redis-exporter:9121 | Activo |
 | Nginx | nginx | nginx-exporter:9113 | Activo |
+| it-service-desk-service | it-service-desk-service | (upstream de Nginx) | Activo — modulo operativo |
+| legal-service | legal-service | (upstream de Nginx) | Activo — modulo operativo |
 
 Para verificar el estado de todos los targets desde el servidor:
 
@@ -445,3 +448,14 @@ Un dashboard es un objeto JSON con la siguiente estructura base:
 ## Dashboards por modulo operativo (futuro)
 
 Cuando se implementen modulos operativos como Boveda o Legal, se pueden crear dashboards especificos con metricas de negocio: documentos subidos por dia, tiempo de procesamiento, errores por empresa, uso de almacenamiento MinIO por tenant. Prometheus scrapeara automaticamente el nuevo servicio en cuanto se agregue su job a `prometheus.yml`.
+
+---
+
+## Dashboard de modulos operativos
+
+`infrastructure/grafana/avalanz-modulos-dashboard.json` — una seccion por modulo (IT Service Desk y Legal) con:
+estado, peticiones/seg, % de errores 5xx, latencia p95, RAM, peticiones por estatus, latencia promedio y p95,
+los 10 endpoints mas lentos y los 10 mas usados (ultimos 15 minutos), CPU y RAM en el tiempo.
+
+Para agregar un modulo nuevo: activar `Instrumentator` en su `main.py`, registrar su job en `prometheus.yml`
+y agregar su seccion al JSON. Las alertas usan `job=~".+-service"`, asi que lo cubren sin editarlas.

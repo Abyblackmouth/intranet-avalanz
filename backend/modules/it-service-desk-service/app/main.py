@@ -1,3 +1,4 @@
+from prometheus_fastapi_instrumentator import Instrumentator
 import asyncio
 import logging
 
@@ -9,6 +10,9 @@ from app.rabbitmq import start_consumer
 logger = logging.getLogger("avalanz")
 
 app = FastAPI(title="It Service Desk Service", version="1.0.0")
+
+# Metricas para Prometheus: expone GET /metrics (solo red interna de Docker)
+Instrumentator().instrument(app).expose(app)
 
 app.include_router(main_router, prefix="/api/v1/it-service-desk")
 

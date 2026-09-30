@@ -311,6 +311,7 @@ services:
       - ../grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
       - ../grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
       - ../grafana/avalanz-services-dashboard.json:/var/lib/grafana/dashboards/avalanz-services-dashboard.json:ro
+      - ../grafana/avalanz-modulos-dashboard.json:/var/lib/grafana/dashboards/avalanz-modulos-dashboard.json:ro
     networks:
       - avalanz-network
     logging: *default-logging

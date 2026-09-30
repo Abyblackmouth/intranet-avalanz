@@ -68,6 +68,22 @@ scrape_configs:
     scrape_interval: 15s
 
   # PostgreSQL — via postgres-exporter (puerto 9187)
+  # Modulo operativo
+  - job_name: "it-service-desk-service"
+    static_configs:
+      - targets: ["avalanz-it-service-desk:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+
+  # PostgreSQL — via postgres-exporter (puerto 9187)
+  # Modulo operativo
+  - job_name: "legal-service"
+    static_configs:
+      - targets: ["avalanz-legal:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+
+  # PostgreSQL — via postgres-exporter (puerto 9187)
   - job_name: "postgres"
     static_configs:
       - targets: ["postgres-exporter:9187"]
