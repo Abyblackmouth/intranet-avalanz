@@ -165,3 +165,7 @@ export const saveActaCierreBorrador = (id: string, datos: any) => api.put(`${CDC
 export const generarActaCierre = (id: string) => api.post(`${CDC}/${id}/cierre/acta/generar`)
 export const subirActaCierreFirmada = (id: string, formData: FormData) =>
   api.post(`${CDC}/${id}/cierre/acta-firmada`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+
+// ── Tablero Proyectos ─────────────────────────────────────────────────────
+export const getTableroProyectos = () => api.get(`${CDC}/tablero/proyectos`)
+export const exportCdcExcel = () => api.get(`${CDC}/reportes/excel`, { responseType: 'blob' })
