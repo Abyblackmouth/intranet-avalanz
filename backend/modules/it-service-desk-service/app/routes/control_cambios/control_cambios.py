@@ -2805,3 +2805,264 @@ async def avisar_cdcs_cerrados(db, cdcs: list) -> None:
                                     f"{inc.title} — Terminó su periodo de garantía", "neutral",
                                     {"incident_id": str(inc.id), "folio": inc.folio})
         await _broadcast_ticket_update(inc)
+
+
+# ------------------------------------------------------------------
+# Tablero Proyectos: todos los CDC activos en una sola llamada
+# (los cerrados, solo los de los ultimos 30 dias). Independiente del
+# tablero de incidentes.
+# ------------------------------------------------------------------
+
+@router.get("/tablero/proyectos")
+async def tablero_proyectos(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from datetime import timedelta
+    from sqlalchemy import or_, and_
+    from app.models.mesa_de_soporte import ControlCambiosEtapa
+    from app.routes.mesa_de_soporte.mesa_de_soporte import MODULE_WIDE_ROLES
+    roles, uid = set(user.get("roles") or []), user.get("user_id")
+    hace_30 = datetime.now(timezone.utc) - timedelta(days=30)
+
+    q = (select(Incident, ControlCambiosDetalle)
+         .join(ControlCambiosDetalle, ControlCambiosDetalle.incident_id == Incident.id, isouter=True)
+         .where(Incident.ticket_type == "control_cambio",
+                Incident.status.notin_(["rechazado", "cancelado"]),
+                or_(Incident.status != "cerrado", and_(Incident.closed_at.isnot(None), Incident.closed_at >= hace_30))))
+    # Quien no tiene vista de todo el modulo ve solo los suyos
+    if not (roles & MODULE_WIDE_ROLES or "super_admin" in roles):
+        q = q.where(or_(Incident.assigned_to_user_id == uid, Incident.requester_id == uid,
+                        ControlCambiosDetalle.project_manager_id == uid))
+    filas = (await db.execute(q)).all()
+    ids = [i.id for i, _ in filas]
+
+    etapas_por = {}
+    if ids:
+        res = await db.execute(select(ControlCambiosEtapa).where(ControlCambiosEtapa.incident_id.in_(ids)).order_by(ControlCambiosEtapa.created_at))
+        for e in res.scalars().all():
+            etapas_por.setdefault(e.incident_id, []).append(e)
+
+    nombres = {}
+    async def nombre(user_id):
+        if user_id and user_id not in nombres:
+            nombres[user_id] = await _nombre_usuario(user_id)
+        return nombres.get(user_id)
+
+    ahora = datetime.now(timezone.utc)
+    out = []
+    for inc, det in filas:
+        etapas = etapas_por.get(inc.id, [])
+        # Entro a su etapa actual cuando se cerro la anterior (o al registrarse)
+        desde = etapas[-1].created_at if etapas else inc.created_at
+        uats = [e for e in etapas if e.etapa == "en_pruebas"]
+        out.append({
+            "id": inc.id, "folio": inc.folio, "title": inc.title, "status": inc.status,
+            "empresa": inc.requester_company_name, "asignado": await nombre(inc.assigned_to_user_id),
+            "prioridad": det.prioridad if det else None, "urgencia": det.urgencia if det and hasattr(det, "urgencia") else None,
+            "clasificacion": det.clasificacion if det else None,
+            "vencido": bool(inc.sla_resolution_limit and inc.status not in ("terminado", "cerrado") and inc.sla_resolution_limit < ahora),
+            "dias_en_etapa": max((ahora - desde).days, 0),
+            "regreso_uat": inc.status == "en_desarrollo" and bool(uats) and uats[-1].resultado == "rechazado",
+            "mio": uid in {inc.assigned_to_user_id, inc.requester_id, det.project_manager_id if det else None},
+            "created_at": inc.created_at.isoformat(), "closed_at": inc.closed_at.isoformat() if inc.closed_at else None,
+        })
+    return out
+
+
+# ------------------------------------------------------------------
+# Reporte Excel "Seguimiento CC" con la estructura de la plantilla de
+# Verus (Seguimiento CC + Resumen + Leeme), llenado con datos del sistema
+# ------------------------------------------------------------------
+
+ROLES_REPORTE_CDC = {"it-service-desk:incident-manager", "it-service-desk:project-manager", "it-service-desk:comite-directivo", "super_admin"}
+ESTATUS_REPORTE = {
+    "en_backlog": "Registrado", "en_revision": "En revisión", "aprobado": "Aprobado", "rechazado": "Rechazado", "priorizado": "Priorizado",
+    "en_arranque": "Arranque", "en_diseno_funcional": "Diseño funcional", "en_diseno_tecnico": "Diseño técnico",
+    "en_desarrollo": "En desarrollo", "en_pruebas": "En pruebas (UAT)", "en_paso_produccion": "Paso a producción",
+    "terminado": "Terminado", "cerrado": "Cerrado", "cancelado": "Cancelado",
+}
+ORDEN_ETAPA = {k: i + 1 for i, k in enumerate(["en_backlog", "en_revision", "aprobado", "priorizado", "en_arranque", "en_diseno_funcional",
+                                                "en_diseno_tecnico", "en_desarrollo", "en_pruebas", "en_paso_produccion", "terminado", "cerrado"])}
+PRIO_REPORTE = {"alta": "P1", "media": "P2", "baja": "P3", "p1": "P1", "p2": "P2", "p3": "P3"}
+
+
+@router.get("/reportes/excel")
+async def reporte_excel_cdc(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+    from fastapi.responses import StreamingResponse
+    from app.models.mesa_de_soporte import ControlCambiosEtapa, ControlCambiosDocumento
+
+    if not set(user.get("roles") or []) & ROLES_REPORTE_CDC:
+        raise HTTPException(status_code=403, detail="No tienes permiso para exportar el seguimiento de Controles de Cambio")
+
+    filas = (await db.execute(
+        select(Incident, ControlCambiosDetalle)
+        .join(ControlCambiosDetalle, ControlCambiosDetalle.incident_id == Incident.id, isouter=True)
+        .where(Incident.ticket_type == "control_cambio").order_by(Incident.created_at)
+    )).all()
+    ids = [i.id for i, _ in filas]
+    sistemas = {s.id: s.name for s in (await db.execute(select(TicketSystem))).scalars().all()}
+    modulos = {m.id: m.name for m in (await db.execute(select(TicketModule))).scalars().all()}
+    etapas_por, encuestas = {}, {}
+    if ids:
+        for e in (await db.execute(select(ControlCambiosEtapa).where(ControlCambiosEtapa.incident_id.in_(ids)).order_by(ControlCambiosEtapa.created_at))).scalars().all():
+            etapas_por.setdefault(e.incident_id, []).append(e)
+        for d in (await db.execute(select(ControlCambiosDocumento).where(ControlCambiosDocumento.incident_id.in_(ids), ControlCambiosDocumento.tipo == "encuesta"))).scalars().all():
+            encuestas[d.incident_id] = d.datos or {}
+    nombres = {}
+
+    async def nombre(uid):
+        if uid and uid not in nombres:
+            nombres[uid] = await _nombre_usuario(uid)
+        return nombres.get(uid) or ""
+
+    hoy = _hora_local(datetime.now(timezone.utc)).date()
+    fecha = lambda dt: _hora_local(dt).date() if dt else None
+    datos = []
+    for inc, det in filas:
+        etapas = etapas_por.get(inc.id, [])
+        primera = lambda nombre_etapa: next((e for e in etapas if e.etapa == nombre_etapa), None)
+        revision, priorizacion = primera("en_revision"), primera("priorizado")
+        prods = [e for e in etapas if e.etapa == "en_paso_produccion" and e.resultado != "revertido"]
+        real = fecha(prods[-1].created_at) if prods else None
+        alta = fecha(inc.created_at)
+        compromiso = det.fecha_compromiso if det else None
+        st = inc.status
+        cerrado = st in ("terminado", "cerrado", "rechazado", "cancelado")
+        fin = real or fecha(inc.closed_at) or (fecha(revision.created_at) if st == "rechazado" and revision else None)
+        dias = ((fin if cerrado and fin else hoy) - alta).days if alta else None
+        if st in ("terminado", "cerrado"):
+            semaforo = "Cerrado"
+        elif st in ("rechazado", "cancelado"):
+            semaforo = ESTATUS_REPORTE[st]
+        elif not compromiso:
+            semaforo = "Sin fecha"
+        elif hoy > compromiso:
+            semaforo = "Retrasado"
+        elif (compromiso - hoy).days <= 5:
+            semaforo = "Por vencer"
+        else:
+            semaforo = "En tiempo"
+        prio = PRIO_REPORTE.get(str(det.prioridad).lower()) if det and det.prioridad else None
+        if not prio and det and det.urgencia_solicitada:
+            prio = f"{str(det.urgencia_solicitada).capitalize()} (solicitante)"
+        motivo = ""
+        if st == "rechazado" and revision:
+            rd = revision.datos or {}
+            motivo = rd.get("comentarios") or rd.get("motivo") or rd.get("dictamen_comentarios") or ""
+        rts = _rts_con_estado(await _rts_diseno(db, inc.id), await _avances_de(db, inc.id)) if ORDEN_ETAPA.get(st, 0) >= 8 else []
+        enc = encuestas.get(inc.id)
+        sistema = sistemas.get(det.system_id, "—") if det and det.system_id else "—"
+        if det and det.module_id and modulos.get(det.module_id):
+            sistema = f"{sistema} / {modulos[det.module_id]}"
+        champion = (det.project_manager_nombre if det else None) or (await nombre(inc.assigned_to_user_id) if st in ("en_revision", "aprobado", "priorizado", "en_arranque", "rechazado") else "")
+        datos.append({
+            "fila": [
+                inc.folio, inc.requester_company_name or "", sistema, (det.tipo_solicitud if det else "") or "", inc.title,
+                inc.requester_name or "", (det.area_departamento if det else None) or inc.requester_area or "", champion,
+                alta, fecha(revision.created_at) if revision else None, ESTATUS_REPORTE.get(st, st), prio or "",
+                fecha(priorizacion.created_at) if priorizacion else None, compromiso, real, dias, semaforo,
+                str(motivo), "N/A", fecha(getattr(inc, "updated_at", None)), "",
+                {"proyecto": "Proyecto", "cambio": "Cambio"}.get(det.clasificacion if det else None, ""),
+                f"{ORDEN_ETAPA[st]} de 12" if st in ORDEN_ETAPA else "",
+                sum(r["horas_estimadas"] or 0 for r in rts) or None, sum(r["horas_reales"] or 0 for r in rts) or None,
+                sum(1 for e in etapas if e.etapa == "en_pruebas") or None,
+                sum(1 for e in etapas if e.etapa == "en_paso_produccion" and e.resultado == "revertido") or None,
+                f"{enc['satisfaccion']} de 5" if enc and enc.get("satisfaccion") else "",
+            ],
+            "empresa": inc.requester_company_name or "Sin empresa", "estatus": ESTATUS_REPORTE.get(st, st),
+            "prio_solicitante": bool(prio and "(solicitante)" in prio),
+        })
+
+    AZUL, BLANCO = "1A4FA0", "FFFFFF"
+    borde = Border(bottom=Side(style="thin", color="E2E8F0"))
+    enc_font, enc_fill = Font(bold=True, color=BLANCO), PatternFill("solid", fgColor=AZUL)
+    ind_fill = PatternFill("solid", fgColor="0F172A")
+    semaforo_fill = {"En tiempo": "DCFCE7", "Por vencer": "FEF3C7", "Retrasado": "FEE2E2", "Cerrado": "E2E8F0", "Rechazado": "F1F5F9", "Cancelado": "F1F5F9", "Sin fecha": "F8FAFC"}
+    semaforo_font = {"En tiempo": "166534", "Por vencer": "92400E", "Retrasado": "991B1B", "Cerrado": "334155", "Rechazado": "64748B", "Cancelado": "64748B", "Sin fecha": "94A3B8"}
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Seguimiento CC"
+    columnas = [
+        ("Folio CC", 17), ("Empresa", 13), ("Sistema / Módulo", 22), ("Tipo de solicitud", 20), ("Título del CC", 42), ("Solicitante", 28),
+        ("Área / Departamento", 18), ("Champion asignado", 28), ("Fecha de solicitud (Alta)", 14), ("Fecha de revisión Champion", 14),
+        ("Estatus actual", 18), ("Prioridad", 16), ("Fecha de priorización", 14), ("Fecha estimada de entrega", 14),
+        ("Fecha real de entrega / cierre", 14), ("Días abiertos", 10), ("Semáforo", 12), ("Motivo de rechazo / cancelación", 36),
+        ("Aprobación de modificación", 14), ("Última actualización", 14), ("Observaciones", 30),
+        ("Clasificación", 12), ("Etapa", 10), ("Horas estimadas", 10), ("Horas reales", 10), ("Ciclos de UAT", 9),
+        ("Reversiones", 10), ("Satisfacción", 11),
+    ]
+    N_VERUS = 21
+    for c, (titulo, ancho) in enumerate(columnas, 1):
+        cel = ws.cell(row=1, column=c, value=titulo)
+        cel.font, cel.fill = enc_font, (enc_fill if c <= N_VERUS else ind_fill)
+        cel.alignment = Alignment(wrap_text=True, vertical="center", horizontal="center")
+        ws.column_dimensions[get_column_letter(c)].width = ancho
+    ws.row_dimensions[1].height = 42
+    for r, d in enumerate(datos, 2):
+        for c, v in enumerate(d["fila"], 1):
+            cel = ws.cell(row=r, column=c, value=v)
+            cel.border = borde
+            cel.alignment = Alignment(vertical="top", wrap_text=c in (5, 18))
+            if isinstance(v, date):
+                cel.number_format = "dd/mm/yyyy"
+        sem = ws.cell(row=r, column=17)
+        sem.fill = PatternFill("solid", fgColor=semaforo_fill.get(sem.value, "FFFFFF"))
+        sem.font = Font(bold=True, color=semaforo_font.get(sem.value, "334155"))
+        if d["prio_solicitante"]:
+            ws.cell(row=r, column=12).font = Font(italic=True, color="94A3B8")
+    ws.freeze_panes = "C2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(columnas))}{max(len(datos) + 1, 2)}"
+
+    rs = wb.create_sheet("Resumen")
+    rs["A1"] = "Resumen de seguimiento — Controles de Cambio"
+    rs["A1"].font = Font(bold=True, size=14)
+    rs["A2"] = f"Generado el {_hora_local(datetime.now(timezone.utc)).strftime('%d/%m/%Y %H:%M')} desde la Intranet Avalanz."
+    rs["A2"].font = Font(italic=True, color="64748B")
+    estatus = list(ESTATUS_REPORTE.values())
+    empresas = sorted({d["empresa"] for d in datos}) or ["Sin datos"]
+    for c, t in enumerate(["Empresa"] + estatus + ["Total"], 1):
+        cel = rs.cell(row=4, column=c, value=t)
+        cel.font, cel.fill = enc_font, enc_fill
+        cel.alignment = Alignment(wrap_text=True, horizontal="center", vertical="center")
+        rs.column_dimensions[get_column_letter(c)].width = 16 if c == 1 else 11
+    rs.row_dimensions[4].height = 36
+    for r, emp in enumerate(empresas, 5):
+        rs.cell(row=r, column=1, value=emp).font = Font(bold=True)
+        total = 0
+        for c, est in enumerate(estatus, 2):
+            n = sum(1 for d in datos if d["empresa"] == emp and d["estatus"] == est)
+            total += n
+            rs.cell(row=r, column=c, value=n or None).alignment = Alignment(horizontal="center")
+        rs.cell(row=r, column=len(estatus) + 2, value=total).font = Font(bold=True)
+    fila_total = 5 + len(empresas)
+    rs.cell(row=fila_total, column=1, value="Total").font = Font(bold=True)
+    for c in range(2, len(estatus) + 3):
+        n = sum(rs.cell(row=r, column=c).value or 0 for r in range(5, fila_total))
+        cel = rs.cell(row=fila_total, column=c, value=n)
+        cel.font, cel.alignment = Font(bold=True), Alignment(horizontal="center")
+        cel.border = Border(top=Side(style="thin", color="0F172A"))
+
+    lm = wb.create_sheet("Léeme")
+    lineas = [
+        ("Seguimiento de Controles de Cambio — Proyecto Verus", True),
+        ("Generado automáticamente desde la Intranet Avalanz; no se captura a mano.", False),
+        ("", False),
+        ("Seguimiento CC: una fila por folio, con las columnas de la plantilla de Verus (encabezado azul).", False),
+        ("Indicadores (encabezado oscuro): datos que el sistema registra en cada etapa del ciclo.", False),
+        ("Semáforo: En tiempo · Por vencer (5 días o menos para la entrega comprometida) · Retrasado · Cerrado.", False),
+        ("Prioridad en gris cursiva: urgencia indicada por el solicitante (el CC no llegó a priorizarse).", False),
+        ("Fecha real de entrega: la del paso a producción exitoso.", False),
+    ]
+    for r, (t, negrita) in enumerate(lineas, 1):
+        lm.cell(row=r, column=1, value=t).font = Font(bold=negrita, size=13 if negrita else 11)
+    lm.column_dimensions["A"].width = 110
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    nombre_archivo = f"seguimiento_cdc_{_hora_local(datetime.now(timezone.utc)).strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'})

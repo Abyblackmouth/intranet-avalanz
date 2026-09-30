@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
-import PageWrapper from '@/components/layout/PageWrapper'
-import { getIncidents, getSystems, getSeverities, getSpecialists, createSpecialist, updateSpecialist, exportIncidentsExcel } from '@/services/itServiceDeskService'
+import { getIncidents, getSystems, getSeverities, getSpecialists, createSpecialist, updateSpecialist, exportIncidentsExcel, exportCdcExcel } from '@/services/itServiceDeskService'
 import { Search, Eye, Plus, UserPlus, Clock, Download } from 'lucide-react'
 import CreateIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateIncidentModal'
 import IncidentDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/IncidentDetailModal'
 import CdcDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/CdcDetailModal'
+import CdcKanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/CdcKanbanBoard'
 import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/AssignIncidentModal'
 import KanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/KanbanBoard'
 import { LayoutGrid, List } from 'lucide-react'
@@ -106,6 +106,27 @@ export default function MesaDeSoportePage() {
     }
   }, [isIncidentManager, user?.user_id])
 
+  const [menuExport, setMenuExport] = useState(false)
+  const rolesUsuario: string[] = (user as any)?.roles ?? []
+  const puedeExportarCdc = isIncidentManager || rolesUsuario.some(r =>
+    ['it-service-desk:project-manager', 'it-service-desk:comite-directivo', 'super_admin'].includes(r))
+  const descargar = (data: BlobPart, nombre: string) => {
+    const url = window.URL.createObjectURL(new Blob([data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', nombre)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  }
+  const handleExportCdc = async () => {
+    setExportingExcel(true); setMenuExport(false)
+    try { descargar((await exportCdcExcel()).data, `seguimiento_cdc_${new Date().toISOString().slice(0, 10)}.xlsx`) }
+    catch { alert('No se pudo generar el reporte de Controles de Cambio') }
+    finally { setExportingExcel(false) }
+  }
+
   const handleExportExcel = async () => {
     setExportingExcel(true)
     try {
@@ -196,9 +217,11 @@ export default function MesaDeSoportePage() {
   const [showCreateCDC, setShowCreateCDC] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)
   const [viewingTicketId, setViewingTicketId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'tabla' | 'tablero'>('tabla')
+  const [viewingCdcId, setViewingCdcId] = useState<string | null>(null)
+  const [cdcBoardKey, setCdcBoardKey] = useState(0)
+  const [viewMode, setViewMode] = useState<'tabla' | 'tablero' | 'proyectos'>('tabla')
   const [page, setPage] = useState(1)
-  const PER_PAGE = 11
+  const PER_PAGE = 13
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -233,79 +256,105 @@ export default function MesaDeSoportePage() {
   const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   return (
-    <PageWrapper
-      title="Mesa de Soporte"
-      description="Tickets de soporte técnico y funcional"
-      actions={
-        <button
-          onClick={() => setShowTypePicker(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[#7c2d12] rounded-lg hover:bg-[#6b2610] transition"
-        >
-          <Plus size={15} /> Nuevo ticket
-        </button>
-      }
-    >
+    // Sin encabezado: su espacio se usa para los tableros. Es el mismo
+    // contenedor que PageWrapper (que no se modifica), sin su cabecera.
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-auto px-6 pt-3 pb-6 min-h-0">
       <div className="flex flex-col h-full">
-      {isIncidentManager && (
-        <div className="flex items-center gap-3 mb-1 px-1 sticky top-0 z-10 bg-white py-0.5 shrink-0">
-          <span className="text-xs font-medium text-slate-500">Activarme como especialista general:</span>
-          <button
-            onClick={() => handleToggleSpecialist('especialista-funcional')}
-            disabled={togglingTeam === 'especialista-funcional'}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-50 ${
-              myFuncionalRow?.is_active ? 'bg-[#7c2d12] text-white border-[#7c2d12]' : 'bg-white text-slate-600 border-slate-300'
-            }`}
-          >
-            {togglingTeam === 'especialista-funcional' ? '...' : `Especialista Funcional: ${myFuncionalRow?.is_active ? 'Activo' : 'Inactivo'}`}
+      {/* Barra superior de la Mesa de Soporte: vista a la izquierda; disponibilidad,
+          exportación y nuevo ticket a la derecha. Mismos handlers de siempre. */}
+      <div className="flex items-center gap-3 mb-2 shrink-0 flex-wrap">
+        <div role="tablist" aria-label="Vista" className="inline-flex items-center gap-0.5 rounded-lg border border-slate-300 bg-white p-0.5">
+          <button type="button" role="tab" aria-selected={viewMode === 'tabla'} onClick={() => setViewMode('tabla')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'tabla' ? 'bg-[#7c2d12] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <List size={13} /> Tabla
           </button>
-          <button
-            onClick={() => handleToggleSpecialist('especialista-tecnico')}
-            disabled={togglingTeam === 'especialista-tecnico'}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-50 ${
-              myTecnicoRow?.is_active ? 'bg-[#7c2d12] text-white border-[#7c2d12]' : 'bg-white text-slate-600 border-slate-300'
-            }`}
-          >
-            {togglingTeam === 'especialista-tecnico' ? '...' : `Especialista Tecnico: ${myTecnicoRow?.is_active ? 'Activo' : 'Inactivo'}`}
+          <button type="button" role="tab" aria-selected={viewMode === 'tablero'} onClick={() => setViewMode('tablero')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'tablero' ? 'bg-[#7c2d12] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <LayoutGrid size={13} /> Tablero incidentes
           </button>
-          <button
-            onClick={() => handleToggleSpecialist('project-manager')}
-            disabled={togglingTeam === 'project-manager'}
-            title="Respaldo para Control de Cambios si no hay Project Manager disponible"
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition disabled:opacity-50 ${
-              myProjectManagerRow?.is_active ? 'bg-[#1a4fa0] text-white border-[#1a4fa0]' : 'bg-white text-slate-600 border-slate-300'
-            }`}
-          >
-            {togglingTeam === 'project-manager' ? '...' : `Project Manager: ${myProjectManagerRow?.is_active ? 'Activo' : 'Inactivo'}`}
-          </button>
-          <button
-            onClick={handleExportExcel}
-            disabled={exportingExcel}
-            className="ml-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition disabled:opacity-50 hover:opacity-90" style={{ backgroundColor: "#217346" }}
-          >
-            <Download size={13} />
-            {exportingExcel ? 'Generando...' : 'Exportar Excel'}
+          <button type="button" role="tab" aria-selected={viewMode === 'proyectos'} onClick={() => setViewMode('proyectos')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'proyectos' ? 'bg-[#7c2d12] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <LayoutGrid size={13} /> Tablero proyectos
           </button>
         </div>
-      )}
 
-      <div className="flex items-center gap-2 mb-1.5 shrink-0">
-        <button
-          onClick={() => setViewMode('tabla')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${viewMode === 'tabla' ? 'bg-[#7c2d12] text-white' : 'bg-white text-slate-500 border border-slate-300'}`}
-        >
-          <List size={13} /> Tabla
-        </button>
-        <button
-          onClick={() => setViewMode('tablero')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${viewMode === 'tablero' ? 'bg-[#7c2d12] text-white' : 'bg-white text-slate-500 border border-slate-300'}`}
-        >
-          <LayoutGrid size={13} /> Tablero
-        </button>
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          {isIncidentManager && (
+            <>
+              <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white pl-2.5 pr-1 py-0.5">
+                <span className="text-[11px] text-slate-400 mr-1">Activo como</span>
+                <button type="button" onClick={() => handleToggleSpecialist('especialista-funcional')} disabled={togglingTeam === 'especialista-funcional'}
+                  title="Activarme como especialista funcional general" aria-pressed={!!myFuncionalRow?.is_active}
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11.5px] font-medium border transition disabled:opacity-50 ${myFuncionalRow?.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'text-slate-500 border-transparent hover:bg-slate-100'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${myFuncionalRow?.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  {togglingTeam === 'especialista-funcional' ? '…' : 'Funcional'}
+                </button>
+                <button type="button" onClick={() => handleToggleSpecialist('especialista-tecnico')} disabled={togglingTeam === 'especialista-tecnico'}
+                  title="Activarme como especialista técnico general" aria-pressed={!!myTecnicoRow?.is_active}
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11.5px] font-medium border transition disabled:opacity-50 ${myTecnicoRow?.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'text-slate-500 border-transparent hover:bg-slate-100'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${myTecnicoRow?.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  {togglingTeam === 'especialista-tecnico' ? '…' : 'Técnico'}
+                </button>
+                <button type="button" onClick={() => handleToggleSpecialist('project-manager')} disabled={togglingTeam === 'project-manager'}
+                  title="Respaldo para Control de Cambios si no hay Project Manager disponible" aria-pressed={!!myProjectManagerRow?.is_active}
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11.5px] font-medium border transition disabled:opacity-50 ${myProjectManagerRow?.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'text-slate-500 border-transparent hover:bg-slate-100'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${myProjectManagerRow?.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  {togglingTeam === 'project-manager' ? '…' : 'PM'}
+                </button>
+              </div>
+            </>
+          )}
+          {(isIncidentManager || puedeExportarCdc) && (() => {
+            const opciones = [
+              ...(isIncidentManager ? [{ key: 'inc', label: 'Incidentes', desc: 'Concentrado de incidencias', run: () => { setMenuExport(false); handleExportExcel() } }] : []),
+              ...(puedeExportarCdc ? [{ key: 'cdc', label: 'Control de Cambios', desc: 'Seguimiento CC (formato Verus)', run: handleExportCdc }] : []),
+            ]
+            // La opción de la vista actual va primero
+            if (viewMode === 'proyectos') opciones.sort(a => (a.key === 'cdc' ? -1 : 1))
+            return (
+              <div className="relative">
+                <button type="button" disabled={exportingExcel} aria-haspopup={opciones.length > 1 ? 'menu' : undefined} aria-expanded={menuExport}
+                  onClick={() => (opciones.length > 1 ? setMenuExport(v => !v) : opciones[0].run())}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-600 text-emerald-700 bg-white hover:bg-emerald-50 transition disabled:opacity-50">
+                  <Download size={13} /> {exportingExcel ? 'Generando…' : 'Exportar Excel'}{opciones.length > 1 && <span aria-hidden="true" className="ml-0.5">▾</span>}
+                </button>
+                {menuExport && opciones.length > 1 && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setMenuExport(false)} />
+                    <div role="menu" className="absolute right-0 top-full mt-1.5 z-40 w-60 bg-white border border-slate-200 rounded-xl shadow-lg p-1">
+                      {opciones.map((o, i) => (
+                        <button key={o.key} role="menuitem" type="button" onClick={o.run}
+                          className={`w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 ${i === 0 ? 'bg-emerald-50/60' : ''}`}>
+                          <span className="block text-[13px] font-medium text-slate-800">{o.label}</span>
+                          <span className="block text-[11.5px] text-slate-500">{o.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })()}
+          <div className="relative group ml-3 pl-3 border-l border-slate-200">
+            <button type="button" onClick={() => setShowTypePicker(true)} aria-label="Nuevo ticket"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white bg-[#7c2d12] shadow-sm hover:bg-[#6b2610] hover:shadow-md transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#7c2d12]/30">
+              <Plus size={18} />
+            </button>
+            <span className="pointer-events-none absolute right-0 top-full mt-1.5 whitespace-nowrap rounded-md bg-slate-900 text-white text-[11px] px-2 py-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition z-20">Nuevo ticket</span>
+          </div>
+        </div>
       </div>
 
       {viewMode === 'tablero' && (
         <div className="flex-1 min-h-0">
           <KanbanBoard onChanged={fetchAll} />
+        </div>
+      )}
+
+      {viewMode === 'proyectos' && (
+        <div className="flex-1 min-h-0">
+          <CdcKanbanBoard onOpen={setViewingCdcId} refreshKey={cdcBoardKey} />
         </div>
       )}
 
@@ -468,6 +517,14 @@ export default function MesaDeSoportePage() {
           />
         )
       })()}
-    </PageWrapper>
+      {viewingCdcId && (
+        <CdcDetailModal
+          incidentId={viewingCdcId}
+          onClose={() => setViewingCdcId(null)}
+          onChanged={() => { fetchAll(); setCdcBoardKey(k => k + 1) }}
+        />
+      )}
+      </div>
+    </div>
   )
 }
