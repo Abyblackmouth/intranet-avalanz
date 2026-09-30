@@ -192,3 +192,5 @@ export const accCrearRutina = (moduloId: string, nombre: string) => api.post(`${
 export const accActualizarRutina = (rutinaId: string, data: Record<string, any>) => api.patch(`${ACC}/rutinas/${rutinaId}`, data)
 export const accQuitarRutina = (rutinaId: string) => api.delete(`${ACC}/rutinas/${rutinaId}`)
 export const accBuscarUsuarios = (q: string) => api.get('/api/v1/it-service-desk/control-cambios/catalogos/usuarios', { params: { q } })
+export const accVistaPrevia = (id: string, empresas?: string[]) =>
+  api.get(`${ACC}/formatos/${id}/vista-previa`, { params: empresas ? { empresas: empresas.join(',') } : {}, responseType: 'text' })

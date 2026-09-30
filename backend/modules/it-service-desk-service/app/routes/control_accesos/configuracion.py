@@ -281,3 +281,27 @@ async def quitar_rutina(rutina_id: str, db: AsyncSession = Depends(get_db), user
     await db.delete(r)
     await db.commit()
     return {"success": True}
+
+
+# ── Vista previa del formato (el mismo template que el PDF) ─────────────────
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from fastapi import Query
+from fastapi.responses import HTMLResponse
+from sqlalchemy import text
+
+from app.services.control_accesos.motor.documento import contexto_vista_previa, renderizar
+
+
+@router.get("/formatos/{formato_id}/vista-previa", response_class=HTMLResponse)
+async def vista_previa(formato_id: str, empresas: Optional[str] = Query(None, description="ids separados por coma; si viene, reemplaza las guardadas"),
+                       db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    config = await detalle_formato(formato_id=formato_id, db=db, user=user)
+    if empresas is not None:
+        config["empresas_elegidas"] = [e for e in empresas.split(",") if e]
+    ajustes = dict((await db.execute(text("SELECT key, value FROM incidencias_settings WHERE key LIKE 'acc.%'"))).all())
+    metodo = ajustes.get("acc.metodo_firma", "manual")
+    prueba = metodo == "docusign" and ajustes.get("acc.docusign_ambiente", "pruebas") == "pruebas"
+    fecha = datetime.now(ZoneInfo("America/Monterrey")).strftime("%d/%m/%Y")
+    return HTMLResponse(renderizar(config["formato"]["clave"], contexto_vista_previa(config, fecha, metodo, prueba)))

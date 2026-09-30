@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, X, Search, Lock } from 'lucide-react'
 import {
   accFormatos, accFormato, accActualizarFormato, accGuardarEmpresas, accCrearModulo, accActualizarModulo, accOrdenarModulos,
-  accCrearPerfil, accRenombrarPerfil, accQuitarPerfil, accCrearRutina, accActualizarRutina, accQuitarRutina, accBuscarUsuarios,
+  accCrearPerfil, accRenombrarPerfil, accQuitarPerfil, accCrearRutina, accActualizarRutina, accQuitarRutina, accBuscarUsuarios, accVistaPrevia,
 } from '@/services/itServiceDeskService'
 
 interface Empresa { id: string; nombre_comercial: string; razon_social: string; rfc: string | null; operando: boolean; grupo: string; familia: { id: string; nombre: string; clave: string } | null }
@@ -118,6 +118,62 @@ function Chip({ texto, onQuitar, onRenombrar, apagado, onToggle }: { texto: stri
   )
 }
 
+
+const A4_W = 794, A4_H = 1123
+
+function VistaPrevia({ formatoId, empresas, version }: { formatoId: string; empresas: string[]; version: number }) {
+  const [html, setHtml] = useState('')
+  const [error, setError] = useState(false)
+  const [grande, setGrande] = useState(false)
+  const [ancho, setAncho] = useState(340)
+  const caja = useRef<HTMLDivElement>(null)
+  const marco = useRef<HTMLIFrameElement>(null)
+  const clave = empresas.join(',')
+  useEffect(() => {
+    const t = setTimeout(() => {
+      accVistaPrevia(formatoId, empresas).then(r => { setHtml(r.data); setError(false) }).catch(() => setError(true))
+    }, 350)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formatoId, clave, version])
+  useEffect(() => {
+    const el = caja.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setAncho(el.clientWidth))
+    ro.observe(el); setAncho(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+  const escala = ancho / A4_W
+  const escalaGrande = typeof window !== 'undefined' ? Math.min(1, (window.innerHeight - 110) / A4_H) : 0.8
+  return (
+    <>
+      <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+        <p className="text-[12px] font-semibold text-slate-600 uppercase tracking-wide">Vista previa</p>
+        <div className="flex gap-1.5">
+          <button type="button" onClick={() => setGrande(true)} disabled={!html} className="text-[12px] px-2 py-1 rounded-md border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40">Ver en grande</button>
+          <button type="button" onClick={() => marco.current?.contentWindow?.print()} disabled={!html} className="text-[12px] px-2 py-1 rounded-md border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40">Imprimir</button>
+        </div>
+      </div>
+      <div ref={caja} className="m-3 overflow-hidden rounded-md border border-slate-200 shadow-sm bg-white" style={{ height: A4_H * escala }}>
+        {error ? <p className="p-6 text-center text-[13px] text-red-600">No se pudo generar la vista previa.</p> : html ? (
+          <iframe ref={marco} title="Vista previa del formato" srcDoc={html} sandbox="allow-same-origin allow-modals"
+            style={{ width: A4_W, height: A4_H, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left' }} />
+        ) : <div className="h-full flex items-center justify-center"><div className="w-5 h-5 border-2 border-slate-300 border-t-[#1a4fa0] rounded-full animate-spin" /></div>}
+      </div>
+      <p className="px-4 pb-3 text-[11px] text-slate-400">Es el mismo documento que se imprimirá o firmará, con datos de ejemplo del solicitante.</p>
+      {grande && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex flex-col items-center justify-center p-4" onClick={() => setGrande(false)}>
+          <div className="bg-white rounded-lg shadow-2xl overflow-hidden" style={{ width: A4_W * escalaGrande, height: A4_H * escalaGrande }} onClick={e => e.stopPropagation()}>
+            <iframe title="Vista previa grande del formato" srcDoc={html} sandbox="allow-same-origin"
+              style={{ width: A4_W, height: A4_H, border: 0, transform: `scale(${escalaGrande})`, transformOrigin: 'top left' }} />
+          </div>
+          <button type="button" onClick={() => setGrande(false)} className="mt-3 px-4 py-1.5 rounded-lg bg-white text-sm font-medium text-slate-700">Cerrar</button>
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function ControlAccesosConfig() {
   const [formatos, setFormatos] = useState<{ id: string; nombre: string; sistema: string; activo: boolean }[]>([])
   const [formatoId, setFormatoId] = useState<string | null>(null)
@@ -127,6 +183,7 @@ export default function ControlAccesosConfig() {
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [version, setVersion] = useState(0)
 
   const aviso = (ok: boolean, text: string) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
 
@@ -136,7 +193,7 @@ export default function ControlAccesosConfig() {
   const cargar = useCallback(async () => {
     if (!formatoId) return
     const r = await accFormato(formatoId)
-    setD(r.data); setElegidas(new Set(r.data.empresas_elegidas)); setEmpresasSucias(false)
+    setD(r.data); setElegidas(new Set(r.data.empresas_elegidas)); setEmpresasSucias(false); setVersion(v => v + 1)
   }, [formatoId])
   useEffect(() => { cargar().catch(e => aviso(false, errMsg(e, 'No se pudo cargar el formato'))) }, [cargar])
 
@@ -176,8 +233,6 @@ export default function ControlAccesosConfig() {
   }
   const toggleAbierto = (id: string) => setAbiertos(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
-  const modulosActivos = d.modulos.filter(m => m.activo)
-  const empresasPreview = porFamilia.map(([fam, lista]) => [fam, lista.filter(c => elegidas.has(c.id))] as const).filter(([, l]) => l.length)
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-5 items-start">
@@ -206,7 +261,7 @@ export default function ControlAccesosConfig() {
               </select>
             </label>
             <div className="grid gap-1.5 sm:col-span-2">
-              <span className="text-[12.5px] font-medium text-slate-600">Administrador del sistema <span className="font-normal text-slate-400">· recibe la solicitud y firma al final</span></span>
+              <span className="text-[12.5px] font-medium text-slate-600">Encargado de TI <span className="font-normal text-slate-400">· administrador del sistema: recibe la solicitud, firma al final y registra el usuario asignado</span></span>
               <BuscadorUsuario valor={f.admin_nombre}
                 onElegir={u => run(() => accActualizarFormato(f.id, { admin_user_id: u?.id ?? '', admin_nombre: u?.name ?? '' }), u ? 'Administrador guardado' : undefined)} />
             </div>
@@ -289,46 +344,10 @@ export default function ControlAccesosConfig() {
         </Seccion>
       </div>
 
-      {/* Vista previa */}
+      {/* Vista previa: el formato real, con las empresas marcadas aunque no se hayan guardado */}
       <aside className="xl:sticky xl:top-2 bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
-        <p className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 text-[12px] font-semibold text-slate-600 uppercase tracking-wide">Vista previa · {f.nombre}</p>
-        <div className="p-4 text-[11.5px] grid gap-3">
-          <div>
-            <p className="font-bold text-[#1a4fa0] uppercase tracking-wide text-[10.5px] mb-1">3. Grupos y empresas</p>
-            {empresasPreview.length === 0 ? <p className="text-slate-400">Sin empresas elegidas.</p> : (
-              <div className="grid grid-cols-2 gap-2">
-                {empresasPreview.map(([fam, lista]) => (
-                  <div key={fam} className="border border-slate-200 rounded-lg">
-                    <p className="px-2 py-1 bg-slate-50 border-b border-slate-200 font-bold text-slate-700 text-center">{fam}</p>
-                    <ul className="px-2 py-1 grid gap-0.5">{lista.map(c => <li key={c.id} className="flex items-center gap-1"><span className="w-2 h-2 border border-slate-400 rounded-sm" />{c.nombre_comercial}</li>)}</ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div>
-            <p className="font-bold text-[#1a4fa0] uppercase tracking-wide text-[10.5px] mb-1">4. Accesos a módulos</p>
-            <table className="w-full border-collapse">
-              <thead><tr className="bg-slate-50 text-slate-500"><th className="border border-slate-200 w-4"></th><th className="border border-slate-200 text-left px-1.5 py-0.5">Módulo</th><th className="border border-slate-200 text-left px-1.5 py-0.5">Perfil</th></tr></thead>
-              <tbody>
-                {modulosActivos.filter(m => !m.exclusivo_admin).map(m => (
-                  <tr key={m.id}><td className="border border-slate-200 text-center"><span className="inline-block w-2 h-2 border border-slate-400 rounded-sm" /></td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 font-semibold">{m.nombre}</td>
-                    <td className="border border-slate-200 px-1.5 py-0.5 text-slate-500">{m.perfiles.map(p => p.nombre).join(' / ')}</td></tr>
-                ))}
-                {modulosActivos.some(m => m.exclusivo_admin) && (
-                  <tr><td colSpan={3} className="border border-amber-300 bg-amber-50 px-1.5 py-0.5 font-bold text-amber-800 text-[10px] uppercase">Exclusivo del administrador del sistema</td></tr>
-                )}
-                {modulosActivos.filter(m => m.exclusivo_admin).map(m => (
-                  <tr key={m.id}><td className="border border-amber-300 text-center"><span className="inline-block w-2 h-2 border border-slate-400 rounded-sm" /></td>
-                    <td className="border border-amber-300 px-1.5 py-0.5 font-semibold">{m.nombre}</td>
-                    <td className="border border-amber-300 px-1.5 py-0.5 text-slate-500">{m.perfiles.map(p => p.nombre).join(' / ')}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-[11px] text-slate-400">El formato completo, con el diseño de una hoja, se verá aquí en cuanto conectemos el motor de documentos.</p>
-        </div>
+        <VistaPrevia formatoId={f.id} version={version}
+          empresas={porFamilia.flatMap(([, lista]) => lista.map(c => c.id)).filter(id => elegidas.has(id))} />
       </aside>
     </div>
   )
