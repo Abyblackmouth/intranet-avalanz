@@ -429,7 +429,7 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
     for doc in docs_result.scalars().all():
         if doc.object_key:
             documentos.append({
-                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico", "entrega_pruebas": "en_desarrollo", "uat": "en_pruebas"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
+                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico", "entrega_pruebas": "en_desarrollo", "uat": "en_pruebas", "acta_produccion": "en_paso_produccion"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
                 "object_key": doc.object_key, "bucket": "dirdoc", "fecha": doc.created_at.isoformat(),
             })
 
@@ -1806,6 +1806,7 @@ async def get_desarrollo(incident_id: str, db: AsyncSession = Depends(get_db), u
         ],
         "entrega": [_doc_json(d) for d in docs],
         "observaciones_uat": await _observaciones_uat(db, incident_id),
+        "observaciones_produccion": await _observaciones_produccion(db, incident_id),
         "solicitante": {"id": incident.requester_id, "name": incident.requester_name},
         "project_manager": {"id": detalle.project_manager_id, "name": detalle.project_manager_nombre} if detalle and detalle.project_manager_id else None,
     }
@@ -2323,3 +2324,178 @@ async def emitir_uat(incident_id: str, body: EmitirUatPayload, db: AsyncSession 
     except Exception as e:
         print(f"[CDC] Error notificando UAT {incident.folio}: {e}")
     return {"success": True, "status": incident.status, "ciclo": ciclo, "resultado": resultado}
+
+
+# ------------------------------------------------------------------
+# Paso a produccion, version ligera: se confirma despues de instalar
+# (en_paso_produccion -> terminado | en_desarrollo)
+# Pendiente: programar la ventana antes (plan, reversa, aviso a usuarios).
+# ------------------------------------------------------------------
+
+DOC_LABEL.update({"acta_produccion": "Acta de paso a producción"})
+RESULTADOS_PRODUCCION = {"exitoso": "Exitoso", "observaciones": "Exitoso con observaciones", "revertido": "Revertido"}
+
+
+def _tz_mty():
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo("America/Monterrey")
+    except Exception:
+        from datetime import timedelta
+        return timezone(timedelta(hours=-6))
+
+
+async def _avisar(incident, uids, asunto: str, mensaje: str, campos: list, alerta: str = "info") -> None:
+    try:
+        from app.assignment import _notify_inapp
+        for uid in [u for u in dict.fromkeys(uids) if u]:
+            await _notify_inapp(uid, asunto, incident.title, alerta, {"incident_id": str(incident.id), "folio": incident.folio})
+            perfil = await _get_requester_profile(uid)
+            if perfil.get("email"):
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    await client.post("http://email-service:8000/api/v1/email/system-notification", json={
+                        "to_email": perfil["email"], "full_name": perfil.get("full_name", ""), "subject": asunto, "message": mensaje,
+                        "fields": [{"label": "Folio", "value": incident.folio, "mono": True}] + campos, "alert_type": alerta})
+    except Exception as e:
+        print(f"[CDC] Error enviando aviso {incident.folio}: {e}")
+
+
+async def _observaciones_produccion(db, incident_id: str) -> Optional[dict]:
+    prods = await _etapas_de(db, incident_id, "en_paso_produccion")
+    if not prods or prods[-1].resultado != "revertido":
+        return None
+    desarrollos = await _etapas_de(db, incident_id, "en_desarrollo")
+    if desarrollos and desarrollos[-1].created_at > prods[-1].created_at:
+        return None
+    return {"fecha": prods[-1].created_at.isoformat(), "comentarios": (prods[-1].datos or {}).get("comentarios", ""),
+            "confirmo": prods[-1].realizado_por_nombre}
+
+
+async def _cargar_cdc_produccion(db, incident_id: str, user: dict, editar: bool = False):
+    from app.routes.mesa_de_soporte.mesa_de_soporte import MODULE_WIDE_ROLES
+    res = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = res.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+    det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det.scalar_one_or_none()
+    roles, uid = set(user.get("roles") or []), user.get("user_id")
+    tecnico = await _responsable_tecnico(db, incident_id)
+    participantes = {x for x in (detalle.project_manager_id if detalle else None, incident.assigned_to_user_id, tecnico) if x}
+    puede_editar = incident.status == "en_paso_produccion" and (bool(roles & IM_ROLES) or uid in participantes)
+    if not (roles & MODULE_WIDE_ROLES or uid in participantes or uid == incident.requester_id or "super_admin" in roles):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+    if editar and not puede_editar:
+        raise HTTPException(status_code=403, detail="El paso a producción lo confirman el PM, el especialista técnico o el Incident Manager")
+    return incident, detalle, roles, puede_editar, tecnico
+
+
+@router.get("/{incident_id}/produccion")
+async def get_produccion(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    incident, detalle, roles, puede_editar, tecnico = await _cargar_cdc_produccion(db, incident_id, user)
+    return {
+        "status": incident.status, "puede_editar": puede_editar,
+        "dias_garantia": int(await _get_setting(db, "cdc.dias_garantia", "15")),
+        "revertidos": [{"fecha": e.created_at.isoformat(), "comentarios": (e.datos or {}).get("comentarios", "")}
+                       for e in await _etapas_de(db, incident_id, "en_paso_produccion") if e.resultado == "revertido"],
+        "tecnico": {"id": tecnico, "name": await _nombre_usuario(tecnico)} if tecnico else None,
+    }
+
+
+class ConfirmarProduccionPayload(BaseModel):
+    resultado: str
+    fecha_instalacion: str
+    instalo: str
+    comentarios: Optional[str] = None
+
+
+@router.post("/{incident_id}/produccion/confirmar")
+async def confirmar_produccion(incident_id: str, payload: str = Form(...), files: list[UploadFile] = File(default=[]),
+                               db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+                               raw_token: str = Depends(get_token_from_request)):
+    import json
+    from datetime import timedelta
+    from pydantic import ValidationError
+    from app.models.mesa_de_soporte import ControlCambiosDocumento, ControlCambiosEtapa, IncidentActivityLog
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_produccion
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    incident, detalle, roles, _, tecnico = await _cargar_cdc_produccion(db, incident_id, user, editar=True)
+    try:
+        body = ConfirmarProduccionPayload(**json.loads(payload))
+    except (ValueError, ValidationError):
+        raise HTTPException(status_code=422, detail="Los datos de la confirmación no son válidos")
+    if body.resultado not in RESULTADOS_PRODUCCION:
+        raise HTTPException(status_code=422, detail="Elige el resultado de la instalación")
+    if not body.instalo.strip():
+        raise HTTPException(status_code=422, detail="Indica quién instaló")
+    if body.resultado != "exitoso" and not (body.comentarios or "").strip():
+        raise HTTPException(status_code=422, detail="Describe las observaciones o por qué se revirtió")
+    if not files:
+        raise HTTPException(status_code=422, detail="Sube al menos una evidencia de la instalación")
+    try:
+        fecha = datetime.fromisoformat(body.fecha_instalacion)
+        fecha = fecha.replace(tzinfo=_tz_mty()) if fecha.tzinfo is None else fecha
+    except ValueError:
+        raise HTTPException(status_code=422, detail="La fecha de instalación no es válida")
+
+    solicitante = await _get_requester_profile(incident.requester_id)
+    evidencias = []
+    for f in files:
+        content = await f.read()
+        if len(content) > MAX_DOC_BYTES:
+            raise HTTPException(status_code=413, detail=f"{f.filename} excede 20 MB")
+        mime = _mime_por_extension(f.filename, f.content_type)
+        key = await _subir_archivo(content, f.filename, mime, solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+        if not key:
+            raise HTTPException(status_code=502, detail=f"No se pudo subir {f.filename}")
+        evidencias.append({"nombre": f.filename, "object_key": key, "bucket": "dirdoc", "mime_type": mime})
+
+    autor = user.get("full_name") or ""
+    previos = [d for d in await _docs_de(db, incident_id) if d.tipo == "acta_produccion"]
+    version = (previos[-1].version + 1) if previos else 1
+    base = await _base_diseno(db, incident, detalle, version, autor)
+    pdf_bytes = generar_pdf_produccion({**base, "pm": detalle.project_manager_nombre or autor, "resultado": body.resultado,
+                                        "resultado_label": RESULTADOS_PRODUCCION[body.resultado], "fecha_label": fecha.strftime("%d/%m/%Y %H:%M"),
+                                        "instalo": body.instalo.strip(), "confirmo": autor, "evidencias": [e["nombre"] for e in evidencias],
+                                        "comentarios": (body.comentarios or "").strip()})
+    nombre = f"ACTA_PASO_PRODUCCION_{incident.folio}_v{version}.pdf"
+    key = await _subir_archivo(pdf_bytes, nombre, "application/pdf", solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail="No se pudo guardar el acta")
+    db.add(ControlCambiosDocumento(id=str(uuid.uuid4()), incident_id=incident.id, tipo="acta_produccion", version=version,
+                                   estado="generado", origen="formulario", datos=body.model_dump(), nombre=nombre, object_key=key,
+                                   mime_type="application/pdf", creado_por=user.get("user_id"), creado_por_nombre=autor))
+
+    now = datetime.now(timezone.utc)
+    datos_etapa = {**body.model_dump(), "evidencias": evidencias}
+    if body.resultado == "revertido":
+        desarrollos = await _etapas_de(db, incident_id, "en_desarrollo")
+        dev = ((desarrollos[-1].datos or {}).get("responsable") or {}).get("id") if desarrollos else None
+        incident.status = "en_desarrollo"
+        incident.assigned_to_user_id = dev or detalle.project_manager_id or incident.assigned_to_user_id
+    else:
+        dias = int(await _get_setting(db, "cdc.dias_garantia", "15"))
+        datos_etapa["garantia_hasta"] = (_hora_local(now).date() + timedelta(days=dias)).isoformat()
+        incident.status = "terminado"
+        incident.assigned_to_user_id = detalle.project_manager_id or incident.assigned_to_user_id
+    incident.assigned_team = None
+    incident.assigned_at = now
+    db.add(ControlCambiosEtapa(id=str(uuid.uuid4()), incident_id=incident.id, etapa="en_paso_produccion", resultado=body.resultado,
+                               datos=datos_etapa, documento_object_key=key, anexos=evidencias,
+                               realizado_por=user.get("user_id"), realizado_por_nombre=autor, created_at=now))
+    db.add(IncidentActivityLog(incident_id=incident.id, action="cdc_produccion_confirmada", performed_by=user.get("user_id"),
+                               performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+                               detail={"resultado": body.resultado, "garantia_hasta": datos_etapa.get("garantia_hasta")}))
+    await db.commit()
+    await _broadcast_ticket_update(incident)
+
+    revertido = body.resultado == "revertido"
+    await _avisar(incident, [incident.requester_id, detalle.project_manager_id, tecnico, incident.assigned_to_user_id],
+                  f"Control de Cambios {incident.folio}: {'instalacion revertida' if revertido else 'instalado en produccion'}",
+                  "La instalación se revirtió y el proyecto regresa a desarrollo." if revertido
+                  else f"El cambio ya está en producción. Inicia su garantía de {datos_etapa.get('garantia_hasta') and int(await _get_setting(db, 'cdc.dias_garantia', '15'))} días.",
+                  [{"label": "Resultado", "value": RESULTADOS_PRODUCCION[body.resultado], "mono": False},
+                   {"label": "Instalado el", "value": fecha.strftime("%d/%m/%Y %H:%M"), "mono": False}]
+                  + ([{"label": "Garantía hasta", "value": date.fromisoformat(datos_etapa["garantia_hasta"]).strftime("%d/%m/%Y"), "mono": False}] if not revertido else []),
+                  "warning" if revertido else "success")
+    return {"success": True, "status": incident.status, "garantia_hasta": datos_etapa.get("garantia_hasta")}

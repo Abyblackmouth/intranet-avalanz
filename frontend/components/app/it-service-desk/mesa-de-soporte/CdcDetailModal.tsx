@@ -11,6 +11,7 @@ import CdcArranque from './CdcArranque'
 import CdcDiseno from './CdcDiseno'
 import CdcDesarrollo from './CdcDesarrollo'
 import CdcUat from './CdcUat'
+import CdcProduccion from './CdcProduccion'
 
 // ════════════════════════════════════════════════════════════════════
 // TEMA -- colores del detalle en un solo lugar. En la v2 de la intranet
@@ -89,6 +90,7 @@ const ACTION_LABEL: Record<string, (l: LogEntry, d: CdcDetail) => string> = {
   cdc_desarrollo_iniciado: l => `${l.performed_by_name} inició el desarrollo`,
   cdc_avance_registrado: l => `${l.performed_by_name} registró un avance${l.detail?.rts?.length ? ` (${l.detail.rts.map((r: any) => r.id).join(', ')})` : ''}`,
   cdc_desarrollo_reasignado: l => `${l.performed_by_name} asignó el desarrollo a ${l.detail?.nuevo_nombre ?? ''}`,
+  cdc_produccion_confirmada: l => `${l.performed_by_name} confirmó el paso a producción: ${({ exitoso: 'exitoso', observaciones: 'exitoso con observaciones', revertido: 'revertido' } as Record<string, string>)[l.detail?.resultado] ?? l.detail?.resultado}`,
   cdc_uat_emitida: l => `${l.performed_by_name}${l.detail?.en_nombre_de ? ` (en nombre de ${l.detail.en_nombre_de})` : ''} ${l.detail?.resultado === 'aceptado' ? 'aceptó las pruebas' : `regresó el proyecto a desarrollo (ciclo ${l.detail?.ciclo}; no cumple: ${(l.detail?.no_cumple ?? []).join(', ')})`}`,
   cdc_liberado_pruebas: l => `${l.performed_by_name} liberó el proyecto a pruebas`,
   cdc_arranque_cerrado: l => `${l.performed_by_name} cerró el arranque; pasa a Diseño funcional`,
@@ -213,7 +215,7 @@ function RevisionSummary({ e }: { e: Etapa }) {
 }
 
 const DESARROLLA_LABEL: Record<string, string> = { equipo_interno: 'Equipo interno', proveedor_totvs: 'Proveedor TOTVS', proveedor_externo: 'Proveedor externo' }
-const DOC_LABEL: Record<string, string> = { uat: 'Acta de pruebas UAT', entrega_pruebas: 'Nota de entrega a pruebas', diseno_funcional: 'Requerimientos funcionales', diseno_tecnico: 'Diseño técnico', plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
+const DOC_LABEL: Record<string, string> = { acta_produccion: 'Acta de paso a producción', uat: 'Acta de pruebas UAT', entrega_pruebas: 'Nota de entrega a pruebas', diseno_funcional: 'Requerimientos funcionales', diseno_tecnico: 'Diseño técnico', plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
 const GOB_LABEL: Record<string, string> = { patrocinador: 'Patrocinador', gerente_proyecto: 'Gerente del proyecto', project_manager: 'Project Manager', lider_tecnico: 'Líder técnico', validador: 'Usuario validador' }
 
 function PriorizacionSummary({ e }: { e: Etapa }) {
@@ -355,7 +357,20 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
         </section>
       )
     }
-    if (status === 'en_paso_produccion') return <LockedStage title="Paso a producción">Se habilita en la siguiente entrega: ventana de instalación, responsable, plan de reversa y confirmación.</LockedStage>
+    if (status === 'en_paso_produccion') return (
+      <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
+        <header className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap">
+          <div><h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">Paso a producción</h3>
+            <p className="text-[13px] text-slate-500 mt-0.5">Confirma cómo quedó la instalación en el sistema real.</p></div>
+          <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 10 de 12</span>
+        </header>
+        <CdcProduccion incidentId={detail.id} onChanged={onRevisionDone} />
+      </section>
+    )
+    if (status === 'terminado') {
+      const gar = detail.etapas.filter(e => e.etapa === 'en_paso_produccion' && e.datos?.garantia_hasta).slice(-1)[0]?.datos?.garantia_hasta
+      return <LockedStage title="Terminado · en garantía">{`En garantía${gar ? ` hasta el ${fmtDate(gar)}` : ''}. El acta de cierre, la encuesta y el cierre automático se habilitan en la siguiente entrega.`}</LockedStage>
+    }
     if (status === 'en_desarrollo') {
       return (
         <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
@@ -402,7 +417,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
         </section>
       )
     }
-    if (status === 'terminado' || status === 'cancelado') return null
+    if (status === 'cancelado' || status === 'cerrado') return null
     return <LockedStage title={STATUS_LABEL[status] ?? status}>El formulario de esta etapa se habilita en una fase posterior.</LockedStage>
   }
 
@@ -480,7 +495,14 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
                   <p className="text-[13px] font-medium text-slate-500 mt-7 mb-2.5 px-0.5">Etapas cerradas</p>
                   <div className="flex flex-col gap-3.5">
-                    {[...detail.etapas].reverse().map(e => e.etapa === 'en_pruebas' ? (
+                    {[...detail.etapas].reverse().map(e => e.etapa === 'en_paso_produccion' ? (
+                      <ClosedStage key={e.id} icon={e.resultado === 'revertido' ? 'bg-red-600' : 'bg-[var(--cdc-done)]'} title="Paso a producción"
+                        sub={`${e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
+                        chip={{ label: e.resultado === 'revertido' ? 'Revertido' : e.resultado === 'observaciones' ? 'Con observaciones' : 'Exitoso', cls: e.resultado === 'revertido' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700' }}>
+                        <Dl rows={[['Instaló', e.datos?.instalo], ['Comentarios', e.datos?.comentarios], ['Garantía hasta', e.datos?.garantia_hasta ? fmtDate(e.datos.garantia_hasta) : null]]} />
+                        {e.documento_object_key && <button type="button" onClick={() => openSigned(e.documento_object_key!)} className="mt-4 inline-flex items-center gap-2 text-[13px] font-medium text-[#1a4fa0] hover:underline"><FileText className="w-4 h-4" />Ver acta en PDF</button>}
+                      </ClosedStage>
+                    ) : e.etapa === 'en_pruebas' ? (
                       <ClosedStage key={e.id} icon={e.resultado === 'aceptado' ? 'bg-[var(--cdc-done)]' : 'bg-amber-600'} title={`En pruebas · ciclo ${e.datos?.ciclo ?? 1}`}
                         sub={`${e.datos?.registro ?? e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
                         chip={{ label: e.resultado === 'aceptado' ? 'Aceptado' : 'Regresado a desarrollo', cls: e.resultado === 'aceptado' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700' }}>

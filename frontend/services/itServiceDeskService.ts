@@ -151,3 +151,8 @@ export const subirEvidenciaUat = (id: string, formData: FormData) =>
 export const quitarEvidenciaUat = (id: string, criterioId: string, objectKey: string) =>
   api.patch(`${CDC}/${id}/uat/evidencia/quitar`, { criterio_id: criterioId, object_key: objectKey })
 export const emitirUat = (id: string, resultado: 'aceptar' | 'regresar') => api.post(`${CDC}/${id}/uat/emitir`, { resultado })
+
+// ── Paso a producción ─────────────────────────────────────────────────────
+export const getProduccion = (id: string) => api.get(`${CDC}/${id}/produccion`)
+export const confirmarProduccion = (id: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/produccion/confirmar`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })

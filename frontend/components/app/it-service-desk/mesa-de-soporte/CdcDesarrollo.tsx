@@ -14,6 +14,7 @@ interface Data {
   status: string; puede_editar: boolean; puede_cerrar: boolean; puede_reasignar: boolean
   responsable: { id: string; name: string } | null
   rts: Rt[]; avances: Avance[]; entrega: Doc[]
+  observaciones_produccion: { fecha: string; comentarios: string; confirmo: string } | null
   observaciones_uat: { ciclo: number; fecha: string; no_cumple: { id: string; descripcion: string; comentario: string; evidencias: { nombre: string; object_key: string; bucket: string }[] }[] } | null
   resumen: { total: number; terminados: number; horas_estimadas: number; horas_reales: number; inicio: string | null; fecha_compromiso: string | null; dias_restantes: number | null }
   solicitante: { id: string; name: string }; project_manager: { id: string; name: string } | null
@@ -134,6 +135,13 @@ export default function CdcDesarrollo({ incidentId, onChanged }: { incidentId: s
   return (
     <div>
       <div className="px-5 py-5">
+        {data.observaciones_produccion && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 mb-4">
+            <p className="text-[13.5px] font-semibold text-red-900">Se revirtió la instalación en producción</p>
+            <p className="text-[13px] text-slate-800 mt-1 whitespace-pre-line">{data.observaciones_produccion.comentarios}</p>
+            <p className="text-[12px] text-slate-500 mt-1">Confirmó: {data.observaciones_produccion.confirmo}</p>
+          </div>
+        )}
         {data.observaciones_uat && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3.5 mb-4">
             <p className="text-[13.5px] font-semibold text-amber-900">Regresó de pruebas · ciclo {data.observaciones_uat.ciclo}</p>

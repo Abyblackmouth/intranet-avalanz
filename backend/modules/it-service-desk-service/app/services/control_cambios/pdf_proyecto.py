@@ -377,3 +377,21 @@ def generar_pdf_uat(d: dict) -> bytes:
         story += _contenido(d["comentario_general"], st)
     _validacion(story, st, n + 1, (d["solicitante_nombre"], "Valida (solicitante)"), (d["pm"], "Project Manager"))
     return _build(d, "Acta de pruebas UAT", story)
+
+
+def generar_pdf_produccion(d: dict) -> bytes:
+    st, story = _st(), []
+    _encabezado(story, st, d, "Acta de Paso a Producción")
+    color = {"exitoso": "#15803d", "observaciones": "#b45309", "revertido": "#b91c1c"}[d["resultado"]]
+    box = Table([[Paragraph(f"<b>Resultado: {d['resultado_label']}</b>", ParagraphStyle("res", parent=st["body"], fontSize=11, textColor=colors.HexColor(color)))]], colWidths=[17 * cm])
+    box.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 1.5, colors.HexColor(color)), ("TOPPADDING", (0, 0), (-1, -1), 7),
+                             ("BOTTOMPADDING", (0, 0), (-1, -1), 7), ("LEFTPADDING", (0, 0), (-1, -1), 10)]))
+    story += [Paragraph("1. INSTALACIÓN", st["h"]),
+              _kv([("Proyecto", d["titulo"]), ("Folio", d["folio"]), ("Sistema / Módulo", d["alcance"]),
+                   ("Instalado el", d["fecha_label"]), ("Instaló", d["instalo"]), ("Confirmó", d["confirmo"]),
+                   ("Evidencias", "\n".join(d["evidencias"]) or "—")], st),
+              Spacer(1, 10), box]
+    if d.get("comentarios"):
+        story += [Paragraph("2. COMENTARIOS", st["h"])] + _contenido(d["comentarios"], st)
+    _validacion(story, st, 3 if d.get("comentarios") else 2, (d["instalo"], "Instaló"), (d["pm"], "Project Manager"))
+    return _build(d, "Acta de paso a producción", story)
