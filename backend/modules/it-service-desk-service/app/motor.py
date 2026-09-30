@@ -21,6 +21,28 @@ TEAM_BY_REPORTED_TYPE = {
 }
 
 
+async def _usuarios_activos(role_slugs) -> Optional[set]:
+    """IDs de usuarios activos y sin bloquear con alguno de esos roles del
+    modulo (by-module-role ya filtra dados de baja y bloqueados). Regresa None
+    si admin-service no respondio: en ese caso no se valida, para no dejar
+    tickets sin asignar por una caida ajena al motor."""
+    import httpx
+    ids = set()
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            for slug in role_slugs:
+                resp = await client.get(
+                    "http://admin-service:8000/internal/users/by-module-role",
+                    params={"module_slug": "it-service-desk", "role_slug": slug},
+                )
+                if resp.status_code != 200:
+                    return None
+                ids |= {u["id"] for u in resp.json()}
+    except Exception:
+        return None
+    return ids
+
+
 async def resolve_assignment(
     db: AsyncSession,
     system_id: str,
@@ -29,10 +51,13 @@ async def resolve_assignment(
 ) -> Dict[str, Any]:
     """Busca en system_specialists, en orden: por modulo exacto -> por
     sistema completo -> por especialista general del equipo. Se detiene
-    en el primer resultado. Salida: {encontrado, equipo_asignado,
-    usuario_asignado}."""
+    en el primer resultado cuyo usuario siga activo (no dado de baja ni
+    bloqueado). Salida: {encontrado, equipo_asignado, usuario_asignado}."""
 
     team_type = TEAM_BY_REPORTED_TYPE.get(reported_type)
+    roles = [team_type] if team_type else sorted(set(TEAM_BY_REPORTED_TYPE.values()))
+    # El Incident Manager activado como equipo tambien vive en system_specialists
+    activos = await _usuarios_activos(roles + ["incident-manager"])
 
     async def _buscar(system_filter, module_filter):
         conditions = [
@@ -45,35 +70,20 @@ async def resolve_assignment(
         if team_type:
             conditions.append(SystemSpecialist.team_type == team_type)
         result = await db.execute(select(SystemSpecialist).where(*conditions))
-        return result.scalars().first()
+        for specialist in result.scalars().all():
+            if activos is None or specialist.specialist_user_id in activos:
+                return specialist
+        return None
 
-    # Paso 1: por modulo exacto (el mas especifico)
-    if module_id:
-        specialist = await _buscar(system_id, module_id)
+    pasos = ([(system_id, module_id)] if module_id else []) + [(system_id, None), (None, None)]
+    for system_filter, module_filter in pasos:
+        specialist = await _buscar(system_filter, module_filter)
         if specialist:
             return {
                 "encontrado": True,
                 "equipo_asignado": specialist.team_type,
                 "usuario_asignado": specialist.specialist_user_id,
             }
-
-    # Paso 2: por sistema completo
-    specialist = await _buscar(system_id, None)
-    if specialist:
-        return {
-            "encontrado": True,
-            "equipo_asignado": specialist.team_type,
-            "usuario_asignado": specialist.specialist_user_id,
-        }
-
-    # Paso 3: especialista general del equipo (catch-all)
-    specialist = await _buscar(None, None)
-    if specialist:
-        return {
-            "encontrado": True,
-            "equipo_asignado": specialist.team_type,
-            "usuario_asignado": specialist.specialist_user_id,
-        }
 
     return {"encontrado": False, "equipo_asignado": None, "usuario_asignado": None}
 
