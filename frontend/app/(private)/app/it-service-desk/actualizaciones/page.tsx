@@ -1,16 +1,15 @@
 'use client'
 
-import { KeyRound } from 'lucide-react'
-import ControlAccesosConfig from '@/components/app/it-service-desk/actualizaciones/ControlAccesosConfig'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Server, Plus, Pencil, Power, Search, KeyRound, Globe, Link2 } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
+import ControlAccesosConfig from '@/components/app/it-service-desk/actualizaciones/ControlAccesosConfig'
 import {
   getSystems, createSystem, updateSystem,
   getModulesCatalog, createModuleCatalog, updateModuleCatalog,
   getSpecialists, createSpecialist, updateSpecialist,
   getUsersByRole,
 } from '@/services/itServiceDeskService'
-import { Server, Boxes, Users, Plus, Pencil, Power } from 'lucide-react'
 
 interface SystemRow { id: string; name: string; is_active: boolean }
 interface ModuleRow { id: string; system_id: string; name: string; is_active: boolean }
@@ -26,20 +25,38 @@ const TEAM_TYPE_LABEL: Record<string, string> = {
   'especialista-tecnico': 'Especialista Tecnico',
   'incident-manager': 'Incident Manager (ligado a sistema/modulo)',
 }
+// Grupos del detalle, en este orden
+const EQUIPOS: { key: string; label: string }[] = [
+  { key: 'especialista-funcional', label: 'Funcional' },
+  { key: 'especialista-tecnico', label: 'Técnico' },
+  { key: 'project-manager', label: 'Project Manager' },
+  { key: 'incident-manager', label: 'Incident Manager' },
+]
+const GENERAL = '__general__'
+
+function Switch({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onClick}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${on ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+    </button>
+  )
+}
 
 export default function ActualizacionesPage() {
-  const [tab, setTab] = useState<'sistemas' | 'modulos' | 'especialistas' | 'accesos'>('sistemas')
+  const [tab, setTab] = useState<'catalogo' | 'accesos'>('catalogo')
   const [systems, setSystems] = useState<SystemRow[]>([])
   const [modules, setModules] = useState<ModuleRow[]>([])
   const [specialists, setSpecialists] = useState<SpecialistRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [sel, setSel] = useState<string | null>(null)
+  const [q, setQ] = useState('')
+  const [nuevoModulo, setNuevoModulo] = useState('')
+  const [errorModulo, setErrorModulo] = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
-    setLoading(true)
     try {
-      const [sysRes, modRes, specRes] = await Promise.all([
-        getSystems(), getModulesCatalog(), getSpecialists(),
-      ])
+      const [sysRes, modRes, specRes] = await Promise.all([getSystems(), getModulesCatalog(), getSpecialists()])
       setSystems(sysRes.data?.data ?? [])
       setModules(modRes.data?.data ?? [])
       setSpecialists(specRes.data?.data ?? [])
@@ -47,8 +64,8 @@ export default function ActualizacionesPage() {
       setLoading(false)
     }
   }, [])
-
   useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => { if (!sel && systems.length) setSel(systems.find(s => s.is_active)?.id ?? systems[0].id) }, [systems, sel])
 
   const [showSystemForm, setShowSystemForm] = useState(false)
   const [editingSystem, setEditingSystem] = useState<SystemRow | null>(null)
@@ -57,256 +74,218 @@ export default function ActualizacionesPage() {
   const [showSpecForm, setShowSpecForm] = useState(false)
   const [editingSpec, setEditingSpec] = useState<SpecialistRow | null>(null)
 
-  const systemName = (id: string) => systems.find(s => s.id === id)?.name ?? '—'
-  const moduleName = (id: string | null) => id ? (modules.find(m => m.id === id)?.name ?? '—') : null
+  const conteo = useMemo(() => {
+    const m: Record<string, { mods: number; specs: number }> = {}
+    for (const s of systems) m[s.id] = { mods: 0, specs: 0 }
+    for (const x of modules) if (x.is_active && m[x.system_id]) m[x.system_id].mods++
+    for (const x of specialists) if (x.is_active) { const k = x.system_id ?? GENERAL; m[k] = m[k] ?? { mods: 0, specs: 0 }; m[k].specs++ }
+    return m
+  }, [systems, modules, specialists])
+
+  const toggleSystem = async (s: SystemRow) => { await updateSystem(s.id, { name: s.name, is_active: !s.is_active }); fetchAll() }
+  const toggleModule = async (m: ModuleRow) => { await updateModuleCatalog(m.id, { system_id: m.system_id, name: m.name, is_active: !m.is_active }); fetchAll() }
+  const toggleSpec = async (s: SpecialistRow) => {
+    await updateSpecialist(s.id, { system_id: s.system_id, module_id: s.module_id, team_type: s.team_type, specialist_user_id: s.specialist_user_id, is_active: !s.is_active })
+    fetchAll()
+  }
+  const agregarModulo = async () => {
+    if (!sel || sel === GENERAL || !nuevoModulo.trim()) return
+    setErrorModulo(null)
+    try { await createModuleCatalog({ system_id: sel, name: nuevoModulo.trim() }); setNuevoModulo(''); fetchAll() }
+    catch (e: any) { setErrorModulo(e?.response?.data?.detail ?? 'No se pudo agregar el módulo') }
+  }
+
+  const filtrados = systems
+    .filter(s => !q.trim() || s.name.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name))
+  const sistema = systems.find(s => s.id === sel) ?? null
+  const esGeneral = sel === GENERAL
+  const modsSel = modules.filter(m => m.system_id === sel).sort((a, b) => Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name))
+  const specsSel = specialists.filter(s => (esGeneral ? !s.system_id : s.system_id === sel))
+  const specsPorModulo = (id: string) => specialists.filter(s => s.module_id === id && s.is_active).length
+  const equiposSel = [
+    ...EQUIPOS.map(e => ({ ...e, lista: specsSel.filter(s => s.team_type === e.key) })),
+    { key: 'otros', label: 'Otros', lista: specsSel.filter(s => !EQUIPOS.some(e => e.key === s.team_type)) },
+  ].filter(g => g.lista.length)
+  const moduloNombre = (id: string | null) => (id ? modules.find(m => m.id === id)?.name : null)
 
   return (
-    <PageWrapper title="Actualizaciones" description="Catálogo de sistemas, módulos y especialistas técnicos" actions={null}>
-      <div className="flex items-center gap-1 border-b border-slate-200 mb-5">
-        {[
-          { key: 'sistemas', label: 'Sistemas', icon: Server },
-          { key: 'modulos', label: 'Módulos', icon: Boxes },
-          { key: 'especialistas', label: 'Especialistas', icon: Users },
-          { key: 'accesos', label: 'Control de accesos', icon: KeyRound },
-        ].map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key as any)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.key ? 'border-[#1a4fa0] text-[#1a4fa0]' : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <t.icon size={15} />
-            {t.label}
+    <PageWrapper title="Actualizaciones" description="Catálogo de sistemas, módulos y especialistas · formatos de Control de accesos" actions={null}>
+      <div className="flex items-center gap-1 border-b border-slate-200 mb-4">
+        {[{ key: 'catalogo', label: 'Catálogo', icon: Server }, { key: 'accesos', label: 'Control de accesos', icon: KeyRound }].map(t => (
+          <button key={t.key} type="button" onClick={() => setTab(t.key as any)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.key ? 'border-[#1a4fa0] text-[#1a4fa0]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            <t.icon size={15} /> {t.label}
           </button>
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Cargando...</div>
+      {tab === 'accesos' && <ControlAccesosConfig />}
+
+      {tab === 'catalogo' && (loading ? (
+        <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Cargando…</div>
       ) : (
-        <>
-          {tab === 'sistemas' && (
-            <SystemsPanel
-              systems={systems}
-              onCreate={() => { setEditingSystem(null); setShowSystemForm(true) }}
-              onEdit={(s) => { setEditingSystem(s); setShowSystemForm(true) }}
-              onToggle={async (s) => { await updateSystem(s.id, { name: s.name, is_active: !s.is_active }); fetchAll() }}
-            />
-          )}
-          {tab === 'modulos' && (
-            <ModulesPanel
-              modules={modules}
-              systemName={systemName}
-              onCreate={() => { setEditingModule(null); setShowModuleForm(true) }}
-              onEdit={(m) => { setEditingModule(m); setShowModuleForm(true) }}
-              onToggle={async (m) => { await updateModuleCatalog(m.id, { system_id: m.system_id, name: m.name, is_active: !m.is_active }); fetchAll() }}
-            />
-          )}
-          {tab === 'accesos' && <ControlAccesosConfig />}
-          {tab === 'especialistas' && (
-            <SpecialistsPanel
-              specialists={specialists}
-              systemName={systemName}
-              moduleName={moduleName}
-              onCreate={() => { setEditingSpec(null); setShowSpecForm(true) }}
-              onEdit={(s) => { setEditingSpec(s); setShowSpecForm(true) }}
-              onToggle={async (s) => {
-                await updateSpecialist(s.id, {
-                  system_id: s.system_id, module_id: s.module_id,
-                  team_type: s.team_type, specialist_user_id: s.specialist_user_id,
-                  is_active: !s.is_active,
-                })
-                fetchAll()
-              }}
-            />
-          )}
-        </>
-      )}
+        <div className="grid grid-cols-1 lg:grid-cols-[290px_minmax(0,1fr)] gap-4 lg:h-[calc(100vh-215px)] lg:min-h-[480px]">
+          {/* ── Lista de sistemas ── */}
+          <aside className="hidden lg:flex flex-col bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-3 border-b border-slate-200 grid gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar sistema" aria-label="Buscar sistema"
+                  className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/15" />
+              </div>
+              <button type="button" onClick={() => { setEditingSystem(null); setShowSystemForm(true) }}
+                className="inline-flex items-center justify-center gap-1.5 py-1.5 text-sm font-medium text-[#1a4fa0] border border-dashed border-[#1a4fa0]/40 rounded-lg hover:bg-blue-50">
+                <Plus size={14} /> Nuevo sistema
+              </button>
+            </div>
+            <nav className="flex-1 overflow-y-auto p-2" aria-label="Sistemas">
+              <button type="button" onClick={() => setSel(GENERAL)} aria-current={esGeneral}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left mb-1 ${esGeneral ? 'bg-[#1a4fa0] text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                <Globe size={15} className={esGeneral ? 'text-white' : 'text-slate-400'} />
+                <span className="flex-1 text-sm font-semibold italic">General (catch-all)</span>
+                <span className={`text-[11px] font-mono ${esGeneral ? 'text-white/80' : 'text-slate-400'}`}>{conteo[GENERAL]?.specs ?? 0}</span>
+              </button>
+              <div className="h-px bg-slate-100 my-1.5" />
+              {filtrados.map(s => {
+                const activo = s.id === sel
+                const c = conteo[s.id] ?? { mods: 0, specs: 0 }
+                return (
+                  <button key={s.id} type="button" onClick={() => setSel(s.id)} aria-current={activo}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left ${activo ? 'bg-[#1a4fa0] text-white' : 'hover:bg-slate-100'} ${s.is_active ? '' : 'opacity-50'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.is_active ? (activo ? 'bg-white' : 'bg-emerald-500') : 'bg-slate-400'}`} />
+                    <span className={`flex-1 min-w-0 truncate text-sm font-medium ${activo ? 'text-white' : 'text-slate-800'}`}>{s.name}</span>
+                    <span className={`text-[11px] font-mono shrink-0 ${activo ? 'text-white/80' : 'text-slate-400'}`} title={`${c.mods} módulos · ${c.specs} especialistas`}>{c.mods}·{c.specs}</span>
+                  </button>
+                )
+              })}
+              {filtrados.length === 0 && <p className="text-center text-[13px] text-slate-400 py-6">Sin coincidencias</p>}
+            </nav>
+            <p className="px-3 py-2 border-t border-slate-100 text-[11px] text-slate-400">Números: módulos · especialistas activos</p>
+          </aside>
+
+          {/* Selector en pantallas angostas */}
+          <div className="lg:hidden flex gap-2">
+            <select value={sel ?? ''} onChange={e => setSel(e.target.value)} aria-label="Sistema"
+              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+              <option value={GENERAL}>General (catch-all)</option>
+              {filtrados.map(s => <option key={s.id} value={s.id}>{s.name}{s.is_active ? '' : ' (inactivo)'}</option>)}
+            </select>
+            <button type="button" onClick={() => { setEditingSystem(null); setShowSystemForm(true) }} aria-label="Nuevo sistema"
+              className="px-3 rounded-lg text-white bg-[#1a4fa0]"><Plus size={16} /></button>
+          </div>
+
+          {/* ── Detalle ── */}
+          <section className="min-w-0 flex flex-col gap-4 lg:overflow-y-auto lg:pr-1">
+            <header className="bg-white border border-slate-300 rounded-2xl shadow-sm px-5 py-3.5 flex flex-wrap items-center gap-3">
+              {esGeneral ? (
+                <>
+                  <Globe size={18} className="text-slate-400" />
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">General (catch-all)</h2>
+                    <p className="text-[12.5px] text-slate-500">Especialistas que atienden cualquier sistema cuando nadie está ligado a él.</p>
+                  </div>
+                </>
+              ) : sistema && (
+                <>
+                  <h2 className="flex-1 min-w-0 truncate font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">{sistema.name}</h2>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${sistema.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{sistema.is_active ? 'Activo' : 'Inactivo'}</span>
+                  <button type="button" onClick={() => { setEditingSystem(sistema); setShowSystemForm(true) }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"><Pencil size={13} /> Editar</button>
+                  <button type="button" onClick={() => toggleSystem(sistema)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50"><Power size={13} /> {sistema.is_active ? 'Desactivar' : 'Activar'}</button>
+                </>
+              )}
+            </header>
+
+            <div className={`grid gap-4 ${esGeneral ? '' : '2xl:grid-cols-2'} items-start`}>
+              {/* Módulos */}
+              {!esGeneral && sistema && (
+                <div className="bg-white border border-slate-300 rounded-2xl shadow-sm">
+                  <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="text-[14px] font-bold text-slate-900">Módulos <span className="font-normal text-slate-400">· {modsSel.filter(m => m.is_active).length} activos</span></h3>
+                  </div>
+                  <ul className="p-2 grid sm:grid-cols-2 gap-1">
+                    {modsSel.map(m => {
+                      const n = specsPorModulo(m.id)
+                      return (
+                        <li key={m.id} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-50 ${m.is_active ? '' : 'opacity-50'}`}>
+                          <span className="flex-1 min-w-0 truncate text-[13.5px] text-slate-800" title={m.name}>{m.name}</span>
+                          {n > 0 && <span className="text-[11px] text-slate-400 inline-flex items-center gap-0.5 shrink-0" title={`${n} especialista(s) ligados a este módulo`}><Link2 size={11} />{n}</span>}
+                          <button type="button" onClick={() => { setEditingModule(m); setShowModuleForm(true) }} aria-label={`Editar ${m.name}`}
+                            className="p-1 text-slate-400 hover:text-slate-700 rounded"><Pencil size={13} /></button>
+                          <Switch on={m.is_active} onClick={() => toggleModule(m)} label={`${m.is_active ? 'Desactivar' : 'Activar'} ${m.name}`} />
+                        </li>
+                      )
+                    })}
+                    {modsSel.length === 0 && <li className="sm:col-span-2 text-center text-[13px] text-slate-400 py-4">Este sistema aún no tiene módulos.</li>}
+                  </ul>
+                  <div className="px-3 pb-3">
+                    <div className="flex gap-1.5">
+                      <input value={nuevoModulo} onChange={e => setNuevoModulo(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') agregarModulo() }}
+                        placeholder="Agregar módulo y presionar Enter" aria-label="Nuevo módulo"
+                        className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/15" />
+                      <button type="button" onClick={agregarModulo} disabled={!nuevoModulo.trim()}
+                        className="px-3 rounded-lg text-white bg-[#1a4fa0] hover:bg-blue-700 disabled:opacity-40" aria-label="Agregar módulo"><Plus size={15} /></button>
+                    </div>
+                    {errorModulo && <p className="text-[12px] text-red-600 mt-1">{errorModulo}</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Especialistas */}
+              <div className="bg-white border border-slate-300 rounded-2xl shadow-sm">
+                <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+                  <h3 className="text-[14px] font-bold text-slate-900">Especialistas <span className="font-normal text-slate-400">· {specsSel.filter(s => s.is_active).length} activos</span></h3>
+                  <button type="button" onClick={() => { setEditingSpec(null); setShowSpecForm(true) }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white bg-[#1a4fa0] rounded-lg hover:bg-blue-700"><Plus size={14} /> Enlazar especialista</button>
+                </div>
+                {equiposSel.length === 0 ? (
+                  <p className="text-center text-[13px] text-slate-400 py-6">{esGeneral ? 'No hay especialistas generales.' : 'Nadie está ligado a este sistema: sus tickets los atienden los especialistas generales.'}</p>
+                ) : (
+                  <div className="p-2 grid gap-3">
+                    {equiposSel.map(g => (
+                      <div key={g.key}>
+                        <p className="px-2.5 pt-1 pb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{g.label}</p>
+                        <ul className="grid gap-0.5">
+                          {g.lista.sort((a, b) => Number(b.is_active) - Number(a.is_active)).map(s => {
+                            const mod = moduloNombre(s.module_id)
+                            return (
+                              <li key={s.id} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-50 ${s.is_active ? '' : 'opacity-50'}`}>
+                                <span className="flex-1 min-w-0">
+                                  <span className="block truncate text-[13.5px] font-medium text-slate-800">{s.specialist_user_name ?? s.specialist_user_id}</span>
+                                  {!esGeneral && <span className="block text-[12px] text-slate-500">{mod ? `Solo ${mod}` : 'Todo el sistema'}</span>}
+                                </span>
+                                <button type="button" onClick={() => { setEditingSpec(s); setShowSpecForm(true) }} aria-label="Editar especialista"
+                                  className="p-1 text-slate-400 hover:text-slate-700 rounded"><Pencil size={13} /></button>
+                                <Switch on={s.is_active} onClick={() => toggleSpec(s)} label={`${s.is_active ? 'Desactivar' : 'Activar'} especialista`} />
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      ))}
 
       {showSystemForm && (
-        <SystemFormModal
-          system={editingSystem ?? undefined}
-          onClose={() => setShowSystemForm(false)}
-          onSaved={() => { setShowSystemForm(false); fetchAll() }}
-        />
+        <SystemFormModal system={editingSystem ?? undefined} onClose={() => setShowSystemForm(false)}
+          onSaved={() => { setShowSystemForm(false); fetchAll() }} />
       )}
       {showModuleForm && (
-        <ModuleFormModal
-          moduleRow={editingModule ?? undefined}
-          systems={systems}
-          onClose={() => setShowModuleForm(false)}
-          onSaved={() => { setShowModuleForm(false); fetchAll() }}
-        />
+        <ModuleFormModal moduleRow={editingModule ?? undefined} systems={systems} defaultSystemId={sel && sel !== GENERAL ? sel : undefined}
+          onClose={() => setShowModuleForm(false)} onSaved={() => { setShowModuleForm(false); fetchAll() }} />
       )}
       {showSpecForm && (
-        <SpecialistFormModal
-          spec={editingSpec ?? undefined}
-          systems={systems}
-          modules={modules}
-          onClose={() => setShowSpecForm(false)}
-          onSaved={() => { setShowSpecForm(false); fetchAll() }}
-        />
+        <SpecialistFormModal spec={editingSpec ?? undefined} systems={systems} modules={modules} defaultSystemId={sel && sel !== GENERAL ? sel : null}
+          onClose={() => setShowSpecForm(false)} onSaved={() => { setShowSpecForm(false); fetchAll() }} />
       )}
     </PageWrapper>
-  )
-}
-
-// ── Panel: Sistemas ─────────────────────────────────────────────────────────
-function SystemsPanel({ systems, onCreate, onEdit, onToggle }: {
-  systems: SystemRow[]
-  onCreate: () => void
-  onEdit: (s: SystemRow) => void
-  onToggle: (s: SystemRow) => void
-}) {
-  return (
-    <div>
-      <div className="flex justify-end mb-3">
-        <button onClick={onCreate} className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[#1a4fa0] rounded-lg hover:bg-blue-700 transition">
-          <Plus size={15} /> Nuevo sistema
-        </button>
-      </div>
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              <th className="px-4 py-3">Nombre</th>
-              <th className="px-4 py-3">Estatus</th>
-              <th className="px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {systems.map(s => (
-              <tr key={s.id} className="hover:bg-slate-50/50">
-                <td className="px-4 py-3 font-medium text-slate-800">{s.name}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {s.is_active ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => onEdit(s)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition"><Pencil size={14} /></button>
-                  <button onClick={() => onToggle(s)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition ml-1"><Power size={14} /></button>
-                </td>
-              </tr>
-            ))}
-            {systems.length === 0 && (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-400 text-sm">Sin sistemas registrados</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-// ── Panel: Módulos ────────────────────────────────────────────────────────
-function ModulesPanel({ modules, systemName, onCreate, onEdit, onToggle }: {
-  modules: ModuleRow[]
-  systemName: (id: string) => string
-  onCreate: () => void
-  onEdit: (m: ModuleRow) => void
-  onToggle: (m: ModuleRow) => void
-}) {
-  return (
-    <div>
-      <div className="flex justify-end mb-3">
-        <button onClick={onCreate} className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[#1a4fa0] rounded-lg hover:bg-blue-700 transition">
-          <Plus size={15} /> Nuevo módulo
-        </button>
-      </div>
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              <th className="px-4 py-3">Sistema</th>
-              <th className="px-4 py-3">Módulo</th>
-              <th className="px-4 py-3">Estatus</th>
-              <th className="px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {modules.map(m => (
-              <tr key={m.id} className="hover:bg-slate-50/50">
-                <td className="px-4 py-3 text-slate-500">{systemName(m.system_id)}</td>
-                <td className="px-4 py-3 font-medium text-slate-800">{m.name}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${m.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {m.is_active ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => onEdit(m)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition"><Pencil size={14} /></button>
-                  <button onClick={() => onToggle(m)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition ml-1"><Power size={14} /></button>
-                </td>
-              </tr>
-            ))}
-            {modules.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400 text-sm">Sin módulos registrados</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-// ── Panel: Especialistas ──────────────────────────────────────────────────
-function SpecialistsPanel({ specialists, systemName, moduleName, onCreate, onEdit, onToggle }: {
-  specialists: SpecialistRow[]
-  systemName: (id: string) => string
-  moduleName: (id: string | null) => string | null
-  onCreate: () => void
-  onEdit: (s: SpecialistRow) => void
-  onToggle: (s: SpecialistRow) => void
-}) {
-  return (
-    <div>
-      <div className="flex justify-end mb-3">
-        <button onClick={onCreate} className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[#1a4fa0] rounded-lg hover:bg-blue-700 transition">
-          <Plus size={15} /> Enlazar especialista
-        </button>
-      </div>
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              <th className="px-4 py-3">Persona</th>
-              <th className="px-4 py-3">Equipo</th>
-              <th className="px-4 py-3">Alcance</th>
-              <th className="px-4 py-3">Estatus</th>
-              <th className="px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {specialists.map(s => (
-              <tr key={s.id} className="hover:bg-slate-50/50">
-                <td className="px-4 py-3 font-medium text-slate-800">{s.specialist_user_name ?? s.specialist_user_id}</td>
-                <td className="px-4 py-3 text-slate-500">{TEAM_TYPE_LABEL[s.team_type] ?? s.team_type}</td>
-                <td className="px-4 py-3 text-slate-500">
-                  {s.system_id
-                    ? `${systemName(s.system_id)}${moduleName(s.module_id) ? ' · ' + moduleName(s.module_id) : ''}`
-                    : <span className="italic text-slate-400">General (catch-all)</span>
-                  }
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {s.is_active ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => onEdit(s)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition"><Pencil size={14} /></button>
-                  <button onClick={() => onToggle(s)} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition ml-1"><Power size={14} /></button>
-                </td>
-              </tr>
-            ))}
-            {specialists.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-sm">Sin especialistas enlazados</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
   )
 }
 
@@ -353,11 +332,11 @@ function SystemFormModal({ system, onClose, onSaved }: { system?: SystemRow; onC
 }
 
 // ── Modal: Módulo ─────────────────────────────────────────────────────────
-function ModuleFormModal({ moduleRow, systems, onClose, onSaved }: {
-  moduleRow?: ModuleRow; systems: SystemRow[]; onClose: () => void; onSaved: () => void
+function ModuleFormModal({ moduleRow, systems, defaultSystemId, onClose, onSaved }: {
+  moduleRow?: ModuleRow; systems: SystemRow[]; defaultSystemId?: string; onClose: () => void; onSaved: () => void
 }) {
   const [name, setName] = useState(moduleRow?.name ?? '')
-  const [systemId, setSystemId] = useState(moduleRow?.system_id ?? '')
+  const [systemId, setSystemId] = useState(moduleRow?.system_id ?? defaultSystemId ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -409,12 +388,12 @@ function ModuleFormModal({ moduleRow, systems, onClose, onSaved }: {
 }
 
 // ── Modal: Especialista (con el filtro por rol en vivo) ──────────────────
-function SpecialistFormModal({ spec, systems, modules, onClose, onSaved }: {
-  spec?: SpecialistRow; systems: SystemRow[]; modules: ModuleRow[]; onClose: () => void; onSaved: () => void
+function SpecialistFormModal({ spec, systems, modules, defaultSystemId, onClose, onSaved }: {
+  spec?: SpecialistRow; systems: SystemRow[]; modules: ModuleRow[]; defaultSystemId?: string | null; onClose: () => void; onSaved: () => void
 }) {
   const [teamType, setTeamType] = useState(spec?.team_type ?? 'especialista-funcional')
-  const [scopeType, setScopeType] = useState<'catchall' | 'especifico'>(spec?.system_id ? 'especifico' : 'catchall')
-  const [systemId, setSystemId] = useState(spec?.system_id ?? '')
+  const [scopeType, setScopeType] = useState<'catchall' | 'especifico'>(spec ? (spec.system_id ? 'especifico' : 'catchall') : (defaultSystemId ? 'especifico' : 'catchall'))
+  const [systemId, setSystemId] = useState(spec?.system_id ?? defaultSystemId ?? '')
   const [moduleId, setModuleId] = useState(spec?.module_id ?? '')
   const [userId, setUserId] = useState(spec?.specialist_user_id ?? '')
   const [users, setUsers] = useState<UserOption[]>([])
