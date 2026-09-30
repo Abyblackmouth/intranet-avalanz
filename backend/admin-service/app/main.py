@@ -101,11 +101,30 @@ async def internal_get_users_by_module_role(
         WHERE mr.slug = :role_slug
           AND m.slug = :module_slug
           AND u.is_active = true
+          AND u.is_locked = false
           AND uma.is_active = true
         ORDER BY u.full_name
     """), {"role_slug": role_slug, "module_slug": module_slug})
     rows = result.fetchall()
     return [{"id": str(r[0]), "name": r[1], "email": r[2]} for r in rows]
+
+
+@app.get("/internal/users/search", include_in_schema=False)
+async def internal_search_users(q: str, limit: int = 15, db: AsyncSession = Depends(get_db)):
+    """Busqueda de usuarios activos por nombre o correo, para selectores de
+    otros microservicios (ej. roles de gobierno de un Control de Cambios).
+    Sin JWT, solo alcanzable dentro de la red interna de Docker."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT u.id, u.full_name, u.email, u.puesto, u.departamento
+        FROM users u
+        WHERE u.is_active = true
+          AND u.is_locked = false
+          AND (u.full_name ILIKE :q OR u.email ILIKE :q)
+        ORDER BY u.full_name
+        LIMIT :limit
+    """), {"q": f"%{q.strip()}%", "limit": min(max(limit, 1), 30)})
+    return [{"id": str(r[0]), "name": r[1], "email": r[2], "puesto": r[3], "departamento": r[4]} for r in result.fetchall()]
 
 @app.get("/internal/users/{user_id}/permissions", include_in_schema=False)
 async def internal_get_user_permissions(
@@ -157,6 +176,24 @@ async def internal_get_user_profile(
         "email": row[8],
         "photo_object_key": row[9],
     }
+
+
+@app.get("/internal/departamentos", include_in_schema=False)
+async def internal_get_departamentos(
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista de departamentos ya registrados en toda la plataforma (todas
+    las empresas), sin duplicados -- se llenan al dar de alta empleados
+    (campo 'departamento' del usuario). Endpoint compartido a nivel raiz
+    para que cualquier modulo lo consuma (ej. IT Service Desk al levantar
+    un Control de Cambios), en vez de duplicar esta consulta por modulo."""
+    from sqlalchemy import text
+    result = await db.execute(text("""
+        SELECT DISTINCT departamento FROM users
+        WHERE departamento IS NOT NULL AND departamento != '' AND is_deleted = false
+        ORDER BY departamento
+    """))
+    return {"data": [row[0] for row in result.fetchall()]}
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

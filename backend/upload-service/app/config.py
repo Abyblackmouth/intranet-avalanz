@@ -20,6 +20,12 @@ class UploadConfig(BaseConfig):
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-project",
+        "application/xml",
+        "text/xml",
+        "application/vnd.visio",
+        "application/vnd.ms-visio.drawing.main+xml",
+        "application/vnd.jgraph.mxfile",
     ]
 
     @property
@@ -30,6 +36,11 @@ class UploadConfig(BaseConfig):
     ALLOWED_EXTENSIONS: List[str] = [
         ".jpg", ".jpeg", ".png", ".gif", ".webp",
         ".pdf", ".doc", ".docx", ".xls", ".xlsx",
+        ".mpp",
+        ".xml",
+        ".vsd",
+        ".vsdx",
+        ".drawio",
     ]
 
     # ── Buckets ───────────────────────────────────────────────────────────────

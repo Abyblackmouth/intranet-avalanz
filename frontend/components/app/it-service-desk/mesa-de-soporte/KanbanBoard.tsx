@@ -23,7 +23,7 @@ interface KanbanTicket {
 }
 
 const COLUMNS = [
-  { key: 'en_backlog', label: 'Backlog', accent: '#94a3b8', flexGrow: 0.5, pageSize: 8 },
+  { key: 'en_backlog', label: 'Backlog', accent: '#94a3b8', flexGrow: 0.5, pageSize: 4 },
   { key: 'asignado', label: 'Asignado', accent: '#1a4fa0', flexGrow: 1.5, pageSize: 12 },
   { key: 'resuelto', label: 'Resuelto', accent: '#059669', flexGrow: 1, pageSize: 8 },
   { key: 'cerrado', label: 'Cerrado', accent: '#475569', flexGrow: 1, pageSize: 8 },
@@ -196,7 +196,7 @@ function Column({ colKey, label, accent, flexGrow, pageSize, tickets, severities
         ) : (
           <div
             key={page}
-            className={`grid gap-2.5 transition-all duration-300 ease-out ${isExpanded || flexGrow >= 1.5 ? 'grid-cols-3' : 'grid-cols-2'} ${
+            className={`grid gap-2.5 transition-all duration-300 ease-out grid-cols-[repeat(auto-fit,minmax(170px,1fr))] ${
               entering ? 'opacity-0 translate-y-3' : 'opacity-100 translate-y-0'
             }`}
           >
@@ -250,6 +250,7 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
 
   // Tiempo real: un ticket nuevo aparece directo en su columna
   useWSEvent('it_service_desk.ticket_created', (data: KanbanTicket) => {
+    if ((data as any).ticket_type === 'control_cambio' || data.folio?.startsWith('CDC-')) return
     setColumnsData(prev => {
       const col = data.status
       const existentes = prev[col]?.tickets ?? []
@@ -262,6 +263,7 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
   // Tiempo real: un ticket cambia de fase -- se desvanece de su columna
   // actual y aparece resaltado en la nueva, sin recargar la pagina.
   useWSEvent('it_service_desk.ticket_updated', (data: KanbanTicket) => {
+    if ((data as any).ticket_type === 'control_cambio' || data.folio?.startsWith('CDC-')) return
     setColumnsData(prev => {
       let colActual: string | null = null
       for (const key of Object.keys(prev)) {
@@ -315,7 +317,7 @@ export default function KanbanBoard({ onChanged }: { onChanged?: () => void }) {
 
   const fetchColumn = useCallback(async (colKey: string, page: number) => {
     const pageSize = getPageSize(colKey)
-    const res = await getIncidents({ status: colKey, order: 'asc', limit: pageSize, offset: page * pageSize })
+    const res = await getIncidents({ status: colKey, order: 'asc', limit: pageSize, offset: page * pageSize, excluir_tipo: 'control_cambio' })
     setColumnsData(prev => ({ ...prev, [colKey]: { tickets: res.data.data, total: res.data.total_count } }))
   }, [])
 

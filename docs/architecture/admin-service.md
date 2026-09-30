@@ -326,6 +326,8 @@ Los endpoints internos viven en `app/main.py` — no en los routers de `routes/`
 |---|---|---|---|---|
 | GET | /internal/users/{user_id}/permissions | No | auth-service | Consultado al emitir JWT — devuelve roles, módulos, empresas y permisos del usuario |
 | GET | /internal/users/by-module-role | No | Cualquier microservicio | Lista usuarios activos con un rol específico en un módulo |
+| GET | /internal/users/{user_id}/profile | No | Cualquier microservicio | Snapshot de perfil (nombre, teléfono, puesto, departamento, empresa, company_slug, email, foto) — usado por IT Service Desk al crear tickets |
+| GET | /internal/departamentos | No | Cualquier microservicio | Lista de departamentos ya registrados en toda la plataforma (todas las empresas), sin duplicados — agregado 2026-09-25 para el catálogo de Área/Departamento en Control de Cambios (IT Service Desk) |
 
 ### GET /internal/users/{user_id}/permissions
 
@@ -357,6 +359,41 @@ Query params: `module_slug` (requerido) y `role_slug` (requerido).
 Filtra usuarios con `is_active=true` y `uma.is_active=true`. Usado actualmente por el `legal-service` para listar abogados disponibles al asignar sobres. Diseñado para ser reutilizado por cualquier módulo futuro que necesite obtener usuarios por rol.
 
 > **Implementación:** está en `app/main.py` y no en `routes/users.py` porque FastAPI resolvería `/internal/...` como el parámetro `{user_id}` si estuviera en el mismo router, causando error de UUID inválido.
+
+### GET /internal/users/{user_id}/profile
+
+Snapshot mínimo de perfil para otros microservicios (ej. IT Service Desk al crear un ticket) — nombre, teléfono, puesto, departamento, empresa y company_id.
+
+```json
+{
+  "full_name": "HECTOR ABRAHAM COVARRUBIAS MARTINEZ",
+  "phone": null,
+  "puesto": "ADMINISTRADOR CORPORATIVO ERP TOTVS",
+  "departamento": "INFORMATICA",
+  "company_id": "07e6574f-db9f-4f33-a127-1d08b3f5adc5",
+  "company_name": "AGIM",
+  "company_slug": "agim",
+  "family_clave": "AVAL",
+  "email": "abraham_covarrubias@avalanz.com",
+  "photo_object_key": null
+}
+```
+
+`family_clave` es la clave de 4 caracteres usada para generar folios (ej. `INC-AVAL-000001`, `CDC-AVAL-000001`) — viene de `company_families.clave` si la empresa pertenece a una familia, o se calcula como fallback a partir del nombre de la empresa (primeros 4 caracteres alfanuméricos en mayúsculas, sin acentos ni espacios).
+
+### GET /internal/departamentos
+
+Agregado 2026-09-25 para el catálogo de "Área/Departamento" del formulario de Control de Cambios en IT Service Desk.
+
+```json
+{
+  "data": ["CONTABILIDAD", "INFORMATICA", "LEGAL", "SISTEMAS", "TI", "..."]
+}
+```
+
+Lista de valores **distintos** de `users.departamento` en toda la plataforma — deliberadamente **no filtrado por empresa**, ya que el catálogo es compartido entre todas las compañías del grupo (decisión explícita: un departamento como "Sistemas" no se duplica por cada empresa). Se puebla solo con los departamentos que ya se hayan capturado al dar de alta o editar empleados — no es un catálogo independiente, así que si ningún usuario tiene un departamento capturado, la lista sale vacía.
+
+> Colocado aquí (admin-service) y no dentro de IT Service Desk porque es el servicio raíz/compartido que ya consultan todos los módulos para datos de usuario — evita duplicar la misma consulta en cada módulo que la necesite. IT Service Desk expone un endpoint puente (`GET /control-cambios/departamentos`) que llama a este internamente.
 
 ---
 
@@ -648,6 +685,8 @@ Todos los archivos de empleados se guardan en MinIO bajo: `dirdoc/admin/employee
 | upload-service | admin → upload | GET /api/v1/upload/signed-url | Obtener URL firmada para descarga |
 | auth-service | auth → admin | GET /internal/users/{user_id}/permissions | Auth consulta permisos al emitir JWT |
 | legal-service | legal → admin | GET /internal/users/by-module-role | Legal consulta abogados disponibles para asignación |
+| it-service-desk-service | it-service-desk → admin | GET /internal/users/{user_id}/profile | Snapshot de perfil del solicitante al crear un ticket (Incidente o Control de Cambios) |
+| it-service-desk-service | it-service-desk → admin | GET /internal/departamentos | Catálogo de Área/Departamento para el formulario de Control de Cambios |
 
 > Todas las URLs internas usan nombre de contenedor con puerto: `http://auth-service:8000/...`, `http://upload-service:8000/...`, `http://admin-service:8000/...`
 
