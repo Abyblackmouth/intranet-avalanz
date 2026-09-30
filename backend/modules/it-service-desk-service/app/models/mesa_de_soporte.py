@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Date, Text, Integer,
     ForeignKey, Enum as SAEnum, BigInteger, JSON, UniqueConstraint
@@ -17,6 +18,9 @@ def gen_uuid():
 # ─────────────────────────────────────────────────────────────────────────
 # Catálogos
 # ─────────────────────────────────────────────────────────────────────────
+
+from sqlalchemy import Float
+
 
 class TicketSeverity(Base):
     """Catálogo de severidades S1-S4. Configurable por incident_manager."""
@@ -160,7 +164,8 @@ class Incident(Base):
     status = Column(
         SAEnum(
             "en_backlog", "asignado", "en_atencion", "escalado", "resuelto", "cerrado",
-            "registrado", "en_revision", "aprobado", "rechazado", "priorizado",
+            "registrado", "en_revision", "aprobado", "rechazado", "priorizado", "en_arranque",
+            "en_diseno_funcional", "en_diseno_tecnico", "en_paso_produccion",
             "en_desarrollo", "en_pruebas", "terminado", "cancelado",
             name="incident_status_enum",
         ),
@@ -248,4 +253,79 @@ class ControlCambiosDetalle(Base):
 
     solicitud_pdf_object_key = Column(String(500), nullable=True)  # ruta del PDF "SOLICITUD" en MinIO
 
+    # Definidos por Gerencia de Proyectos en la priorizacion. Separados de
+    # urgencia/impacto/fecha del solicitante, que son solo referencia y
+    # nunca se sobreescriben.
+    prioridad = Column(String(10), nullable=True)            # alta | media | baja  -> P1 | P2 | P3
+    impacto_confirmado = Column(String(10), nullable=True)   # alto | medio | bajo
+    fecha_compromiso = Column(Date, nullable=True)
+    clasificacion = Column(String(10), nullable=True)        # cambio | proyecto -- define el peso de la etapa de Arranque
+    # PM del CDC guardado aparte: durante el diseno 'Asignado' es el especialista,
+    # y al llegar a desarrollo (o si no hay especialista disponible) se vuelve a el
+    project_manager_id = Column(UUID(as_uuid=False), nullable=True)
+    project_manager_nombre = Column(String(255), nullable=True)
+
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now())
+
+
+class ControlCambiosEtapa(Base):
+    """Un renglon por etapa cerrada de un Control de Cambios (dictamen de
+    revision, priorizacion, UAT...). Lo que captura el formulario de cada
+    etapa va en `datos` (JSONB) para que las etapas nuevas no requieran
+    migracion; solo lo transversal (resultado, documento, autor) es columna."""
+    __tablename__ = "control_cambios_etapas"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    etapa = Column(String(30), nullable=False)       # en_revision | priorizado | en_pruebas ...
+    resultado = Column(String(30), nullable=True)    # en_revision: procede | ajuste_alcance | no_procede
+    datos = Column(JSONB, nullable=False, default=dict)
+    documento_object_key = Column(String(500), nullable=True)  # PDF generado por la etapa (ej. DICTAMEN_...)
+    anexos = Column(JSONB, nullable=False, default=list)       # [{nombre, object_key, bucket, mime_type}]
+    realizado_por = Column(UUID(as_uuid=False), nullable=False)
+    realizado_por_nombre = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class ControlCambiosDocumento(Base):
+    """Documentos del expediente de Arranque de un CDC (acta, alcance,
+    resumen, cronograma, plan breve, diagramas, acta firmada). Tabla aparte
+    de control_cambios_etapas porque un documento se guarda muchas veces
+    (borradores) y tiene versiones; una etapa se cierra una sola vez.
+    Regla de versiones: editar un documento ya generado crea la version
+    siguiente como borrador; la anterior se conserva en el expediente."""
+    __tablename__ = "control_cambios_documentos"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    tipo = Column(String(30), nullable=False)      # acta | alcance | resumen | cronograma | plan_breve | diagrama | acta_firmada | otro
+    version = Column(Integer, nullable=False, default=1)
+    estado = Column(String(15), nullable=False)    # borrador | generado | subido
+    origen = Column(String(15), nullable=False, default="formulario")  # formulario | archivo
+    datos = Column(JSONB, nullable=False, default=dict)
+    nombre = Column(String(255), nullable=True)
+    object_key = Column(String(500), nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    creado_por = Column(UUID(as_uuid=False), nullable=False)
+    creado_por_nombre = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ControlCambiosAvance(Base):
+    """Bitacora del desarrollo de un CDC. Solo se agregan renglones, nunca se
+    editan: cada uno es un avance general (rt_id NULL, con comentario y
+    anexos) o un cambio de estado de un requerimiento tecnico. El estado
+    vigente de cada RT es su ultimo renglon, asi queda la historia completa."""
+    __tablename__ = "control_cambios_avances"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    rt_id = Column(String(20), nullable=True)        # RT-01 ... ; NULL = avance general
+    estado = Column(String(15), nullable=True)       # pendiente | en_progreso | terminado
+    horas = Column(Float, nullable=True)             # horas reales ACUMULADAS del RT a la fecha
+    comentario = Column(Text, nullable=True)
+    anexos = Column(JSONB, nullable=False, default=list)
+    autor_id = Column(UUID(as_uuid=False), nullable=False)
+    autor_nombre = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)

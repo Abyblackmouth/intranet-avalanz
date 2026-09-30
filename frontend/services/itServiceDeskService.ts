@@ -96,3 +96,72 @@ export const getDepartamentos = () =>
 
 export const getMiPerfilCDC = () =>
   api.get('/api/v1/it-service-desk/control-cambios/mi-perfil')
+
+// ── Control de Cambios ────────────────────────────────────────────────────
+export const getControlCambioDetail = (id: string) =>
+  api.get(`/api/v1/it-service-desk/control-cambios/${id}`)
+export const submitCdcRevision = (id: string, formData: FormData) =>
+  api.post(`/api/v1/it-service-desk/control-cambios/${id}/revision`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+export const submitCdcPriorizacion = (id: string, formData: FormData) =>
+  api.post(`/api/v1/it-service-desk/control-cambios/${id}/priorizacion`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+export const searchCdcUsuarios = (q: string) =>
+  api.get(`/api/v1/it-service-desk/control-cambios/catalogos/usuarios`, { params: { q } })
+
+// ── Arranque de CDC ───────────────────────────────────────────────────────
+const CDC = '/api/v1/it-service-desk/control-cambios'
+export const getArranque = (id: string) => api.get(`${CDC}/${id}/arranque`)
+export const setArranqueClasificacion = (id: string, clasificacion: string) =>
+  api.put(`${CDC}/${id}/arranque/clasificacion`, { clasificacion })
+export const saveArranqueBorrador = (id: string, tipo: string, datos: any) =>
+  api.put(`${CDC}/${id}/arranque/${tipo}/borrador`, { datos })
+export const generarArranqueDoc = (id: string, tipo: string) =>
+  api.post(`${CDC}/${id}/arranque/${tipo}/generar`)
+export const subirArranqueDoc = (id: string, tipo: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/arranque/${tipo}/archivo`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const iniciarDesarrollo = (id: string) => api.post(`${CDC}/${id}/arranque/cerrar`)  // cierra el arranque -> Diseño funcional
+
+// ── Diseño funcional y técnico ────────────────────────────────────────────
+export const getDiseno = (id: string, fase: string) => api.get(`${CDC}/${id}/diseno/${fase}`)
+export const saveDisenoBorrador = (id: string, fase: string, datos: any) => api.put(`${CDC}/${id}/diseno/${fase}/borrador`, { datos })
+export const generarDiseno = (id: string, fase: string) => api.post(`${CDC}/${id}/diseno/${fase}/generar`)
+export const cerrarDiseno = (id: string, fase: string) => api.post(`${CDC}/${id}/diseno/${fase}/cerrar`)
+export const getDisenoCandidatos = (id: string) => api.get(`${CDC}/${id}/diseno/candidatos`)
+export const reasignarDiseno = (id: string, userId: string) => api.patch(`${CDC}/${id}/diseno/asignar`, { user_id: userId })
+
+// ── En desarrollo ─────────────────────────────────────────────────────────
+export const getDesarrollo = (id: string) => api.get(`${CDC}/${id}/desarrollo`)
+export const registrarAvance = (id: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/desarrollo/avance`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const saveEntregaBorrador = (id: string, datos: any) => api.put(`${CDC}/${id}/desarrollo/entrega/borrador`, { datos })
+export const generarEntrega = (id: string) => api.post(`${CDC}/${id}/desarrollo/entrega/generar`)
+export const liberarPruebas = (id: string) => api.post(`${CDC}/${id}/desarrollo/liberar`)
+export const getDesarrolloCandidatos = (id: string) => api.get(`${CDC}/${id}/desarrollo/candidatos`)
+export const reasignarDesarrollo = (id: string, userId: string) => api.patch(`${CDC}/${id}/desarrollo/asignar`, { user_id: userId })
+
+// ── En pruebas (UAT) ──────────────────────────────────────────────────────
+export const getUat = (id: string) => api.get(`${CDC}/${id}/uat`)
+export const saveUatBorrador = (id: string, body: { resultados: Record<string, { cumple: boolean | null; comentario: string }>; comentario_general: string }) =>
+  api.put(`${CDC}/${id}/uat/borrador`, body)
+export const subirEvidenciaUat = (id: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/uat/evidencia`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const quitarEvidenciaUat = (id: string, criterioId: string, objectKey: string) =>
+  api.patch(`${CDC}/${id}/uat/evidencia/quitar`, { criterio_id: criterioId, object_key: objectKey })
+export const emitirUat = (id: string, resultado: 'aceptar' | 'regresar') => api.post(`${CDC}/${id}/uat/emitir`, { resultado })
+
+// ── Paso a producción ─────────────────────────────────────────────────────
+export const getProduccion = (id: string) => api.get(`${CDC}/${id}/produccion`)
+export const confirmarProduccion = (id: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/produccion/confirmar`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+
+// ── Terminado: acta de cierre y encuesta ──────────────────────────────────
+export const getCierre = (id: string) => api.get(`${CDC}/${id}/cierre`)
+export const responderEncuesta = (id: string, body: { satisfaccion: number; cumplio: string; a_tiempo: string; comentarios: string | null }) =>
+  api.post(`${CDC}/${id}/cierre/encuesta`, body)
+export const saveActaCierreBorrador = (id: string, datos: any) => api.put(`${CDC}/${id}/cierre/acta/borrador`, { datos })
+export const generarActaCierre = (id: string) => api.post(`${CDC}/${id}/cierre/acta/generar`)
+export const subirActaCierreFirmada = (id: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/cierre/acta-firmada`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })

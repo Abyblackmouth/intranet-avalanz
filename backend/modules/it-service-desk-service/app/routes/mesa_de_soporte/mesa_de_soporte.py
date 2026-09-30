@@ -150,6 +150,9 @@ async def list_incidents(
             "sla_response_limit": i.sla_response_limit.isoformat() if i.sla_response_limit else None,
             "sla_resolution_limit": i.sla_resolution_limit.isoformat() if i.sla_resolution_limit else None,
             "is_sla_breached": i.is_sla_breached,
+            "ticket_type": i.ticket_type,
+            "cdc_prioridad": cdc_detalle_cache[i.id].prioridad if i.ticket_type == "control_cambio" and i.id in cdc_detalle_cache else None,
+            "cdc_clasificacion": cdc_detalle_cache[i.id].clasificacion if i.ticket_type == "control_cambio" and i.id in cdc_detalle_cache else None,
         } for i in incidents
     ], "total_count": total_count}
 
@@ -286,7 +289,7 @@ async def _get_requester_profile(user_id: str) -> Dict[str, Any]:
 # existente (asignar, resolver, reabrir, cerrar, escalar, redirigir).
 # ------------------------------------------------------------------
 
-async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.ticket_updated") -> None:
+async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.ticket_updated", extra: dict | None = None) -> None:
     try:
         assigned_name_ws = None
         if incident.assigned_to_user_id:
@@ -341,6 +344,8 @@ async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.
                             "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
                             "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
                             "is_sla_breached": incident.is_sla_breached if hasattr(incident, "is_sla_breached") else False,
+                            "ticket_type": incident.ticket_type,
+                            **(extra or {}),
                         },
                     },
                 )
@@ -952,6 +957,7 @@ async def reopen_incident(
     if not is_incident_manager and not is_requester:
         raise HTTPException(status_code=403, detail="Solo el solicitante o Incident Manager pueden reabrir este ticket")
 
+    resuelto_el = incident.resolved_at  # se guarda antes de limpiarlo, para el correo
     incident.status = "asignado" if incident.assigned_to_user_id else "en_backlog"
     incident.resolved_at = None
     incident.resolution_type = None
@@ -965,6 +971,28 @@ async def reopen_incident(
     ))
     await db.commit()
     await _broadcast_ticket_update(incident)
+
+    # Avisar a quien lo resolvio: el ticket regresa a su bandeja. Si falla,
+    # la reapertura ya quedo guardada.
+    if incident.assigned_to_user_id:
+        try:
+            from zoneinfo import ZoneInfo
+            from app.assignment import _notify_inapp
+            from app.services.mesa_de_soporte.notificaciones import send_reapertura_email
+            tz = ZoneInfo("America/Monterrey")
+            await _notify_inapp(incident.assigned_to_user_id, f"Ticket #{incident.folio} reabierto", reason[:140], "warning",
+                                {"incident_id": str(incident.id), "folio": incident.folio})
+            asignado = await _get_requester_profile(incident.assigned_to_user_id)
+            if asignado.get("email"):
+                await send_reapertura_email(
+                    asignado["email"], asignado.get("full_name", ""), incident.folio, incident.title,
+                    user.get("full_name", ""), "Incident Manager" if is_incident_manager else "Solicitante", reason,
+                    resuelto_el.astimezone(tz).strftime("%d/%m/%Y %H:%M") if resuelto_el else "—",
+                    datetime.now(timezone.utc).astimezone(tz).strftime("%d/%m/%Y %H:%M"),
+                )
+        except Exception as e:
+            print(f"[INC] Error notificando reapertura {incident.folio}: {e}")
+
     return {"success": True, "message": "Ticket reabierto"}
 
 
@@ -1636,6 +1664,10 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
     )
     incidentes = result.scalars().all()
 
+    # CDC con garantia vencida: se cierran en la misma pasada
+    from app.routes.control_cambios.control_cambios import cerrar_cdcs_garantia_vencida, avisar_cdcs_cerrados
+    cdcs = await cerrar_cdcs_garantia_vencida(db, now)
+
     from app.motor import SYSTEM_ACTOR_ID
     for incident in incidentes:
         incident.status = "cerrado"
@@ -1652,7 +1684,7 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
     # base de datos ya tuvo exito -- si el commit fallara, no queremos
     # que ya hayan salido avisos de un cierre que en realidad no se aplico.
     cerrados = [i.folio for i in incidentes]
-    if incidentes:
+    if incidentes or cdcs:
         await db.commit()
 
         from app.assignment import _notify_inapp
@@ -1665,4 +1697,7 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
                 )
             await _broadcast_ticket_update(incident)
 
-    return {"success": True, "cerrados": cerrados, "total": len(cerrados)}
+    if cdcs:
+        await avisar_cdcs_cerrados(db, cdcs)
+
+    return {"success": True, "cerrados": cerrados, "total": len(cerrados), "cdc_cerrados": [c.folio for c in cdcs]}

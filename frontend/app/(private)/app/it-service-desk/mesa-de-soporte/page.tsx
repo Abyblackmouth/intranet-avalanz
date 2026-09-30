@@ -8,6 +8,7 @@ import { getIncidents, getSystems, getSeverities, getSpecialists, createSpeciali
 import { Search, Eye, Plus, UserPlus, Clock, Download } from 'lucide-react'
 import CreateIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateIncidentModal'
 import IncidentDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/IncidentDetailModal'
+import CdcDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/CdcDetailModal'
 import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/AssignIncidentModal'
 import KanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/KanbanBoard'
 import { LayoutGrid, List } from 'lucide-react'
@@ -449,13 +450,24 @@ export default function MesaDeSoportePage() {
         />
       )}
 
-      {viewingTicketId && (
-        <IncidentDetailModal
-          incidentId={viewingTicketId}
-          onClose={() => setViewingTicketId(null)}
-          onChanged={fetchAll}
-        />
-      )}
+      {viewingTicketId && (() => {
+        // CDC abre su propio detalle por etapas; Incidente conserva el suyo
+        const t: any = paginated.find((x: any) => x.id === viewingTicketId)
+        const isCdc = t?.ticket_type === 'control_cambio' || t?.folio?.startsWith('CDC-')
+        return isCdc ? (
+          <CdcDetailModal
+            incidentId={viewingTicketId}
+            onClose={() => setViewingTicketId(null)}
+            onChanged={fetchAll}
+          />
+        ) : (
+          <IncidentDetailModal
+            incidentId={viewingTicketId}
+            onClose={() => setViewingTicketId(null)}
+            onChanged={fetchAll}
+          />
+        )
+      })()}
     </PageWrapper>
   )
 }

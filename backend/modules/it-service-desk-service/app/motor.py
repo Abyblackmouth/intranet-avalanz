@@ -21,6 +21,28 @@ TEAM_BY_REPORTED_TYPE = {
 }
 
 
+async def _usuarios_activos(role_slugs) -> Optional[set]:
+    """IDs de usuarios activos y sin bloquear con alguno de esos roles del
+    modulo (by-module-role ya filtra dados de baja y bloqueados). Regresa None
+    si admin-service no respondio: en ese caso no se valida, para no dejar
+    tickets sin asignar por una caida ajena al motor."""
+    import httpx
+    ids = set()
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            for slug in role_slugs:
+                resp = await client.get(
+                    "http://admin-service:8000/internal/users/by-module-role",
+                    params={"module_slug": "it-service-desk", "role_slug": slug},
+                )
+                if resp.status_code != 200:
+                    return None
+                ids |= {u["id"] for u in resp.json()}
+    except Exception:
+        return None
+    return ids
+
+
 async def resolve_assignment(
     db: AsyncSession,
     system_id: str,
@@ -29,10 +51,13 @@ async def resolve_assignment(
 ) -> Dict[str, Any]:
     """Busca en system_specialists, en orden: por modulo exacto -> por
     sistema completo -> por especialista general del equipo. Se detiene
-    en el primer resultado. Salida: {encontrado, equipo_asignado,
-    usuario_asignado}."""
+    en el primer resultado cuyo usuario siga activo (no dado de baja ni
+    bloqueado). Salida: {encontrado, equipo_asignado, usuario_asignado}."""
 
     team_type = TEAM_BY_REPORTED_TYPE.get(reported_type)
+    roles = [team_type] if team_type else sorted(set(TEAM_BY_REPORTED_TYPE.values()))
+    # El Incident Manager activado como equipo tambien vive en system_specialists
+    activos = await _usuarios_activos(roles + ["incident-manager"])
 
     async def _buscar(system_filter, module_filter):
         conditions = [
@@ -45,35 +70,20 @@ async def resolve_assignment(
         if team_type:
             conditions.append(SystemSpecialist.team_type == team_type)
         result = await db.execute(select(SystemSpecialist).where(*conditions))
-        return result.scalars().first()
+        for specialist in result.scalars().all():
+            if activos is None or specialist.specialist_user_id in activos:
+                return specialist
+        return None
 
-    # Paso 1: por modulo exacto (el mas especifico)
-    if module_id:
-        specialist = await _buscar(system_id, module_id)
+    pasos = ([(system_id, module_id)] if module_id else []) + [(system_id, None), (None, None)]
+    for system_filter, module_filter in pasos:
+        specialist = await _buscar(system_filter, module_filter)
         if specialist:
             return {
                 "encontrado": True,
                 "equipo_asignado": specialist.team_type,
                 "usuario_asignado": specialist.specialist_user_id,
             }
-
-    # Paso 2: por sistema completo
-    specialist = await _buscar(system_id, None)
-    if specialist:
-        return {
-            "encontrado": True,
-            "equipo_asignado": specialist.team_type,
-            "usuario_asignado": specialist.specialist_user_id,
-        }
-
-    # Paso 3: especialista general del equipo (catch-all)
-    specialist = await _buscar(None, None)
-    if specialist:
-        return {
-            "encontrado": True,
-            "equipo_asignado": specialist.team_type,
-            "usuario_asignado": specialist.specialist_user_id,
-        }
 
     return {"encontrado": False, "equipo_asignado": None, "usuario_asignado": None}
 
@@ -156,4 +166,58 @@ async def resolve_cdc_assignment(db: AsyncSession, system_id: Optional[str], mod
         if fallback.specialist_user_id in ids_activos:
             return {"encontrado": True, "usuario_asignado": fallback.specialist_user_id, "via": "incident_manager_activado"}
 
+    return {"encontrado": False}
+
+
+async def resolve_cdc_design_assignment(
+    db: AsyncSession, team_type: str, system_id: Optional[str], module_id: Optional[str], pm_user_id: Optional[str],
+) -> Dict[str, Any]:
+    """Responsable de una etapa de diseno de CDC (team_type =
+    especialista-funcional | especialista-tecnico). Orden confirmado con el
+    dueno del proyecto, validando siempre que el empleado siga activo:
+    1. Especialista del equipo ligado al modulo, luego al sistema del CDC
+    2. Especialista del renglon general del equipo, si es un especialista real
+    3. Cualquier empleado activo con el rol del equipo
+    4. Incident Manager activado para el equipo (renglon general)
+    5. El Project Manager del CDC"""
+    equipo = await _usuarios_activos([team_type]) or set()
+    ims = await _usuarios_activos(["incident-manager"]) or set()
+
+    async def _renglones(system_filter, module_filter):
+        result = await db.execute(select(SystemSpecialist).where(
+            SystemSpecialist.is_active == True,
+            SystemSpecialist.team_type == team_type,
+            SystemSpecialist.system_id == system_filter if system_filter is not None else SystemSpecialist.system_id.is_(None),
+            SystemSpecialist.module_id == module_filter if module_filter is not None else SystemSpecialist.module_id.is_(None),
+        ))
+        return result.scalars().all()
+
+    for system_filter, module_filter in ([(system_id, module_id)] if system_id and module_id else []) + ([(system_id, None)] if system_id else []):
+        for r in await _renglones(system_filter, module_filter):
+            if r.specialist_user_id in equipo:
+                return {"encontrado": True, "usuario_asignado": r.specialist_user_id, "via": "especialista_ligado"}
+
+    generales = await _renglones(None, None)
+    for r in generales:
+        if r.specialist_user_id in equipo:
+            return {"encontrado": True, "usuario_asignado": r.specialist_user_id, "via": "especialista_general"}
+
+    if equipo:
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get("http://admin-service:8000/internal/users/by-module-role",
+                                        params={"module_slug": "it-service-desk", "role_slug": team_type})
+            lista = resp.json() if resp.status_code == 200 else []
+            if lista:
+                return {"encontrado": True, "usuario_asignado": lista[0]["id"], "via": "especialista_activo"}
+        except Exception:
+            pass
+
+    for r in generales:
+        if r.specialist_user_id in ims:
+            return {"encontrado": True, "usuario_asignado": r.specialist_user_id, "via": "incident_manager_activado"}
+
+    if pm_user_id:
+        return {"encontrado": True, "usuario_asignado": pm_user_id, "via": "project_manager"}
     return {"encontrado": False}

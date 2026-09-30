@@ -127,9 +127,14 @@ async def send_email(
     else:
         msg = body
 
-    msg["Subject"] = subject
-    msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
-    msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
+    # Nombres y asuntos con acentos o Ñ se codifican (RFC 2047). Sin esto,
+    # Office 365 descarta los caracteres no ASCII del encabezado To, ya no
+    # puede resolver al destinatario y rechaza el correo con 550.
+    from email.header import Header
+    from email.utils import formataddr
+    msg["Subject"] = Header(subject, "utf-8")
+    msg["From"] = formataddr((config.EMAIL_FROM_NAME, config.EMAIL_FROM_ADDRESS), charset="utf-8")
+    msg["To"] = formataddr((to_name, to_email), charset="utf-8") if to_name else to_email
     try:
         await aiosmtplib.send(
             msg,
