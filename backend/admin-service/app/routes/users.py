@@ -43,7 +43,7 @@ class AssignGlobalRoleRequest(BaseModel):
 
 class AssignModuleAccessRequest(BaseModel):
     module_id: str
-    role_id: str
+    role_id: Optional[str] = None
 
 
 class RevokeModuleAccessRequest(BaseModel):

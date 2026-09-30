@@ -148,16 +148,17 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
   }
 
   const handleAddModule = async () => {
-    if (!addingModuleId || !addingRoleId) return
+    if (!addingModuleId) return
+    const isNoRole = !addingRoleId || addingRoleId === '__NONE__'
     try {
-      await assignModuleAccess(userId, { module_id: addingModuleId, role_id: addingRoleId })
+      await assignModuleAccess(userId, { module_id: addingModuleId, role_id: isNoRole ? null : addingRoleId })
       const mod = modules.find(m => m.module_id === addingModuleId)
       const role = operationalRoles.find(r => r.role_id === addingRoleId)
       setModuleAccesses(prev => [...prev, {
         module_id: addingModuleId,
         module_name: mod?.name || '',
-        role_id: addingRoleId,
-        role_name: role?.name || '',
+        role_id: isNoRole ? null : addingRoleId,
+        role_name: isNoRole ? 'Sin rol (solicitante)' : (role?.name || ''),
       }])
       setAddingModuleId('')
       setAddingRoleId('')
@@ -200,13 +201,17 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
       await updateUser(userId, payload)
 
       // Cambio de rol global — solo super_admin
-      if (canEditGlobalRoles && selectedRoleId && selectedRoleId.length > 10) {
+      // "" = sin cambios, "__NONE__" = quitar el rol sin asignar otro,
+      // cualquier otro valor = un role_id real al que cambiar.
+      if (canEditGlobalRoles && selectedRoleId) {
         for (const role of globalRoles) {
           if (currentRoles.includes(role.slug)) {
             try { await removeGlobalRole(userId, role.role_id) } catch {}
           }
         }
-        await assignGlobalRole(userId, selectedRoleId)
+        if (selectedRoleId !== '__NONE__') {
+          await assignGlobalRole(userId, selectedRoleId)
+        }
       }
 
       onSuccess()
@@ -420,6 +425,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
                       className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Sin cambios</option>
+                      <option value="__NONE__">Quitar rol global (sin rol)</option>
                       {globalRoles.map(r => (
                         <option key={r.role_id} value={r.role_id}>{r.name}</option>
                       ))}
@@ -494,6 +500,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
                         className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                       >
                         <option value="">Rol</option>
+                        <option value="__NONE__">Sin rol (solicitante)</option>
                         {operationalRoles.filter(r => !addingModuleId || r.module_id === addingModuleId || r.module_id === null).map(r => (
                           <option key={r.role_id} value={r.role_id}>{r.name}</option>
                         ))}
@@ -501,7 +508,7 @@ export default function UserEditForm({ userId, onClose, onSuccess }: UserEditFor
                       <button
                         type="button"
                         onClick={handleAddModule}
-                        disabled={!addingModuleId || !addingRoleId}
+                        disabled={!addingModuleId}
                         className="px-3 py-2 bg-[#1a4fa0] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
                       >
                         +

@@ -9,7 +9,7 @@ from alembic import context
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.models.admin_models import (
-    Group, Company, User, GlobalRole, GlobalPermission,
+    Group, Company, CompanyFamily, User, GlobalRole, GlobalPermission,
     Module, Submodule, ModuleRole, SubmodulePermission,
     UserGlobalRole, UserModuleAccess, GlobalRolePermission, ModuleRolePermission
 )

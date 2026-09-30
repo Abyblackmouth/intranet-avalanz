@@ -20,7 +20,7 @@ const PageWrapper = ({ title, description, actions, children }: PageWrapperProps
         </div>
       )}
     </div>
-    <div className="flex-1 overflow-auto px-6 pb-6">
+    <div className="flex-1 overflow-auto px-6 pb-6 min-h-0">
       {children}
     </div>
   </div>

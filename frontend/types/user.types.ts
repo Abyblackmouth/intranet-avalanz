@@ -54,7 +54,7 @@ export interface UpdateUserPayload {
 
 export interface ModuleAccessPayload {
   module_id: string
-  role_id: string
+  role_id: string | null
 }
 
 // ── Respuesta de creacion ─────────────────────────────────────────────────────

@@ -85,12 +85,56 @@ async def send_email(
     subject: str,
     html_body: str,
     to_name: Optional[str] = None,
+    inline_images: Optional[list] = None,
+    attachments: Optional[list] = None,
 ) -> None:
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"{config.EMAIL_FROM_NAME} <{config.EMAIL_FROM_ADDRESS}>"
-    msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    """inline_images (opcional): lista de {"content_id": str, "data": bytes,
+    "subtype": str (ej. "png")} para imagenes embebidas via cid: -- el HTML
+    las referencia como <img src="cid:CONTENT_ID">.
+
+    attachments (opcional): lista de {"filename": str, "data": bytes,
+    "subtype": str (ej. "pdf")} para archivos adjuntos descargables.
+
+    Estructura MIME resultante:
+      - solo HTML            -> multipart/alternative
+      - HTML + imagenes      -> multipart/related  [alternative, imagenes]
+      - con adjuntos         -> multipart/mixed    [cuerpo anterior, adjuntos]
+    Es el anidado estandar para que Outlook/Gmail muestren las imagenes
+    embebidas dentro del cuerpo y los adjuntos como archivos aparte."""
+    from email.mime.image import MIMEImage
+    from email.mime.application import MIMEApplication
+
+    body = MIMEMultipart("alternative")
+    body.attach(MIMEText(html_body, "html", "utf-8"))
+
+    if inline_images:
+        related = MIMEMultipart("related")
+        related.attach(body)
+        for img in inline_images:
+            part = MIMEImage(img["data"], _subtype=img.get("subtype", "png"))
+            part.add_header("Content-ID", f"<{img['content_id']}>")
+            part.add_header("Content-Disposition", "inline", filename=f"{img['content_id']}.{img.get('subtype', 'png')}")
+            related.attach(part)
+        body = related
+
+    if attachments:
+        msg = MIMEMultipart("mixed")
+        msg.attach(body)
+        for att in attachments:
+            part = MIMEApplication(att["data"], _subtype=att.get("subtype", "pdf"))
+            part.add_header("Content-Disposition", "attachment", filename=att["filename"])
+            msg.attach(part)
+    else:
+        msg = body
+
+    # Nombres y asuntos con acentos o Ñ se codifican (RFC 2047). Sin esto,
+    # Office 365 descarta los caracteres no ASCII del encabezado To, ya no
+    # puede resolver al destinatario y rechaza el correo con 550.
+    from email.header import Header
+    from email.utils import formataddr
+    msg["Subject"] = Header(subject, "utf-8")
+    msg["From"] = formataddr((config.EMAIL_FROM_NAME, config.EMAIL_FROM_ADDRESS), charset="utf-8")
+    msg["To"] = formataddr((to_name, to_email), charset="utf-8") if to_name else to_email
     try:
         await aiosmtplib.send(
             msg,
@@ -193,15 +237,28 @@ async def send_system_notification_email(
     action_label: Optional[str] = None,
     action_url: Optional[str] = None,
     alert_type: Optional[str] = None,
+    fields: Optional[list] = None,
 ) -> None:
+    """fields (opcional): lista de {"label", "value", "mono": bool} que se
+    renderiza como tabla organizada via _credentials() en vez de aventar
+    todo el mensaje en un solo parrafo -- antes un mensaje con varios
+    "Folio: X\nTitulo: Y\n..." se veia todo junto porque el \n no
+    se traduce a salto de linea en HTML. Retrocompatible: si no se manda
+    fields, el comportamiento es identico al de antes."""
     action_btn = _btn(action_url, action_label) if action_label and action_url else ""
-    if alert_type:
-        message_block = _alert(alert_type, subject, message)
+    fields_block = ""
+    if fields:
+        fields_block = _credentials([(f["label"], f["value"], f.get("mono", False)) for f in fields])
+    if alert_type and not fields:
+        message_block = _alert(alert_type, subject, message.replace("\n", "<br>"))
+    elif message:
+        message_block = _p(message.replace("\n", "<br>"))
     else:
-        message_block = _p(message)
+        message_block = ""
     content = (
         _h2(subject) +
         _p(f"Hola <strong>{full_name}</strong>,") +
+        fields_block +
         message_block +
         action_btn
     )
@@ -215,5 +272,19 @@ async def send_module_email(
     full_name: str,
     subject: str,
     html_content: str,
+    inline_images: Optional[list] = None,
+    attachments: Optional[list] = None,
 ) -> None:
-    await send_email(to_email, subject, _render(html_content, subject), full_name)
+    await send_email(
+        to_email, subject, _render(html_content, subject), full_name,
+        inline_images=inline_images, attachments=attachments,
+    )
+
+
+# ── Correo con HTML completo propio -- no se envuelve en base.html ──────────
+# Para reportes con su propio diseño de marca (ej. reporte diario de SLA),
+# que ya traen su propio <html>/header/footer y no deben anidarse dentro
+# del template generico.
+
+async def send_raw_html_email(to_email: str, full_name: str, subject: str, html_content: str, inline_images: Optional[list] = None) -> None:
+    await send_email(to_email, subject, html_content, full_name, inline_images=inline_images)

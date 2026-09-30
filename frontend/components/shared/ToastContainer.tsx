@@ -68,6 +68,12 @@ const toastStyles: Record<ToastType, {
     icon: <AlertCircle size={18} className="text-white shrink-0 mt-0.5" />,
     titleColor: 'text-white',
   },
+  neutral: {
+    bg: 'bg-slate-600',
+    border: 'border-slate-700',
+    icon: <Info size={18} className="text-white shrink-0 mt-0.5" />,
+    titleColor: 'text-white',
+  },
 }
 
 function ToastItem({ toast }: { toast: Toast }) {

@@ -1,3 +1,4 @@
+import logging
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, func
@@ -7,6 +8,8 @@ from app.config import config
 from app.models.notify_models import Notification
 from shared.utils.helpers import paginate, get_offset, now_utc
 from shared.exceptions.http_exceptions import NotFoundException, ForbiddenException
+
+logger = logging.getLogger("avalanz")
 
 
 # ── Crear notificacion ────────────────────────────────────────────────────────
@@ -70,6 +73,17 @@ async def create_bulk_notifications(
     ]
     db.add_all(notifications)
     await db.commit()
+    for n in notifications:
+        await db.refresh(n)
+
+    # Notificar en tiempo real via websocket-service -- antes esta version
+    # en masa solo guardaba en BD, sin el empujon que dispara el toast y el
+    # sonido; create_notification (la version de un solo usuario) si lo
+    # hacia, asi que este era un hueco real para cualquier llamador que
+    # usara el endpoint interno de bulk (pensado justo para servicio-a-
+    # servicio, como IT Service Desk).
+    for n in notifications:
+        await _push_to_websocket(n.user_id, _serialize(n))
 
     return {
         "total_sent": len(notifications),
@@ -176,7 +190,7 @@ async def _push_to_websocket(user_id: str, notification: Dict[str, Any]) -> None
             await client.post(
                 "http://websocket-service:8000/ws/send",
                 json={
-                    "user_id": user_id,
+                    "user_id": str(user_id),
                     "event_type": "notification.new",
                     "data": notification,
                     "module_slug": notification.get("module_slug"),
