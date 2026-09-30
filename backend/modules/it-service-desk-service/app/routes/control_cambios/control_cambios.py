@@ -429,7 +429,7 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
     for doc in docs_result.scalars().all():
         if doc.object_key:
             documentos.append({
-                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico", "entrega_pruebas": "en_desarrollo", "uat": "en_pruebas", "acta_produccion": "en_paso_produccion"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
+                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico", "entrega_pruebas": "en_desarrollo", "uat": "en_pruebas", "acta_produccion": "en_paso_produccion", "acta_cierre": "terminado", "acta_cierre_firmada": "terminado"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
                 "object_key": doc.object_key, "bucket": "dirdoc", "fecha": doc.created_at.isoformat(),
             })
 
@@ -2490,6 +2490,10 @@ async def confirmar_produccion(incident_id: str, payload: str = Form(...), files
     await _broadcast_ticket_update(incident)
 
     revertido = body.resultado == "revertido"
+    if not revertido:
+        await _avisar(incident, [incident.requester_id], f"Control de Cambios {incident.folio}: cuentanos como te fue",
+                      "Tu proyecto ya está en producción. Contesta la encuesta de 4 preguntas desde el proyecto en la intranet; nos ayuda a mejorar.",
+                      [], "info")
     await _avisar(incident, [incident.requester_id, detalle.project_manager_id, tecnico, incident.assigned_to_user_id],
                   f"Control de Cambios {incident.folio}: {'instalacion revertida' if revertido else 'instalado en produccion'}",
                   "La instalación se revirtió y el proyecto regresa a desarrollo." if revertido
@@ -2499,3 +2503,305 @@ async def confirmar_produccion(incident_id: str, payload: str = Form(...), files
                   + ([{"label": "Garantía hasta", "value": date.fromisoformat(datos_etapa["garantia_hasta"]).strftime("%d/%m/%Y"), "mono": False}] if not revertido else []),
                   "warning" if revertido else "success")
     return {"success": True, "status": incident.status, "garantia_hasta": datos_etapa.get("garantia_hasta")}
+
+
+# ------------------------------------------------------------------
+# Etapa Terminado: acta de cierre y encuesta (terminado | cerrado)
+# ------------------------------------------------------------------
+
+DOC_LABEL.update({"acta_cierre": "Acta de cierre", "acta_cierre_firmada": "Acta de cierre firmada"})
+ETAPA_LABEL = {
+    "en_revision": "En revisión", "priorizado": "Priorización", "en_arranque": "Arranque",
+    "en_diseno_funcional": "Diseño funcional", "en_diseno_tecnico": "Diseño técnico", "en_desarrollo": "Desarrollo",
+    "en_pruebas": "Pruebas (UAT)", "en_paso_produccion": "Paso a producción",
+}
+CUMPLIO = {"si": "Sí", "parcial": "Parcialmente", "no": "No"}
+
+
+async def _cargar_cdc_cierre(db, incident_id: str, user: dict):
+    from app.routes.mesa_de_soporte.mesa_de_soporte import MODULE_WIDE_ROLES
+    res = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = res.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+    det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det.scalar_one_or_none()
+    roles, uid = set(user.get("roles") or []), user.get("user_id")
+    if not (roles & MODULE_WIDE_ROLES or uid in {incident.requester_id, detalle.project_manager_id if detalle else None} or "super_admin" in roles):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+    en_cierre = incident.status in ("terminado", "cerrado")
+    puede_acta = en_cierre and bool(roles & IM_ROLES or "it-service-desk:project-manager" in roles or (detalle and uid == detalle.project_manager_id))
+    return incident, detalle, roles, en_cierre, puede_acta
+
+
+async def _alcance_base(db, incident_id: str, clasificacion: Optional[str]) -> list:
+    """Puntos del alcance a revisar: 'que incluye' del acta (Proyecto) o los
+    entregables del plan de arranque (Cambio)."""
+    docs = await _docs_de(db, incident_id)
+    def vigente(tipo):
+        g = [d for d in docs if d.tipo == tipo and d.estado == "generado"]
+        return g[-1].datos or {} if g else {}
+    if clasificacion == "proyecto":
+        return [x for x in _lista(vigente("acta").get("incluye"))]
+    return [(e.get("descripcion") or "").strip() for e in vigente("plan_breve").get("entregables", []) if (e.get("descripcion") or "").strip()]
+
+
+async def _indicadores(db, incident, detalle) -> tuple:
+    from app.models.mesa_de_soporte import ControlCambiosEtapa
+    res = await db.execute(select(ControlCambiosEtapa).where(ControlCambiosEtapa.incident_id == incident.id).order_by(ControlCambiosEtapa.created_at))
+    etapas = res.scalars().all()
+    prods = [e for e in etapas if e.etapa == "en_paso_produccion" and e.resultado != "revertido"]
+    real = _hora_local(prods[-1].created_at).date() if prods else None
+    comp = detalle.fecha_compromiso if detalle else None
+    rts = _rts_con_estado(await _rts_diseno(db, incident.id), await _avances_de(db, incident.id))
+    est = sum(r["horas_estimadas"] or 0 for r in rts)
+    rea = sum(r["horas_reales"] or 0 for r in rts)
+    fin = prods[-1].created_at if prods else datetime.now(timezone.utc)
+    desv = (real - comp).days if real and comp else None
+    ind = {
+        "compromiso": comp.strftime("%d/%m/%Y") if comp else "—", "real": real.strftime("%d/%m/%Y") if real else "—",
+        "desviacion_fecha": "—" if desv is None else ("A tiempo" if desv == 0 else f"{abs(desv)} días {'después' if desv > 0 else 'antes'}"),
+        "horas_estimadas": f"{est:g} h" if est else "—", "horas_reales": f"{rea:g} h" if rea else "—",
+        "desviacion_horas": f"{(rea - est) / est * 100:+.0f}%" if est and rea else "—",
+        "ciclos_uat": sum(1 for e in etapas if e.etapa == "en_pruebas"),
+        "reversiones": sum(1 for e in etapas if e.etapa == "en_paso_produccion" and e.resultado == "revertido"),
+        "duracion_total": f"{(fin - incident.created_at).days} días",
+    }
+    anterior, lista = incident.created_at, []
+    for e in etapas:
+        if e.etapa in ETAPA_LABEL:
+            lista.append({"etapa": ETAPA_LABEL[e.etapa] + (f" ({e.resultado})" if e.etapa in ("en_pruebas", "en_paso_produccion") else ""),
+                          "fecha": _hora_local(e.created_at).strftime("%d/%m/%Y"), "dias": max((e.created_at - anterior).days, 0)})
+            anterior = e.created_at
+    return ind, lista, etapas
+
+
+async def _expediente(db, incident, detalle, etapas) -> list:
+    nombres = []
+    if detalle and detalle.solicitud_pdf_object_key:
+        nombres.append(f"SOLICITUD_{incident.folio}.pdf")
+    for e in etapas:
+        if e.etapa == "en_revision" and e.documento_object_key:
+            nombres.append(f"DICTAMEN_{incident.folio}.pdf")
+        if e.etapa == "priorizado" and e.documento_object_key:
+            nombres.append(f"PRIORIZACION_{incident.folio}.pdf")
+    for d in await _docs_de(db, incident.id):
+        if d.estado in ("generado", "subido") and d.nombre and d.tipo not in ("encuesta", "acta_cierre"):
+            nombres.append(f"{d.nombre} (v{d.version})")
+    return nombres
+
+
+def _encuesta_json(doc) -> Optional[dict]:
+    return (doc.datos or {}) if doc else None
+
+
+@router.get("/{incident_id}/cierre")
+async def get_cierre(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    incident, detalle, roles, en_cierre, puede_acta = await _cargar_cdc_cierre(db, incident_id, user)
+    docs = await _docs_de(db, incident_id)
+    actas = [d for d in docs if d.tipo == "acta_cierre"]
+    firmadas = [d for d in docs if d.tipo == "acta_cierre_firmada"]
+    encuesta = next((d for d in docs if d.tipo == "encuesta"), None)
+    ind, etapas_lista, etapas = await _indicadores(db, incident, detalle)
+    prods = [e for e in etapas if e.etapa == "en_paso_produccion" and e.resultado != "revertido"]
+    garantia = (prods[-1].datos or {}).get("garantia_hasta") if prods else None
+    return {
+        "status": incident.status, "puede_acta": puede_acta,
+        "puede_encuesta": en_cierre and user.get("user_id") == incident.requester_id and encuesta is None,
+        "garantia_hasta": garantia,
+        "encuesta": _encuesta_json(encuesta),
+        "acta": _doc_json(actas[-1]) if actas else None,
+        "acta_firmada": _doc_json(firmadas[-1]) if firmadas else None,
+        "alcance_base": await _alcance_base(db, incident_id, detalle.clasificacion if detalle else None),
+        "indicadores": ind,
+        "clasificacion": detalle.clasificacion if detalle else None,
+    }
+
+
+class EncuestaPayload(BaseModel):
+    satisfaccion: int
+    cumplio: str
+    a_tiempo: str
+    comentarios: Optional[str] = None
+
+
+@router.post("/{incident_id}/cierre/encuesta")
+async def responder_encuesta(incident_id: str, body: EncuestaPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosDocumento, IncidentActivityLog
+    incident, detalle, roles, en_cierre, _ = await _cargar_cdc_cierre(db, incident_id, user)
+    if not en_cierre:
+        raise HTTPException(status_code=409, detail="La encuesta se contesta cuando el proyecto está terminado")
+    if user.get("user_id") != incident.requester_id:
+        raise HTTPException(status_code=403, detail="La encuesta la contesta el solicitante")
+    if any(d.tipo == "encuesta" for d in await _docs_de(db, incident_id)):
+        raise HTTPException(status_code=409, detail="La encuesta ya fue contestada")
+    if not 1 <= body.satisfaccion <= 5 or body.cumplio not in CUMPLIO or body.a_tiempo not in ("si", "no"):
+        raise HTTPException(status_code=422, detail="Contesta las tres preguntas")
+    datos = {"satisfaccion": body.satisfaccion, "cumplio": CUMPLIO[body.cumplio], "a_tiempo": "Sí" if body.a_tiempo == "si" else "No",
+             "comentarios": (body.comentarios or "").strip(), "respondida_en": datetime.now(timezone.utc).isoformat()}
+    db.add(ControlCambiosDocumento(id=str(uuid.uuid4()), incident_id=incident.id, tipo="encuesta", version=1, estado="generado",
+                                   origen="formulario", datos=datos, creado_por=user.get("user_id"), creado_por_nombre=user.get("full_name") or ""))
+    db.add(IncidentActivityLog(incident_id=incident.id, action="cdc_encuesta_respondida", performed_by=user.get("user_id"),
+                               performed_by_name=user.get("full_name") or "", performed_by_role="solicitante", module_slug="it-service-desk",
+                               detail={"satisfaccion": body.satisfaccion}))
+    await db.commit()
+    return {"success": True, "encuesta": datos}
+
+
+@router.put("/{incident_id}/cierre/acta/borrador")
+async def borrador_acta_cierre(incident_id: str, body: BorradorPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosDocumento
+    incident, detalle, roles, _, puede_acta = await _cargar_cdc_cierre(db, incident_id, user)
+    if not puede_acta:
+        raise HTTPException(status_code=403, detail="El acta de cierre la elaboran el Project Manager o el Incident Manager")
+    actas = [d for d in await _docs_de(db, incident_id) if d.tipo == "acta_cierre"]
+    ultimo = actas[-1] if actas else None
+    if ultimo and ultimo.estado == "borrador":
+        ultimo.datos = body.datos
+        doc = ultimo
+    else:
+        doc = ControlCambiosDocumento(id=str(uuid.uuid4()), incident_id=incident.id, tipo="acta_cierre",
+                                      version=(ultimo.version + 1) if ultimo else 1, estado="borrador", origen="formulario",
+                                      datos=body.datos, creado_por=user.get("user_id"), creado_por_nombre=user.get("full_name") or "")
+        db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_json(doc)
+
+
+@router.post("/{incident_id}/cierre/acta/generar")
+async def generar_acta_cierre(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+                              raw_token: str = Depends(get_token_from_request)):
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_acta_cierre
+    incident, detalle, roles, _, puede_acta = await _cargar_cdc_cierre(db, incident_id, user)
+    if not puede_acta:
+        raise HTTPException(status_code=403, detail="El acta de cierre la elaboran el Project Manager o el Incident Manager")
+    docs = await _docs_de(db, incident_id)
+    actas = [d for d in docs if d.tipo == "acta_cierre"]
+    doc = actas[-1] if actas else None
+    if not doc or doc.estado != "borrador":
+        raise HTTPException(status_code=409, detail="No hay un borrador del acta para generar")
+    datos = doc.datos or {}
+    if not (datos.get("resultado") or "").strip():
+        raise HTTPException(status_code=422, detail="Describe el resultado del proyecto")
+    items = [a for a in _filas(datos.get("alcance"), ("punto", "entregado", "nota")) if a["punto"]]
+    for a in items:
+        if a["entregado"] not in ENTREGADO_OK:
+            raise HTTPException(status_code=422, detail=f"Indica si se entregó: {a['punto'][:60]}")
+
+    ind, etapas_lista, etapas = await _indicadores(db, incident, detalle)
+    ctx = await _contexto_proyecto(db, incident, detalle)
+    uats = [e for e in etapas if e.etapa == "en_pruebas"]
+    criterios = (uats[-1].datos or {}).get("criterios", []) if uats else []
+    acta_const = [d for d in docs if d.tipo == "acta" and d.estado == "generado"]
+    objetivo = (acta_const[-1].datos or {}).get("objetivo") if acta_const else ([d for d in docs if d.tipo == "plan_breve" and d.estado == "generado"] or [None])[-1]
+    objetivo = objetivo if isinstance(objetivo, str) else ((objetivo.datos or {}).get("objetivo") if objetivo else "")
+    encuesta = next((d for d in docs if d.tipo == "encuesta"), None)
+    patrocinador = ((ctx["gobierno"].get("patrocinador") or {}).get("name")) if detalle and detalle.clasificacion == "proyecto" else None
+    autor = user.get("full_name") or ""
+    pm = detalle.project_manager_nombre or autor
+    firmas = [(incident.requester_name, "Solicitante")] + ([(patrocinador, "Patrocinador")] if patrocinador else []) + [(pm, "Project Manager")]
+
+    base = await _base_diseno(db, incident, detalle, doc.version, autor)
+    pdf_bytes = generar_pdf_acta_cierre({
+        **base, "pm": pm, "patrocinador": patrocinador,
+        "clasificacion": {"proyecto": "Proyecto", "cambio": "Cambio"}.get(detalle.clasificacion if detalle else None, "—"),
+        "objetivo": objetivo or "", "resultado": datos["resultado"].strip(), "alcance_items": items, "criterios": criterios,
+        "indicadores": ind, "etapas": etapas_lista, "encuesta": _encuesta_json(encuesta),
+        "pendientes": (datos.get("pendientes") or "").strip(), "lecciones_bien": (datos.get("lecciones_bien") or "").strip(),
+        "lecciones_mejorar": (datos.get("lecciones_mejorar") or "").strip(),
+        "expediente": await _expediente(db, incident, detalle, etapas), "firmas": firmas,
+    })
+    solicitante = await _get_requester_profile(incident.requester_id)
+    nombre = f"ACTA_CIERRE_{incident.folio}_v{doc.version}.pdf"
+    key = await _subir_archivo(pdf_bytes, nombre, "application/pdf", solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail="No se pudo guardar el acta de cierre")
+    doc.estado, doc.object_key, doc.nombre, doc.mime_type = "generado", key, nombre, "application/pdf"
+    db.add(IncidentActivityLog(incident_id=incident.id, action="cdc_documento_generado", performed_by=user.get("user_id"),
+                               performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+                               detail={"tipo": "acta_cierre", "version": doc.version, "documento_id": doc.id}))
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_json(doc)
+
+
+ENTREGADO_OK = {"si", "parcial", "no"}
+
+
+@router.post("/{incident_id}/cierre/acta-firmada")
+async def subir_acta_cierre_firmada(incident_id: str, file: UploadFile = File(...), db: AsyncSession = Depends(get_db),
+                                    user: dict = Depends(get_current_user), raw_token: str = Depends(get_token_from_request)):
+    from app.models.mesa_de_soporte import ControlCambiosDocumento, IncidentActivityLog
+    incident, detalle, roles, _, puede_acta = await _cargar_cdc_cierre(db, incident_id, user)
+    if not puede_acta:
+        raise HTTPException(status_code=403, detail="El acta firmada la suben el Project Manager o el Incident Manager")
+    docs = await _docs_de(db, incident_id)
+    if not any(d.tipo == "acta_cierre" and d.estado == "generado" for d in docs):
+        raise HTTPException(status_code=409, detail="Genera primero el acta de cierre")
+    content = await file.read()
+    if len(content) > MAX_DOC_BYTES:
+        raise HTTPException(status_code=413, detail=f"{file.filename} excede 20 MB")
+    mime = _mime_por_extension(file.filename, file.content_type)
+    solicitante = await _get_requester_profile(incident.requester_id)
+    key = await _subir_archivo(content, file.filename, mime, solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail=f"No se pudo subir {file.filename}")
+    previos = [d for d in docs if d.tipo == "acta_cierre_firmada"]
+    doc = ControlCambiosDocumento(id=str(uuid.uuid4()), incident_id=incident.id, tipo="acta_cierre_firmada",
+                                  version=(previos[-1].version + 1) if previos else 1, estado="subido", origen="archivo",
+                                  datos={}, nombre=file.filename, object_key=key, mime_type=mime,
+                                  creado_por=user.get("user_id"), creado_por_nombre=user.get("full_name") or "")
+    db.add(doc)
+    db.add(IncidentActivityLog(incident_id=incident.id, action="cdc_documento_subido", performed_by=user.get("user_id"),
+                               performed_by_name=user.get("full_name") or "", performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+                               detail={"tipo": "acta_cierre_firmada", "version": doc.version, "nombre": file.filename, "documento_id": doc.id}))
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_json(doc)
+
+
+# ------------------------------------------------------------------
+# Cierre automatico: terminado -> cerrado al vencer la garantia
+# (lo llama el cierre automatico general, junto con los incidentes)
+# ------------------------------------------------------------------
+
+async def cerrar_cdcs_garantia_vencida(db, now: datetime) -> list:
+    """Pasa a cerrado los CDC terminados cuya garantia ya vencio. 'Hasta el
+    14/10' incluye el 14: se cierra a partir del 15. No hace commit; lo hace
+    el cierre automatico general, junto con los incidentes."""
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    from app.motor import SYSTEM_ACTOR_ID
+    hoy = _hora_local(now).date()
+    res = await db.execute(select(Incident).where(Incident.ticket_type == "control_cambio", Incident.status == "terminado"))
+    cerrados = []
+    for inc in res.scalars().all():
+        prods = [e for e in await _etapas_de(db, inc.id, "en_paso_produccion") if e.resultado != "revertido"]
+        garantia = (prods[-1].datos or {}).get("garantia_hasta") if prods else None
+        if not garantia or date.fromisoformat(garantia) >= hoy:
+            continue
+        inc.status = "cerrado"
+        inc.closed_at = now
+        db.add(IncidentActivityLog(
+            incident_id=inc.id, action="cdc_cerrado_automatico", performed_by=SYSTEM_ACTOR_ID,
+            performed_by_name="Sistema (cierre automatico)", performed_by_role="sistema", module_slug="it-service-desk",
+            detail={"garantia_hasta": garantia},
+        ))
+        cerrados.append(inc)
+    return cerrados
+
+
+async def avisar_cdcs_cerrados(db, cdcs: list) -> None:
+    """Avisos despues del commit: solicitante y PM."""
+    from app.assignment import _notify_inapp
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    for inc in cdcs:
+        det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == inc.id))
+        detalle = det.scalar_one_or_none()
+        for uid in dict.fromkeys([inc.requester_id, detalle.project_manager_id if detalle else None]):
+            if uid:
+                await _notify_inapp(uid, f"Control de Cambios #{inc.folio} cerrado",
+                                    f"{inc.title} — Terminó su periodo de garantía", "neutral",
+                                    {"incident_id": str(inc.id), "folio": inc.folio})
+        await _broadcast_ticket_update(inc)

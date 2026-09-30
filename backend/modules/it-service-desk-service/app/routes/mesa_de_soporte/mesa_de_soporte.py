@@ -1664,6 +1664,10 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
     )
     incidentes = result.scalars().all()
 
+    # CDC con garantia vencida: se cierran en la misma pasada
+    from app.routes.control_cambios.control_cambios import cerrar_cdcs_garantia_vencida, avisar_cdcs_cerrados
+    cdcs = await cerrar_cdcs_garantia_vencida(db, now)
+
     from app.motor import SYSTEM_ACTOR_ID
     for incident in incidentes:
         incident.status = "cerrado"
@@ -1680,7 +1684,7 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
     # base de datos ya tuvo exito -- si el commit fallara, no queremos
     # que ya hayan salido avisos de un cierre que en realidad no se aplico.
     cerrados = [i.folio for i in incidentes]
-    if incidentes:
+    if incidentes or cdcs:
         await db.commit()
 
         from app.assignment import _notify_inapp
@@ -1693,4 +1697,7 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
                 )
             await _broadcast_ticket_update(incident)
 
-    return {"success": True, "cerrados": cerrados, "total": len(cerrados)}
+    if cdcs:
+        await avisar_cdcs_cerrados(db, cdcs)
+
+    return {"success": True, "cerrados": cerrados, "total": len(cerrados), "cdc_cerrados": [c.folio for c in cdcs]}

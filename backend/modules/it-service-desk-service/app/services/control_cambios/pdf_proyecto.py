@@ -395,3 +395,78 @@ def generar_pdf_produccion(d: dict) -> bytes:
         story += [Paragraph("2. COMENTARIOS", st["h"])] + _contenido(d["comentarios"], st)
     _validacion(story, st, 3 if d.get("comentarios") else 2, (d["instalo"], "Instaló"), (d["pm"], "Project Manager"))
     return _build(d, "Acta de paso a producción", story)
+
+
+ENTREGADO = {"si": "Sí", "parcial": "Parcial", "no": "No"}
+
+
+def generar_pdf_acta_cierre(d: dict) -> bytes:
+    st, story, n = _st(), [], 0
+    _encabezado(story, st, d, "Acta de Cierre del Proyecto")
+
+    def sec(t):
+        nonlocal n
+        n += 1
+        story.append(Paragraph(f"{n}. {t}", st["h"]))
+
+    sec("INFORMACIÓN GENERAL")
+    filas = [("Proyecto", d["titulo"]), ("Folio", d["folio"]), ("Se gestionó como", d["clasificacion"]),
+             ("Sistema / Módulo", d["alcance"]), ("Solicitante", d["solicitante_nombre"])]
+    if d.get("patrocinador"):
+        filas.append(("Patrocinador", d["patrocinador"]))
+    filas += [("Project Manager", d["pm"]), ("Versión", d["version_label"])]
+    story.append(_kv(filas, st))
+
+    sec("OBJETIVO Y RESULTADO")
+    if d.get("objetivo"):
+        story += [Paragraph("Objetivo", st["h3"])] + _contenido(d["objetivo"], st)
+    story += [Paragraph("Resultado", st["h3"])] + _contenido(d["resultado"], st)
+
+    if d["alcance_items"]:
+        sec("ALCANCE COMPROMETIDO CONTRA ENTREGADO")
+        rows = [["Punto del alcance", "Entregado", "Nota"]] + [[a["punto"], ENTREGADO.get(a["entregado"], a["entregado"]), a.get("nota") or "—"] for a in d["alcance_items"]]
+        story.append(_grid(rows, [8 * cm, 2.4 * cm, 6.6 * cm], st))
+
+    if d["criterios"]:
+        sec("CRITERIOS DE ACEPTACIÓN")
+        rows = [["ID", "Criterio", "Resultado en UAT"]] + [[c["id"], c.get("criterio") or c.get("descripcion", ""), "Cumple" if c.get("cumple") else "No cumple"] for c in d["criterios"]]
+        story.append(_grid(rows, [1.8 * cm, 11.2 * cm, 4 * cm], st))
+
+    i = d["indicadores"]
+    sec("INDICADORES")
+    story.append(_kv([
+        ("Entrega comprometida", i["compromiso"]), ("Entrega real", i["real"]), ("Desviación en fecha", i["desviacion_fecha"]),
+        ("Horas estimadas", i["horas_estimadas"]), ("Horas reales", i["horas_reales"]), ("Desviación en horas", i["desviacion_horas"]),
+        ("Ciclos de pruebas (UAT)", str(i["ciclos_uat"])), ("Reversiones en producción", str(i["reversiones"])),
+        ("Duración total", i["duracion_total"]),
+    ], st))
+
+    if d["etapas"]:
+        sec("DURACIÓN POR ETAPA")
+        rows = [["Etapa", "Cerrada el", "Días"]] + [[e["etapa"], e["fecha"], str(e["dias"])] for e in d["etapas"]]
+        story.append(_grid(rows, [8 * cm, 5 * cm, 4 * cm], st))
+
+    if d.get("encuesta"):
+        e = d["encuesta"]
+        sec("SATISFACCIÓN DEL SOLICITANTE")
+        story.append(_kv([("Satisfacción general", f"{e['satisfaccion']} de 5"), ("Se cumplió lo pedido", e["cumplio"]),
+                          ("Se entregó a tiempo", e["a_tiempo"]), ("Comentarios", e.get("comentarios") or "—")], st))
+
+    if d.get("pendientes"):
+        sec("PENDIENTES Y RIESGOS ABIERTOS")
+        story += _contenido(d["pendientes"], st)
+    if d.get("lecciones_bien") or d.get("lecciones_mejorar"):
+        sec("LECCIONES APRENDIDAS")
+        if d.get("lecciones_bien"):
+            story += [Paragraph("Qué salió bien", st["h3"])] + _contenido(d["lecciones_bien"], st)
+        if d.get("lecciones_mejorar"):
+            story += [Paragraph("Qué mejorar", st["h3"])] + _contenido(d["lecciones_mejorar"], st)
+
+    sec("ÍNDICE DEL EXPEDIENTE")
+    story.append(_bullets(d["expediente"], st))
+
+    filas = [["Nombre", "Rol", "Firma", "Fecha"]] + [[nm, rol, "", "____/____/______"] for nm, rol in d["firmas"]]
+    t = _grid(filas, [5.4 * cm, 3.6 * cm, 4.6 * cm, 3.4 * cm], st)
+    t._argH = [None] + [1.4 * cm] * len(d["firmas"])
+    story.append(KeepTogether([Paragraph(f"{n + 1}. ACEPTACIÓN Y FIRMAS", st["h"]), t]))
+    return _build(d, "Acta de cierre", story)

@@ -156,3 +156,12 @@ export const emitirUat = (id: string, resultado: 'aceptar' | 'regresar') => api.
 export const getProduccion = (id: string) => api.get(`${CDC}/${id}/produccion`)
 export const confirmarProduccion = (id: string, formData: FormData) =>
   api.post(`${CDC}/${id}/produccion/confirmar`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+
+// ── Terminado: acta de cierre y encuesta ──────────────────────────────────
+export const getCierre = (id: string) => api.get(`${CDC}/${id}/cierre`)
+export const responderEncuesta = (id: string, body: { satisfaccion: number; cumplio: string; a_tiempo: string; comentarios: string | null }) =>
+  api.post(`${CDC}/${id}/cierre/encuesta`, body)
+export const saveActaCierreBorrador = (id: string, datos: any) => api.put(`${CDC}/${id}/cierre/acta/borrador`, { datos })
+export const generarActaCierre = (id: string) => api.post(`${CDC}/${id}/cierre/acta/generar`)
+export const subirActaCierreFirmada = (id: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/cierre/acta-firmada`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
