@@ -344,3 +344,36 @@ def generar_pdf_entrega(d: dict) -> bytes:
         story += _contenido(d["limitaciones"], st)
     _validacion(story, st, n + 1, (d["pm"], "Entrega (Project Manager)"), (d["solicitante_nombre"], "Recibe para pruebas"))
     return _build(d, "Entrega a pruebas", story)
+
+
+def generar_pdf_uat(d: dict) -> bytes:
+    st, story, n = _st(), [], 0
+    _encabezado(story, st, d, "Acta de Pruebas de Aceptación (UAT)")
+
+    def sec(t):
+        nonlocal n
+        n += 1
+        story.append(Paragraph(f"{n}. {t}", st["h"]))
+
+    aceptado = d["resultado"] == "aceptado"
+    sec("INFORMACIÓN GENERAL")
+    story.append(_kv([("Proyecto", d["titulo"]), ("Folio", d["folio"]), ("Sistema / Módulo", d["alcance"]),
+                      ("Ciclo de pruebas", str(d["ciclo"])), ("Valida", d["solicitante_nombre"]),
+                      ("Registró", d["registro"]), ("Fecha", d["fecha_emision"])], st))
+    color = colors.HexColor("#15803d") if aceptado else colors.HexColor("#b45309")
+    box = Table([[Paragraph(f"<b>Resultado: {'Aceptado' if aceptado else 'Regresado a desarrollo'}</b>",
+                            ParagraphStyle("res", parent=st["body"], fontSize=11, textColor=color))]], colWidths=[17 * cm])
+    box.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 1.5, color), ("TOPPADDING", (0, 0), (-1, -1), 7),
+                             ("BOTTOMPADDING", (0, 0), (-1, -1), 7), ("LEFTPADDING", (0, 0), (-1, -1), 10)]))
+    story += [Spacer(1, 10), box]
+    sec("CRITERIOS VALIDADOS")
+    rows = [["ID", "Criterio de aceptación", "Resultado", "Comentario", "Evidencias"]]
+    for c in d["criterios"]:
+        rows.append([c["id"], c["criterio"] or c["descripcion"], "Cumple" if c["cumple"] else "No cumple",
+                     c.get("comentario") or "—", "\n".join(e["nombre"] for e in c.get("evidencias", [])) or "—"])
+    story.append(_grid(rows, [1.6 * cm, 5.2 * cm, 2 * cm, 4.6 * cm, 3.6 * cm], st))
+    if d.get("comentario_general"):
+        sec("COMENTARIOS GENERALES")
+        story += _contenido(d["comentario_general"], st)
+    _validacion(story, st, n + 1, (d["solicitante_nombre"], "Valida (solicitante)"), (d["pm"], "Project Manager"))
+    return _build(d, "Acta de pruebas UAT", story)

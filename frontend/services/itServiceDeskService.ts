@@ -141,3 +141,13 @@ export const generarEntrega = (id: string) => api.post(`${CDC}/${id}/desarrollo/
 export const liberarPruebas = (id: string) => api.post(`${CDC}/${id}/desarrollo/liberar`)
 export const getDesarrolloCandidatos = (id: string) => api.get(`${CDC}/${id}/desarrollo/candidatos`)
 export const reasignarDesarrollo = (id: string, userId: string) => api.patch(`${CDC}/${id}/desarrollo/asignar`, { user_id: userId })
+
+// ── En pruebas (UAT) ──────────────────────────────────────────────────────
+export const getUat = (id: string) => api.get(`${CDC}/${id}/uat`)
+export const saveUatBorrador = (id: string, body: { resultados: Record<string, { cumple: boolean | null; comentario: string }>; comentario_general: string }) =>
+  api.put(`${CDC}/${id}/uat/borrador`, body)
+export const subirEvidenciaUat = (id: string, formData: FormData) =>
+  api.post(`${CDC}/${id}/uat/evidencia`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const quitarEvidenciaUat = (id: string, criterioId: string, objectKey: string) =>
+  api.patch(`${CDC}/${id}/uat/evidencia/quitar`, { criterio_id: criterioId, object_key: objectKey })
+export const emitirUat = (id: string, resultado: 'aceptar' | 'regresar') => api.post(`${CDC}/${id}/uat/emitir`, { resultado })

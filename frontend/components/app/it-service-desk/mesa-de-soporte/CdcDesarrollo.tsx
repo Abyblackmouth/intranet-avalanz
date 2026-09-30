@@ -14,6 +14,7 @@ interface Data {
   status: string; puede_editar: boolean; puede_cerrar: boolean; puede_reasignar: boolean
   responsable: { id: string; name: string } | null
   rts: Rt[]; avances: Avance[]; entrega: Doc[]
+  observaciones_uat: { ciclo: number; fecha: string; no_cumple: { id: string; descripcion: string; comentario: string; evidencias: { nombre: string; object_key: string; bucket: string }[] }[] } | null
   resumen: { total: number; terminados: number; horas_estimadas: number; horas_reales: number; inicio: string | null; fecha_compromiso: string | null; dias_restantes: number | null }
   solicitante: { id: string; name: string }; project_manager: { id: string; name: string } | null
 }
@@ -133,6 +134,26 @@ export default function CdcDesarrollo({ incidentId, onChanged }: { incidentId: s
   return (
     <div>
       <div className="px-5 py-5">
+        {data.observaciones_uat && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3.5 mb-4">
+            <p className="text-[13.5px] font-semibold text-amber-900">Regresó de pruebas · ciclo {data.observaciones_uat.ciclo}</p>
+            <p className="text-[12.5px] text-amber-800 mb-2">El solicitante marcó estos criterios como no cumplidos:</p>
+            <ul className="grid gap-2">
+              {data.observaciones_uat.no_cumple.map(c => (
+                <li key={c.id} className="text-[13px] text-slate-800 bg-white border border-amber-200 rounded-lg px-3 py-2">
+                  <span className="font-mono text-slate-500">{c.id}</span> · {c.descripcion}
+                  <span className="block text-slate-700 mt-0.5 whitespace-pre-line">{c.comentario}</span>
+                  {c.evidencias?.length > 0 && (
+                    <span className="flex flex-wrap gap-2 mt-1">{c.evidencias.map((e, i) => (
+                      <button key={i} type="button" className="text-[12.5px] text-[#1a4fa0] hover:underline inline-flex items-center gap-1" onClick={() => abrir(e.object_key, e.bucket)}><Paperclip className="w-3 h-3" />{e.nombre}</button>
+                    ))}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Responsable del desarrollo */}
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="text-[13.5px]">

@@ -429,7 +429,7 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
     for doc in docs_result.scalars().all():
         if doc.object_key:
             documentos.append({
-                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico", "entrega_pruebas": "en_desarrollo"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
+                "tipo": "arranque", "etapa": {"diseno_funcional": "en_diseno_funcional", "diseno_tecnico": "en_diseno_tecnico", "entrega_pruebas": "en_desarrollo", "uat": "en_pruebas"}.get(doc.tipo, "en_arranque"), "nombre": doc.nombre,
                 "object_key": doc.object_key, "bucket": "dirdoc", "fecha": doc.created_at.isoformat(),
             })
 
@@ -1805,6 +1805,7 @@ async def get_desarrollo(incident_id: str, db: AsyncSession = Depends(get_db), u
             for a in reversed(avances)
         ],
         "entrega": [_doc_json(d) for d in docs],
+        "observaciones_uat": await _observaciones_uat(db, incident_id),
         "solicitante": {"id": incident.requester_id, "name": incident.requester_name},
         "project_manager": {"id": detalle.project_manager_id, "name": detalle.project_manager_nombre} if detalle and detalle.project_manager_id else None,
     }
@@ -1950,9 +1951,10 @@ async def liberar_a_pruebas(incident_id: str, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=409, detail="Genera la nota de entrega a pruebas antes de liberar")
 
     autor = user.get("full_name") or ""
+    desarrollador = {"id": incident.assigned_to_user_id, "name": await _nombre_usuario(incident.assigned_to_user_id)} if incident.assigned_to_user_id else None
     db.add(ControlCambiosEtapa(
         id=str(uuid.uuid4()), incident_id=incident.id, etapa="en_desarrollo", resultado="liberado",
-        datos={"nota": {"id": nota.id, "version": nota.version, "nombre": nota.nombre},
+        datos={"nota": {"id": nota.id, "version": nota.version, "nombre": nota.nombre}, "responsable": desarrollador,
                "rts": {"total": len(rts), "horas_estimadas": sum(r["horas_estimadas"] or 0 for r in rts),
                        "horas_reales": sum(r["horas_reales"] or 0 for r in rts)}},
         documento_object_key=nota.object_key, anexos=[],
@@ -2060,3 +2062,264 @@ async def reasignar_desarrollo(incident_id: str, body: AsignarDisenoPayload, db:
     except Exception as e:
         print(f"[CDC] Error notificando desarrollo {incident.folio}: {e}")
     return {"success": True, "asignado": {"id": body.user_id, "name": nombre, "rol": etiqueta}}
+
+
+# ------------------------------------------------------------------
+# Etapa En pruebas (UAT)
+# (en_pruebas -> en_paso_produccion | de regreso a en_desarrollo)
+# ------------------------------------------------------------------
+
+DOC_LABEL.update({"uat": "Acta de pruebas UAT"})
+CRITERIO_GENERAL = {"id": "GENERAL", "descripcion": "Cumple con lo solicitado", "criterio": "El cambio cumple con lo que se pidió en la solicitud"}
+
+
+async def _etapas_de(db, incident_id: str, etapa: str) -> list:
+    from app.models.mesa_de_soporte import ControlCambiosEtapa
+    res = await db.execute(select(ControlCambiosEtapa).where(ControlCambiosEtapa.incident_id == incident_id,
+                                                            ControlCambiosEtapa.etapa == etapa).order_by(ControlCambiosEtapa.created_at))
+    return list(res.scalars().all())
+
+
+async def _criterios_uat(db, incident_id: str) -> list:
+    """Los criterios de aceptacion del diseno funcional; si no hubo diseno,
+    una sola validacion general."""
+    return await _criterios_funcionales(db, incident_id) or [CRITERIO_GENERAL]
+
+
+async def _observaciones_uat(db, incident_id: str) -> Optional[dict]:
+    """Si el proyecto regreso de la UAT, lo que no cumplio en el ultimo ciclo."""
+    uats = await _etapas_de(db, incident_id, "en_pruebas")
+    if not uats or uats[-1].resultado != "rechazado":
+        return None
+    e = uats[-1]
+    return {"ciclo": (e.datos or {}).get("ciclo"), "fecha": e.created_at.isoformat(),
+            "no_cumple": [c for c in (e.datos or {}).get("criterios", []) if not c.get("cumple")]}
+
+
+async def _cargar_cdc_uat(db, incident_id: str, user: dict, editar: bool = False):
+    from app.routes.mesa_de_soporte.mesa_de_soporte import MODULE_WIDE_ROLES
+    res = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = res.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+    det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det.scalar_one_or_none()
+    roles = set(user.get("roles") or [])
+    uid = user.get("user_id")
+    es_solicitante = uid == incident.requester_id
+    puede_validar = incident.status == "en_pruebas" and (es_solicitante or bool(roles & IM_ROLES))
+    if not (roles & MODULE_WIDE_ROLES or es_solicitante or "super_admin" in roles):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+    if editar and incident.status != "en_pruebas":
+        raise HTTPException(status_code=409, detail="El proyecto no está en pruebas")
+    if editar and not puede_validar:
+        raise HTTPException(status_code=403, detail="La UAT la registra el solicitante o el Incident Manager en su nombre")
+    return incident, detalle, roles, puede_validar, es_solicitante
+
+
+async def _borrador_uat(db, incident, user: dict):
+    """El borrador del ciclo actual; lo crea si no existe."""
+    from app.models.mesa_de_soporte import ControlCambiosDocumento
+    docs = [d for d in await _docs_de(db, incident.id) if d.tipo == "uat"]
+    ultimo = docs[-1] if docs else None
+    if ultimo and ultimo.estado == "borrador":
+        return ultimo
+    doc = ControlCambiosDocumento(id=str(uuid.uuid4()), incident_id=incident.id, tipo="uat",
+                                  version=(ultimo.version + 1) if ultimo else 1, estado="borrador", origen="formulario",
+                                  datos={"resultados": {}, "comentario_general": ""},
+                                  creado_por=user.get("user_id"), creado_por_nombre=user.get("full_name") or "")
+    db.add(doc)
+    await db.flush()
+    return doc
+
+
+@router.get("/{incident_id}/uat")
+async def get_uat(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    incident, detalle, roles, puede_validar, es_solicitante = await _cargar_cdc_uat(db, incident_id, user)
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == "uat"]
+    borrador = docs[-1] if docs and docs[-1].estado == "borrador" else None
+    ciclos = await _etapas_de(db, incident_id, "en_pruebas")
+    return {
+        "status": incident.status, "puede_validar": puede_validar, "en_nombre": puede_validar and not es_solicitante,
+        "ciclo": len(ciclos) + 1,
+        "criterios": await _criterios_uat(db, incident_id),
+        "borrador": borrador.datos if borrador else {"resultados": {}, "comentario_general": ""},
+        "ciclos_anteriores": [
+            {"ciclo": (e.datos or {}).get("ciclo"), "resultado": e.resultado, "fecha": e.created_at.isoformat(),
+             "registro": (e.datos or {}).get("registro"), "documento_object_key": e.documento_object_key}
+            for e in reversed(ciclos)
+        ],
+        "solicitante": {"id": incident.requester_id, "name": incident.requester_name},
+        "project_manager": {"id": detalle.project_manager_id, "name": detalle.project_manager_nombre} if detalle and detalle.project_manager_id else None,
+    }
+
+
+class UatBorradorPayload(BaseModel):
+    resultados: dict[str, dict] = {}
+    comentario_general: Optional[str] = None
+
+
+@router.put("/{incident_id}/uat/borrador")
+async def borrador_uat(incident_id: str, body: UatBorradorPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    incident, detalle, roles, _, _ = await _cargar_cdc_uat(db, incident_id, user, editar=True)
+    doc = await _borrador_uat(db, incident, user)
+    datos = dict(doc.datos or {})
+    actuales = dict(datos.get("resultados") or {})
+    for cid, r in body.resultados.items():
+        previo = actuales.get(cid, {})
+        # Las evidencias las administra su propio endpoint: aqui se conservan
+        actuales[cid] = {"cumple": r.get("cumple"), "comentario": (r.get("comentario") or "").strip(), "evidencias": previo.get("evidencias", [])}
+    datos["resultados"] = actuales
+    datos["comentario_general"] = (body.comentario_general or "").strip()
+    doc.datos = datos
+    await db.commit()
+    return {"success": True, "borrador": datos}
+
+
+@router.post("/{incident_id}/uat/evidencia")
+async def evidencia_uat(incident_id: str, criterio_id: str = Form(...), file: UploadFile = File(...),
+                        db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+                        raw_token: str = Depends(get_token_from_request)):
+    incident, detalle, roles, _, _ = await _cargar_cdc_uat(db, incident_id, user, editar=True)
+    if criterio_id not in {c["id"] for c in await _criterios_uat(db, incident_id)}:
+        raise HTTPException(status_code=422, detail="Criterio no válido")
+    content = await file.read()
+    if len(content) > MAX_DOC_BYTES:
+        raise HTTPException(status_code=413, detail=f"{file.filename} excede 20 MB")
+    mime = _mime_por_extension(file.filename, file.content_type)
+    solicitante = await _get_requester_profile(incident.requester_id)
+    key = await _subir_archivo(content, file.filename, mime, solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail=f"No se pudo subir {file.filename}")
+    doc = await _borrador_uat(db, incident, user)
+    datos = dict(doc.datos or {})
+    resultados = dict(datos.get("resultados") or {})
+    r = dict(resultados.get(criterio_id) or {"cumple": None, "comentario": ""})
+    r["evidencias"] = list(r.get("evidencias") or []) + [{"nombre": file.filename, "object_key": key, "bucket": "dirdoc", "mime_type": mime}]
+    resultados[criterio_id] = r
+    datos["resultados"] = resultados
+    doc.datos = datos
+    await db.commit()
+    return {"success": True, "evidencias": r["evidencias"]}
+
+
+class QuitarEvidenciaPayload(BaseModel):
+    criterio_id: str
+    object_key: str
+
+
+@router.patch("/{incident_id}/uat/evidencia/quitar")
+async def quitar_evidencia_uat(incident_id: str, body: QuitarEvidenciaPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    incident, detalle, roles, _, _ = await _cargar_cdc_uat(db, incident_id, user, editar=True)
+    doc = await _borrador_uat(db, incident, user)
+    datos = dict(doc.datos or {})
+    resultados = dict(datos.get("resultados") or {})
+    r = dict(resultados.get(body.criterio_id) or {})
+    r["evidencias"] = [e for e in (r.get("evidencias") or []) if e.get("object_key") != body.object_key]
+    resultados[body.criterio_id] = r
+    datos["resultados"] = resultados
+    doc.datos = datos
+    await db.commit()
+    return {"success": True, "evidencias": r["evidencias"]}
+
+
+class EmitirUatPayload(BaseModel):
+    resultado: str   # aceptar | regresar
+
+
+@router.post("/{incident_id}/uat/emitir")
+async def emitir_uat(incident_id: str, body: EmitirUatPayload, db: AsyncSession = Depends(get_db),
+                     user: dict = Depends(get_current_user), raw_token: str = Depends(get_token_from_request)):
+    from app.models.mesa_de_soporte import ControlCambiosEtapa, IncidentActivityLog
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_uat
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    if body.resultado not in ("aceptar", "regresar"):
+        raise HTTPException(status_code=422, detail="Resultado no válido")
+    incident, detalle, roles, _, es_solicitante = await _cargar_cdc_uat(db, incident_id, user, editar=True)
+    doc = await _borrador_uat(db, incident, user)
+    resultados = (doc.datos or {}).get("resultados") or {}
+
+    criterios = []
+    for c in await _criterios_uat(db, incident_id):
+        r = resultados.get(c["id"]) or {}
+        if r.get("cumple") is None:
+            raise HTTPException(status_code=422, detail=f"Marca si {c['id']} cumple o no cumple")
+        if not r.get("evidencias"):
+            raise HTTPException(status_code=422, detail=f"Sube al menos una evidencia de {c['id']}")
+        if r.get("cumple") is False and not (r.get("comentario") or "").strip():
+            raise HTTPException(status_code=422, detail=f"Explica por qué {c['id']} no cumple")
+        criterios.append({**c, "cumple": bool(r["cumple"]), "comentario": r.get("comentario") or "", "evidencias": r.get("evidencias") or []})
+    todos = all(c["cumple"] for c in criterios)
+    if body.resultado == "aceptar" and not todos:
+        raise HTTPException(status_code=422, detail="No se puede aceptar: hay criterios que no cumplen")
+    if body.resultado == "regresar" and todos:
+        raise HTTPException(status_code=422, detail="Todos los criterios cumplen: acepta en lugar de regresar")
+
+    ciclo = len(await _etapas_de(db, incident_id, "en_pruebas")) + 1
+    autor = user.get("full_name") or ""
+    registro = autor if es_solicitante else f"{autor}, en nombre de {incident.requester_name}"
+    resultado = "aceptado" if body.resultado == "aceptar" else "rechazado"
+    now = datetime.now(timezone.utc)
+
+    base = await _base_diseno(db, incident, detalle, doc.version, autor)
+    pdf_bytes = generar_pdf_uat({**base, "ciclo": ciclo, "resultado": resultado, "registro": registro,
+                                 "criterios": criterios, "comentario_general": (doc.datos or {}).get("comentario_general", "")})
+    solicitante = await _get_requester_profile(incident.requester_id)
+    nombre = f"ACTA_PRUEBAS_UAT_{incident.folio}_ciclo{ciclo}.pdf"
+    key = await _subir_archivo(pdf_bytes, nombre, "application/pdf", solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail="No se pudo guardar el acta de pruebas")
+    doc.estado, doc.object_key, doc.nombre, doc.mime_type = "generado", key, nombre, "application/pdf"
+
+    db.add(ControlCambiosEtapa(
+        id=str(uuid.uuid4()), incident_id=incident.id, etapa="en_pruebas", resultado=resultado,
+        datos={"ciclo": ciclo, "criterios": criterios, "registro": registro, "en_nombre": not es_solicitante,
+               "comentario_general": (doc.datos or {}).get("comentario_general", "")},
+        documento_object_key=key, anexos=[], realizado_por=user.get("user_id"), realizado_por_nombre=autor, created_at=now,
+    ))
+    if resultado == "aceptado":
+        incident.status = "en_paso_produccion"
+        incident.assigned_to_user_id = detalle.project_manager_id or incident.assigned_to_user_id
+        incident.assigned_team = None
+        avisar = [x for x in {detalle.project_manager_id, await _responsable_tecnico(db, incident_id)} if x]
+    else:
+        desarrollos = await _etapas_de(db, incident_id, "en_desarrollo")
+        dev = ((desarrollos[-1].datos or {}).get("responsable") or {}).get("id") if desarrollos else None
+        incident.status = "en_desarrollo"
+        incident.assigned_to_user_id = dev or detalle.project_manager_id or incident.assigned_to_user_id
+        incident.assigned_team = None
+        avisar = [x for x in {incident.assigned_to_user_id, detalle.project_manager_id} if x]
+    incident.assigned_at = now
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_uat_emitida", performed_by=user.get("user_id"),
+        performed_by_name=autor, performed_by_role="solicitante" if es_solicitante else _rol_de(roles), module_slug="it-service-desk",
+        detail={"ciclo": ciclo, "resultado": resultado, "en_nombre_de": None if es_solicitante else incident.requester_name,
+                "no_cumple": [c["id"] for c in criterios if not c["cumple"]]},
+    ))
+    await db.commit()
+    await _broadcast_ticket_update(incident)
+
+    # Avisos: aceptada -> PM y tecnico; regresada -> desarrollador y PM
+    try:
+        from app.assignment import _notify_inapp
+        titulo = f"UAT {'aceptada' if resultado == 'aceptado' else 'con observaciones'} · #{incident.folio}"
+        mensaje = ("El solicitante aceptó las pruebas. El proyecto pasa a Paso a producción." if resultado == "aceptado"
+                   else "El solicitante encontró criterios que no cumplen. El proyecto regresa a desarrollo con sus observaciones.")
+        no_cumple = ", ".join(c["id"] for c in criterios if not c["cumple"])
+        for uid in avisar:
+            await _notify_inapp(uid, titulo, incident.title, "info" if resultado == "aceptado" else "warning",
+                                {"incident_id": str(incident.id), "folio": incident.folio})
+            perfil = await _get_requester_profile(uid)
+            if perfil.get("email"):
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    await client.post("http://email-service:8000/api/v1/email/system-notification", json={
+                        "to_email": perfil["email"], "full_name": perfil.get("full_name", ""),
+                        "subject": f"Control de Cambios {incident.folio}: {'UAT aceptada' if resultado == 'aceptado' else 'UAT con observaciones'}",
+                        "message": mensaje,
+                        "fields": [{"label": "Folio", "value": incident.folio, "mono": True}, {"label": "Ciclo", "value": str(ciclo), "mono": False}]
+                                  + ([{"label": "No cumple", "value": no_cumple, "mono": False}] if no_cumple else []),
+                        "alert_type": "success" if resultado == "aceptado" else "warning",
+                    })
+    except Exception as e:
+        print(f"[CDC] Error notificando UAT {incident.folio}: {e}")
+    return {"success": True, "status": incident.status, "ciclo": ciclo, "resultado": resultado}

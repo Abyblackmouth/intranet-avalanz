@@ -10,6 +10,7 @@ import CdcPriorizacionForm from './CdcPriorizacionForm'
 import CdcArranque from './CdcArranque'
 import CdcDiseno from './CdcDiseno'
 import CdcDesarrollo from './CdcDesarrollo'
+import CdcUat from './CdcUat'
 
 // ════════════════════════════════════════════════════════════════════
 // TEMA -- colores del detalle en un solo lugar. En la v2 de la intranet
@@ -51,22 +52,24 @@ const STAGES = [
   { key: 'en_diseno_tecnico', label: 'Diseño técnico', who: 'Equipo técnico' },
   { key: 'en_desarrollo', label: 'En desarrollo', who: 'Equipo / proveedor' },
   { key: 'en_pruebas', label: 'En pruebas (UAT)', who: 'Solicitante' },
-  { key: 'terminado', label: 'Terminado', who: 'Solicitante / PM' },
+  { key: 'en_paso_produccion', label: 'Paso a producción', who: 'PM / Equipo técnico' },
+  { key: 'terminado', label: 'Terminado', who: 'En garantía' },
+  { key: 'cerrado', label: 'Cerrado', who: 'Automático' },
 ]
 const STAGE_INDEX: Record<string, number> = {
   en_backlog: 0, registrado: 0, en_revision: 1, rechazado: 1, aprobado: 2,
-  priorizado: 3, en_arranque: 4, en_diseno_funcional: 5, en_diseno_tecnico: 6, en_desarrollo: 7, en_pruebas: 8, terminado: 9,
+  priorizado: 3, en_arranque: 4, en_diseno_funcional: 5, en_diseno_tecnico: 6, en_desarrollo: 7, en_pruebas: 8, en_paso_produccion: 9, terminado: 10, cerrado: 11,
 }
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'Registrado', registrado: 'Registrado', en_revision: 'En revisión', aprobado: 'Aprobado',
   rechazado: 'Rechazado', priorizado: 'Priorizado', en_arranque: 'Arranque', en_diseno_funcional: 'Diseño funcional', en_diseno_tecnico: 'Diseño técnico', en_desarrollo: 'En desarrollo',
-  en_pruebas: 'En pruebas (UAT)', terminado: 'Terminado', cancelado: 'Cancelado',
+  en_pruebas: 'En pruebas (UAT)', en_paso_produccion: 'Paso a producción', terminado: 'Terminado', cerrado: 'Cerrado', cancelado: 'Cancelado',
 }
 const REQUESTER_SEES: Record<string, string> = {
   en_backlog: 'Registrado', registrado: 'Registrado', en_revision: 'En revisión por Gerencia de Proyectos',
   aprobado: 'Aprobado · en espera de priorización', rechazado: 'Rechazado · ver motivo en el dictamen',
   priorizado: 'Priorizado', en_arranque: 'Arranque del proyecto', en_diseno_funcional: 'En diseño funcional', en_diseno_tecnico: 'En diseño técnico', en_desarrollo: 'En desarrollo', en_pruebas: 'En pruebas · requiere tu validación',
-  terminado: 'Terminado', cancelado: 'Cancelado',
+  en_paso_produccion: 'Pruebas aceptadas · en paso a producción', terminado: 'Terminado · en garantía', cerrado: 'Cerrado', cancelado: 'Cancelado',
 }
 const TIPO_LABEL: Record<string, string> = { nueva_funcionalidad: 'Nueva funcionalidad', mejora_existente: 'Mejora a funcionalidad existente' }
 const NIVEL_LABEL: Record<string, string> = { alta: 'Alta', media: 'Media', baja: 'Baja', alto: 'Alto', medio: 'Medio', bajo: 'Bajo' }
@@ -86,6 +89,7 @@ const ACTION_LABEL: Record<string, (l: LogEntry, d: CdcDetail) => string> = {
   cdc_desarrollo_iniciado: l => `${l.performed_by_name} inició el desarrollo`,
   cdc_avance_registrado: l => `${l.performed_by_name} registró un avance${l.detail?.rts?.length ? ` (${l.detail.rts.map((r: any) => r.id).join(', ')})` : ''}`,
   cdc_desarrollo_reasignado: l => `${l.performed_by_name} asignó el desarrollo a ${l.detail?.nuevo_nombre ?? ''}`,
+  cdc_uat_emitida: l => `${l.performed_by_name}${l.detail?.en_nombre_de ? ` (en nombre de ${l.detail.en_nombre_de})` : ''} ${l.detail?.resultado === 'aceptado' ? 'aceptó las pruebas' : `regresó el proyecto a desarrollo (ciclo ${l.detail?.ciclo}; no cumple: ${(l.detail?.no_cumple ?? []).join(', ')})`}`,
   cdc_liberado_pruebas: l => `${l.performed_by_name} liberó el proyecto a pruebas`,
   cdc_arranque_cerrado: l => `${l.performed_by_name} cerró el arranque; pasa a Diseño funcional`,
   cdc_diseno_cerrado: l => `${l.performed_by_name} cerró el ${l.detail?.fase === 'tecnico' ? 'diseño técnico; pasa a En desarrollo' : 'diseño funcional; pasa a Diseño técnico'}`,
@@ -209,7 +213,7 @@ function RevisionSummary({ e }: { e: Etapa }) {
 }
 
 const DESARROLLA_LABEL: Record<string, string> = { equipo_interno: 'Equipo interno', proveedor_totvs: 'Proveedor TOTVS', proveedor_externo: 'Proveedor externo' }
-const DOC_LABEL: Record<string, string> = { entrega_pruebas: 'Nota de entrega a pruebas', diseno_funcional: 'Requerimientos funcionales', diseno_tecnico: 'Diseño técnico', plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
+const DOC_LABEL: Record<string, string> = { uat: 'Acta de pruebas UAT', entrega_pruebas: 'Nota de entrega a pruebas', diseno_funcional: 'Requerimientos funcionales', diseno_tecnico: 'Diseño técnico', plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
 const GOB_LABEL: Record<string, string> = { patrocinador: 'Patrocinador', gerente_proyecto: 'Gerente del proyecto', project_manager: 'Project Manager', lider_tecnico: 'Líder técnico', validador: 'Usuario validador' }
 
 function PriorizacionSummary({ e }: { e: Etapa }) {
@@ -301,7 +305,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
               <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">Dictamen de revisión</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">Lo que captures aquí genera el documento de dictamen y se agrega al expediente.</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 2 de 10</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 2 de 12</span>
           </header>
           <CdcRevisionForm incidentId={detail.id} originalDescription={detail.description} onDone={onRevisionDone} />
         </section>
@@ -324,7 +328,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
               <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">Priorización</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">Confirma lo que indicó el solicitante y define el compromiso de entrega. Esta fecha es la que se reporta al Comité Directivo.</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 4 de 10</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 4 de 12</span>
           </header>
           <CdcPriorizacionForm incidentId={detail.id}
             solicitado={{ urgencia: detail.detalle.urgencia_solicitada, impacto: detail.detalle.impacto_si_no_se_realiza, fecha: detail.detalle.fecha_requerida }}
@@ -337,6 +341,21 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
         </section>
       )
     }
+    if (status === 'en_pruebas') {
+      return (
+        <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
+          <header className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">En pruebas (UAT)</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">El solicitante valida cada criterio de aceptación con evidencia.</p>
+            </div>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 9 de 12</span>
+          </header>
+          <CdcUat incidentId={detail.id} onChanged={onRevisionDone} />
+        </section>
+      )
+    }
+    if (status === 'en_paso_produccion') return <LockedStage title="Paso a producción">Se habilita en la siguiente entrega: ventana de instalación, responsable, plan de reversa y confirmación.</LockedStage>
     if (status === 'en_desarrollo') {
       return (
         <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
@@ -345,7 +364,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
               <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">En desarrollo</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">Seguimiento por requerimiento técnico hasta liberar a pruebas con el solicitante.</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 8 de 10</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 8 de 12</span>
           </header>
           <CdcDesarrollo incidentId={detail.id} onChanged={onRevisionDone} />
         </section>
@@ -360,7 +379,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
               <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">{fase === 'funcional' ? 'Diseño funcional' : 'Diseño técnico'}</h3>
               <p className="text-[13px] text-slate-500 mt-0.5">{fase === 'funcional' ? 'Sesiones de entendimiento con el área y documento de requerimientos funcionales.' : 'Diseño de la solución y requerimientos técnicos ligados a cada requerimiento funcional.'}</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa {fase === 'funcional' ? 6 : 7} de 10</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa {fase === 'funcional' ? 6 : 7} de 12</span>
           </header>
           <CdcDiseno key={fase} incidentId={detail.id} fase={fase} onChanged={onRevisionDone} />
         </section>
@@ -377,7 +396,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
                 ? 'Arma el expediente del proyecto. Cada documento se guarda por separado, así que puedes avanzar en varios días.'
                 : 'Un plan breve basta para un Cambio. Se llena en un par de minutos.'}</p>
             </div>
-            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 5 de 10</span>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 5 de 12</span>
           </header>
           <CdcArranque incidentId={detail.id} fechaCompromiso={detail.detalle.fecha_compromiso} onChanged={onRevisionDone} />
         </section>
@@ -428,9 +447,9 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 md:px-7 py-6">
               <section className="bg-white border border-slate-200 rounded-2xl shadow-sm px-5 pt-5 pb-4 mb-6 overflow-x-auto" aria-label="Etapas del Control de Cambios">
-                <ol className="grid grid-cols-10 min-w-[1060px]">
+                <ol className="grid grid-cols-12 min-w-[1260px]">
                   {STAGES.map((s, i) => {
-                    const done = i < current || (i === current && status === 'terminado')
+                    const done = i < current || (i === current && status === 'cerrado')
                     const now = i === current && !done
                     const stop = now && isStopped
                     const hold = now && status === 'en_revision' && detail.ajuste_pendiente
@@ -461,7 +480,18 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
                   <p className="text-[13px] font-medium text-slate-500 mt-7 mb-2.5 px-0.5">Etapas cerradas</p>
                   <div className="flex flex-col gap-3.5">
-                    {[...detail.etapas].reverse().map(e => e.etapa === 'en_desarrollo' ? (
+                    {[...detail.etapas].reverse().map(e => e.etapa === 'en_pruebas' ? (
+                      <ClosedStage key={e.id} icon={e.resultado === 'aceptado' ? 'bg-[var(--cdc-done)]' : 'bg-amber-600'} title={`En pruebas · ciclo ${e.datos?.ciclo ?? 1}`}
+                        sub={`${e.datos?.registro ?? e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
+                        chip={{ label: e.resultado === 'aceptado' ? 'Aceptado' : 'Regresado a desarrollo', cls: e.resultado === 'aceptado' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700' }}>
+                        <Dl rows={(e.datos?.criterios ?? []).map((c: any) => [c.id, `${c.cumple ? 'Cumple' : 'No cumple'}${c.comentario ? ` · ${c.comentario}` : ''}`] as [string, React.ReactNode])} />
+                        {e.documento_object_key && (
+                          <button type="button" onClick={() => openSigned(e.documento_object_key!)} className="mt-4 inline-flex items-center gap-2 text-[13px] font-medium text-[#1a4fa0] hover:underline">
+                            <FileText className="w-4 h-4" />Ver acta de pruebas en PDF
+                          </button>
+                        )}
+                      </ClosedStage>
+                    ) : e.etapa === 'en_desarrollo' ? (
                       <ClosedStage key={e.id} icon="bg-[var(--cdc-done)]" title="En desarrollo" sub={`${e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
                         chip={{ label: `Liberado · ${e.datos?.rts?.horas_reales ?? 0} h reales de ${e.datos?.rts?.horas_estimadas ?? 0} h`, cls: 'bg-emerald-50 text-emerald-700' }}>
                         <Dl rows={[['Requerimientos', `${e.datos?.rts?.total ?? 0} terminados`], ['Horas', `${e.datos?.rts?.horas_reales ?? 0} reales · ${e.datos?.rts?.horas_estimadas ?? 0} estimadas`], ['Nota de entrega', e.datos?.nota?.nombre ?? '—']]} />
