@@ -212,6 +212,37 @@ export default function MesaDeSoportePage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [activeSevs, setActiveSevs] = useState<string[]>([])
+  // Tipo de ticket: vacío = todos. El filtro inicial depende del rol y se aplica
+  // una sola vez; después el usuario decide y el sistema no lo cambia solo.
+  const [activeTypes, setActiveTypes] = useState<string[]>([])
+  const [tiposIniciales, setTiposIniciales] = useState(false)
+  useEffect(() => {
+    if (tiposIniciales || roles.length === 0) return
+    setTiposIniciales(true)
+    if (isIncidentManager) setActiveTypes(['incidente', 'solicitud_acceso'])
+    else if (roles.includes('it-service-desk:project-manager')) setActiveTypes(['control_cambio'])
+  }, [roles, isIncidentManager, tiposIniciales])
+
+  // Estatus de cada tipo de ticket, en el orden de su ciclo. El desplegable solo
+  // ofrece los de los tipos activos (sin tipos activos = todos los tipos).
+  const FLUJO_INCIDENTE: [string, string][] = [['en_backlog', 'En backlog'], ['asignado', 'Asignado'], ['en_atencion', 'En atención'],
+    ['escalado', 'Escalado'], ['resuelto', 'Resuelto'], ['cerrado', 'Cerrado']]
+  const ESTATUS_POR_TIPO: Record<string, { label: string; estatus: [string, string][] }> = {
+    incidente: { label: 'Incidentes', estatus: FLUJO_INCIDENTE },
+    solicitud_acceso: { label: 'Solicitudes de acceso', estatus: FLUJO_INCIDENTE },
+    control_cambio: { label: 'Control de cambios', estatus: [
+      ['en_backlog', 'Registrado'], ['en_revision', 'En revisión'], ['aprobado', 'Aprobado'], ['rechazado', 'Rechazado'],
+      ['priorizado', 'Priorizado'], ['en_arranque', 'Arranque'], ['en_diseno_funcional', 'Diseño funcional'],
+      ['en_diseno_tecnico', 'Diseño técnico'], ['en_desarrollo', 'En desarrollo'], ['en_pruebas', 'En pruebas (UAT)'],
+      ['en_paso_produccion', 'Paso a producción'], ['terminado', 'Terminado'], ['cerrado', 'Cerrado'], ['cancelado', 'Cancelado']] },
+  }
+  const tipoDe = (t: any): string => t.ticket_type ?? (t.folio?.startsWith('CDC-') ? 'control_cambio' : 'incidente')
+  const tiposVisibles = ['incidente', 'solicitud_acceso', 'control_cambio'].filter(tp => activeTypes.length === 0 || activeTypes.includes(tp))
+  const conteoEstatus = (tp: string, st: string) => incidents.filter((t: any) => tipoDe(t) === tp && t.status === st).length
+  // Si se apaga el tipo del estatus elegido, se limpia el estatus
+  useEffect(() => {
+    if (statusFilter.includes(':') && !tiposVisibles.includes(statusFilter.split(':')[0])) setStatusFilter('')
+  }, [activeTypes]) // eslint-disable-line react-hooks/exhaustive-deps
   const [showCreate, setShowCreate] = useState(false)
   const [showTypePicker, setShowTypePicker] = useState(false)
   const [showCreateCDC, setShowCreateCDC] = useState(false)
@@ -219,6 +250,9 @@ export default function MesaDeSoportePage() {
   const [viewingTicketId, setViewingTicketId] = useState<string | null>(null)
   const [viewingCdcId, setViewingCdcId] = useState<string | null>(null)
   const [cdcBoardKey, setCdcBoardKey] = useState(0)
+  const [cdcClasif, setCdcClasif] = useState<'todos' | 'proyecto' | 'cambio'>('todos')
+  const [cdcPrio, setCdcPrio] = useState<'todas' | 'P1' | 'P2' | 'P3'>('todas')
+  const [cdcVista, setCdcVista] = useState<'etapas' | 'fases'>('fases')
   const [viewMode, setViewMode] = useState<'tabla' | 'tablero' | 'proyectos'>('tabla')
   const [page, setPage] = useState(1)
   const PER_PAGE = 13
@@ -246,10 +280,13 @@ export default function MesaDeSoportePage() {
   const filtered = incidents.filter(t => {
     const q = search.toLowerCase()
     const matchSearch = !q || t.folio.toLowerCase().includes(q) || t.title.toLowerCase().includes(q)
-    const matchStatus = !statusFilter || t.status === statusFilter
+    const [fTipo, fStatus] = statusFilter.includes(':') ? statusFilter.split(':') : [null, statusFilter]
+    const matchStatus = !statusFilter || (t.status === fStatus && (!fTipo || tipoDe(t) === fTipo))
     const sev = sevInfo(t.severity_validated_id ?? t.severity_reported_id)
     const matchSev = activeSevs.length === 0 || (sev && activeSevs.includes(sev.code))
-    return matchSearch && matchStatus && matchSev
+    const tipo = (t as any).ticket_type ?? (t.folio?.startsWith('CDC-') ? 'control_cambio' : 'incidente')
+    const matchTipo = activeTypes.length === 0 || activeTypes.includes(tipo)
+    return matchSearch && matchStatus && matchSev && matchTipo
   })
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
@@ -278,6 +315,43 @@ export default function MesaDeSoportePage() {
             <LayoutGrid size={13} /> Tablero proyectos
           </button>
         </div>
+        {viewMode === 'proyectos' && (
+          <div className="flex items-center gap-5 ml-10">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">Tipo</span>
+              <div className="inline-flex rounded-lg border border-slate-300 bg-white overflow-hidden text-xs" role="group" aria-label="Tipo de proyecto">
+                <button type="button" aria-pressed={cdcClasif === 'todos'} onClick={() => setCdcClasif('todos')}
+                  className={`px-2.5 py-1.5 ${cdcClasif === 'todos' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Todos</button>
+                <button type="button" aria-pressed={cdcClasif === 'proyecto'} onClick={() => setCdcClasif('proyecto')}
+                  className={`px-2.5 py-1.5 border-l border-slate-200 ${cdcClasif === 'proyecto' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Proyecto</button>
+                <button type="button" aria-pressed={cdcClasif === 'cambio'} onClick={() => setCdcClasif('cambio')}
+                  className={`px-2.5 py-1.5 border-l border-slate-200 ${cdcClasif === 'cambio' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Cambio</button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">Prioridad</span>
+              <div className="inline-flex rounded-lg border border-slate-300 bg-white overflow-hidden text-xs" role="group" aria-label="Prioridad">
+                <button type="button" aria-pressed={cdcPrio === 'todas'} onClick={() => setCdcPrio('todas')}
+                  className={`px-2.5 py-1.5 ${cdcPrio === 'todas' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Todas</button>
+                <button type="button" aria-pressed={cdcPrio === 'P1'} onClick={() => setCdcPrio('P1')}
+                  className={`px-2.5 py-1.5 border-l border-slate-200 ${cdcPrio === 'P1' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>P1</button>
+                <button type="button" aria-pressed={cdcPrio === 'P2'} onClick={() => setCdcPrio('P2')}
+                  className={`px-2.5 py-1.5 border-l border-slate-200 ${cdcPrio === 'P2' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>P2</button>
+                <button type="button" aria-pressed={cdcPrio === 'P3'} onClick={() => setCdcPrio('P3')}
+                  className={`px-2.5 py-1.5 border-l border-slate-200 ${cdcPrio === 'P3' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>P3</button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">Vista</span>
+              <div className="inline-flex rounded-lg border border-slate-300 bg-white overflow-hidden text-xs" role="group" aria-label="Vista del tablero">
+                <button type="button" aria-pressed={cdcVista === 'fases'} onClick={() => setCdcVista('fases')}
+                  className={`px-2.5 py-1.5 ${cdcVista === 'fases' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Por fase</button>
+                <button type="button" aria-pressed={cdcVista === 'etapas'} onClick={() => setCdcVista('etapas')}
+                  className={`px-2.5 py-1.5 border-l border-slate-200 ${cdcVista === 'etapas' ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Por etapa</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="ml-auto flex items-center gap-2 flex-wrap">
           {isIncidentManager && (
@@ -358,7 +432,7 @@ export default function MesaDeSoportePage() {
 
       {viewMode === 'proyectos' && (
         <div className="flex-1 min-h-0">
-          <CdcKanbanBoard onOpen={setViewingCdcId} refreshKey={cdcBoardKey} />
+          <CdcKanbanBoard onOpen={setViewingCdcId} refreshKey={cdcBoardKey} clasif={cdcClasif} prio={cdcPrio} vista={cdcVista} />
         </div>
       )}
 
@@ -381,7 +455,17 @@ export default function MesaDeSoportePage() {
               className="px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#7c2d12]"
             >
               <option value="">Todos los estatus</option>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {tiposVisibles.length === 1
+                ? ESTATUS_POR_TIPO[tiposVisibles[0]].estatus.map(([k, v]) => (
+                    <option key={k} value={`${tiposVisibles[0]}:${k}`}>{v} ({conteoEstatus(tiposVisibles[0], k)})</option>
+                  ))
+                : tiposVisibles.map(tp => (
+                    <optgroup key={tp} label={ESTATUS_POR_TIPO[tp].label}>
+                      {ESTATUS_POR_TIPO[tp].estatus.map(([k, v]) => (
+                        <option key={k} value={`${tp}:${k}`}>{v} ({conteoEstatus(tp, k)})</option>
+                      ))}
+                    </optgroup>
+                  ))}
             </select>
           </div>
           <div className="flex items-center flex-wrap gap-2 mt-3">
@@ -397,6 +481,22 @@ export default function MesaDeSoportePage() {
                 }`}
               >
                 {code}
+              </button>
+            ))}
+            <span className="w-px h-4 bg-slate-300 mx-2" aria-hidden="true" />
+            <span className="text-[11px] font-medium text-slate-500 mr-1">Tipo:</span>
+            {[['incidente', 'Incidentes'], ['solicitud_acceso', 'Solicitudes de acceso'], ['control_cambio', 'Control de cambios']].map(([key, label]) => (
+              <button
+                key={key}
+                aria-pressed={activeTypes.includes(key)}
+                onClick={() => { setActiveTypes(prev => prev.includes(key) ? prev.filter(c => c !== key) : [...prev, key]); setPage(1) }}
+                className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition ${
+                  activeTypes.includes(key)
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-700 border-slate-300'
+                }`}
+              >
+                {label}
               </button>
             ))}
             <span className="text-[11px] text-slate-400 font-mono ml-auto">{filtered.length} de {incidents.length} tickets</span>
@@ -483,6 +583,7 @@ export default function MesaDeSoportePage() {
       {showCreate && (
         <CreateIncidentModal
           onClose={() => setShowCreate(false)}
+          onBack={() => { setShowCreate(false); setShowTypePicker(true) }}
           onCreated={() => { setShowCreate(false); fetchAll() }}
         />
       )}
@@ -490,6 +591,7 @@ export default function MesaDeSoportePage() {
       {showCreateCDC && (
         <CreateControlCambioModal
           onClose={() => setShowCreateCDC(false)}
+          onBack={() => { setShowCreateCDC(false); setShowTypePicker(true) }}
           onCreated={() => { setShowCreateCDC(false); fetchAll() }}
         />
       )}

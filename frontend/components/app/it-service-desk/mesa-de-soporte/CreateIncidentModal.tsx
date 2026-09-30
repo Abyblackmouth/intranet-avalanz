@@ -7,7 +7,7 @@ import { Paperclip, X } from 'lucide-react'
 interface CatalogItem { id: string; name: string; system_id?: string }
 interface SeverityItem { id: string; code: string; name: string }
 
-export default function CreateIncidentModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export default function CreateIncidentModal({ onClose, onCreated, onBack }: { onClose: () => void; onCreated: () => void; onBack?: () => void }) {
   const [systems, setSystems] = useState<CatalogItem[]>([])
   const [modules, setModules] = useState<CatalogItem[]>([])
   const [severities, setSeverities] = useState<SeverityItem[]>([])
@@ -151,6 +151,11 @@ export default function CreateIncidentModal({ onClose, onCreated }: { onClose: (
         {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
 
         <div className="flex justify-end gap-3 mt-4">
+          {onBack && (
+            <button type="button" onClick={onBack} className="mr-auto inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition">
+              <span aria-hidden="true">←</span> Regresar
+            </button>
+          )}
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition">Cancelar</button>
           <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-[#7c2d12] rounded-lg hover:bg-[#6b2610] disabled:opacity-50 transition">
             {saving ? 'Creando...' : 'Crear ticket'}

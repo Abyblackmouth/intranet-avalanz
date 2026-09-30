@@ -7,10 +7,11 @@ import { useAuthStore } from '@/store/authStore'
 
 interface CreateControlCambioModalProps {
   onClose: () => void
+  onBack?: () => void
   onCreated: (folio: string) => void
 }
 
-export default function CreateControlCambioModal({ onClose, onCreated }: CreateControlCambioModalProps) {
+export default function CreateControlCambioModal({ onClose, onCreated, onBack }: CreateControlCambioModalProps) {
   const { user } = useAuthStore()
   const fechaSolicitud = new Date().toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -271,7 +272,12 @@ export default function CreateControlCambioModal({ onClose, onCreated }: CreateC
           </div>
 
           <div className="flex items-center justify-between px-8 py-[18px] border-t border-slate-200 bg-slate-50">
-            <button onClick={onClose} className="text-sm font-medium text-slate-500 hover:text-slate-700 transition">
+            {onBack && (
+              <button type="button" onClick={onBack} className="mr-auto inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition">
+                <span aria-hidden="true">←</span> Regresar
+              </button>
+            )}
+            <button onClick={onClose} className="mr-5 text-sm font-medium text-slate-500 hover:text-slate-700 transition">
               Cancelar
             </button>
             <div className="flex gap-2.5">

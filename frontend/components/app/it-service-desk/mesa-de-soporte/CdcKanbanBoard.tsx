@@ -5,7 +5,7 @@
 // pero no comparte código con él, para no arriesgar ese tablero.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Building2, AlertTriangle, RotateCcw, Search } from 'lucide-react'
+import { Building2, AlertTriangle, RotateCcw } from 'lucide-react'
 import { useWSEvent } from '@/hooks/useWebSocket'
 import { getTableroProyectos } from '@/services/itServiceDeskService'
 
@@ -94,7 +94,7 @@ function Columna({ label, color, items, conEtapa, onOpen, rows }: {
   const visibles = items.slice(actual * porPagina, (actual + 1) * porPagina)
   return (
     <section className="shrink-0 bg-slate-50/80 border border-slate-200 rounded-2xl flex flex-col overflow-hidden"
-      style={{ width: COL_W, height: colH(rows) }}>
+      style={{ width: COL_W, height: '100%' }}>
       <header className="px-3 flex items-center gap-2 shrink-0" style={{ height: HEADER_H }}>
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
         <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-700 truncate">{label}</h3>
@@ -121,15 +121,78 @@ function Columna({ label, color, items, conEtapa, onOpen, rows }: {
   )
 }
 
-export default function CdcKanbanBoard({ onOpen, refreshKey = 0 }: { onOpen: (id: string) => void; refreshKey?: number }) {
+// Vista "Por fase". Backlog: 1 tarjeta de ancho; las demás fases: 2, siempre.
+// El ancho de cada columna es proporcional a sus tarjetas; el alto lo mide cada
+// columna y decide cuántas filas caben (2 a 4). Las tarjetas nunca se salen.
+const COLUMNAS_FASE = [
+  { key: 'backlog', label: 'Backlog', color: '#94a3b8', cols: 1, estatus: ['en_backlog'] },
+  { key: 'evaluacion', label: 'Evaluación', color: '#64748b', cols: 2, estatus: ['en_revision', 'aprobado', 'priorizado'] },
+  { key: 'planeacion', label: 'Planeación', color: '#1a4fa0', cols: 2, estatus: ['en_arranque', 'en_diseno_funcional', 'en_diseno_tecnico'] },
+  { key: 'ejecucion', label: 'Ejecución', color: '#b45309', cols: 2, estatus: ['en_desarrollo', 'en_pruebas', 'en_paso_produccion'] },
+  { key: 'cierre', label: 'Cierre', color: '#15803d', cols: 2, estatus: ['terminado', 'cerrado'] },
+]
+const GAP_FASE = 10
+
+function FaseColumna({ label, color, cols, items, onOpen }: {
+  label: string; color: string; cols: number; items: Cdc[]; onOpen: (id: string) => void
+}) {
+  const rejillaRef = useRef<HTMLDivElement>(null)
+  const [rows, setRows] = useState(3)
+  useEffect(() => {
+    const el = rejillaRef.current
+    if (!el) return
+    const medir = () => setRows(Math.max(2, Math.min(4, Math.floor((el.clientHeight + GAP_FASE) / (CARD_H + GAP_FASE)))))
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const porPagina = cols * rows
+  const [pagina, setPagina] = useState(0)
+  const paginas = Math.max(1, Math.ceil(items.length / porPagina))
+  const actual = Math.min(pagina, paginas - 1)
+  const visibles = items.slice(actual * porPagina, (actual + 1) * porPagina)
+  const restantes = items.length - (actual + 1) * porPagina
+  return (
+    <div className="flex flex-col h-full" style={{ flexGrow: cols, flexBasis: 0, minWidth: cols * 150 }}>
+      <div className="flex items-center gap-2 mb-2 px-1 shrink-0">
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-600">{label}</p>
+        <span className="text-[11px] text-slate-400 ml-auto">{items.length}</span>
+      </div>
+      <div className="flex-1 min-h-0 flex flex-col rounded-2xl p-2.5 bg-slate-50">
+        <div ref={rejillaRef} className="flex-1 min-h-0 overflow-hidden">
+          {items.length === 0 ? (
+            <p className="text-xs text-slate-300 italic text-center py-8">Sin proyectos</p>
+          ) : (
+            <div className="grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoRows: `${CARD_H}px`, gap: GAP_FASE }}>
+              {visibles.map(c => <Tarjeta key={c.id} c={c} conEtapa onOpen={onOpen} />)}
+            </div>
+          )}
+        </div>
+        {/* Lugar reservado para "Ver más": siempre dentro del área gris */}
+        <div className="h-8 shrink-0 flex items-center justify-center">
+          {items.length > porPagina && (
+            <button type="button" onClick={() => setPagina(actual + 1 >= paginas ? 0 : actual + 1)}
+              className="text-xs font-medium text-slate-500 hover:text-[#7c2d12] transition">
+              {restantes > 0 ? `Ver más (${restantes})` : 'Ver primeros'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function CdcKanbanBoard({ onOpen, refreshKey = 0, clasif = 'todos', prio = 'todas', vista = 'fases' }: {
+  onOpen: (id: string) => void; refreshKey?: number; clasif?: 'todos' | 'proyecto' | 'cambio'; prio?: 'todas' | 'P1' | 'P2' | 'P3'
+  vista?: 'etapas' | 'fases'
+}) {
   const [items, setItems] = useState<Cdc[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [vista, setVista] = useState<'etapas' | 'fases'>('etapas')
-  const [clasif, setClasif] = useState<'todos' | 'proyecto' | 'cambio'>('todos')
-  const [prio, setPrio] = useState<'todas' | 'P1' | 'P2' | 'P3'>('todas')
-  const [q, setQ] = useState('')
-  const [mios, setMios] = useState(false)
+  const q = ''
+  const mios = false
   const [ocultas, setOcultas] = useState<Set<string>>(new Set())
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tableroRef = useRef<HTMLDivElement>(null)
@@ -137,7 +200,7 @@ export default function CdcKanbanBoard({ onOpen, refreshKey = 0 }: { onOpen: (id
   useEffect(() => {
     const el = tableroRef.current
     if (!el) return
-    const medir = () => setRows(filasQueCaben(el.clientHeight))
+    const medir = () => setRows(filasQueCaben(el.clientHeight - 34))  // 34 = recuadro blanco (padding + borde)
     medir()
     const ro = new ResizeObserver(medir)
     ro.observe(el)
@@ -177,27 +240,6 @@ export default function CdcKanbanBoard({ onOpen, refreshKey = 0 }: { onOpen: (id
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      {/* Barra de herramientas */}
-      <div className="flex flex-wrap items-center gap-2 mb-2.5 shrink-0 text-[12px]">
-        <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar folio, título o persona"
-            className="bg-white border border-slate-300 rounded-lg pl-8 pr-3 py-1.5 w-60 outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/15" />
-        </div>
-        <div className="inline-flex rounded-lg border border-slate-300 bg-white overflow-hidden" role="group" aria-label="Clasificación">
-          {[['todos', 'Todos'], ['proyecto', 'Proyecto'], ['cambio', 'Cambio']].map(([v, l], i) => seg(v, clasif, setClasif, l, i === 0))}
-        </div>
-        <div className="inline-flex rounded-lg border border-slate-300 bg-white overflow-hidden" role="group" aria-label="Prioridad">
-          {[['todas', 'Todas'], ['P1', 'P1'], ['P2', 'P2'], ['P3', 'P3']].map(([v, l], i) => seg(v, prio, setPrio, l, i === 0))}
-        </div>
-        <label className="inline-flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 cursor-pointer text-slate-600">
-          <input type="checkbox" checked={mios} onChange={e => setMios(e.target.checked)} className="accent-[#1a4fa0]" /> Solo los míos
-        </label>
-        <div className="ml-auto inline-flex rounded-lg border border-slate-300 bg-white overflow-hidden" role="group" aria-label="Vista">
-          {seg('etapas', vista, setVista, 'Por etapa', true)}{seg('fases', vista, setVista, 'Por fase', false)}
-        </div>
-      </div>
-
       {/* Resumen por fase: también oculta o muestra la fase en la vista por etapa */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2.5 shrink-0">
         {FASES.map(f => {
@@ -208,14 +250,15 @@ export default function CdcKanbanBoard({ onOpen, refreshKey = 0 }: { onOpen: (id
           return (
             <button key={f.key} type="button" aria-pressed={!oculta}
               onClick={() => vista === 'etapas' && setOcultas(s => { const n = new Set(s); n.has(f.key) ? n.delete(f.key) : n.add(f.key); return n })}
-              className={`text-left bg-white border border-slate-200 rounded-xl px-3 py-2 hover:border-slate-300 transition ${oculta ? 'opacity-50' : ''}`}
+              className={`text-left bg-white border border-slate-200 rounded-xl px-3 py-1.5 hover:border-slate-300 transition ${oculta ? 'opacity-50' : ''}`}
               style={{ borderLeft: `4px solid ${f.color}` }}>
-              <span className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600">{f.label}</span>
-                {vista === 'etapas' && <span className="text-[10.5px] text-slate-400">{oculta ? 'Mostrar' : 'Ocultar'}</span>}
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600 shrink-0">{f.label}</span>
+                <span className="text-[15px] font-semibold text-slate-900 leading-none shrink-0">{activos}</span>
+                <span className="text-[11px] text-slate-500 truncate">{f.desc}</span>
+                {venc ? <span className="text-[11px] text-red-600 shrink-0">· {venc} vencido{venc > 1 ? 's' : ''}</span> : null}
+                {vista === 'etapas' && <span className="ml-auto text-[10.5px] text-slate-400 shrink-0">{oculta ? 'Mostrar' : 'Ocultar'}</span>}
               </span>
-              <span className="block text-[18px] font-semibold text-slate-900 leading-tight">{activos}</span>
-              <span className="block text-[11px] text-slate-500 truncate">{f.desc}{venc ? <span className="text-red-600"> · {venc} vencido{venc > 1 ? 's' : ''}</span> : null}</span>
             </button>
           )
         })}
@@ -228,21 +271,24 @@ export default function CdcKanbanBoard({ onOpen, refreshKey = 0 }: { onOpen: (id
         ) : error ? (
           <p className="py-10 text-center text-[13px] text-red-600">{error}</p>
         ) : vista === 'fases' ? (
-          <div className="flex gap-3 items-start min-w-max">
-            {FASES.map(f => (
-              <Columna rows={rows} key={f.key} label={f.label} color={f.color} conEtapa onOpen={onOpen}
-                items={filtrados.filter(c => f.etapas.some(([k]) => k === c.status) && c.status !== 'cerrado').sort((a, b) => IDX[a.status] - IDX[b.status])} />
-            ))}
+          <div className="border border-slate-300 rounded-2xl bg-white shadow-sm p-4 w-full h-full flex flex-col">
+            <div className="flex gap-3 flex-1 min-h-0">
+              {COLUMNAS_FASE.map(col => (
+                <FaseColumna key={col.key} label={col.label} color={col.color} cols={col.cols} onOpen={onOpen}
+                  items={filtrados.filter(c => col.estatus.includes(c.status)).sort((x, y) => IDX[x.status] - IDX[y.status])} />
+              ))}
+            </div>
           </div>
         ) : (
-          <div className="flex gap-3 items-start min-w-max">
+          <div className="border border-slate-300 rounded-2xl bg-white shadow-sm p-4 h-full min-w-max">
+          <div className="flex gap-3 items-stretch h-full">
             {FASES.map(f => {
               if (ocultas.has(f.key)) {
                 const total = filtrados.filter(c => f.etapas.some(([k]) => k === c.status)).length
                 return (
                   <button key={f.key} type="button" title={`Mostrar ${f.label}`}
                     onClick={() => setOcultas(s => { const n = new Set(s); n.delete(f.key); return n })}
-                    style={{ height: colH(rows) + FASE_LABEL_H }}
+                    style={{ height: '100%' }}
                     className="shrink-0 w-10 rounded-2xl border border-slate-200 bg-white flex flex-col items-center py-3 gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ background: f.color }} />
                     <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600 [writing-mode:vertical-rl] rotate-180">{f.label} · {total}</span>
@@ -250,10 +296,10 @@ export default function CdcKanbanBoard({ onOpen, refreshKey = 0 }: { onOpen: (id
                 )
               }
               return (
-                <div key={f.key} className="shrink-0">
+                <div key={f.key} className="shrink-0 h-full flex flex-col">
                   <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5 px-1 h-[16px] leading-[16px]" style={{ color: f.color }}>{f.label}</p>
-                  <div className="flex gap-2.5 items-start rounded-2xl" style={{ background: `${f.color}0d`, padding: 6 }}>
-                    {f.etapas.map(([k, l]) => (
+                  <div className="flex gap-2.5 items-stretch rounded-2xl flex-1 min-h-0" style={{ background: `${f.color}0d`, padding: 6 }}>
+                    {f.etapas.filter(([k]) => k !== 'en_backlog').map(([k, l]) => (
                       <Columna rows={rows} key={k} label={l} color={f.color} conEtapa={false} onOpen={onOpen} esCerrado={k === 'cerrado'}
                         items={filtrados.filter(c => c.status === k)} />
                     ))}
@@ -261,6 +307,7 @@ export default function CdcKanbanBoard({ onOpen, refreshKey = 0 }: { onOpen: (id
                 </div>
               )
             })}
+          </div>
           </div>
         )}
       </div>
