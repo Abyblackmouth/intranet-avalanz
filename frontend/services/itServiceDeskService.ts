@@ -175,3 +175,20 @@ export const getAjustes = () => api.get('/api/v1/it-service-desk/ajustes')
 export const getAjustesHistorial = () => api.get('/api/v1/it-service-desk/ajustes/historial')
 export const updateAjuste = (key: string, valor: string | number | boolean) =>
   api.put(`/api/v1/it-service-desk/ajustes/${encodeURIComponent(key)}`, { valor })
+
+// ── Control de accesos: configuración de formatos ─────────────────────────
+const ACC = '/api/v1/it-service-desk/control-accesos/config'
+export const accFormatos = () => api.get(`${ACC}/formatos`)
+export const accFormato = (id: string) => api.get(`${ACC}/formatos/${id}`)
+export const accActualizarFormato = (id: string, data: Record<string, any>) => api.patch(`${ACC}/formatos/${id}`, data)
+export const accGuardarEmpresas = (id: string, company_ids: string[]) => api.put(`${ACC}/formatos/${id}/empresas`, { company_ids })
+export const accCrearModulo = (id: string, data: { nombre: string; exclusivo_admin?: boolean }) => api.post(`${ACC}/formatos/${id}/modulos`, data)
+export const accActualizarModulo = (moduloId: string, data: Record<string, any>) => api.patch(`${ACC}/modulos/${moduloId}`, data)
+export const accOrdenarModulos = (id: string, ids: string[]) => api.put(`${ACC}/formatos/${id}/modulos/orden`, { ids })
+export const accCrearPerfil = (moduloId: string, nombre: string) => api.post(`${ACC}/modulos/${moduloId}/perfiles`, { nombre })
+export const accRenombrarPerfil = (perfilId: string, nombre: string) => api.patch(`${ACC}/perfiles/${perfilId}`, { nombre })
+export const accQuitarPerfil = (perfilId: string) => api.delete(`${ACC}/perfiles/${perfilId}`)
+export const accCrearRutina = (moduloId: string, nombre: string) => api.post(`${ACC}/modulos/${moduloId}/rutinas`, { nombre })
+export const accActualizarRutina = (rutinaId: string, data: Record<string, any>) => api.patch(`${ACC}/rutinas/${rutinaId}`, data)
+export const accQuitarRutina = (rutinaId: string) => api.delete(`${ACC}/rutinas/${rutinaId}`)
+export const accBuscarUsuarios = (q: string) => api.get('/api/v1/it-service-desk/control-cambios/catalogos/usuarios', { params: { q } })

@@ -1,5 +1,7 @@
 'use client'
 
+import { KeyRound } from 'lucide-react'
+import ControlAccesosConfig from '@/components/app/it-service-desk/actualizaciones/ControlAccesosConfig'
 import { useState, useEffect, useCallback } from 'react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import {
@@ -26,7 +28,7 @@ const TEAM_TYPE_LABEL: Record<string, string> = {
 }
 
 export default function ActualizacionesPage() {
-  const [tab, setTab] = useState<'sistemas' | 'modulos' | 'especialistas'>('sistemas')
+  const [tab, setTab] = useState<'sistemas' | 'modulos' | 'especialistas' | 'accesos'>('sistemas')
   const [systems, setSystems] = useState<SystemRow[]>([])
   const [modules, setModules] = useState<ModuleRow[]>([])
   const [specialists, setSpecialists] = useState<SpecialistRow[]>([])
@@ -65,6 +67,7 @@ export default function ActualizacionesPage() {
           { key: 'sistemas', label: 'Sistemas', icon: Server },
           { key: 'modulos', label: 'Módulos', icon: Boxes },
           { key: 'especialistas', label: 'Especialistas', icon: Users },
+          { key: 'accesos', label: 'Control de accesos', icon: KeyRound },
         ].map(t => (
           <button
             key={t.key}
@@ -100,6 +103,7 @@ export default function ActualizacionesPage() {
               onToggle={async (m) => { await updateModuleCatalog(m.id, { system_id: m.system_id, name: m.name, is_active: !m.is_active }); fetchAll() }}
             />
           )}
+          {tab === 'accesos' && <ControlAccesosConfig />}
           {tab === 'especialistas' && (
             <SpecialistsPanel
               specialists={specialists}

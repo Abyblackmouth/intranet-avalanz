@@ -11,3 +11,7 @@ router.include_router(mesa_de_soporte_router)
 router.include_router(actualizaciones_router)
 router.include_router(control_cambios_router)
 router.include_router(ajustes_router)
+
+# Control de accesos: configuracion de formatos (Actualizaciones)
+from app.routes.control_accesos.configuracion import router as acc_config_router
+router.include_router(acc_config_router)
