@@ -17,7 +17,7 @@
   /* Encabezado de una línea */
   .enc { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4mm; padding-bottom: 2mm; border-bottom: 2px solid var(--azul); }
   .marca { display: flex; align-items: center; gap: 2mm; font-weight: 700; color: var(--azul); font-size: 9pt; letter-spacing: .04em; }
-  .marca svg { width: 7.5mm; height: 7.5mm; }
+  .marca img { height: 12mm; width: auto; display: block; }
   .titulo { text-align: center; }
   .titulo h1 { margin: 0; font-size: 11pt; color: var(--tinta); letter-spacing: .02em; }
   .titulo p { margin: .4mm 0 0; font-size: 7.3pt; color: var(--gris); }
@@ -100,8 +100,7 @@
   {% if prueba %}<div class="prueba">DOCUMENTO DE PRUEBA · SIN VALIDEZ</div>{% endif %}
   <header class="enc">
     <div class="marca">
-      <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3 37 35H3Z" fill="#1a4fa0"/><path d="M20 15 29 32H11Z" fill="#fff"/></svg>
-      GRUPO AVALANZ
+      {% if logo_src %}<img src="{{ logo_src }}" alt="Grupo Avalanz">{% else %}GRUPO AVALANZ{% endif %}
     </div>
     <div class="titulo">
       <h1>SOLICITUD DE {{ movimiento_titulo|upper }} DE USUARIO · {{ sistema_titulo|upper }}</h1>
@@ -144,7 +143,8 @@
 
   <section class="sec">
     <h2>3. Grupos y empresas a utilizar <span>(marca las empresas donde operará)</span></h2>
-    <div class="grupos" style="--cols: {{ columnas|length or 1 }}">
+    {% if not columnas %}<p class="nota" style="margin:0;padding:2mm;border:1px dashed var(--linea);border-radius:1.5mm;text-align:center">Todavía no hay empresas configuradas para este formato.</p>{% endif %}
+    <div class="grupos" style="--cols: {{ columnas|length or 1 }}{{ ';display:none' if not columnas }}">
       {% for col in columnas %}
       {% if col|length > 1 %}
       <div class="grupo doble">{% for fam in col %}<div><b>{{ fam.nombre }}</b><ul>{% for e in fam.empresas %}<li>{{ caja(e.marcada, e.nombre) }}</li>{% endfor %}</ul></div>{% endfor %}</div>

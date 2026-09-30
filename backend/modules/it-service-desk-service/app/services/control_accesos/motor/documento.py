@@ -1,5 +1,7 @@
 """Motor de documentos del Control de accesos: arma el contexto y convierte el
 template HTML de cada formato. La vista previa y el PDF salen del mismo template."""
+import base64
+from functools import lru_cache
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -8,31 +10,40 @@ FORMATOS_DIR = Path(__file__).resolve().parent.parent / "formatos"
 FUENTES_WEB = ("@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700"
                "&family=Geist+Mono:wght@500&display=swap');")
 MAX_COLUMNAS = 6
+LOGO = Path(__file__).resolve().parents[3] / "static" / "logo_avalanz.png"
 
 
-def columnas_de_familias(familias: list[dict], max_columnas: int = MAX_COLUMNAS) -> list[list[dict]]:
-    """Acomoda las familias en columnas. Las chicas (1-2 empresas) comparten columna
-    de dos en dos, como DYCE y SPPEL en el formato aprobado; si aun sobran columnas,
-    se juntan las mas chicas vecinas."""
+@lru_cache(maxsize=1)
+def _logo_src() -> str:
+    """El logo como data URI: funciona igual en la vista previa y en el PDF, sin rutas externas."""
+    try:
+        from app.services.logo import logo_recortado_bytes
+        return "data:image/png;base64," + base64.b64encode(logo_recortado_bytes()).decode()
+    except OSError:
+        return ""
+
+
+def columnas_de_familias(familias: list[dict], juntas: set | None = None, max_columnas: int = MAX_COLUMNAS) -> list[list[dict]]:
+    """Una columna por familia, en el orden recibido. Una familia en "juntas" comparte
+    columna con la siguiente (DYCE y SPPEL). Solo si quedaran mas de max_columnas se
+    juntan, como respaldo, las mas chicas vecinas."""
+    juntas = juntas or set()
     columnas: list[list[dict]] = []
-    pendiente = None
-    for fam in familias:
-        if len(fam["empresas"]) <= 2:
-            if pendiente is None:
-                pendiente = [fam]
-                columnas.append(pendiente)
-            else:
-                pendiente.append(fam)
-                pendiente = None
+    i = 0
+    while i < len(familias):
+        if familias[i].get("id") in juntas and i + 1 < len(familias):
+            columnas.append([familias[i], familias[i + 1]])
+            i += 2
         else:
-            columnas.append([fam])
+            columnas.append([familias[i]])
+            i += 1
     while len(columnas) > max_columnas:
-        solas = [i for i, c in enumerate(columnas) if len(c) == 1]
-        pares = [(i, j) for i, j in zip(solas, solas[1:]) if j == i + 1]
+        solas = [k for k, c in enumerate(columnas) if len(c) == 1]
+        pares = [(k, j) for k, j in zip(solas, solas[1:]) if j == k + 1]
         if not pares:
             break
-        i, j = min(pares, key=lambda p: sum(len(f["empresas"]) for f in columnas[p[0]] + columnas[p[1]]))
-        columnas[i] = columnas[i] + columnas[j]
+        k, j = min(pares, key=lambda p: sum(len(f["empresas"]) for f in columnas[p[0]] + columnas[p[1]]))
+        columnas[k] = columnas[k] + columnas[j]
         del columnas[j]
     return columnas
 
@@ -43,7 +54,7 @@ def renderizar(clave_formato: str, contexto: dict, fuentes: str = FUENTES_WEB) -
         raise FileNotFoundError(f"El formato {clave_formato} no tiene template.html")
     env = Environment(loader=FileSystemLoader(str(carpeta)), autoescape=select_autoescape(["html"]),
                       trim_blocks=True, lstrip_blocks=True)
-    return env.get_template("template.html").render(fuentes=fuentes, **contexto)
+    return env.get_template("template.html").render(fuentes=fuentes, logo_src=_logo_src(), **contexto)
 
 
 def contexto_vista_previa(config: dict, fecha: str, metodo_firma: str = "manual", prueba: bool = False) -> dict:
@@ -55,8 +66,14 @@ def contexto_vista_previa(config: dict, fecha: str, metodo_firma: str = "manual"
         c = catalogo.get(cid)
         if not c:
             continue
-        nombre = (c.get("familia") or {}).get("nombre") or "SIN FAMILIA"
-        familias.setdefault(nombre, {"nombre": nombre, "empresas": []})["empresas"].append({"nombre": c["nombre_comercial"], "marcada": False})
+        fam = c.get("familia") or {}
+        fid = fam.get("id") or "__sin__"
+        familias.setdefault(fid, {"id": fid, "nombre": fam.get("nombre") or "SIN FAMILIA", "empresas": []})["empresas"].append(
+            {"nombre": c["nombre_comercial"], "marcada": False})
+    presentacion = config["formato"].get("presentacion") or {}
+    orden = presentacion.get("orden") or []
+    posicion = lambda f: (orden.index(f["id"]) if f["id"] in orden else 10_000 + (f["id"] == "__sin__") * 10_000, f["nombre"])
+    familias_ordenadas = sorted(familias.values(), key=posicion)
     activos = [m for m in config["modulos"] if m["activo"]]
     fila = lambda m: {"nombre": m["nombre"], "marcado": False, "perfil": "", "rutinas": ""}
     return {
@@ -68,7 +85,7 @@ def contexto_vista_previa(config: dict, fecha: str, metodo_firma: str = "manual"
                     "empresa": "EMPRESA", "grupo": "FAMILIA", "jefe_nombre": "NOMBRE DEL JEFE DIRECTO", "correo": "correo@avalanz.com",
                     "nombre_firma": "", "jefe_nombre_firma": ""},
         "tipo": {"alta_nueva": False, "reemplazo": False, "migracion": False, "auditoria": False, "usuario_modelo": "", "reemplaza_a": ""},
-        "columnas": columnas_de_familias(list(familias.values())),
+        "columnas": columnas_de_familias(familias_ordenadas, set(presentacion.get("juntas") or [])),
         "modulos": [fila(m) for m in activos if not m["exclusivo_admin"]],
         "modulos_admin": [fila(m) for m in activos if m["exclusivo_admin"]],
         "vigencia": {"permanente": False, "temporal": False, "hasta": "", "observaciones": ""},

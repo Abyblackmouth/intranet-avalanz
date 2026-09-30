@@ -22,6 +22,11 @@ def gen_uuid():
 from sqlalchemy import Float
 
 
+from sqlalchemy import Integer, Date
+
+
+from sqlalchemy import func
+from sqlalchemy import text
 class TicketSeverity(Base):
     """Catálogo de severidades S1-S4. Configurable por incident_manager."""
     __tablename__ = "ticket_severities"
@@ -329,3 +334,112 @@ class ControlCambiosAvance(Base):
     autor_id = Column(UUID(as_uuid=False), nullable=False)
     autor_nombre = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+# ─── Control de accesos ───────────────────────────────────────────────────────
+
+class AccFormato(Base):
+    """Un formato de solicitud de acceso por sistema (TOTVS 25, Detecno...)."""
+    __tablename__ = "acc_formatos"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    clave = Column(String(30), unique=True, nullable=False)          # totvs25, detecno: la carpeta de su formulario y template
+    nombre = Column(String(120), nullable=False)
+    system_id = Column(UUID(as_uuid=False), ForeignKey("ticket_systems.id", ondelete="RESTRICT"), nullable=False)
+    severity_id = Column(UUID(as_uuid=False), ForeignKey("ticket_severities.id", ondelete="SET NULL"), nullable=True)
+    admin_user_id = Column(UUID(as_uuid=False), nullable=True)        # quien recibe la solicitud y firma al final
+    admin_nombre = Column(String(255), nullable=True)
+    activo = Column(Boolean, nullable=False, default=True)
+    orden = Column(Integer, nullable=False, default=0)
+    # {"orden": [family_id, ...], "juntas": [family_id que comparte columna con la siguiente]}
+    presentacion = Column(JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb"))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class AccFormatoEmpresa(Base):
+    """Empresas que muestra un formato. Nombre, familia y operando se leen del catalogo de la intranet."""
+    __tablename__ = "acc_formato_empresas"
+    __table_args__ = (UniqueConstraint("formato_id", "company_id", name="uq_acc_formato_empresa"),)
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    formato_id = Column(UUID(as_uuid=False), ForeignKey("acc_formatos.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(UUID(as_uuid=False), nullable=False)
+    orden = Column(Integer, nullable=False, default=0)
+
+
+class AccFormatoModulo(Base):
+    __tablename__ = "acc_formato_modulos"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    formato_id = Column(UUID(as_uuid=False), ForeignKey("acc_formatos.id", ondelete="CASCADE"), nullable=False, index=True)
+    nombre = Column(String(120), nullable=False)
+    exclusivo_admin = Column(Boolean, nullable=False, default=False)   # p. ej. CONFIGURADOR
+    orden = Column(Integer, nullable=False, default=0)
+    activo = Column(Boolean, nullable=False, default=True)
+
+
+class AccModuloPerfil(Base):
+    __tablename__ = "acc_modulo_perfiles"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    modulo_id = Column(UUID(as_uuid=False), ForeignKey("acc_formato_modulos.id", ondelete="CASCADE"), nullable=False, index=True)
+    nombre = Column(String(80), nullable=False)
+    orden = Column(Integer, nullable=False, default=0)
+
+
+class AccModuloRutina(Base):
+    __tablename__ = "acc_modulo_rutinas"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    modulo_id = Column(UUID(as_uuid=False), ForeignKey("acc_formato_modulos.id", ondelete="CASCADE"), nullable=False, index=True)
+    nombre = Column(String(150), nullable=False)
+    orden = Column(Integer, nullable=False, default=0)
+    activo = Column(Boolean, nullable=False, default=True)
+
+
+class AccCuenta(Base):
+    """Una cuenta por usuario y formato: su estado y sus accesos vigentes. Si ya existe, la
+    siguiente solicitud de ese usuario en ese sistema se registra como Modificacion."""
+    __tablename__ = "acc_cuentas"
+    __table_args__ = (UniqueConstraint("formato_id", "usuario_id", name="uq_acc_cuenta_usuario"),)
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    formato_id = Column(UUID(as_uuid=False), ForeignKey("acc_formatos.id", ondelete="RESTRICT"), nullable=False, index=True)
+    usuario_id = Column(UUID(as_uuid=False), nullable=False, index=True)
+    usuario_nombre = Column(String(255), nullable=False)
+    estado = Column(String(15), nullable=False, default="pendiente")   # pendiente | activa | baja
+    usuario_asignado = Column(String(80), nullable=True)
+    fecha_alta = Column(Date, nullable=True)
+    fecha_baja = Column(Date, nullable=True)
+    vigencia_hasta = Column(Date, nullable=True)
+    accesos = Column(JSONB, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class AccSolicitud(Base):
+    """Una solicitud de acceso, ligada a su ticket. datos es la copia de lo capturado, para
+    que el documento no cambie si despues cambia el catalogo."""
+    __tablename__ = "acc_solicitudes"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, unique=True)
+    formato_id = Column(UUID(as_uuid=False), ForeignKey("acc_formatos.id", ondelete="RESTRICT"), nullable=False, index=True)
+    cuenta_id = Column(UUID(as_uuid=False), ForeignKey("acc_cuentas.id", ondelete="SET NULL"), nullable=True, index=True)
+    movimiento = Column(String(15), nullable=False, default="alta")    # alta | modificacion | baja
+    datos = Column(JSONB, nullable=False, default=dict)
+    pdf_object_key = Column(String(500), nullable=True)
+    metodo_firma = Column(String(15), nullable=True)                   # manual | docusign
+    estado_firma = Column(String(20), nullable=True)                   # pendiente | enviado | firmado | rechazado
+    docusign_envelope_id = Column(String(100), nullable=True)
+    firmado_object_key = Column(String(500), nullable=True)
+    usuario_asignado = Column(String(80), nullable=True)
+    fecha_alta = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class AjusteHistorial(Base):
+    """Bitacora de cambios del panel de Ajustes. La tabla se creo con la migracion
+    f6b4d2a8c1e3; este modelo existe para que Alembic no la considere sobrante."""
+    __tablename__ = "ajustes_historial"
+    id = Column(UUID(as_uuid=False), primary_key=True)
+    key = Column(String(100), nullable=False, index=True)
+    valor_anterior = Column(Text, nullable=True)
+    valor_nuevo = Column(Text, nullable=False)
+    usuario_id = Column(UUID(as_uuid=False), nullable=True)
+    usuario_nombre = Column(String(255), nullable=False, server_default="")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

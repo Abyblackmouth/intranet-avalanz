@@ -2,7 +2,7 @@
 
 // Configuración de los formatos de solicitud de acceso (pestaña de Actualizaciones).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Plus, X, Search, Lock } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, X, Search, Lock, Link2 } from 'lucide-react'
 import {
   accFormatos, accFormato, accActualizarFormato, accGuardarEmpresas, accCrearModulo, accActualizarModulo, accOrdenarModulos,
   accCrearPerfil, accRenombrarPerfil, accQuitarPerfil, accCrearRutina, accActualizarRutina, accQuitarRutina, accBuscarUsuarios, accVistaPrevia,
@@ -11,7 +11,8 @@ import {
 interface Empresa { id: string; nombre_comercial: string; razon_social: string; rfc: string | null; operando: boolean; grupo: string; familia: { id: string; nombre: string; clave: string } | null }
 interface Modulo { id: string; nombre: string; exclusivo_admin: boolean; orden: number; activo: boolean; perfiles: { id: string; nombre: string }[]; rutinas: { id: string; nombre: string; activo: boolean }[] }
 interface Detalle {
-  formato: { id: string; clave: string; nombre: string; sistema: string; activo: boolean; severity_id: string | null; admin_user_id: string | null; admin_nombre: string | null }
+  formato: { id: string; clave: string; nombre: string; sistema: string; activo: boolean; severity_id: string | null; admin_user_id: string | null; admin_nombre: string | null
+            presentacion?: { orden?: string[]; juntas?: string[] } }
   severidades: { id: string; code: string; name: string }[]
   empresas_elegidas: string[]; catalogo_empresas: Empresa[]; modulos: Modulo[]
 }
@@ -174,6 +175,8 @@ function VistaPrevia({ formatoId, empresas, version }: { formatoId: string; empr
   )
 }
 
+const SIN = '__sin__'
+
 export default function ControlAccesosConfig() {
   const [formatos, setFormatos] = useState<{ id: string; nombre: string; sistema: string; activo: boolean }[]>([])
   const [formatoId, setFormatoId] = useState<string | null>(null)
@@ -204,14 +207,18 @@ export default function ControlAccesosConfig() {
     finally { setBusy(false) }
   }
 
-  // Empresas agrupadas por familia (sin familia al final)
+  // Empresas agrupadas por familia, en el orden configurado (sin familia al final)
   const porFamilia = useMemo(() => {
-    const m = new Map<string, Empresa[]>()
+    const m = new Map<string, { nombre: string; lista: Empresa[] }>()
     for (const c of d?.catalogo_empresas ?? []) {
-      const k = c.familia?.nombre ?? 'Sin familia'
-      m.set(k, [...(m.get(k) ?? []), c])
+      const id = c.familia?.id ?? SIN
+      const g = m.get(id) ?? { nombre: c.familia?.nombre ?? 'Sin familia', lista: [] }
+      g.lista.push(c); m.set(id, g)
     }
-    return [...m.entries()].sort(([a], [b]) => (a === 'Sin familia' ? 1 : b === 'Sin familia' ? -1 : a.localeCompare(b)))
+    const orden = d?.formato.presentacion?.orden ?? []
+    const pos = (id: string) => (id === SIN ? 2e6 : orden.includes(id) ? orden.indexOf(id) : 1e6)
+    return [...m.entries()].sort(([a, x], [b, y]) => pos(a) - pos(b) || x.nombre.localeCompare(y.nombre))
+      .map(([id, g]) => [g.nombre, g.lista, id] as [string, Empresa[], string])
   }, [d])
 
   if (!formatoId && formatos.length === 0) return <p className="text-sm text-slate-500 py-10 text-center">No hay formatos configurados.</p>
@@ -230,6 +237,20 @@ export default function ControlAccesosConfig() {
     if (j < 0 || j >= ids.length) return
     ;[ids[i], ids[j]] = [ids[j], ids[i]]
     run(() => accOrdenarModulos(f.id, ids))
+  }
+  const idsFamilias = porFamilia.map(x => x[2]).filter(id => id !== SIN)
+  const juntas = new Set(f.presentacion?.juntas ?? [])
+  const guardarPresentacion = (orden: string[], j: Set<string>) =>
+    run(() => accActualizarFormato(f.id, { presentacion: { orden, juntas: [...j] } }))
+  const moverFamilia = (i: number, dir: -1 | 1) => {
+    const ids = [...idsFamilias]; const k = i + dir
+    if (k < 0 || k >= ids.length) return
+    ;[ids[i], ids[k]] = [ids[k], ids[i]]
+    guardarPresentacion(ids, juntas)
+  }
+  const toggleJunta = (id: string) => {
+    const j = new Set(juntas); j.has(id) ? j.delete(id) : j.add(id)
+    guardarPresentacion(idsFamilias, j)
   }
   const toggleAbierto = (id: string) => setAbiertos(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
@@ -273,23 +294,46 @@ export default function ControlAccesosConfig() {
           accion={<button type="button" onClick={guardarEmpresas} disabled={!empresasSucias || busy}
             className="px-3.5 py-1.5 rounded-lg text-sm font-medium text-white bg-[#1a4fa0] hover:bg-blue-700 disabled:opacity-40">Guardar empresas ({elegidas.size})</button>}>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {porFamilia.map(([fam, lista]) => (
-              <div key={fam} className="border border-slate-200 rounded-xl overflow-hidden">
-                <p className={`px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-wide border-b border-slate-200 ${fam === 'Sin familia' ? 'bg-amber-50 text-amber-800' : 'bg-slate-50 text-slate-600'}`}>{fam}</p>
-                <ul className="px-3 py-2 grid gap-1">
-                  {lista.map(c => (
-                    <li key={c.id}>
-                      <label className="flex items-center gap-2 text-[13px] cursor-pointer" title={c.razon_social}>
-                        <input type="checkbox" className="accent-[#1a4fa0]" checked={elegidas.has(c.id)} onChange={() => toggleEmpresa(c.id)} />
-                        <span className={c.operando ? 'text-slate-800' : 'text-slate-400 line-through'}>{c.nombre_comercial}</span>
-                        {!c.operando && <span className="text-[10.5px] font-semibold text-red-600">No opera</span>}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {porFamilia.map(([fam, lista, fid], i) => {
+              const sin = fid === SIN
+              const pos = idsFamilias.indexOf(fid)
+              const junta = juntas.has(fid) && pos < idsFamilias.length - 1
+              return (
+                <div key={fid} className={`border rounded-xl overflow-hidden ${junta ? 'border-[#1a4fa0]/60 ring-1 ring-[#1a4fa0]/20' : 'border-slate-200'}`}>
+                  <div className={`px-2.5 py-1.5 border-b border-slate-200 flex items-center gap-1 ${sin ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                    {!sin && <span className="w-5 text-center text-[11px] font-mono text-slate-400">{pos + 1}</span>}
+                    <p className={`flex-1 min-w-0 truncate text-[11.5px] font-bold uppercase tracking-wide ${sin ? 'text-amber-800' : 'text-slate-600'}`}>{fam}</p>
+                    {!sin && (
+                      <>
+                        <button type="button" onClick={() => moverFamilia(pos, -1)} disabled={pos === 0 || busy} aria-label={`Subir ${fam}`}
+                          className="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-white disabled:opacity-20"><ChevronUp size={14} /></button>
+                        <button type="button" onClick={() => moverFamilia(pos, 1)} disabled={pos === idsFamilias.length - 1 || busy} aria-label={`Bajar ${fam}`}
+                          className="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-white disabled:opacity-20"><ChevronDown size={14} /></button>
+                        {pos < idsFamilias.length - 1 && (
+                          <button type="button" onClick={() => toggleJunta(fid)} disabled={busy} aria-pressed={junta}
+                            title={junta ? 'Deja de compartir columna' : 'Compartir columna con la siguiente'}
+                            className={`p-0.5 rounded ${junta ? 'text-[#1a4fa0] bg-blue-100' : 'text-slate-400 hover:text-slate-700 hover:bg-white'}`}><Link2 size={13} /></button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {junta && <p className="px-3 py-1 text-[11px] text-[#1a4fa0] bg-blue-50/70 border-b border-slate-100">Comparte columna con {porFamilia[i + 1]?.[0]}</p>}
+                  <ul className="px-3 py-2 grid gap-1">
+                    {lista.map(c => (
+                      <li key={c.id}>
+                        <label className="flex items-center gap-2 text-[13px] cursor-pointer" title={c.razon_social}>
+                          <input type="checkbox" className="accent-[#1a4fa0]" checked={elegidas.has(c.id)} onChange={() => toggleEmpresa(c.id)} />
+                          <span className={c.operando ? 'text-slate-800' : 'text-slate-400 line-through'}>{c.nombre_comercial}</span>
+                          {!c.operando && <span className="text-[10.5px] font-semibold text-red-600">No opera</span>}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })}
           </div>
+          <p className="mt-2 text-[12px] text-slate-500">El número es la posición de la familia en el formato; ordénalas con las flechas. Con el eslabón, una familia comparte columna con la siguiente, como DYCE y SPPEL.</p>
           {empresasSucias && <p className="mt-3 text-[12.5px] text-amber-700">Tienes cambios sin guardar en las empresas.</p>}
         </Seccion>
 

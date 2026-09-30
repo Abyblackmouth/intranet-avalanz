@@ -89,7 +89,8 @@ async def detalle_formato(formato_id: str, db: AsyncSession = Depends(get_db), u
     elegidas_ids = [e.company_id for e in elegidas]
     return {
         "formato": {"id": f.id, "clave": f.clave, "nombre": f.nombre, "sistema": sistema, "activo": f.activo,
-                    "severity_id": f.severity_id, "admin_user_id": f.admin_user_id, "admin_nombre": f.admin_nombre},
+                    "severity_id": f.severity_id, "admin_user_id": f.admin_user_id, "admin_nombre": f.admin_nombre,
+                    "presentacion": f.presentacion or {}},
         "severidades": [{"id": s.id, "code": s.code, "name": s.name} for s in severidades],
         "empresas_elegidas": elegidas_ids,
         # Se ofrecen las que operan, mas las ya elegidas aunque hayan dejado de operar (para poder quitarlas)
@@ -105,6 +106,7 @@ class FormatoPayload(BaseModel):
     admin_user_id: Optional[str] = None
     admin_nombre: Optional[str] = None
     activo: Optional[bool] = None
+    presentacion: Optional[dict] = None
 
 
 @router.patch("/formatos/{formato_id}")
@@ -122,6 +124,10 @@ async def actualizar_formato(formato_id: str, body: FormatoPayload, db: AsyncSes
         f.admin_nombre = (body.admin_nombre or "").strip() or None
     if body.activo is not None:
         f.activo = body.activo
+    if body.presentacion is not None:
+        orden = list(dict.fromkeys(str(x) for x in (body.presentacion.get("orden") or [])))
+        juntas = list(dict.fromkeys(str(x) for x in (body.presentacion.get("juntas") or []) if str(x) in orden))
+        f.presentacion = {"orden": orden, "juntas": juntas}
     f.updated_at = func.now()
     await db.commit()
     return {"success": True}
