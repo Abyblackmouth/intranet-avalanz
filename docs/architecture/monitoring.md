@@ -234,6 +234,8 @@ En produccion reemplazar `mailpit:1025` con el servidor SMTP corporativo real.
 | Nginx | nginx | nginx-exporter:9113 | Activo |
 | it-service-desk-service | it-service-desk-service | (upstream de Nginx) | Activo — modulo operativo |
 | legal-service | legal-service | (upstream de Nginx) | Activo — modulo operativo |
+| it-service-desk-service | it-service-desk-service | (upstream de Nginx) | Activo — modulo operativo |
+| legal-service | legal-service | (upstream de Nginx) | Activo — modulo operativo |
 
 Para verificar el estado de todos los targets desde el servidor:
 
@@ -448,6 +450,18 @@ Un dashboard es un objeto JSON con la siguiente estructura base:
 ## Dashboards por modulo operativo (futuro)
 
 Cuando se implementen modulos operativos como Boveda o Legal, se pueden crear dashboards especificos con metricas de negocio: documentos subidos por dia, tiempo de procesamiento, errores por empresa, uso de almacenamiento MinIO por tenant. Prometheus scrapeara automaticamente el nuevo servicio en cuanto se agregue su job a `prometheus.yml`.
+
+---
+
+## Dashboard de modulos operativos
+
+`infrastructure/grafana/avalanz-modulos-dashboard.json` — una seccion por modulo (IT Service Desk y Legal) con:
+estado, peticiones/seg, % de errores 5xx, latencia p95, RAM, peticiones por estatus, latencia promedio y p95,
+los 10 endpoints mas lentos y los 10 mas usados (ultimos 15 minutos), CPU y RAM en el tiempo.
+
+Para agregar un modulo nuevo: activar `Instrumentator` en su `main.py`, registrar su job en `prometheus.yml`
+y agregar su seccion al JSON. Las alertas usan `job=~".+-service"`, asi que lo cubren sin editarlas.
+
 
 ---
 
