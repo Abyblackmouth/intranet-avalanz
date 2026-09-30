@@ -15,3 +15,7 @@ router.include_router(ajustes_router)
 # Control de accesos: configuracion de formatos (Actualizaciones)
 from app.routes.control_accesos.configuracion import router as acc_config_router
 router.include_router(acc_config_router)
+
+# Control de accesos: formulario del solicitante
+from app.routes.control_accesos.solicitudes import router as acc_solicitudes_router
+router.include_router(acc_solicitudes_router)

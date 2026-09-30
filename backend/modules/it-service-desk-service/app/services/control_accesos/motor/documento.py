@@ -48,6 +48,12 @@ def columnas_de_familias(familias: list[dict], juntas: set | None = None, max_co
     return columnas
 
 
+def ordenar_familias(familias: list[dict], presentacion: dict) -> list[dict]:
+    """Orden configurado en el formato; las que no esten en el, despues; sin familia, al final."""
+    orden = presentacion.get("orden") or []
+    return sorted(familias, key=lambda f: (orden.index(f["id"]) if f["id"] in orden else 10_000 + (f["id"] == "__sin__") * 10_000, f["nombre"]))
+
+
 def renderizar(clave_formato: str, contexto: dict, fuentes: str = FUENTES_WEB) -> str:
     carpeta = FORMATOS_DIR / clave_formato
     if not (carpeta / "template.html").exists():
@@ -69,13 +75,11 @@ def contexto_vista_previa(config: dict, fecha: str, metodo_firma: str = "manual"
         fam = c.get("familia") or {}
         fid = fam.get("id") or "__sin__"
         familias.setdefault(fid, {"id": fid, "nombre": fam.get("nombre") or "SIN FAMILIA", "empresas": []})["empresas"].append(
-            {"nombre": c["nombre_comercial"], "marcada": False})
+            {"id": cid, "nombre": c["nombre_comercial"], "marcada": False})
     presentacion = config["formato"].get("presentacion") or {}
-    orden = presentacion.get("orden") or []
-    posicion = lambda f: (orden.index(f["id"]) if f["id"] in orden else 10_000 + (f["id"] == "__sin__") * 10_000, f["nombre"])
-    familias_ordenadas = sorted(familias.values(), key=posicion)
+    familias_ordenadas = ordenar_familias(list(familias.values()), presentacion)
     activos = [m for m in config["modulos"] if m["activo"]]
-    fila = lambda m: {"nombre": m["nombre"], "marcado": False, "perfil": "", "rutinas": ""}
+    fila = lambda m: {"id": m["id"], "nombre": m["nombre"], "marcado": False, "perfil": "", "rutinas": ""}
     return {
         "folio": "ACC-XXXX-000000", "fecha": fecha,
         "sistema_titulo": config["formato"]["nombre"], "movimiento_titulo": "Alta",
@@ -91,3 +95,36 @@ def contexto_vista_previa(config: dict, fecha: str, metodo_firma: str = "manual"
         "vigencia": {"permanente": False, "temporal": False, "hasta": "", "observaciones": ""},
         "ti": {"usuario_asignado": "", "fecha_alta": "", "admin_nombre": config["formato"].get("admin_nombre") or ""},
     }
+
+
+def contexto_solicitud(config: dict, datos: dict, usuario: dict, movimiento: str, folio: str, fecha: str,
+                       metodo_firma: str = "manual", prueba: bool = False) -> dict:
+    """El formato lleno con lo que capturo el solicitante (vista previa final y PDF)."""
+    ctx = contexto_vista_previa(config, fecha, metodo_firma, prueba)
+    marcadas = set(datos.get("empresas") or [])
+    for col in ctx["columnas"]:
+        for fam in col:
+            for e in fam["empresas"]:
+                e["marcada"] = e["id"] in marcadas
+    elegidos = {m["modulo_id"]: m for m in (datos.get("modulos") or []) if m.get("modulo_id")}
+    for fila in ctx["modulos"] + ctx["modulos_admin"]:
+        sel = elegidos.get(fila["id"])
+        if sel:
+            fila.update(marcado=True, perfil=sel.get("perfil") or "", rutinas=" | ".join(r for r in (sel.get("rutinas") or []) if r))
+    tipo = datos.get("tipo") or {}
+    motivo = tipo.get("motivo")
+    ctx["tipo"] = {"alta_nueva": motivo == "alta_nueva", "reemplazo": motivo == "reemplazo", "migracion": motivo == "migracion",
+                   "auditoria": bool(tipo.get("auditoria")), "usuario_modelo": tipo.get("usuario_modelo") or "",
+                   "reemplaza_a": tipo.get("reemplaza_a") or ""}
+    vig = datos.get("vigencia") or {}
+    hasta = vig.get("hasta") or ""
+    if len(hasta) == 10 and hasta[4] == "-":
+        hasta = f"{hasta[8:10]}/{hasta[5:7]}/{hasta[0:4]}"
+    ctx["vigencia"] = {"permanente": vig.get("tipo") == "permanente", "temporal": vig.get("tipo") == "temporal",
+                       "hasta": hasta, "observaciones": vig.get("observaciones") or ""}
+    jefe = datos.get("jefe") or {}
+    ctx["usuario"] = {**usuario, "jefe_nombre": (jefe.get("nombre") or "").upper(),
+                      "nombre_firma": usuario.get("nombre", ""), "jefe_nombre_firma": jefe.get("nombre") or ""}
+    ctx["folio"] = folio
+    ctx["movimiento_titulo"] = "Modificación" if movimiento == "modificacion" else "Alta"
+    return ctx

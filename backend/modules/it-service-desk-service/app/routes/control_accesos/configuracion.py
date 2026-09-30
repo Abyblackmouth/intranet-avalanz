@@ -70,10 +70,8 @@ async def listar_formatos(db: AsyncSession = Depends(get_db), user: dict = Depen
              "modulos": mods.get(f.id, 0), "empresas": emps.get(f.id, 0)} for f, sistema in filas]
 
 
-@router.get("/formatos/{formato_id}")
-async def detalle_formato(formato_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    _puede_configurar(user)
-    f = await _formato(db, formato_id)
+async def _config_completa(db: AsyncSession, f: AccFormato) -> dict:
+    """Configuracion completa de un formato. La usan la pestana de Actualizaciones y el formulario del solicitante."""
     sistema = (await db.execute(select(TicketSystem.name).where(TicketSystem.id == f.system_id))).scalar_one_or_none()
     severidades = (await db.execute(select(TicketSeverity).order_by(TicketSeverity.code))).scalars().all()
     elegidas = (await db.execute(select(AccFormatoEmpresa).where(AccFormatoEmpresa.formato_id == f.id).order_by(AccFormatoEmpresa.orden))).scalars().all()
@@ -98,6 +96,12 @@ async def detalle_formato(formato_id: str, db: AsyncSession = Depends(get_db), u
         "modulos": [{"id": m.id, "nombre": m.nombre, "exclusivo_admin": m.exclusivo_admin, "orden": m.orden, "activo": m.activo,
                      "perfiles": perfiles.get(m.id, []), "rutinas": rutinas.get(m.id, [])} for m in modulos],
     }
+
+
+@router.get("/formatos/{formato_id}")
+async def detalle_formato(formato_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    _puede_configurar(user)
+    return await _config_completa(db, await _formato(db, formato_id))
 
 
 class FormatoPayload(BaseModel):
