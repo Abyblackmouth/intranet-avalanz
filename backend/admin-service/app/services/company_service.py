@@ -372,6 +372,7 @@ def _serialize_company(company: Company) -> Dict[str, Any]:
         "company_id": str(company.id),
         "group_id": str(company.group_id),
         "nombre_comercial": company.nombre_comercial,
+        "family_id": str(company.family_id) if company.family_id else None,
         "name": company.name,
         "slug": company.slug,
         "rfc": company.rfc,

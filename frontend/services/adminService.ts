@@ -123,3 +123,9 @@ export const getModules = (params?: Record<string, string | number | boolean>) =
 
 export const getModuleRoles = (moduleId: string) =>
   api.get(`/api/v1/roles/modules/${moduleId}`)
+
+// ── Familias de empresas ──────────────────────────────────────────────────
+export const getFamilies = () => api.get('/api/v1/companies/families')
+export const createFamily = (data: { name: string; clave?: string }) => api.post('/api/v1/companies/families', data)
+export const updateFamily = (familyId: string, data: { name?: string; clave?: string; is_active?: boolean }) =>
+  api.patch(`/api/v1/companies/families/${familyId}`, data)
