@@ -419,6 +419,20 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
                 "tipo": "anexo", "etapa": e.etapa, "nombre": a.get("nombre"),
                 "object_key": a.get("object_key"), "bucket": a.get("bucket", "dirdoc"), "fecha": e.created_at.isoformat(),
             })
+    from app.models.mesa_de_soporte import ControlCambiosDocumento
+    docs_result = await db.execute(
+        select(ControlCambiosDocumento).where(
+            ControlCambiosDocumento.incident_id == incident_id,
+            ControlCambiosDocumento.estado.in_(["generado", "subido"]),
+        ).order_by(ControlCambiosDocumento.created_at)
+    )
+    for doc in docs_result.scalars().all():
+        if doc.object_key:
+            documentos.append({
+                "tipo": "arranque", "etapa": "en_arranque", "nombre": doc.nombre,
+                "object_key": doc.object_key, "bucket": "dirdoc", "fecha": doc.created_at.isoformat(),
+            })
+
     ajuste_pendiente = any(
         e.etapa == "en_revision" and e.resultado == "ajuste_alcance" and (e.datos or {}).get("ajuste_estado") == "pendiente"
         for e in etapas
@@ -852,3 +866,467 @@ async def buscar_usuarios_cdc(q: str = "", user: dict = Depends(get_current_user
         return resp.json() if resp.status_code == 200 else []
     except Exception:
         return []
+
+
+# ------------------------------------------------------------------
+# Etapa Arranque (status priorizado -> en_arranque -> en_desarrollo)
+# ------------------------------------------------------------------
+
+# Documentos que el sistema genera desde formulario, con su prefijo de archivo
+DOC_TIPOS_FORMALES = {
+    "acta": "ACTA_CONSTITUCION", "alcance": "ALCANCE", "resumen": "RESUMEN_EJECUTIVO_TECNICO",
+    "plan_breve": "PLAN_ARRANQUE",
+}
+# Documentos que siempre se suben como archivo (no dependen del ajuste)
+# El cronograma lo trabaja el PM en su herramienta (normalmente MS Project)
+DOC_TIPOS_ARCHIVO = {"cronograma", "diagrama", "acta_firmada", "otro"}
+DOC_LABEL = {
+    "acta": "Acta de Constitución", "alcance": "Alcance del proyecto", "resumen": "Resumen ejecutivo y técnico",
+    "cronograma": "Cronograma", "plan_breve": "Plan de arranque", "diagrama": "Diagrama",
+    "acta_firmada": "Acta firmada", "otro": "Documento de soporte",
+}
+REQUISITOS_ARRANQUE = {
+    "proyecto": ["acta", "alcance", "resumen", "cronograma", "acta_firmada"],
+    "cambio": ["plan_breve"],
+}
+SETTING_DOC_PROPIO = "cdc.permitir_documento_propio"
+MAX_DOC_BYTES = 20 * 1024 * 1024
+# El navegador manda el MIME segun el software instalado (un .mpp sin Project
+# llega como application/octet-stream). Se normaliza por extension para que
+# upload-service reciba siempre un tipo especifico de su lista blanca.
+MIME_POR_EXTENSION = {
+    ".mpp": "application/vnd.ms-project", ".xml": "application/xml",
+    ".vsd": "application/vnd.visio", ".vsdx": "application/vnd.ms-visio.drawing.main+xml",
+    ".drawio": "application/vnd.jgraph.mxfile",
+}
+
+
+def _mime_por_extension(nombre: str, recibido: Optional[str]) -> str:
+    ext = "." + nombre.rsplit(".", 1)[-1].lower() if nombre and "." in nombre else ""
+    return MIME_POR_EXTENSION.get(ext) or recibido or "application/octet-stream"
+
+# Generadores de PDF por tipo de documento. Cada entrega registra el suyo:
+#   GENERADORES_ARRANQUE["plan_breve"] = async fn(db, incident, detalle, datos, version, emitido_por) -> bytes
+GENERADORES_ARRANQUE: dict = {}
+
+
+async def _get_setting(db: AsyncSession, key: str, default: str = "") -> str:
+    """Lee un ajuste de incidencias_settings. Pensado para el futuro panel de
+    ajustes del modulo: si la clave no existe, regresa el default."""
+    from app.models.mesa_de_soporte import IncidenciaSetting
+    res = await db.execute(select(IncidenciaSetting).where(IncidenciaSetting.key == key))
+    row = res.scalar_one_or_none()
+    return row.value if row else default
+
+
+def _doc_json(d) -> dict:
+    return {
+        "id": d.id, "tipo": d.tipo, "label": DOC_LABEL.get(d.tipo, d.tipo), "version": d.version,
+        "estado": d.estado, "origen": d.origen, "datos": d.datos, "nombre": d.nombre,
+        "object_key": d.object_key, "bucket": "dirdoc", "mime_type": d.mime_type,
+        "creado_por_nombre": d.creado_por_nombre,
+        "created_at": d.created_at.isoformat(), "updated_at": d.updated_at.isoformat() if d.updated_at else None,
+    }
+
+
+def _faltantes(clasificacion: Optional[str], docs: list) -> list:
+    """Requisitos pendientes para iniciar desarrollo, segun la version vigente
+    de cada tipo. Formales: generado (o subido si el ajuste lo permitio).
+    Acta firmada: subida."""
+    if clasificacion not in REQUISITOS_ARRANQUE:
+        return ["clasificacion"]
+    vigente = {}
+    for d in docs:
+        if d.tipo not in vigente or d.version > vigente[d.tipo].version:
+            vigente[d.tipo] = d
+    pendientes = []
+    for tipo in REQUISITOS_ARRANQUE[clasificacion]:
+        d = vigente.get(tipo)
+        ok = d is not None and (d.estado == "subido" if tipo in DOC_TIPOS_ARCHIVO else d.estado in ("generado", "subido"))
+        if not ok:
+            pendientes.append(tipo)
+    return pendientes
+
+
+async def _cargar_cdc_arranque(db: AsyncSession, incident_id: str, user: dict, estados=("priorizado", "en_arranque")):
+    roles = set(user.get("roles") or [])
+    if not roles & CDC_MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Solo Gerencia de Proyectos puede trabajar el arranque")
+    res = await db.execute(select(Incident).where(Incident.id == incident_id, Incident.ticket_type == "control_cambio"))
+    incident = res.scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Control de Cambios no encontrado")
+    if incident.status not in estados:
+        raise HTTPException(status_code=409, detail="El proyecto no está en la etapa de Arranque")
+    det = await db.execute(select(ControlCambiosDetalle).where(ControlCambiosDetalle.incident_id == incident_id))
+    detalle = det.scalar_one_or_none()
+    if not detalle:
+        raise HTTPException(status_code=409, detail="El proyecto no tiene detalle de solicitud")
+    return incident, detalle, roles
+
+
+async def _docs_de(db: AsyncSession, incident_id: str) -> list:
+    from app.models.mesa_de_soporte import ControlCambiosDocumento
+    res = await db.execute(
+        select(ControlCambiosDocumento).where(ControlCambiosDocumento.incident_id == incident_id)
+        .order_by(ControlCambiosDocumento.tipo, ControlCambiosDocumento.version)
+    )
+    return list(res.scalars().all())
+
+
+def _rol_de(roles: set) -> str:
+    return ("project-manager" if "it-service-desk:project-manager" in roles
+            else "incident-manager" if "it-service-desk:incident-manager" in roles else "super_admin")
+
+
+async def _marcar_en_arranque(db: AsyncSession, incident, user: dict, roles: set) -> bool:
+    """El primer documento guardado mueve el ticket de priorizado a
+    en_arranque (columna Arranque del Kanban). Regresa True si cambio."""
+    if incident.status != "priorizado":
+        return False
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    incident.status = "en_arranque"
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_arranque_iniciado", performed_by=user.get("user_id"),
+        performed_by_name=user.get("full_name") or "Gerencia de Proyectos", performed_by_role=_rol_de(roles),
+        module_slug="it-service-desk", detail={},
+    ))
+    return True
+
+
+@router.get("/{incident_id}/arranque")
+async def get_arranque(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    incident, detalle, _ = await _cargar_cdc_arranque(db, incident_id, user, estados=("priorizado", "en_arranque", "en_desarrollo", "en_pruebas", "terminado"))
+    docs = await _docs_de(db, incident_id)
+    return {
+        "status": incident.status,
+        "clasificacion": detalle.clasificacion,
+        "requisitos": REQUISITOS_ARRANQUE.get(detalle.clasificacion, []),
+        "faltantes": _faltantes(detalle.clasificacion, docs),
+        "documentos": [_doc_json(d) for d in docs],
+        "permitir_documento_propio": (await _get_setting(db, SETTING_DOC_PROPIO, "false")).lower() == "true",
+        "formatos_disponibles": sorted(GENERADORES_ARRANQUE.keys()),
+        "contexto": await _contexto_proyecto(db, incident, detalle),
+    }
+
+
+class ClasificacionPayload(BaseModel):
+    clasificacion: str
+
+
+@router.put("/{incident_id}/arranque/clasificacion")
+async def set_clasificacion_arranque(incident_id: str, body: ClasificacionPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Solo para CDC priorizados antes de que existiera la clasificacion."""
+    incident, detalle, _ = await _cargar_cdc_arranque(db, incident_id, user)
+    if detalle.clasificacion:
+        raise HTTPException(status_code=409, detail="El proyecto ya tiene clasificación")
+    if body.clasificacion not in CLASIFICACION_LABEL:
+        raise HTTPException(status_code=422, detail="Indica si se gestiona como Cambio o como Proyecto")
+    detalle.clasificacion = body.clasificacion
+    await db.commit()
+    return {"success": True, "clasificacion": detalle.clasificacion}
+
+
+class BorradorPayload(BaseModel):
+    datos: dict
+
+
+@router.put("/{incident_id}/arranque/{tipo}/borrador")
+async def guardar_borrador_arranque(incident_id: str, tipo: str, body: BorradorPayload,
+                                    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosDocumento
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    if tipo not in DOC_TIPOS_FORMALES:
+        raise HTTPException(status_code=422, detail="Este documento no se captura por formulario")
+    incident, detalle, roles = await _cargar_cdc_arranque(db, incident_id, user)
+    if not detalle.clasificacion:
+        raise HTTPException(status_code=409, detail="Clasifica el proyecto como Cambio o Proyecto antes de capturar documentos")
+
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == tipo]
+    ultimo = docs[-1] if docs else None
+    if ultimo and ultimo.estado == "borrador":
+        ultimo.datos = body.datos
+        doc = ultimo
+    else:
+        doc = ControlCambiosDocumento(
+            id=str(uuid.uuid4()), incident_id=incident.id, tipo=tipo,
+            version=(ultimo.version + 1) if ultimo else 1, estado="borrador", origen="formulario",
+            datos=body.datos, creado_por=user.get("user_id"), creado_por_nombre=user.get("full_name") or "Gerencia de Proyectos",
+        )
+        db.add(doc)
+    cambio = await _marcar_en_arranque(db, incident, user, roles)
+    await db.commit()
+    await db.refresh(doc)
+    if cambio:
+        await _broadcast_ticket_update(incident)
+    return _doc_json(doc)
+
+
+@router.post("/{incident_id}/arranque/{tipo}/generar")
+async def generar_documento_arranque(incident_id: str, tipo: str, db: AsyncSession = Depends(get_db),
+                                     user: dict = Depends(get_current_user), raw_token: str = Depends(get_token_from_request)):
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    if tipo not in DOC_TIPOS_FORMALES:
+        raise HTTPException(status_code=422, detail="Este documento no se genera desde formulario")
+    generador = GENERADORES_ARRANQUE.get(tipo)
+    if not generador:
+        raise HTTPException(status_code=501, detail=f"El formato de {DOC_LABEL[tipo]} se habilita en una entrega posterior")
+    incident, detalle, roles = await _cargar_cdc_arranque(db, incident_id, user, estados=("en_arranque",))
+
+    docs = [d for d in await _docs_de(db, incident_id) if d.tipo == tipo]
+    doc = docs[-1] if docs else None
+    if not doc or doc.estado != "borrador":
+        raise HTTPException(status_code=409, detail="No hay un borrador para generar")
+
+    emitido_por = f"{user.get('full_name') or 'Gerencia de Proyectos'}"
+    pdf_bytes = await generador(db, incident, detalle, doc.datos, doc.version, emitido_por)
+    solicitante = await _get_requester_profile(incident.requester_id)
+    nombre = f"{DOC_TIPOS_FORMALES[tipo]}_{incident.folio}_v{doc.version}.pdf"
+    key = await _subir_archivo(pdf_bytes, nombre, "application/pdf", solicitante.get("company_slug"),
+                               f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail="No se pudo guardar el PDF")
+    doc.estado, doc.object_key, doc.nombre, doc.mime_type = "generado", key, nombre, "application/pdf"
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_documento_generado", performed_by=user.get("user_id"),
+        performed_by_name=emitido_por, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"tipo": tipo, "version": doc.version, "documento_id": doc.id},
+    ))
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_json(doc)
+
+
+@router.post("/{incident_id}/arranque/{tipo}/archivo")
+async def subir_documento_arranque(incident_id: str, tipo: str, file: UploadFile = File(...), descripcion: str = Form(""),
+                                   fecha_fin: str = Form(""),
+                                   db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+                                   raw_token: str = Depends(get_token_from_request)):
+    from app.models.mesa_de_soporte import ControlCambiosDocumento, IncidentActivityLog
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    if tipo in DOC_TIPOS_FORMALES:
+        if (await _get_setting(db, SETTING_DOC_PROPIO, "false")).lower() != "true":
+            raise HTTPException(status_code=403, detail="Este documento se genera desde el formulario del sistema")
+    elif tipo not in DOC_TIPOS_ARCHIVO:
+        raise HTTPException(status_code=422, detail="Tipo de documento no válido")
+    incident, detalle, roles = await _cargar_cdc_arranque(db, incident_id, user)
+
+    fin_cronograma = None
+    if tipo == "cronograma":
+        # No se lee el .mpp: el PM indica el termino y con eso se valida contra el compromiso
+        if not fecha_fin:
+            raise HTTPException(status_code=422, detail="Indica la fecha de término según el cronograma")
+        fin_cronograma = _parse_fecha(fecha_fin, "término del cronograma")
+        if detalle.fecha_compromiso and fin_cronograma > detalle.fecha_compromiso:
+            raise HTTPException(status_code=422, detail=f"El cronograma termina después de la entrega comprometida ({detalle.fecha_compromiso.strftime('%d/%m/%Y')})")
+
+    content = await file.read()
+    if len(content) > MAX_DOC_BYTES:
+        raise HTTPException(status_code=413, detail=f"{file.filename} excede 20 MB")
+    solicitante = await _get_requester_profile(incident.requester_id)
+    mime = _mime_por_extension(file.filename, file.content_type)
+    key = await _subir_archivo(content, file.filename, mime,
+                               solicitante.get("company_slug"), f"control-de-cambios/{incident.folio}", raw_token)
+    if not key:
+        raise HTTPException(status_code=502, detail=f"No se pudo subir {file.filename}")
+
+    previos = [d for d in await _docs_de(db, incident_id) if d.tipo == tipo]
+    autor = user.get("full_name") or "Gerencia de Proyectos"
+    doc = ControlCambiosDocumento(
+        id=str(uuid.uuid4()), incident_id=incident.id, tipo=tipo,
+        version=(previos[-1].version + 1) if previos else 1, estado="subido", origen="archivo",
+        datos={k: v for k, v in {"descripcion": descripcion, "fecha_fin": fin_cronograma.isoformat() if fin_cronograma else None}.items() if v},
+        nombre=file.filename, object_key=key,
+        mime_type=mime, creado_por=user.get("user_id"), creado_por_nombre=autor,
+    )
+    db.add(doc)
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_documento_subido", performed_by=user.get("user_id"),
+        performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"tipo": tipo, "version": doc.version, "nombre": file.filename, "documento_id": doc.id},
+    ))
+    cambio = await _marcar_en_arranque(db, incident, user, roles)
+    await db.commit()
+    await db.refresh(doc)
+    if cambio:
+        await _broadcast_ticket_update(incident)
+    return _doc_json(doc)
+
+
+@router.post("/{incident_id}/arranque/iniciar-desarrollo")
+async def iniciar_desarrollo(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    from app.models.mesa_de_soporte import ControlCambiosEtapa, IncidentActivityLog
+    from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update
+    incident, detalle, roles = await _cargar_cdc_arranque(db, incident_id, user, estados=("en_arranque",))
+    docs = await _docs_de(db, incident_id)
+    pendientes = _faltantes(detalle.clasificacion, docs)
+    if pendientes:
+        nombres = ", ".join("clasificación" if p == "clasificacion" else DOC_LABEL.get(p, p) for p in pendientes)
+        raise HTTPException(status_code=409, detail=f"Falta para iniciar desarrollo: {nombres}")
+
+    autor = user.get("full_name") or "Gerencia de Proyectos"
+    now = datetime.now(timezone.utc)
+    vigentes = {}
+    for d in docs:
+        if d.estado in ("generado", "subido") and (d.tipo not in vigentes or d.version > vigentes[d.tipo]["version"]):
+            vigentes[d.tipo] = {"id": d.id, "version": d.version, "nombre": d.nombre}
+    db.add(ControlCambiosEtapa(
+        id=str(uuid.uuid4()), incident_id=incident.id, etapa="en_arranque", resultado=detalle.clasificacion,
+        datos={"documentos": vigentes}, documento_object_key=None, anexos=[],
+        realizado_por=user.get("user_id"), realizado_por_nombre=autor, created_at=now,
+    ))
+    incident.status = "en_desarrollo"
+    db.add(IncidentActivityLog(
+        incident_id=incident.id, action="cdc_desarrollo_iniciado", performed_by=user.get("user_id"),
+        performed_by_name=autor, performed_by_role=_rol_de(roles), module_slug="it-service-desk",
+        detail={"clasificacion": detalle.clasificacion},
+    ))
+    await db.commit()
+    await _broadcast_ticket_update(incident)
+    return {"success": True, "status": incident.status}
+
+
+# ------------------------------------------------------------------
+# Generadores de Arranque (se registran en GENERADORES_ARRANQUE)
+# ------------------------------------------------------------------
+
+def _parse_fecha(valor, campo: str):
+    try:
+        return date.fromisoformat(valor)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail=f"La fecha de {campo} no es válida")
+
+
+async def _base_pdf_arranque(db, incident, detalle, version: int, emitido_por: str) -> dict:
+    solicitante = await _get_requester_profile(incident.requester_id)
+    base = await _build_cdc_pdf_data(db, incident, detalle, solicitante.get("email", ""))
+    return {
+        "folio": incident.folio, "titulo": incident.title, "version": version,
+        "fecha_emision": _hora_local(datetime.now(timezone.utc)).strftime("%d/%m/%Y %H:%M"),
+        "solicitante": " · ".join(filter(None, [incident.requester_name, incident.requester_area, incident.requester_company_name])),
+        "solicitante_nombre": incident.requester_name,
+        "alcance": base["sistema_nombre"] + (f" / {base['modulo_nombre']}" if base.get("modulo_nombre") else ""),
+        "prioridad": f"{PRIO_CODE.get(detalle.prioridad, '—')} · {URGENCIA_LABEL.get(detalle.prioridad, '—')}",
+        "fecha_compromiso": detalle.fecha_compromiso,
+        "fecha_compromiso_label": detalle.fecha_compromiso.strftime("%d/%m/%Y") if detalle.fecha_compromiso else "Sin fecha",
+        "emitido_por": emitido_por,
+    }
+
+
+async def _gen_plan_breve(db, incident, detalle, datos: dict, version: int, emitido_por: str) -> bytes:
+    from app.services.control_cambios.pdf_arranque import generar_pdf_plan_breve
+    for campo, msg in (("fecha_inicio", "la fecha de inicio"), ("responsable", "el responsable"), ("objetivo", "el objetivo")):
+        if not (datos.get(campo) or "").strip():
+            raise HTTPException(status_code=422, detail=f"Falta {msg} del plan de arranque")
+    inicio = _parse_fecha(datos["fecha_inicio"], "inicio")
+    if detalle.fecha_compromiso and inicio > detalle.fecha_compromiso:
+        raise HTTPException(status_code=422, detail="El inicio no puede ser posterior a la entrega comprometida")
+    entregables = [e for e in (datos.get("entregables") or []) if (e.get("descripcion") or "").strip()]
+    if not entregables:
+        raise HTTPException(status_code=422, detail="Agrega al menos un entregable")
+    for e in entregables:
+        e["fecha_label"] = _parse_fecha(e["fecha"], "un entregable").strftime("%d/%m/%Y") if e.get("fecha") else None
+    base = await _base_pdf_arranque(db, incident, detalle, version, emitido_por)
+    return generar_pdf_plan_breve({
+        **base, "fecha_inicio_label": inicio.strftime("%d/%m/%Y"), "responsable": datos["responsable"],
+        "objetivo": datos["objetivo"], "entregables": entregables, "consideraciones": datos.get("consideraciones"),
+    })
+
+
+GENERADORES_ARRANQUE.update({"plan_breve": _gen_plan_breve})
+
+
+# ------------------------------------------------------------------
+# Paquete de Proyecto: Acta, Alcance y Resumen ejecutivo y tecnico
+# ------------------------------------------------------------------
+
+async def _contexto_proyecto(db, incident, detalle) -> dict:
+    """Lo que ya se sabe del proyecto, para precargar los formularios y
+    alimentar el acta: roles de la priorizacion, riesgos y alcance ajustado
+    del dictamen."""
+    from app.models.mesa_de_soporte import ControlCambiosEtapa
+    res = await db.execute(select(ControlCambiosEtapa).where(ControlCambiosEtapa.incident_id == incident.id).order_by(ControlCambiosEtapa.created_at))
+    etapas = res.scalars().all()
+    prio = next((e for e in reversed(etapas) if e.etapa == "priorizado"), None)
+    rev = next((e for e in reversed(etapas) if e.etapa == "en_revision"), None)
+    rd = (rev.datos or {}) if rev else {}
+    return {
+        "titulo": incident.title, "folio": incident.folio, "descripcion": incident.description,
+        "justificacion": detalle.justificacion,
+        "area": incident.requester_area or detalle.area_departamento,
+        "solicitante": {"nombre": incident.requester_name, "area": incident.requester_area, "empresa": incident.requester_company_name},
+        "gobierno": ((prio.datos or {}).get("gobierno") or {}) if prio else {},
+        "riesgos": rd.get("riesgos"),
+        "alcance_propuesto": rd.get("alcance_propuesto") if rev and rev.resultado == "ajuste_alcance" else None,
+        "fecha_compromiso": detalle.fecha_compromiso.isoformat() if detalle.fecha_compromiso else None,
+    }
+
+
+def _lista(valores) -> list:
+    return [str(v).strip() for v in (valores or []) if str(v).strip()]
+
+
+def _filas(filas, campos) -> list:
+    """Filas de una tabla del formulario, sin las que vienen totalmente vacias."""
+    out = []
+    for f in filas or []:
+        fila = {c: str(f.get(c) or "").strip() for c in campos}
+        if any(fila.values()):
+            out.append(fila)
+    return out
+
+
+async def _gen_acta(db, incident, detalle, datos: dict, version: int, emitido_por: str) -> bytes:
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_acta
+    ctx = await _contexto_proyecto(db, incident, detalle)
+    gob = ctx["gobierno"]
+    faltan = [lbl for key, lbl in (("patrocinador", "Patrocinador"), ("gerente_proyecto", "Gerente del proyecto"), ("project_manager", "Project Manager"))
+              if not (gob.get(key) or {}).get("name")]
+    if faltan:
+        raise HTTPException(status_code=409, detail=f"El acta requiere los roles definidos en la priorización: {', '.join(faltan)}")
+    if not (datos.get("objetivo") or "").strip():
+        raise HTTPException(status_code=422, detail="Falta el objetivo del proyecto")
+    incluye = _lista(datos.get("incluye"))
+    if not incluye:
+        raise HTTPException(status_code=422, detail="Agrega al menos un punto dentro del alcance")
+    stakeholders = [s for s in _filas(datos.get("stakeholders"), ("nombre", "rol", "area", "responsabilidad")) if s["nombre"] and s["rol"]]
+    if not stakeholders:
+        raise HTTPException(status_code=422, detail="Agrega al menos un stakeholder con nombre y rol")
+    base = await _base_pdf_arranque(db, incident, detalle, version, emitido_por)
+    return generar_pdf_acta({
+        **base, "version_label": f"{version}.0", "codigo": (datos.get("codigo") or incident.folio).strip(),
+        "patrocinador": gob["patrocinador"]["name"], "gerente": gob["gerente_proyecto"]["name"], "pm": gob["project_manager"]["name"],
+        "area": (datos.get("area") or ctx["area"] or "—").strip(), "estado": (datos.get("estado") or "En planificación").strip(),
+        "objetivo": datos["objetivo"].strip(), "incluye": incluye, "excluye": _lista(datos.get("excluye")),
+        "stakeholders": stakeholders, "supuestos": _lista(datos.get("supuestos")), "restricciones": _lista(datos.get("restricciones")),
+        "aprobaciones": [(gob["patrocinador"]["name"], "Patrocinador"), (gob["gerente_proyecto"]["name"], "Gerente del proyecto"),
+                         (gob["project_manager"]["name"], "Project Manager")],
+    })
+
+
+async def _gen_alcance(db, incident, detalle, datos: dict, version: int, emitido_por: str) -> bytes:
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_alcance
+    if not (datos.get("vision_general") or "").strip():
+        raise HTTPException(status_code=422, detail="Falta la visión general del alcance")
+    secciones = [s for s in _filas(datos.get("secciones"), ("titulo", "contenido")) if s["titulo"] and s["contenido"]]
+    base = await _base_pdf_arranque(db, incident, detalle, version, emitido_por)
+    return generar_pdf_alcance({**base, "version_label": f"{version}.0", "vision_general": datos["vision_general"].strip(), "secciones": secciones})
+
+
+async def _gen_resumen(db, incident, detalle, datos: dict, version: int, emitido_por: str) -> bytes:
+    from app.services.control_cambios.pdf_proyecto import generar_pdf_resumen
+    componentes = _filas(datos.get("componentes"), ("categoria", "componente", "tecnologia", "funcion"))
+    fases = _filas(datos.get("fases"), ("fase", "nombre", "componentes", "entregable"))
+    infra = _filas(datos.get("infraestructura"), ("recurso", "especificacion", "proposito"))
+    if not componentes and not fases:
+        raise HTTPException(status_code=422, detail="Agrega al menos un componente o una fase de implementación")
+    diagramas = [d.nombre for d in await _docs_de(db, incident.id) if d.tipo == "diagrama" and d.nombre]
+    base = await _base_pdf_arranque(db, incident, detalle, version, emitido_por)
+    return generar_pdf_resumen({
+        **base, "version_label": f"{version}.0", "resumen": (datos.get("resumen") or "").strip(),
+        "componentes": componentes, "arquitectura": (datos.get("arquitectura") or "").strip(), "diagramas": diagramas,
+        "fases": fases, "infraestructura": infra,
+    })
+
+
+GENERADORES_ARRANQUE.update({"acta": _gen_acta, "alcance": _gen_alcance, "resumen": _gen_resumen})

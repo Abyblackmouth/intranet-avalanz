@@ -7,6 +7,7 @@ import { X, ChevronDown, Check, Lock, FileText, Paperclip } from 'lucide-react'
 import { STATUS_CLASS, PRIO_CODE, PRIO_CLASS } from './TicketRow'
 import CdcRevisionForm from './CdcRevisionForm'
 import CdcPriorizacionForm from './CdcPriorizacionForm'
+import CdcArranque from './CdcArranque'
 
 // ════════════════════════════════════════════════════════════════════
 // TEMA -- colores del detalle en un solo lugar. En la v2 de la intranet
@@ -74,6 +75,10 @@ const RES: Record<string, { label: string; chip: string; icon: string }> = {
 const ACTION_LABEL: Record<string, (l: LogEntry, d: CdcDetail) => string> = {
   motor_asigno_cdc: (_l, d) => `El sistema asignó el proyecto a ${d.assigned_to?.name ?? 'Gerencia de Proyectos'} y lo pasó a En revisión`,
   cdc_dictamen_emitido: l => `${l.performed_by_name} emitió el dictamen: ${RES[l.detail?.resultado]?.label ?? l.detail?.resultado}`,
+  cdc_arranque_iniciado: l => `${l.performed_by_name} inició el arranque`,
+  cdc_documento_generado: l => `${l.performed_by_name} generó ${DOC_LABEL[l.detail?.tipo] ?? l.detail?.tipo} v${l.detail?.version ?? ''}`,
+  cdc_documento_subido: l => `${l.performed_by_name} subió ${DOC_LABEL[l.detail?.tipo] ?? l.detail?.tipo}: ${l.detail?.nombre ?? ''}`,
+  cdc_desarrollo_iniciado: l => `${l.performed_by_name} inició el desarrollo`,
   cdc_priorizado: l => `${l.performed_by_name} priorizó el proyecto: ${l.detail?.prioridad ?? ''}, entrega ${l.detail?.fecha_compromiso ? fmtDate(l.detail.fecha_compromiso) : '—'}`,
 }
 
@@ -193,6 +198,7 @@ function RevisionSummary({ e }: { e: Etapa }) {
 }
 
 const DESARROLLA_LABEL: Record<string, string> = { equipo_interno: 'Equipo interno', proveedor_totvs: 'Proveedor TOTVS', proveedor_externo: 'Proveedor externo' }
+const DOC_LABEL: Record<string, string> = { plan_breve: 'Plan de arranque', acta: 'Acta de Constitución', alcance: 'Alcance', resumen: 'Resumen ejecutivo y técnico', cronograma: 'Cronograma', diagrama: 'Diagrama', otro: 'Documento de soporte', acta_firmada: 'Acta firmada' }
 const GOB_LABEL: Record<string, string> = { patrocinador: 'Patrocinador', gerente_proyecto: 'Gerente del proyecto', project_manager: 'Project Manager', lider_tecnico: 'Líder técnico', validador: 'Usuario validador' }
 
 function PriorizacionSummary({ e }: { e: Etapa }) {
@@ -320,15 +326,23 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
         </section>
       )
     }
-    if (status === 'priorizado') return (
-      <LockedStage title="Arranque">
-        {detail.detalle.clasificacion === 'proyecto'
-          ? 'Se habilita en la siguiente entrega: acta de constitución, alcance, resumen ejecutivo y técnico, y cronograma.'
-          : detail.detalle.clasificacion === 'cambio'
-            ? 'Se habilita en la siguiente entrega: plan breve con fecha de inicio, responsable y entregables.'
-            : 'Se habilita en la siguiente entrega. Al iniciar se pedirá clasificarlo como Cambio o Proyecto.'}
-      </LockedStage>
-    )
+    if (status === 'priorizado' || status === 'en_arranque') {
+      if (!detail.can_manage) return <LockedStage title="Arranque">Gerencia de Proyectos está preparando el arranque del proyecto. Te notificaremos cuando inicie el desarrollo.</LockedStage>
+      return (
+        <section className="bg-white border border-slate-200 border-t-[3px] border-t-[var(--cdc-current)] rounded-2xl shadow-sm">
+          <header className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-[family-name:var(--font-jakarta)] text-[17px] font-bold text-slate-900">Arranque</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">{detail.detalle.clasificacion === 'proyecto'
+                ? 'Arma el expediente del proyecto. Cada documento se guarda por separado, así que puedes avanzar en varios días.'
+                : 'Un plan breve basta para un Cambio. Se llena en un par de minutos.'}</p>
+            </div>
+            <span className="text-xs font-semibold text-[var(--cdc-current)] bg-[var(--cdc-current-soft)] rounded-full px-2.5 py-0.5">Etapa 5 de 8</span>
+          </header>
+          <CdcArranque incidentId={detail.id} fechaCompromiso={detail.detalle.fecha_compromiso} onChanged={onRevisionDone} />
+        </section>
+      )
+    }
     if (status === 'terminado' || status === 'cancelado') return null
     return <LockedStage title={STATUS_LABEL[status] ?? status}>El formulario de esta etapa se habilita en una fase posterior.</LockedStage>
   }
@@ -407,7 +421,13 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
                   <p className="text-[13px] font-medium text-slate-500 mt-7 mb-2.5 px-0.5">Etapas cerradas</p>
                   <div className="flex flex-col gap-3.5">
-                    {[...detail.etapas].reverse().map(e => e.etapa === 'priorizado' ? (
+                    {[...detail.etapas].reverse().map(e => e.etapa === 'en_arranque' ? (
+                      <ClosedStage key={e.id} icon="bg-[var(--cdc-done)]" title="Arranque"
+                        sub={`${e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
+                        chip={{ label: e.resultado === 'proyecto' ? 'Proyecto · expediente completo' : 'Cambio · plan de arranque', cls: 'bg-emerald-50 text-emerald-700' }}>
+                        <Dl rows={Object.entries(e.datos?.documentos ?? {}).map(([tipo, x]: [string, any]) => [DOC_LABEL[tipo] ?? tipo, `${x.nombre ?? '—'} · v${x.version}`] as [string, React.ReactNode])} />
+                      </ClosedStage>
+                    ) : e.etapa === 'priorizado' ? (
                       <ClosedStage key={e.id} icon="bg-[var(--cdc-done)]" title="Priorizado"
                         sub={`${e.realizado_por_nombre} · ${fmtDateTime(e.created_at)}`}
                         chip={{ label: `${PRIO_CODE[e.datos?.urgencia] ?? ''} · entrega ${e.datos?.fecha_compromiso ? fmtDate(e.datos.fecha_compromiso) : '—'}`, cls: 'bg-emerald-50 text-emerald-700' }}>

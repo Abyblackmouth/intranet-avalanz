@@ -92,6 +92,11 @@ interface TicketRowProps {
   isNew?: boolean
 }
 
+// Arranque (CDC): mismos colores que Priorizado
+STATUS_LABEL.en_arranque = 'Arranque'
+STATUS_CLASS.en_arranque = STATUS_CLASS.priorizado ?? STATUS_CLASS.en_backlog
+STATUS_DOT.en_arranque = STATUS_DOT.priorizado ?? STATUS_DOT.en_backlog
+
 function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, onView, isNew }: TicketRowProps) {
   const sev = severities.find(s => s.id === (t.severity_validated_id ?? t.severity_reported_id))
   const sysName = systems.find(s => s.id === t.system_id)?.name ?? '—'

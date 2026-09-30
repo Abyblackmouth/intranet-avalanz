@@ -161,7 +161,7 @@ class Incident(Base):
     status = Column(
         SAEnum(
             "en_backlog", "asignado", "en_atencion", "escalado", "resuelto", "cerrado",
-            "registrado", "en_revision", "aprobado", "rechazado", "priorizado",
+            "registrado", "en_revision", "aprobado", "rechazado", "priorizado", "en_arranque",
             "en_desarrollo", "en_pruebas", "terminado", "cancelado",
             name="incident_status_enum",
         ),
@@ -277,3 +277,28 @@ class ControlCambiosEtapa(Base):
     realizado_por = Column(UUID(as_uuid=False), nullable=False)
     realizado_por_nombre = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class ControlCambiosDocumento(Base):
+    """Documentos del expediente de Arranque de un CDC (acta, alcance,
+    resumen, cronograma, plan breve, diagramas, acta firmada). Tabla aparte
+    de control_cambios_etapas porque un documento se guarda muchas veces
+    (borradores) y tiene versiones; una etapa se cierra una sola vez.
+    Regla de versiones: editar un documento ya generado crea la version
+    siguiente como borrador; la anterior se conserva en el expediente."""
+    __tablename__ = "control_cambios_documentos"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    incident_id = Column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    tipo = Column(String(30), nullable=False)      # acta | alcance | resumen | cronograma | plan_breve | diagrama | acta_firmada | otro
+    version = Column(Integer, nullable=False, default=1)
+    estado = Column(String(15), nullable=False)    # borrador | generado | subido
+    origen = Column(String(15), nullable=False, default="formulario")  # formulario | archivo
+    datos = Column(JSONB, nullable=False, default=dict)
+    nombre = Column(String(255), nullable=True)
+    object_key = Column(String(500), nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    creado_por = Column(UUID(as_uuid=False), nullable=False)
+    creado_por_nombre = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
