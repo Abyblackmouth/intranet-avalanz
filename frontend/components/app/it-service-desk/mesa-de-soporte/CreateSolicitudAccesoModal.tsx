@@ -3,7 +3,7 @@
 // Solicitud de acceso: elige el formato del sistema y lo llena por etapas.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, KeyRound, Lock, Plus, X } from 'lucide-react'
-import { accFormatosDisponibles, accFormulario, accVistaPreviaSolicitud } from '@/services/itServiceDeskService'
+import { accEnviarSolicitud, accFormatosDisponibles, accFormulario, accVistaPreviaSolicitud } from '@/services/itServiceDeskService'
 
 interface FormatoCard { id: string; nombre: string; sistema: string; movimiento: 'alta' | 'modificacion' }
 interface Familia { id: string; nombre: string; empresas: { id: string; nombre: string; razon_social: string }[] }
@@ -96,6 +96,8 @@ export default function CreateSolicitudAccesoModal({ onClose, onBack, onCreated 
   const [intento, setIntento] = useState(false)
   const [otro, setOtro] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [enviado, setEnviado] = useState<{ folio: string; asignado_a: string | null } | null>(null)
 
   useEffect(() => {
     accFormatosDisponibles().then(r => setFormatos(r.data ?? [])).catch(() => setError('No se pudieron cargar los formatos'))
@@ -170,6 +172,19 @@ export default function CreateSolicitudAccesoModal({ onClose, onBack, onCreated 
     setOtro(o => ({ ...o, [id]: '' }))
   }
 
+  const enviar = async () => {
+    if (!form || enviando) return
+    setEnviando(true); setError(null)
+    try {
+      const r = await accEnviarSolicitud(form.formato.id, datos)
+      setEnviado(r.data?.data ?? null)
+    } catch (e: any) {
+      const d = e?.response?.data?.detail
+      setError(typeof d === 'string' ? d : 'No se pudo enviar la solicitud. Intenta de nuevo.')
+    } finally {
+      setEnviando(false)
+    }
+  }
   const titulo = form ? `${form.movimiento === 'modificacion' ? 'Modificación' : 'Alta'} de usuario · ${form.formato.nombre}` : 'Solicitud de acceso'
   const modulosNormales = form?.modulos.filter(m => !m.exclusivo_admin) ?? []
   const modulosAdmin = form?.modulos.filter(m => m.exclusivo_admin) ?? []
@@ -179,7 +194,7 @@ export default function CreateSolicitudAccesoModal({ onClose, onBack, onCreated 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-6">
       <div role="dialog" aria-modal="true" aria-labelledby="acc-titulo" className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-full max-h-[92vh] flex flex-col overflow-hidden">
         <header className="px-5 py-3.5 border-b border-slate-200 flex items-center gap-3">
-          {(form || onBack) && (
+          {!enviado && (form || onBack) && (
             <button type="button" onClick={() => (form ? setForm(null) : onBack?.())} className="inline-flex items-center gap-1 text-[13px] text-slate-500 hover:text-slate-800">
               <ArrowLeft size={15} /> Regresar
             </button>
@@ -216,8 +231,24 @@ export default function CreateSolicitudAccesoModal({ onClose, onBack, onCreated 
           </div>
         )}
 
+        {/* ── Enviada ── */}
+        {form && enviado && (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="max-w-md text-center">
+              <span className="inline-flex w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 items-center justify-center mb-4"><Check size={28} /></span>
+              <h3 className="font-[family-name:var(--font-jakarta)] text-[19px] font-bold text-slate-900">Solicitud enviada</h3>
+              <p className="mt-1 font-mono text-[15px] font-semibold text-[#1a4fa0]">{enviado.folio}</p>
+              <p className="mt-3 text-sm text-slate-600">
+                {enviado.asignado_a ? <>La revisará <b>{enviado.asignado_a}</b>, de TI. </> : <>TI la revisará. </>}
+                Cuando la apruebe, te llegará el formato para las firmas. Puedes seguirla en la Mesa de Soporte con su folio.
+              </p>
+              <button type="button" onClick={() => onCreated?.()} className="mt-6 px-6 py-2 text-sm font-medium text-white bg-[#1a4fa0] rounded-lg hover:bg-blue-700">Listo</button>
+            </div>
+          </div>
+        )}
+
         {/* ── Etapas ── */}
-        {form && (
+        {form && !enviado && (
           <div className="flex-1 min-h-0 flex flex-col md:flex-row">
             <nav aria-label="Etapas" className="md:w-56 shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50/70 p-3 flex md:flex-col gap-1 overflow-x-auto">
               {ETAPAS.map((e, i) => (
@@ -412,8 +443,11 @@ export default function CreateSolicitudAccesoModal({ onClose, onBack, onCreated 
                     {etapa === ETAPAS.length - 2 ? 'Ver vista previa' : 'Siguiente'}
                   </button>
                 ) : (
-                  <button type="button" disabled title="El envío se conecta en el siguiente paso (ticket y firma)"
-                    className="px-5 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">Enviar solicitud</button>
+                  <button type="button" onClick={enviar} disabled={enviando}
+                    className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-wait">
+                    {enviando && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                    {enviando ? 'Enviando…' : 'Enviar solicitud'}
+                  </button>
                 )}
               </footer>
             </div>

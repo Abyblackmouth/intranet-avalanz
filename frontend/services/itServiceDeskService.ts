@@ -200,3 +200,5 @@ export const accFormatosDisponibles = () => api.get('/api/v1/it-service-desk/con
 export const accFormulario = (id: string) => api.get(`/api/v1/it-service-desk/control-accesos/formatos/${id}/formulario`)
 export const accVistaPreviaSolicitud = (id: string, datos: Record<string, any>) =>
   api.post(`/api/v1/it-service-desk/control-accesos/formatos/${id}/vista-previa`, datos, { responseType: 'text' })
+export const accEnviarSolicitud = (id: string, datos: Record<string, any>) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/formatos/${id}/solicitudes`, datos)
