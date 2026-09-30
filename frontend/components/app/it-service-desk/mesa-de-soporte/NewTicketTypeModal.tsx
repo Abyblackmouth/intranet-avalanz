@@ -31,7 +31,7 @@ const OPTIONS = [
     label: 'Solicitud de Accesos',
     desc: 'Alta, baja o cambio de acceso a un sistema',
     color: '#059669',
-    available: false,
+    available: true,
   },
 ]
 

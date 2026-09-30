@@ -15,6 +15,7 @@ import { LayoutGrid, List } from 'lucide-react'
 import TicketRow from '@/components/app/it-service-desk/mesa-de-soporte/TicketRow'
 import NewTicketTypeModal from '@/components/app/it-service-desk/mesa-de-soporte/NewTicketTypeModal'
 import CreateControlCambioModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateControlCambioModal'
+import CreateSolicitudAccesoModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateSolicitudAccesoModal'
 import { useWSEvent } from '@/hooks/useWebSocket'
 
 interface IncidentRow {
@@ -246,6 +247,7 @@ export default function MesaDeSoportePage() {
   const [showCreate, setShowCreate] = useState(false)
   const [showTypePicker, setShowTypePicker] = useState(false)
   const [showCreateCDC, setShowCreateCDC] = useState(false)
+  const [showCreateACC, setShowCreateACC] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)
   const [viewingTicketId, setViewingTicketId] = useState<string | null>(null)
   const [viewingCdcId, setViewingCdcId] = useState<string | null>(null)
@@ -576,6 +578,7 @@ export default function MesaDeSoportePage() {
             setShowTypePicker(false)
             if (type === 'incidente') setShowCreate(true)
             if (type === 'control_cambio') setShowCreateCDC(true)
+            if (type === 'solicitud_acceso') setShowCreateACC(true)
           }}
         />
       )}
@@ -588,6 +591,13 @@ export default function MesaDeSoportePage() {
         />
       )}
 
+      {showCreateACC && (
+        <CreateSolicitudAccesoModal
+          onClose={() => setShowCreateACC(false)}
+          onBack={() => { setShowCreateACC(false); setShowTypePicker(true) }}
+          onCreated={() => { setShowCreateACC(false); fetchAll() }}
+        />
+      )}
       {showCreateCDC && (
         <CreateControlCambioModal
           onClose={() => setShowCreateCDC(false)}

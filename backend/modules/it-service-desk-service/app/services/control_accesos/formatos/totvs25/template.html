@@ -7,10 +7,10 @@
 {{ fuentes|safe }}
   :root { --azul: #1a4fa0; --tinta: #0f172a; --texto: #1e293b; --gris: #64748b; --linea: #cbd5e1; --suave: #f1f5f9; box-sizing: border-box; }
   *, *::before, *::after { box-sizing: inherit; }
-  body { margin: 0; background: #fff; font-family: Geist, "Segoe UI", Arial, sans-serif; color: var(--texto); color-scheme: light; }
+  body { margin: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Geist, "Segoe UI", Arial, sans-serif; color: var(--texto); color-scheme: light; }
 
   /* ── Hoja A4 ─────────────────────────────────────── */
-  .hoja { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 10mm 12mm 8.5mm; position: relative;
+  .hoja { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 11.3mm 12mm 8.5mm; position: relative;
           display: flex; flex-direction: column; font-size: 8.3pt; line-height: 1.3; overflow: hidden; }
   @page { size: A4; margin: 0; }
 
@@ -30,12 +30,12 @@
   .sec h2 span { color: var(--gris); font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 7.3pt; }
 
   /* Datos en dos columnas: etiqueta y valor en la misma línea */
-  .datos { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--linea); border-radius: 1.5mm; overflow: hidden; margin: 0; }
-  .datos div { display: grid; grid-template-columns: 26mm 1fr; border-bottom: 1px solid var(--linea); }
+  .datos { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); border: 1px solid var(--linea); border-radius: 1.5mm; overflow: hidden; margin: 0; }
+  .datos div { display: grid; grid-template-columns: 23mm 1fr; border-bottom: 1px solid var(--linea); }
   .datos div:nth-child(odd) { border-right: 1px solid var(--linea); }
   .datos div:nth-last-child(-n+2) { border-bottom: 0; }
   .datos dt { background: var(--suave); color: var(--gris); padding: .9mm 1.6mm; font-weight: 500; }
-  .datos dd { margin: 0; padding: .9mm 1.6mm; font-weight: 600; color: var(--tinta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .datos dd { margin: 0; padding: .9mm 1.6mm; font-weight: 600; color: var(--tinta); font-size: 7.8pt; overflow-wrap: anywhere; }
 
   /* Casillas en línea */
   .opciones { display: flex; flex-wrap: wrap; gap: 1.5mm 4mm; align-items: center; }
@@ -79,11 +79,11 @@
   .clausula b { color: var(--tinta); }
   .firmas { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; padding-top: 3mm; }
   .firma { text-align: center; font-size: 7.4pt; }
-  .firma .linea { height: 9mm; border-bottom: 1px solid var(--tinta); margin-bottom: 1mm; }
+  .firma .linea { height: 7.7mm; border-bottom: 1px solid var(--tinta); margin-bottom: 1mm; }
   .firma b { display: block; color: var(--tinta); font-size: 7.8pt; }
   .firma span { color: var(--gris); }
   .ti { margin-top: 2.2mm; display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 5mm; align-items: end;
-        border: 1px dashed var(--linea); border-radius: 1.5mm; padding: 1.6mm 2.4mm 1.8mm; background: #f8fafc; }
+        border: 1.3px dashed #1a4fa0; border-radius: 1.5mm; padding: 1.6mm 2.4mm 1.8mm; background: #e8f0fc; }
   .ti > b { grid-column: 1 / -1; font-size: 7pt; text-transform: uppercase; letter-spacing: .06em; color: var(--azul); margin-bottom: -2mm; }
   .ti .campo { display: flex; font-size: 7.4pt; }
   .ti .campo u { flex: 1; text-decoration: none; border-bottom: 1px solid var(--linea); }
@@ -120,7 +120,7 @@
       <div><dt>Departamento</dt><dd>{{ usuario.departamento }}</dd></div>
       <div><dt>Empresa</dt><dd>{{ usuario.empresa }}</dd></div>
       <div><dt>Grupo</dt><dd>{{ usuario.grupo }}</dd></div>
-      <div><dt>Jefe inmediato</dt><dd>{{ usuario.jefe_nombre }}</dd></div>
+      <div><dt>Jefe</dt><dd>{{ usuario.jefe_nombre }}</dd></div>
       <div><dt>Correo</dt><dd>{{ usuario.correo }}</dd></div>
     </dl>
   </section>

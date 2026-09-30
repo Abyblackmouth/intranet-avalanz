@@ -194,3 +194,9 @@ export const accQuitarRutina = (rutinaId: string) => api.delete(`${ACC}/rutinas/
 export const accBuscarUsuarios = (q: string) => api.get('/api/v1/it-service-desk/control-cambios/catalogos/usuarios', { params: { q } })
 export const accVistaPrevia = (id: string, empresas?: string[]) =>
   api.get(`${ACC}/formatos/${id}/vista-previa`, { params: empresas ? { empresas: empresas.join(',') } : {}, responseType: 'text' })
+
+// ── Control de accesos: formulario del solicitante ────────────────────────
+export const accFormatosDisponibles = () => api.get('/api/v1/it-service-desk/control-accesos/formatos')
+export const accFormulario = (id: string) => api.get(`/api/v1/it-service-desk/control-accesos/formatos/${id}/formulario`)
+export const accVistaPreviaSolicitud = (id: string, datos: Record<string, any>) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/formatos/${id}/vista-previa`, datos, { responseType: 'text' })
