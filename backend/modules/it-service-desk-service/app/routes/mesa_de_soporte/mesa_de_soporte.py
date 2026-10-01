@@ -1425,10 +1425,10 @@ async def export_incidents_excel(
         )
 
         # Cumplimiento SLA 1 (respuesta -- se usa la asignacion como primer contacto)
-        if i.assigned_at and i.sla_response_limit:
-            delta1 = (i.assigned_at - i.created_at).total_seconds() / 60
+        if (i.first_response_at or i.resolved_at) and i.sla_response_limit:
+            delta1 = ((i.first_response_at or i.resolved_at) - i.created_at).total_seconds() / 60
             sla1_horas = f"{delta1/60:.1f} h"
-            sla1_estado = "Cumplido" if i.assigned_at <= i.sla_response_limit else "Incumplido"
+            sla1_estado = "Cumplido" if (i.first_response_at or i.resolved_at) <= i.sla_response_limit else "Incumplido"
         else:
             sla1_horas = ""
             sla1_estado = "Pendiente"
@@ -1460,15 +1460,15 @@ async def export_incidents_excel(
             "Familia": requester_profile.get("family_clave", ""),
             "Empresa": i.requester_company_name,
             "Creado por": i.requester_name,
-            "Fecha de creación": i.created_at.replace(tzinfo=None) if i.created_at else None,
+            "Fecha de creación": i.created_at.astimezone(TZ_MTY).replace(tzinfo=None) if i.created_at else None,
             "Nivel crítico": f"{sev.code} - {sev.name}" if sev else "",
             "Sistema": sistema.name if sistema else "",
             "Módulo": modulo.name if modulo else "",
             "Estatus": STATUS_LABEL_ES.get(i.status, i.status),
             "Con quién está (equipo)": equipo,
             "Asignado a": assignee_profile.get("full_name", "") if i.assigned_to_user_id else "",
-            "Fecha inicial SLA": i.created_at.replace(tzinfo=None) if i.created_at else None,
-            "Fecha final SLA (resolución)": i.sla_resolution_limit.replace(tzinfo=None) if i.sla_resolution_limit else None,
+            "Fecha inicial SLA": i.created_at.astimezone(TZ_MTY).replace(tzinfo=None) if i.created_at else None,
+            "Fecha final SLA (resolución)": i.sla_resolution_limit.astimezone(TZ_MTY).replace(tzinfo=None) if i.sla_resolution_limit else None,
             "Horas en estatus actual": horas_estatus,
             "A tiempo / Vencido": "En backlog" if i.status == "en_backlog" else ("Vencido" if vencido else "A tiempo") if not es_final else ("Cumplió SLA" if cumplio_final else "Se venció"),
             "Días transcurridos": dias_transcurridos,
