@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Search, SlidersHorizontal, FileSpreadsheet } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
@@ -137,6 +138,7 @@ export default function UsersPage() {
                 <FileSpreadsheet size={16} />
                 {isExporting ? 'Generando...' : 'Exportar Excel'}
               </button>
+              <Link href="/admin/users/alta-masiva" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#1a4fa0] border border-[#1a4fa0]/40 rounded-lg hover:bg-blue-50 transition">Alta masiva</Link>
               <button
                 onClick={() => setShowForm(true)}
                 className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition"
