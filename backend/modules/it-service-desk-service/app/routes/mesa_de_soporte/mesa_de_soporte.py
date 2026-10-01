@@ -1,3 +1,5 @@
+from zoneinfo import ZoneInfo
+TZ_MTY = ZoneInfo("America/Monterrey")   # hora de Monterrey para mostrar fechas
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -408,7 +410,7 @@ async def _notify_ticket_created(
         {"label": "Titulo", "value": title, "mono": False},
         {"label": "Sistema", "value": f"{system_name}{' / ' + module_name if module_name else ''}", "mono": False},
         {"label": "Severidad", "value": severity_name, "mono": False},
-        {"label": "Creado", "value": created_at.astimezone(ZoneInfo("America/Monterrey")).strftime('%d/%m/%Y %H:%M'), "mono": False},
+        {"label": "Creado", "value": created_at.astimezone(TZ_MTY).strftime('%d/%m/%Y %H:%M'), "mono": False},
     ]
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -1548,7 +1550,7 @@ async def export_incidents_excel(
     wb.save(buffer)
     buffer.seek(0)
 
-    filename = f"concentrado_incidencias_{now.astimezone(ZoneInfo("America/Monterrey")).strftime('%Y%m%d_%H%M')}.xlsx"
+    filename = f"concentrado_incidencias_{now.astimezone(TZ_MTY).strftime('%Y%m%d_%H%M')}.xlsx"
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1637,10 +1639,10 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
     HISTOGRAMA_CID = "histograma_volumen"
 
     enviados = []
-    _local = now.astimezone(ZoneInfo("America/Monterrey"))
-    _dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
-    _meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
-    fecha_texto = f"{_dias[_local.weekday()]} {_local.day:02d} de {_meses[_local.month - 1]} de {_local.year}, {_local.strftime('%I:%M %p').lower()}"
+    _local = now.astimezone(TZ_MTY)
+    _dias = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+    _meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+    fecha_texto = _dias[_local.weekday()] + ' ' + str(_local.day).zfill(2) + ' de ' + _meses[_local.month - 1] + ' de ' + str(_local.year) + ', ' + _local.strftime('%I:%M %p').lower()
 
     async def enviar_a(user_id: str, items: list):
         if not items:
