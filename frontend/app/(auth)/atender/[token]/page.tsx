@@ -126,7 +126,7 @@ export default function AtenderTicketPage() {
   if (loading) {
     return (
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8 flex flex-col items-center gap-3">
-        <Loader2 size={28} className="animate-spin text-[#7c2d12]" />
+        <Loader2 size={28} className="animate-spin text-[#1a4fa0]" />
         <p className="text-sm text-slate-500">Cargando ticket...</p>
       </div>
     )
@@ -224,7 +224,7 @@ export default function AtenderTicketPage() {
           <select
             value={resolutionType}
             onChange={(e) => setResolutionType(e.target.value)}
-            className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#7c2d12] mb-3"
+            className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#1a4fa0] mb-3"
           >
             <option value="causa_raiz">Causa raíz</option>
             <option value="workaround">Workaround</option>
@@ -236,11 +236,11 @@ export default function AtenderTicketPage() {
             onChange={(e) => setRcaText(e.target.value)}
             rows={3}
             placeholder="Describe brevemente la solución aplicada"
-            className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#7c2d12] mb-3 resize-none"
+            className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#1a4fa0] mb-3 resize-none"
           />
 
           <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Evidencia de resolución (opcional)</label>
-          <label className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-[#7c2d12]/40 transition mb-3">
+          <label className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-[#1a4fa0]/40 transition mb-3">
             <Paperclip size={15} />
             {files.length > 0 ? `${files.length} archivo(s) seleccionado(s)` : 'Adjuntar capturas de la solución'}
             <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
@@ -251,7 +251,7 @@ export default function AtenderTicketPage() {
           <button
             onClick={handleResolve}
             disabled={submitting}
-            className="w-full py-2.5 text-sm font-medium text-white bg-[#7c2d12] rounded-lg hover:bg-[#6b2610] disabled:opacity-50 transition mb-2"
+            className="w-full py-2.5 text-sm font-medium text-white bg-[#1a4fa0] rounded-lg hover:bg-[#153f82] disabled:opacity-50 transition mb-2"
           >
             {submitting ? 'Marcando como resuelto...' : 'Marcar como resuelto'}
           </button>

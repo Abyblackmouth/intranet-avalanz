@@ -135,7 +135,7 @@ function HistogramChart({ data }: { data: { fecha: string; cantidad: number }[] 
     ],
     series: [{
       type: 'line', data: data.map(d => d.cantidad), smooth: true, symbol: 'circle', symbolSize: 7,
-      lineStyle: { color: '#7c2d12', width: 2.5 }, itemStyle: { color: '#7c2d12' },
+      lineStyle: { color: '#1a4fa0', width: 2.5 }, itemStyle: { color: '#1a4fa0' },
       areaStyle: { color: 'rgba(124, 45, 18, 0.08)' },
     }],
   }
@@ -219,7 +219,7 @@ export default function ItServiceDeskDashboardPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="w-6 h-6 border-2 border-[#7c2d12] border-t-transparent rounded-full animate-spin" />
+          <div className="w-6 h-6 border-2 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : error || !stats ? (
         <div className="text-center py-20 text-red-500 text-sm">{error ?? 'No se pudieron cargar las metricas'}</div>

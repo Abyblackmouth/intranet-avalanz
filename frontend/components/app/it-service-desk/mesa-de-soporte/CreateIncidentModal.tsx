@@ -72,7 +72,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Ej. No puedo timbrar facturas"
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#7c2d12]/50 mb-3"
+          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50 mb-3"
         />
 
         <div className="grid grid-cols-2 gap-3 mb-3">
@@ -81,7 +81,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
             <select
               value={systemId}
               onChange={(e) => { setSystemId(e.target.value); setModuleId('') }}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#7c2d12]/50"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50"
             >
               <option value="">Selecciona</option>
               {systems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -93,7 +93,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
               value={moduleId}
               onChange={(e) => setModuleId(e.target.value)}
               disabled={!systemId || modules.length === 0}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#7c2d12]/50 disabled:opacity-50"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50 disabled:opacity-50"
             >
               <option value="">General</option>
               {modules.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -107,7 +107,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
             <select
               value={reportedType}
               onChange={(e) => setReportedType(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#7c2d12]/50"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50"
             >
               <option value="funcional">Funcional</option>
               <option value="tecnico">Técnico</option>
@@ -118,7 +118,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
             <select
               value={severityId}
               onChange={(e) => setSeverityId(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#7c2d12]/50"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50"
             >
               <option value="">Selecciona</option>
               {severities.map(s => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
@@ -132,11 +132,11 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
           placeholder="Describe qué pasa, cuándo empezó, y cualquier mensaje de error"
-          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#7c2d12]/50 mb-3 resize-none"
+          className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50 mb-3 resize-none"
         />
 
         <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Evidencia (opcional)</label>
-        <label className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-[#7c2d12]/40 transition mb-2">
+        <label className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-[#1a4fa0]/40 transition mb-2">
           <Paperclip size={15} />
           {files.length > 0 ? `${files.length} archivo(s) seleccionado(s)` : 'Adjuntar capturas o archivos'}
           <input
@@ -157,7 +157,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
             </button>
           )}
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition">Cancelar</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-[#7c2d12] rounded-lg hover:bg-[#6b2610] disabled:opacity-50 transition">
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-[#1a4fa0] rounded-lg hover:bg-[#153f82] disabled:opacity-50 transition">
             {saving ? 'Creando...' : 'Crear ticket'}
           </button>
         </div>

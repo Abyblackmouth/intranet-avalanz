@@ -22,7 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
 export const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-500/[0.12] text-slate-600',
   asignado: 'bg-blue-500/[0.12] text-blue-700',
-  en_atencion: 'bg-[#7c2d12]/[0.10] text-[#7c2d12]',
+  en_atencion: 'bg-[#1a4fa0]/[0.10] text-[#1a4fa0]',
   escalado: 'bg-red-500/[0.12] text-red-700',
   resuelto: 'bg-emerald-500/[0.14] text-emerald-700',
   cerrado: 'bg-slate-500/[0.14] text-slate-600',
@@ -39,7 +39,7 @@ export const STATUS_CLASS: Record<string, string> = {
 const STATUS_DOT: Record<string, string> = {
   en_backlog: 'bg-slate-400',
   asignado: 'bg-blue-500',
-  en_atencion: 'bg-[#7c2d12]',
+  en_atencion: 'bg-[#1a4fa0]',
   escalado: 'bg-red-500',
   resuelto: 'bg-emerald-500',
   cerrado: 'bg-slate-400',
@@ -150,7 +150,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
             <button
               onClick={(e) => { e.stopPropagation(); onAssign({ id: t.id, folio: t.folio }) }}
               title="Asignar"
-              className="p-1.5 rounded-lg text-[#7c2d12] hover:bg-[#7c2d12]/10 transition"
+              className="p-1.5 rounded-lg text-[#1a4fa0] hover:bg-[#1a4fa0]/10 transition"
             >
               <UserPlus size={22} />
             </button>
