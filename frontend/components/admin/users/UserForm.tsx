@@ -101,8 +101,9 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
   }
 
   const addModuleAccess = () => {
-    if (!selectedModuleId || !selectedRoleId) return
+    if (!selectedModuleId) return
     if (moduleAccesses.find(a => a.module_id === selectedModuleId)) return
+    const isNoRole = !selectedRoleId || selectedRoleId === '__NONE__'   // igual que en la edición
 
     const module = modules.find(m => m.module_id === selectedModuleId)
     const role = operationalRoles.find(r => r.role_id === selectedRoleId)
@@ -112,8 +113,8 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
       {
         module_id: selectedModuleId,
         module_name: module?.name || '',
-        role_id: selectedRoleId,
-        role_name: role?.name || '',
+        role_id: isNoRole ? (null as any) : selectedRoleId,
+        role_name: isNoRole ? 'Sin rol (solicitante)' : (role?.name || ''),
       },
     ])
     setSelectedModuleId('')
@@ -393,10 +394,10 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
                     <select
                       value={selectedRoleId}
                       onChange={e => setSelectedRoleId(e.target.value)}
-                      disabled={operationalRoles.length === 0}
                       className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                     >
                       <option value="">Seleccionar rol</option>
+                      <option value="__NONE__">Sin rol (solicitante)</option>
                       {operationalRoles.filter(r => !selectedModuleId || r.module_id === selectedModuleId || r.module_id === null).map(r => (
                         <option key={r.role_id} value={r.role_id}>{r.name}</option>
                       ))}
@@ -404,7 +405,7 @@ export default function UserForm({ onClose, onSuccess }: UserFormProps) {
                     <button
                       type="button"
                       onClick={addModuleAccess}
-                      disabled={!selectedModuleId || !selectedRoleId}
+                      disabled={!selectedModuleId}
                       className="px-3 py-2 bg-[#1a4fa0] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
                     >
                       +
