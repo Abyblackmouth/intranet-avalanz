@@ -5,7 +5,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { getIncidentDetail, getSystems, getSeverities, resolveIncident } from '@/services/itServiceDeskService'
 import { getSignedUrl } from '@/services/uploadService'
-import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip } from 'lucide-react'
+import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip, Printer } from 'lucide-react'
+import { imprimirTicket } from './imprimirTicket'
 import AssignIncidentModal from './AssignIncidentModal'
 
 interface Attachment { id: string; attachment_type: string; object_key: string; bucket: string; mime_type: string }
@@ -385,7 +386,13 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
 
               {/* Columna derecha: SLA y bitacora -- mismo alto que la columna izquierda completa */}
               <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-5 h-full flex flex-col">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">SLA y bitácora</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">SLA y bitácora</p>
+                  <button type="button" onClick={() => imprimirTicket(detail)} title="Imprimir ticket" aria-label="Imprimir ticket"
+                    className="w-8 h-8 -my-1 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-[#1a4fa0] transition">
+                    <Printer size={16} />
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="border-2 border-amber-300 rounded-xl p-3">
