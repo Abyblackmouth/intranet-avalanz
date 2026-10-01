@@ -91,3 +91,18 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
                  [{"label": "Usuario asignado", "value": usuario or "—", "mono": True}], "success")
     log.info("Solicitud %s firmada por todos; usuario asignado %s", inc.folio, usuario)
     return {"accion": "terminado", "folio": inc.folio, "usuario_asignado": usuario}
+
+
+
+async def registrar_cuenta(db, sol, usuario: str, folio: str) -> None:
+    """Registro de la cuenta en la intranet (el usuario en el sistema lo crea TI a mano)."""
+    cuenta = (await db.execute(select(AccCuenta).where(AccCuenta.id == sol.cuenta_id))).scalar_one_or_none() if sol.cuenta_id else None
+    if not cuenta:
+        return
+    cap = (sol.datos or {}).get("captura", {})
+    cuenta.estado = "activa"
+    cuenta.accesos = {"empresas": cap.get("empresas", []), "modulos": cap.get("modulos", []), "usuario_asignado": usuario,
+                      "actualizado": datetime.now(timezone.utc).isoformat(), "folio": folio}
+    for campo in ("usuario_asignado", "usuario_sistema"):
+        if hasattr(cuenta, campo):
+            setattr(cuenta, campo, usuario or None)
