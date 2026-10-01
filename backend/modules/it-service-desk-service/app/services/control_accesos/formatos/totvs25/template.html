@@ -22,6 +22,7 @@
   .titulo h1 { margin: 0; font-size: 11pt; color: var(--tinta); letter-spacing: .02em; }
   .titulo p { margin: .4mm 0 0; font-size: 7.3pt; color: var(--gris); }
   .folio { text-align: right; font-size: 7.5pt; color: var(--gris); }
+  .folio .folio-et { display: block; font-size: 6.6pt; color: var(--gris); }
   .folio b { display: block; font-family: "Geist Mono", ui-monospace, monospace; font-size: 9pt; color: var(--azul); }
 
   /* Secciones */
@@ -106,7 +107,7 @@
       <h1>SOLICITUD DE {{ movimiento_titulo|upper }} DE USUARIO · {{ sistema_titulo|upper }}</h1>
       <p>Mesa de Servicios · Solicitudes de acceso</p>
     </div>
-    <div class="folio"><b>{{ folio }}</b>{{ fecha }}</div>
+    <div class="folio"><span class="folio-et">Folio número:</span><b>{{ folio }}</b>{{ fecha }}</div>
   </header>
 
   {% macro caja(on, texto='') %}<span class="caja{{ ' on' if on }}"><i>{{ '✓' if on }}</i>{{ texto }}</span>{% endmacro %}

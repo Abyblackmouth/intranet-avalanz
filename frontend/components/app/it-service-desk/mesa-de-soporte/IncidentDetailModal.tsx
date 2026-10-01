@@ -211,7 +211,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-300 shrink-0 bg-white">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-mono text-slate-400">{detail?.folio ?? '...'}</p>
+              <p className="text-sm text-slate-400"><span className="text-slate-500">Folio número:</span> <span className="font-mono">{detail?.folio ?? '...'}</span></p>
               {detail && (
                 <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${STATUS_CLASS[detail.status] ?? ''}`}>
                   {STATUS_LABEL[detail.status] ?? detail.status}

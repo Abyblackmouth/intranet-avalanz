@@ -355,7 +355,16 @@ export default function MesaDeSoportePage() {
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
+        {/* Botón principal: centrado en el espacio libre entre "ver" (izquierda) y las herramientas (derecha) */}
+        <div className="flex-1 flex justify-center min-w-[170px]">
+          <button type="button" onClick={() => setShowTypePicker(true)}
+            className="inline-flex items-center gap-2 h-9 pl-3.5 pr-5 rounded-full bg-[#1a4fa0] text-white text-[13px] font-semibold shadow-md shadow-[#1a4fa0]/25 transition hover:bg-[#153f82] hover:shadow-lg hover:shadow-[#1a4fa0]/35 hover:-translate-y-px active:translate-y-0 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30">
+            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center"><Plus size={14} strokeWidth={2.5} /></span>
+            Nuevo ticket
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
           {isIncidentManager && (
             <>
               <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white pl-2.5 pr-1 py-0.5">
@@ -412,17 +421,6 @@ export default function MesaDeSoportePage() {
               </div>
             )
           })()}
-          <div className="relative group ml-3 pl-3 border-l border-slate-200">
-            {/* Al pasar el mouse, el círculo se extiende a la izquierda como una sola pastilla café */}
-            <span aria-hidden="true"
-              className="pointer-events-none absolute right-0 top-0 h-9 flex items-center rounded-full bg-[#1a4fa0] text-white text-[13px] font-semibold whitespace-nowrap pl-4 pr-12 shadow-md z-10 origin-right opacity-0 scale-x-75 transition-all duration-200 ease-out group-hover:opacity-100 group-hover:scale-x-100 group-focus-within:opacity-100 group-focus-within:scale-x-100">
-              Nuevo ticket
-            </span>
-            <button type="button" onClick={() => setShowTypePicker(true)} aria-label="Nuevo ticket"
-              className="relative z-20 w-9 h-9 rounded-full flex items-center justify-center text-white bg-[#1a4fa0] shadow-md transition-all duration-200 ease-out group-hover:scale-[1.18] group-hover:shadow-xl group-hover:shadow-[#1a4fa0]/40 group-focus-within:scale-[1.18] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30">
-              <Plus size={18} />
-            </button>
-          </div>
         </div>
       </div>
 

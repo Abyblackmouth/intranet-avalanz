@@ -447,7 +447,8 @@ async def _notify_ticket_resolved(to_email: str, full_name: str, folio: str, tit
                     "to_email": to_email,
                     "full_name": full_name,
                     "subject": f"Tu ticket #{folio} fue resuelto",
-                    "message": f"Notas: {rca_text}" if rca_text else "",
+                    "message": (f"Notas: {rca_text}\n\n" if rca_text else "")
+                               + "Si tienes alguna duda respecto a la resolución del ticket, comunícate a soporte@avalanz.com.",
                     "alert_type": "success",
                     "fields": fields,
                 },
