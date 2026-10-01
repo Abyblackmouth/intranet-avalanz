@@ -96,20 +96,20 @@ async def internal_get_users_by_module_role(
 ):
     from sqlalchemy import text
     result = await db.execute(text("""
-        SELECT u.id, u.full_name, u.email
+        SELECT u.id, u.full_name, u.email, u.is_locked
         FROM users u
         JOIN user_module_accesses uma ON uma.user_id = u.id
         JOIN module_roles mr ON mr.id = uma.role_id
         JOIN modules m ON m.id = uma.module_id
         WHERE mr.slug = :role_slug
           AND m.slug = :module_slug
-          AND u.is_active = true
-          AND u.is_locked = false
+          AND u.is_active = true          -- fuera las bajas
+          AND u.is_deleted = false        -- y los eliminados; los bloqueados SI se ofrecen
           AND uma.is_active = true
         ORDER BY u.full_name
     """), {"role_slug": role_slug, "module_slug": module_slug})
     rows = result.fetchall()
-    return [{"id": str(r[0]), "name": r[1], "email": r[2]} for r in rows]
+    return [{"id": str(r[0]), "name": r[1], "email": r[2], "is_locked": bool(r[3])} for r in rows]
 
 
 @app.get("/internal/users/search", include_in_schema=False)
@@ -119,15 +119,15 @@ async def internal_search_users(q: str, limit: int = 15, db: AsyncSession = Depe
     Sin JWT, solo alcanzable dentro de la red interna de Docker."""
     from sqlalchemy import text
     result = await db.execute(text("""
-        SELECT u.id, u.full_name, u.email, u.puesto, u.departamento
+        SELECT u.id, u.full_name, u.email, u.puesto, u.departamento, u.is_locked
         FROM users u
-        WHERE u.is_active = true
-          AND u.is_locked = false
+        WHERE u.is_active = true          -- fuera las bajas
+          AND u.is_deleted = false        -- y los eliminados; los bloqueados SI se ofrecen
           AND (u.full_name ILIKE :q OR u.email ILIKE :q)
         ORDER BY u.full_name
         LIMIT :limit
     """), {"q": f"%{q.strip()}%", "limit": min(max(limit, 1), 30)})
-    return [{"id": str(r[0]), "name": r[1], "email": r[2], "puesto": r[3], "departamento": r[4]} for r in result.fetchall()]
+    return [{"id": str(r[0]), "name": r[1], "email": r[2], "puesto": r[3], "departamento": r[4], "is_locked": bool(r[5])} for r in result.fetchall()]
 
 @app.get("/internal/users/{user_id}/permissions", include_in_schema=False)
 async def internal_get_user_permissions(
