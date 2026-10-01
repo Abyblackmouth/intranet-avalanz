@@ -454,6 +454,7 @@ async def aprobar_solicitud(incident_id: str, body: AprobarPayload, db: AsyncSes
     _bitacora(db, inc, uid, user, "aprobada_enviada_a_firma",
               {"firmantes": [x["name"] for x in firmantes], "jefe_administrativo": con_admin, "sobre": envelope_id})
     await db.commit()
+    await db.refresh(inc)
     await _broadcast_ticket_update(inc)
     orden = " → ".join(["tú", "tu jefe directo"] + (["el jefe administrativo"] if con_admin else []) + ["TI"])
     await _avisar_solicitante(inc, f"Tu solicitud {inc.folio} fue aprobada",
@@ -475,6 +476,7 @@ async def rechazar_solicitud(incident_id: str, body: RechazarPayload, db: AsyncS
     inc.status, inc.closed_at = "rechazado", ahora
     _bitacora(db, inc, uid, user, "solicitud_rechazada", {"motivo": motivo})
     await db.commit()
+    await db.refresh(inc)
     await _broadcast_ticket_update(inc)
     await _avisar_solicitante(inc, f"Tu solicitud {inc.folio} fue rechazada",
                               f"TI rechazó tu solicitud. Motivo: {motivo}. Si aún necesitas el acceso, levanta una solicitud nueva con los ajustes.",

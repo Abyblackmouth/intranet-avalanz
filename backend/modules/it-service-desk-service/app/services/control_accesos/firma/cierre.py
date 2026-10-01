@@ -42,6 +42,7 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
                                    performed_by_name="DocuSign", performed_by_role="sistema", performed_at=ahora,
                                    company_id=inc.company_id, module_slug="it-service-desk", detail={"estado_docusign": st}))
         await db.commit()
+        await db.refresh(inc)
         await broadcast(inc)
         await avisar(inc, f"La firma de tu solicitud {inc.folio} se canceló",
                      "Alguno de los firmantes declinó la firma en DocuSign o el sobre se anuló. Si aún necesitas el acceso, levanta una solicitud nueva.",
@@ -83,6 +84,7 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
                                company_id=inc.company_id, module_slug="it-service-desk",
                                detail={"usuario_asignado": usuario, "documento": key}))
     await db.commit()
+    await db.refresh(inc)
     await broadcast(inc)
     await avisar(inc, f"Tu acceso de la solicitud {inc.folio} quedó registrado",
                  f"Todos firmaron tu solicitud y TI te asignó tu usuario: {usuario or '(sin capturar)'}.",
