@@ -1,5 +1,6 @@
 'use client'
 
+import AccResumenSolicitud from '@/components/app/it-service-desk/mesa-de-soporte/AccResumenSolicitud'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { getIncidentDetail, getSystems, getSeverities, resolveIncident } from '@/services/itServiceDeskService'
@@ -263,7 +264,9 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                     <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.reported_type ?? '—'}</p></div>
                     <div><p className="text-[10px] text-slate-400 uppercase">Creado</p><p className="font-medium text-slate-800">{fmt(detail.created_at)}</p></div>
                   </div>
-                  <p className="text-sm text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-3">{detail.description}</p>
+                  {((detail as any).ticket_type === 'solicitud_acceso' || detail.folio?.startsWith('ACC-'))
+                    ? <AccResumenSolicitud incidentId={detail.id} fallback={detail.description} />
+                    : <p className="text-sm text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-3">{detail.description}</p>}
 
                   {reportEvidence.length > 0 && (
                     <div className="flex gap-2 mt-3 flex-wrap">

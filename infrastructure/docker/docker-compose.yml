@@ -316,6 +316,16 @@ services:
       - avalanz-network
     logging: *default-logging
 
+  # ── Gotenberg: HTML a PDF con Chromium (formatos de la intranet) ───────────
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: avalanz-gotenberg
+    restart: unless-stopped
+    command: ["gotenberg", "--api-timeout=30s", "--chromium-disable-javascript=true"]
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
   # ── Mailpit ─────────────────────────────────────────────────────────────────
   mailpit:
     image: axllent/mailpit:latest

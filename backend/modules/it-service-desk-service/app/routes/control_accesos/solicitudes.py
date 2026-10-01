@@ -9,10 +9,12 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.mesa_de_soporte import AccCuenta, AccFormato, AccSolicitud, Incident, TicketSystem
+from app.models.mesa_de_soporte import AccCuenta, AccFormato, AccSolicitud, Incident, IncidentAttachment, TicketSeverity, TicketSystem
+from app.routes.control_cambios.control_cambios import _subir_archivo
+from shared.middleware.jwt_validator import get_token_from_request
 from app.routes.control_accesos.configuracion import _config_completa, _formato
 from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update, _generate_folio, _get_requester_profile, get_current_user
-from app.services.control_accesos.motor.documento import contexto_solicitud, ordenar_familias, renderizar
+from app.services.control_accesos.motor.documento import contexto_solicitud, html_a_pdf, ordenar_familias, renderizar
 
 router = APIRouter(prefix="/control-accesos")
 FOLIO_PREVIO = "ACC-XXXX-000000"
@@ -101,7 +103,7 @@ async def vista_previa_solicitud(formato_id: str, datos: dict = Body(...), db: A
 
 # ── Envío: crea el ticket de acceso y guarda la solicitud (la firma llega después de la revisión) ──
 import uuid
-from datetime import date, timezone
+from datetime import date, timedelta, timezone
 
 
 def _validar(datos: dict, config: dict) -> list[str]:
@@ -173,7 +175,8 @@ def _descripcion(datos: dict, config: dict, movimiento: str, formato: str) -> st
 
 
 @router.post("/formatos/{formato_id}/solicitudes")
-async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+                           raw_token: str = Depends(get_token_from_request)):
     f = await _formato_activo(db, formato_id)
     config = await _config_completa(db, f)
     errores = _validar(datos, config)
@@ -189,6 +192,8 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
     movimiento, cuenta = await _movimiento(db, f.id, user_id)
     folio = await _generate_folio(db, "ACC", perfil.get("family_clave"))
     now = datetime.now(timezone.utc)
+    # SLA: el de la severidad más alta de incidentes (S1)
+    s1 = (await db.execute(select(TicketSeverity).where(TicketSeverity.code == "S1"))).scalar_one_or_none()
 
     # Directo al encargado de TI del formato; si no hay encargado, al backlog y lo asigna el motor
     con_encargado = bool(f.admin_user_id)
@@ -205,6 +210,8 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
         assigned_to_user_id=f.admin_user_id if con_encargado else None,
         assigned_at=now if con_encargado else None,
         status="en_revision" if con_encargado else "en_backlog",
+        sla_response_limit=now + timedelta(minutes=s1.response_sla_minutes) if s1 else None,
+        sla_resolution_limit=now + timedelta(hours=s1.resolution_sla_hours) if s1 else None,
         created_at=now,
     )
     db.add(incident)
@@ -217,11 +224,28 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
 
     # Copia completa: el documento que se firme será idéntico al que vio el solicitante
     datos_limpios = {k: datos[k] for k in ("jefe", "tipo", "empresas", "modulos", "vigencia", "acepta") if k in datos}
-    db.add(AccSolicitud(
+    solicitud = AccSolicitud(
         incident_id=incident.id, formato_id=f.id, cuenta_id=cuenta.id, movimiento=movimiento,
         datos={"captura": datos_limpios, "usuario": usuario, "config": config, "enviado_en": now.isoformat()},
         created_at=now,
-    ))
+    )
+    db.add(solicitud)
+
+    # El PDF de la solicitud, como evidencia del ticket. Si falla, el ticket se crea igual.
+    try:
+        metodo, prueba = await _ajustes_firma(db)
+        fecha = datetime.now(ZoneInfo("America/Monterrey")).strftime("%d/%m/%Y")
+        pdf = await html_a_pdf(renderizar(f.clave, contexto_solicitud(config, datos_limpios, usuario, movimiento, folio, fecha, metodo, prueba)))
+        nombre = f"SOLICITUD_{folio}_{datetime.now(ZoneInfo('America/Monterrey')).strftime('%Y%m%d_%H%M%S')}.pdf"
+        object_key = await _subir_archivo(pdf, nombre, "application/pdf", perfil.get("company_slug"), f"control-de-accesos/{folio}", raw_token)
+        if object_key:
+            solicitud.pdf_object_key = object_key
+            db.add(IncidentAttachment(incident_id=incident.id, attachment_type="evidencia_reporte", object_key=object_key,
+                                      mime_type="application/pdf", size_bytes=len(pdf), uploaded_by=user_id))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("No se pudo generar o subir el PDF de %s: %s", folio, e)
+
     await db.commit()
 
     await _broadcast_ticket_update(incident, event_type="it_service_desk.ticket_created")
@@ -235,3 +259,43 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
     return {"success": True, "message": "Solicitud enviada",
             "data": {"id": incident.id, "folio": folio, "status": incident.status, "movimiento": movimiento,
                      "asignado_a": f.admin_nombre if con_encargado else None}}
+
+
+
+# ── Resumen por secciones para el panel del ticket ──────────────────────────
+@router.get("/solicitudes/{incident_id}/resumen")
+async def resumen_solicitud(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    fila = (await db.execute(select(AccSolicitud, Incident).join(Incident, Incident.id == AccSolicitud.incident_id)
+                             .where(AccSolicitud.incident_id == incident_id))).first()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    sol, inc = fila
+    uid = _uid(user)
+    roles = set(user.get("roles") or [])
+    if uid not in (inc.requester_id, inc.assigned_to_user_id) and not roles & {"it-service-desk:incident-manager", "super_admin"} and not user.get("is_super_admin"):
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta solicitud")
+    cap = sol.datos.get("captura", {})
+    config = sol.datos.get("config", {})
+    catalogo = {c["id"]: c for c in config.get("catalogo_empresas", [])}
+    familias: dict[str, dict] = {}
+    for cid in cap.get("empresas", []):
+        c = catalogo.get(cid) or {}
+        fam = c.get("familia") or {}
+        fid = fam.get("id") or "__sin__"
+        familias.setdefault(fid, {"id": fid, "nombre": fam.get("nombre") or "SIN FAMILIA", "empresas": []})["empresas"].append(c.get("nombre_comercial") or cid)
+    modulos = {m["id"]: m for m in config.get("modulos", [])}
+    tipo = cap.get("tipo", {})
+    vig = cap.get("vigencia", {})
+    hasta = vig.get("hasta") or ""
+    return {
+        "movimiento": sol.movimiento,
+        "tipo": {"motivo": {"alta_nueva": "Alta nueva", "reemplazo": "Reemplazo", "migracion": "Migración"}.get(tipo.get("motivo"), "—"),
+                 "auditoria": bool(tipo.get("auditoria")), "usuario_modelo": tipo.get("usuario_modelo") or "", "reemplaza_a": tipo.get("reemplaza_a") or ""},
+        "familias": ordenar_familias(list(familias.values()), (config.get("formato") or {}).get("presentacion") or {}),
+        "modulos": [{"nombre": (modulos.get(m["modulo_id"]) or {}).get("nombre", ""), "exclusivo_admin": bool((modulos.get(m["modulo_id"]) or {}).get("exclusivo_admin")),
+                     "perfil": m.get("perfil", ""), "rutinas": m.get("rutinas", [])} for m in cap.get("modulos", [])],
+        "vigencia": "Permanente" if vig.get("tipo") == "permanente" else (f"Temporal hasta {hasta[8:10]}/{hasta[5:7]}/{hasta[0:4]}" if len(hasta) == 10 else "Temporal"),
+        "observaciones": vig.get("observaciones") or "",
+        "jefe": cap.get("jefe", {}),
+        "tiene_pdf": bool(sol.pdf_object_key),
+    }

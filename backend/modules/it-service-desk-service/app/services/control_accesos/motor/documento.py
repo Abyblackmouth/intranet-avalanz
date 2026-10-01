@@ -128,3 +128,17 @@ def contexto_solicitud(config: dict, datos: dict, usuario: dict, movimiento: str
     ctx["folio"] = folio
     ctx["movimiento_titulo"] = "Modificación" if movimiento == "modificacion" else "Alta"
     return ctx
+
+
+GOTENBERG_URL = "http://gotenberg:3000/forms/chromium/convert/html"
+
+
+async def html_a_pdf(html: str) -> bytes:
+    """El mismo HTML de la vista previa, convertido a PDF con Chromium (Gotenberg)."""
+    import httpx
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        r = await client.post(GOTENBERG_URL, files={"files": ("index.html", html.encode("utf-8"), "text/html")},
+                              data={"preferCssPageSize": "true", "printBackground": "true",
+                                    "marginTop": "0", "marginBottom": "0", "marginLeft": "0", "marginRight": "0"})
+    r.raise_for_status()
+    return r.content
