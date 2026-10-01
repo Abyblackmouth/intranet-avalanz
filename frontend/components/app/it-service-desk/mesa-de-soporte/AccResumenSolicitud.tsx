@@ -3,7 +3,8 @@
 // Resumen por secciones de una solicitud de acceso, para el panel del ticket.
 import { useEffect, useState } from 'react'
 import { Lock } from 'lucide-react'
-import { accGenerarPdfSolicitud, accResumenSolicitud } from '@/services/itServiceDeskService'
+import { accGenerarPdfSolicitud, accResumenSolicitud, accAprobar, accRechazar } from '@/services/itServiceDeskService'
+import { useAuthStore } from '@/store/authStore'
 
 interface Resumen {
   movimiento: 'alta' | 'modificacion'
@@ -11,15 +12,42 @@ interface Resumen {
   familias: { id: string; nombre: string; empresas: string[] }[]
   modulos: { nombre: string; exclusivo_admin: boolean; perfil: string; rutinas: string[] }[]
   vigencia: string; observaciones: string; jefe: { nombre?: string; correo?: string }; tiene_pdf: boolean
+  estado_firma?: string | null
+  revision?: { aprobada_por?: string; aprobada_en?: string; rechazada_por?: string; rechazada_en?: string; motivo?: string;
+               jefe_admin?: { nombre: string; correo: string } | null } | null
 }
 
 const Etiqueta = ({ children }: { children: React.ReactNode }) => (
   <p className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400 mb-1">{children}</p>
 )
 
-export default function AccResumenSolicitud({ incidentId, fallback }: { incidentId: string; fallback: string }) {
+export default function AccResumenSolicitud({ incidentId, fallback, estado, asignadoId, onCambio }: {
+  incidentId: string; fallback: string; estado?: string; asignadoId?: string | null; onCambio?: () => void
+}) {
   const [r, setR] = useState<Resumen | null>(null)
   const [error, setError] = useState(false)
+  const [accion, setAccion] = useState<'' | 'aprobar' | 'rechazar'>('')
+  const [conAdmin, setConAdmin] = useState(false)
+  const [adminNombre, setAdminNombre] = useState('')
+  const [adminCorreo, setAdminCorreo] = useState('')
+  const [motivo, setMotivo] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [errorRev, setErrorRev] = useState<string | null>(null)
+  const yo: any = (useAuthStore.getState() as any).user ?? {}
+  const misRoles: string[] = yo.roles ?? []
+  const puedeRevisar = misRoles.includes('it-service-desk:incident-manager') || misRoles.includes('super_admin')
+    || (!!asignadoId && String(asignadoId) === String(yo.user_id ?? yo.id ?? ''))
+  const recargar = () => accResumenSolicitud(incidentId).then(x => setR(x.data)).catch(() => {})
+  const enviarRevision = async () => {
+    setEnviando(true); setErrorRev(null)
+    try {
+      if (accion === 'aprobar') await accAprobar(incidentId, conAdmin ? { jefe_admin_nombre: adminNombre.trim(), jefe_admin_correo: adminCorreo.trim() } : { jefe_admin_nombre: '', jefe_admin_correo: '' })
+      else await accRechazar(incidentId, motivo.trim())
+      setAccion(''); await recargar(); onCambio?.()
+    } catch (e: any) { const d = e?.response?.data?.detail; setErrorRev(typeof d === 'string' ? d : 'No se pudo completar la revisión') }
+    finally { setEnviando(false) }
+  }
+  const fechaCorta = (iso?: string) => iso ? new Date(iso).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
   const [pdf, setPdf] = useState<'' | 'generando' | 'listo' | string>('')
   useEffect(() => { accResumenSolicitud(incidentId).then(x => setR(x.data)).catch(() => setError(true)) }, [incidentId])
 
@@ -89,6 +117,66 @@ export default function AccResumenSolicitud({ incidentId, fallback }: { incident
         <div><Etiqueta>Vigencia</Etiqueta><p className="text-slate-800 font-medium">{r.vigencia}</p></div>
         <div><Etiqueta>Jefe directo</Etiqueta><p className="text-slate-800 font-medium break-words">{r.jefe.nombre || '—'}</p><p className="text-[12px] text-slate-500 break-words">{r.jefe.correo}</p></div>
         {r.observaciones && <div className="sm:col-span-2"><Etiqueta>Observaciones</Etiqueta><p className="text-slate-700">{r.observaciones}</p></div>}
+      </div>
+      <div className="p-3">
+        <p className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Revisión de TI</p>
+        {estado === 'en_revision' && !puedeRevisar && <p className="text-[13px] text-slate-600">En revisión por TI.</p>}
+        {estado === 'en_revision' && puedeRevisar && !accion && (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => { setAccion('aprobar'); setErrorRev(null) }}
+              className="px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700">Aprobar y enviar a firma</button>
+            <button type="button" onClick={() => { setAccion('rechazar'); setErrorRev(null) }}
+              className="px-4 py-2 rounded-lg text-[13px] font-semibold text-red-700 border border-red-300 hover:bg-red-50">Rechazar</button>
+          </div>
+        )}
+        {estado === 'en_revision' && accion === 'aprobar' && (
+          <div className="grid gap-2.5 border border-emerald-200 bg-emerald-50/40 rounded-lg p-3">
+            <label className="flex items-center gap-2 text-[13px] text-slate-700 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 accent-[#1a4fa0]" checked={conAdmin} onChange={e => setConAdmin(e.target.checked)} />
+              Lleva firma del jefe administrativo
+            </label>
+            {conAdmin && (
+              <div className="grid sm:grid-cols-2 gap-2">
+                <input value={adminNombre} onChange={e => setAdminNombre(e.target.value)} placeholder="Nombre del jefe administrativo" aria-label="Nombre del jefe administrativo"
+                  className="h-9 px-3 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-[#1a4fa0]" />
+                <input value={adminCorreo} onChange={e => setAdminCorreo(e.target.value)} type="email" placeholder="correo@avalanz.com" aria-label="Correo del jefe administrativo"
+                  className="h-9 px-3 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-[#1a4fa0]" />
+              </div>
+            )}
+            <p className="text-[12px] text-slate-600">Orden de firma en DocuSign: <b>Usuario → Jefe directo{conAdmin ? ' → Jefe administrativo' : ''} → TI</b>. TI captura el usuario asignado al firmar.</p>
+            {errorRev && <p role="alert" className="text-[12.5px] text-red-600">{errorRev}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" disabled={enviando} onClick={() => setAccion('')} className="px-3 py-1.5 text-[13px] text-slate-600 border border-slate-300 rounded-lg bg-white">Cancelar</button>
+              <button type="button" disabled={enviando || (conAdmin && (!adminNombre.trim() || !adminCorreo.includes('@')))} onClick={enviarRevision}
+                className="px-4 py-1.5 text-[13px] font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50">{enviando ? 'Enviando a DocuSign…' : 'Confirmar y enviar'}</button>
+            </div>
+          </div>
+        )}
+        {estado === 'en_revision' && accion === 'rechazar' && (
+          <div className="grid gap-2.5 border border-red-200 bg-red-50/40 rounded-lg p-3">
+            <textarea rows={3} value={motivo} onChange={e => setMotivo(e.target.value)} aria-label="Motivo del rechazo"
+              placeholder="Ej. El perfil Aprobador no corresponde al puesto; solicita el perfil Comprador"
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-[#1a4fa0] resize-none" />
+            {errorRev && <p role="alert" className="text-[12.5px] text-red-600">{errorRev}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" disabled={enviando} onClick={() => setAccion('')} className="px-3 py-1.5 text-[13px] text-slate-600 border border-slate-300 rounded-lg bg-white">Cancelar</button>
+              <button type="button" disabled={enviando || motivo.trim().length < 5} onClick={enviarRevision}
+                className="px-4 py-1.5 text-[13px] font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50">{enviando ? 'Rechazando…' : 'Rechazar solicitud'}</button>
+            </div>
+          </div>
+        )}
+        {estado === 'en_firma' && (
+          <p className="text-[13px] text-slate-700">
+            Aprobada{r.revision?.aprobada_por ? ` por ${r.revision.aprobada_por}` : ''}{r.revision?.aprobada_en ? ` el ${fechaCorta(r.revision.aprobada_en)}` : ''}. En firma en DocuSign:{' '}
+            <b>Usuario → Jefe directo{r.revision?.jefe_admin ? ` → ${r.revision.jefe_admin.nombre} (jefe administrativo)` : ''} → TI</b>.
+          </p>
+        )}
+        {estado === 'rechazado' && (
+          <p className="text-[13px] text-red-700">
+            Rechazada{r.revision?.rechazada_por ? ` por ${r.revision.rechazada_por}` : ''}{r.revision?.rechazada_en ? ` el ${fechaCorta(r.revision.rechazada_en)}` : ''}. Motivo: {r.revision?.motivo ?? '—'}
+          </p>
+        )}
+        {estado === 'terminado' && <p className="text-[13px] text-emerald-700">Firmada por todos. Acceso registrado.</p>}
       </div>
     </div>
   )

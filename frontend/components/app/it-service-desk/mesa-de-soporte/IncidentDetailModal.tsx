@@ -205,6 +205,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const systemName = (id: string) => systems.find(s => s.id === id)?.name ?? '—'
   const sevInfo = (id: string | null) => id ? severities.find(s => s.id === id) : null
   const sev = detail ? sevInfo(detail.severity_validated_id ?? detail.severity_reported_id) : null
+  const esAccesoTicket = !!detail && ((detail as any).ticket_type === 'solicitud_acceso' || !!detail.folio?.startsWith('ACC-'))
   const yo: any = (useAuthStore.getState() as any).user ?? {}
   const misRoles: string[] = yo.roles ?? []
   const esIM = misRoles.includes('it-service-desk:incident-manager') || misRoles.includes('super_admin')
@@ -322,7 +323,8 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                     <div><p className="text-[10px] text-slate-400 uppercase">Creado</p><p className="font-medium text-slate-800">{fmt(detail.created_at)}</p></div>
                   </div>
                   {((detail as any).ticket_type === 'solicitud_acceso' || detail.folio?.startsWith('ACC-'))
-                    ? <AccResumenSolicitud incidentId={detail.id} fallback={detail.description} />
+                    ? <AccResumenSolicitud incidentId={detail.id} fallback={detail.description} estado={detail.status} asignadoId={detail.assigned_to_user_id}
+                        onCambio={() => getIncidentDetail(detail.id).then(r => setDetail(r.data)).catch(() => {})} />
                     : <p className="text-sm text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-3">{detail.description}</p>}
 
                   {reportEvidence.length > 0 && (
@@ -375,7 +377,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                         <div><p className="text-[10px] text-slate-400 uppercase">Resuelto</p><p className="font-medium text-slate-800">{fmt(detail.resolved_at)}</p></div>
                         <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.resolution_type?.replace('_', ' ')}</p></div>
                       </div>
-                    ) : canResolve && !showResolveForm ? (
+                    ) : canResolve && !esAccesoTicket && !showResolveForm ? (
                       <button
                         onClick={() => setShowResolveForm(true)}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition"
@@ -383,7 +385,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                         <CheckCircle2 size={16} />
                         Marcar como resuelto
                       </button>
-                    ) : canResolve && showResolveForm ? (
+                    ) : canResolve && !esAccesoTicket && showResolveForm ? (
                       <div className="border border-slate-200 rounded-xl p-4 space-y-3">
                         <div>
                           <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Tipo de resolución</label>

@@ -289,6 +289,8 @@ async def resumen_solicitud(incident_id: str, db: AsyncSession = Depends(get_db)
         "observaciones": vig.get("observaciones") or "",
         "jefe": cap.get("jefe", {}),
         "tiene_pdf": bool(sol.pdf_object_key),
+        "estado_firma": sol.estado_firma,
+        "revision": (sol.datos or {}).get("revision"),
     }
 
 

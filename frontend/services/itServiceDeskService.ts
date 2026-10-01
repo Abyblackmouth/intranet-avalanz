@@ -215,3 +215,7 @@ export const ajustarSla = (code: string, data: { response_sla_minutes: number; r
   api.put(`/api/v1/it-service-desk/mesa-de-soporte/sla/severidades/${code}`, data)
 export const cambiarSeveridad = (incidentId: string, data: { severity_id: string; motivo: string }) =>
   api.patch(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/severidad`, data)
+export const accAprobar = (incidentId: string, data: { jefe_admin_nombre: string; jefe_admin_correo: string }) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/aprobar`, data)
+export const accRechazar = (incidentId: string, motivo: string) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/rechazar`, { motivo })
