@@ -208,3 +208,8 @@ export const accGenerarPdfSolicitud = (incidentId: string) =>
   api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/pdf`)
 export const marcarRevisado = (incidentId: string) =>
   api.post(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/revisado`)
+
+// ── Tablero de SLA ──────────────────────────────────────────────────────────
+export const slaSeveridades = () => api.get('/api/v1/it-service-desk/mesa-de-soporte/sla/severidades')
+export const ajustarSla = (code: string, data: { response_sla_minutes: number; resolution_sla_hours: number; is_24_7: boolean; rca_mandatory: boolean }) =>
+  api.put(`/api/v1/it-service-desk/mesa-de-soporte/sla/severidades/${code}`, data)

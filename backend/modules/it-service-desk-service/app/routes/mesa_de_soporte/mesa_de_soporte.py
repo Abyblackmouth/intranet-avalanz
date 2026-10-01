@@ -1757,3 +1757,61 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
         await avisar_cdcs_cerrados(db, cdcs)
 
     return {"success": True, "cerrados": cerrados, "total": len(cerrados), "cdc_cerrados": [c.folio for c in cdcs]}
+
+
+
+# ── Tablero de SLA (Actualizaciones): leer y ajustar los tiempos por severidad ──
+class SeveridadSlaPayload(BaseModel):
+    response_sla_minutes: int
+    resolution_sla_hours: int
+    is_24_7: bool
+    rca_mandatory: bool
+
+
+def _puede_ajustar_sla(user: dict) -> None:
+    roles = set(user.get("roles") or [])
+    if not roles & {"it-service-desk:incident-manager", "super_admin"} and not user.get("is_super_admin"):
+        raise HTTPException(status_code=403, detail="Solo el Incident Manager o el super admin ajustan los SLA")
+
+
+def _sla_dict(sev) -> dict:
+    from app.services.sla import limites_sla
+    resp, resol = limites_sla(sev, datetime.now(timezone.utc))
+    return {"id": sev.id, "code": sev.code, "name": sev.name, "response_sla_minutes": sev.response_sla_minutes,
+            "resolution_sla_hours": sev.resolution_sla_hours, "is_24_7": sev.is_24_7, "rca_mandatory": sev.rca_mandatory,
+            "ejemplo": {"respuesta": resp.isoformat(), "resolucion": resol.isoformat()}}
+
+
+@router.get("/sla/severidades")
+async def sla_severidades(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    _puede_ajustar_sla(user)
+    sevs = (await db.execute(select(TicketSeverity).order_by(TicketSeverity.code))).scalars().all()
+    return [_sla_dict(s) for s in sevs]
+
+
+@router.put("/sla/severidades/{code}")
+async def ajustar_sla(code: str, body: SeveridadSlaPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Ajusta una severidad. Aplica a los tickets nuevos; cada cambio queda en el historial de Ajustes."""
+    import uuid as _uuid
+    from sqlalchemy import text as _text
+    _puede_ajustar_sla(user)
+    if not 1 <= body.response_sla_minutes <= 10080:
+        raise HTTPException(status_code=422, detail="La respuesta debe estar entre 1 minuto y 7 días (10,080 min)")
+    if not 1 <= body.resolution_sla_hours <= 2000:
+        raise HTTPException(status_code=422, detail="La resolución debe estar entre 1 y 2,000 horas")
+    sev = (await db.execute(select(TicketSeverity).where(TicketSeverity.code == code))).scalar_one_or_none()
+    if not sev:
+        raise HTTPException(status_code=404, detail="Severidad no encontrada")
+    resumen = lambda r, z, n, c: f"respuesta {r} min · resolución {z} h · {'naturales' if n else 'hábiles'}{' · RCA obligatoria' if c else ''}"
+    antes = resumen(sev.response_sla_minutes, sev.resolution_sla_hours, sev.is_24_7, sev.rca_mandatory)
+    sev.response_sla_minutes, sev.resolution_sla_hours = body.response_sla_minutes, body.resolution_sla_hours
+    sev.is_24_7, sev.rca_mandatory = body.is_24_7, body.rca_mandatory
+    despues = resumen(sev.response_sla_minutes, sev.resolution_sla_hours, sev.is_24_7, sev.rca_mandatory)
+    if despues != antes:
+        await db.execute(_text(
+            "INSERT INTO ajustes_historial (id, key, valor_anterior, valor_nuevo, usuario_id, usuario_nombre, created_at) "
+            "VALUES (:id, :key, :ant, :nue, :uid, :unom, now())"),
+            {"id": str(_uuid.uuid4()), "key": f"sla.{sev.code}", "ant": antes, "nue": despues,
+             "uid": str(user.get("user_id") or user.get("sub") or "") or None, "unom": user.get("full_name") or ""})
+    await db.commit()
+    return _sla_dict(sev)
