@@ -129,6 +129,37 @@ async def internal_search_users(q: str, limit: int = 15, db: AsyncSession = Depe
     """), {"q": f"%{q.strip()}%", "limit": min(max(limit, 1), 30)})
     return [{"id": str(r[0]), "name": r[1], "email": r[2], "puesto": r[3], "departamento": r[4], "is_locked": bool(r[5])} for r in result.fetchall()]
 
+@app.post("/internal/users/{user_id}/files", include_in_schema=False)
+async def internal_registrar_documento(user_id: str, body: dict, db: AsyncSession = Depends(get_db)):
+    """Registra en el expediente del empleado un documento que YA está en MinIO (sin volver a subirlo),
+    con su bitácora. Lo usan otros módulos, por ejemplo los formatos de acceso firmados. Idempotente."""
+    from datetime import datetime as _dt
+    from sqlalchemy import select as _select
+    from app.models.admin_models import User as _User, UserFile as _UserFile
+    from app.services.user_file_service import _log_audit
+    user = (await db.execute(_select(_User).where(_User.id == user_id, _User.is_deleted == False))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    ya = (await db.execute(_select(_UserFile).where(_UserFile.object_key == body["object_key"], _UserFile.is_deleted == False))).scalar_one_or_none()
+    if ya:
+        return {"id": str(ya.id), "ya_existia": True}
+    nombre = body["original_name"]
+    f = _UserFile(user_id=user_id, company_id=str(user.company_id), original_name=nombre,
+                  stored_name=body["object_key"].rsplit("/", 1)[-1], object_key=body["object_key"], bucket=body.get("bucket", "dirdoc"),
+                  mime_type=body.get("mime_type", "application/pdf"), extension=nombre.rsplit(".", 1)[-1] if "." in nombre else "pdf",
+                  size_bytes=int(body["size_bytes"]), checksum=body["checksum"], description=body.get("description"),
+                  uploaded_by=body["uploaded_by"], uploaded_at=_dt.fromisoformat(body["uploaded_at"]))
+    db.add(f)
+    await db.flush()
+    await _log_audit(db=db, file_id=str(f.id), action="uploaded", performed_by=body["uploaded_by"],
+                     performed_by_name=body.get("uploaded_by_name") or "Sistema", performed_by_role=body.get("origen") or "sistema",
+                     ip_address=None, user_agent=body.get("origen") or "sistema", company_id=str(user.company_id),
+                     detail={"size_bytes": int(body["size_bytes"]), "mime_type": body.get("mime_type", "application/pdf"),
+                             "original_name": nombre, "origen": body.get("origen"), "referencia": body.get("referencia")})
+    await db.commit()
+    return {"id": str(f.id), "ya_existia": False}
+
+
 @app.get("/internal/users/{user_id}/permissions", include_in_schema=False)
 async def internal_get_user_permissions(
     user_id: str,

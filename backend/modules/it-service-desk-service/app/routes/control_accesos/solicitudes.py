@@ -815,6 +815,8 @@ async def liberar_solicitud(incident_id: str, body: LiberarPayload, db: AsyncSes
     sol.estado_firma, sol.firmado_object_key, sol.usuario_asignado, sol.fecha_alta = "firmado", key, usuario_asig, local.date()
     sol.datos = {**(sol.datos or {}), "liberacion": {"por": nombre_ti, "en": ahora.isoformat(), "huella_escaneo": huella}}
     await registrar_cuenta(db, sol, usuario_asig, inc.folio)
+    from app.services.control_accesos.firma.cierre import registrar_en_expediente
+    await registrar_en_expediente(db, sol, inc, documento, key, usuario_asig)
     inc.status, inc.resolved_at = "terminado", ahora
     _bitacora(db, inc, _uid(user), user, "liberada_por_ti", {"usuario_asignado": usuario_asig, "huella_escaneo": huella})
     await db.commit()

@@ -219,3 +219,14 @@ export const accAprobar = (incidentId: string, data: { jefe_admin_nombre: string
   api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/aprobar`, data)
 export const accRechazar = (incidentId: string, motivo: string) =>
   api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/rechazar`, { motivo })
+
+// ── Firma manual y contraseña temporal ─────────────────────────────────────
+export const accLiberar = (incidentId: string, data: { usuario_asignado: string; contrasena_temporal: string }) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/liberar`, data)
+export const accGuardarContrasena = (incidentId: string, contrasena_temporal: string) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/contrasena-temporal`, { contrasena_temporal })
+export const accVerFirmaTI = (formatoId: string) => api.get(`/api/v1/it-service-desk/control-accesos/formatos/${formatoId}/firma-ti`)
+export const accSubirFirmaTI = (formatoId: string, archivo: File) => {
+  const fd = new FormData(); fd.append('archivo', archivo)
+  return api.post(`/api/v1/it-service-desk/control-accesos/formatos/${formatoId}/firma-ti`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+}

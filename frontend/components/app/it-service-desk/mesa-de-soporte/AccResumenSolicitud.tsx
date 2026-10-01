@@ -3,7 +3,7 @@
 // Resumen por secciones de una solicitud de acceso, para el panel del ticket.
 import { useEffect, useState } from 'react'
 import { Lock } from 'lucide-react'
-import { accGenerarPdfSolicitud, accResumenSolicitud, accAprobar, accRechazar } from '@/services/itServiceDeskService'
+import { accGenerarPdfSolicitud, accResumenSolicitud, accAprobar, accRechazar, accLiberar, accGuardarContrasena } from '@/services/itServiceDeskService'
 import { useAuthStore } from '@/store/authStore'
 
 interface Resumen {
@@ -13,6 +13,8 @@ interface Resumen {
   modulos: { nombre: string; exclusivo_admin: boolean; perfil: string; rutinas: string[] }[]
   vigencia: string; observaciones: string; jefe: { nombre?: string; correo?: string }; tiene_pdf: boolean
   estado_firma?: string | null
+  metodo_firma?: string | null
+  tiene_contrasena?: boolean
   revision?: { aprobada_por?: string; aprobada_en?: string; rechazada_por?: string; rechazada_en?: string; motivo?: string;
                jefe_admin?: { nombre: string; correo: string } | null } | null
 }
@@ -26,6 +28,32 @@ export default function AccResumenSolicitud({ incidentId, fallback, estado, asig
 }) {
   const [r, setR] = useState<Resumen | null>(null)
   const [error, setError] = useState(false)
+  // Contraseña temporal: 1 mayúscula + 4 minúsculas + 4 números + 1 símbolo, sin caracteres que se confunden
+  const generar = () => {
+    const al = (c: string) => c[crypto.getRandomValues(new Uint32Array(1))[0] % c.length]
+    const may = 'ABCDEFGHJKLMNPQRSTUVWXYZ', min = 'abcdefghijkmnpqrstuvwxyz', num = '23456789', sim = '*#!$'
+    return al(may) + Array.from({ length: 4 }, () => al(min)).join('') + Array.from({ length: 4 }, () => al(num)).join('') + al(sim)
+  }
+  const [contrasena, setContrasena] = useState(generar)
+  const [usuarioAsig, setUsuarioAsig] = useState('')
+  const [copiado, setCopiado] = useState(false)
+  const [liberando, setLiberando] = useState(false)
+  const [msgLib, setMsgLib] = useState<string | null>(null)
+  const passValida = contrasena.length >= 8 && /[A-Z]/.test(contrasena) && /[a-z]/.test(contrasena) && /[0-9*#!$%&?@._-]/.test(contrasena)
+  const copiar = async () => { try { await navigator.clipboard.writeText(contrasena); setCopiado(true); setTimeout(() => setCopiado(false), 1500) } catch {} }
+  const liberar = async () => {
+    setLiberando(true); setMsgLib(null)
+    try { await accLiberar(incidentId, { usuario_asignado: usuarioAsig.trim(), contrasena_temporal: contrasena }); await recargarR(); onCambio?.() }
+    catch (e: any) { const d = e?.response?.data?.detail; setMsgLib(typeof d === 'string' ? d : 'No se pudo liberar') }
+    finally { setLiberando(false) }
+  }
+  const guardarPass = async () => {
+    setLiberando(true); setMsgLib(null)
+    try { await accGuardarContrasena(incidentId, contrasena); await recargarR(); setMsgLib('Guardada: se mandará al usuario cuando firmes en DocuSign.') }
+    catch (e: any) { const d = e?.response?.data?.detail; setMsgLib(typeof d === 'string' ? d : 'No se pudo guardar') }
+    finally { setLiberando(false) }
+  }
+  const recargarR = () => accResumenSolicitud(incidentId).then(x => setR(x.data)).catch(() => {})
   const [accion, setAccion] = useState<'' | 'aprobar' | 'rechazar'>('')
   const [conAdmin, setConAdmin] = useState(false)
   const [adminNombre, setAdminNombre] = useState('')
@@ -166,10 +194,47 @@ export default function AccResumenSolicitud({ incidentId, fallback, estado, asig
           </div>
         )}
         {estado === 'en_firma' && (
-          <p className="text-[13px] text-slate-700">
-            Aprobada{r.revision?.aprobada_por ? ` por ${r.revision.aprobada_por}` : ''}{r.revision?.aprobada_en ? ` el ${fechaCorta(r.revision.aprobada_en)}` : ''}. En firma en DocuSign:{' '}
-            <b>Usuario → Jefe directo{r.revision?.jefe_admin ? ` → ${r.revision.jefe_admin.nombre} (jefe administrativo)` : ''} → TI</b>.
-          </p>
+          <div className="grid gap-2.5">
+            <p className="text-[13px] text-slate-700">
+              Aprobada{r.revision?.aprobada_por ? ` por ${r.revision.aprobada_por}` : ''}{r.revision?.aprobada_en ? ` el ${fechaCorta(r.revision.aprobada_en)}` : ''}.{' '}
+              {r.metodo_firma === 'manual' ? 'Firma manual: el usuario recaba las firmas y sube el escaneo.' : 'En firma en DocuSign:'}{' '}
+              <b>Usuario → Jefe directo{r.revision?.jefe_admin ? ` → ${r.revision.jefe_admin.nombre} (jefe administrativo)` : ''} → TI</b>.
+            </p>
+            {r.metodo_firma === 'manual' && r.estado_firma === 'por_firmar' && <p className="text-[13px] text-amber-700">Esperando el documento firmado del usuario.</p>}
+            {puedeRevisar && (r.metodo_firma === 'docusign' || r.estado_firma === 'por_liberar') && (
+              <div className="grid gap-2.5 border border-slate-300 rounded-lg p-3 bg-slate-50/60">
+                {r.metodo_firma === 'manual' && <p className="text-[13px] text-emerald-700 font-medium">El usuario subió el formato firmado (está en las evidencias). Revisa que estén todas las firmas.</p>}
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Contraseña temporal para el sistema</label>
+                <div className="flex flex-wrap gap-2">
+                  <input value={contrasena} onChange={e => setContrasena(e.target.value)} aria-label="Contraseña temporal" spellCheck={false}
+                    className="flex-1 min-w-[160px] h-9 px-3 border border-slate-300 rounded-lg font-mono text-[15px] tracking-wide bg-white outline-none focus:border-[#1a4fa0]" />
+                  <button type="button" onClick={copiar} className="h-9 px-3 rounded-lg text-[13px] font-semibold border border-slate-300 bg-white hover:bg-slate-50">{copiado ? '✓ Copiada' : '📋 Copiar'}</button>
+                  <button type="button" onClick={() => setContrasena(generar())} className="h-9 px-3 rounded-lg text-[13px] border border-slate-300 bg-white hover:bg-slate-50">Generar otra</button>
+                </div>
+                <p className="text-[12px] text-slate-500">Pégala en el sistema al crear el usuario y marca que la cambie en su primer inicio. Solo se le manda por correo al usuario.</p>
+                {r.metodo_firma === 'manual' ? (
+                  <>
+                    <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mt-1">Usuario asignado</label>
+                    <input value={usuarioAsig} onChange={e => setUsuarioAsig(e.target.value)} placeholder="Ej. jmedina" aria-label="Usuario asignado"
+                      className="h-9 px-3 border border-slate-300 rounded-lg font-mono text-sm bg-white outline-none focus:border-[#1a4fa0]" />
+                    {msgLib && <p role="alert" className="text-[12.5px] text-red-600">{msgLib}</p>}
+                    <div className="flex justify-end">
+                      <button type="button" disabled={liberando || !usuarioAsig.trim() || !passValida} onClick={liberar}
+                        className="px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50">{liberando ? 'Liberando…' : 'Liberar acceso'}</button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className={`text-[12.5px] ${msgLib?.startsWith('Guardada') || r.tiene_contrasena ? 'text-emerald-700' : 'text-slate-500'}`}>
+                      {msgLib ?? (r.tiene_contrasena ? '✓ Ya hay una contraseña guardada para el correo final.' : 'Guárdala antes de firmar en DocuSign.')}
+                    </p>
+                    <button type="button" disabled={liberando || !passValida} onClick={guardarPass}
+                      className="px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-[#1a4fa0] hover:bg-[#153f82] disabled:opacity-50">{liberando ? 'Guardando…' : 'Guardar para el correo final'}</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
         {estado === 'rechazado' && (
           <p className="text-[13px] text-red-700">

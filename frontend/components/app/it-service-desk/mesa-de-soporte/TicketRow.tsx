@@ -18,6 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
   registrado: 'Registrado', en_revision: 'En revisión', aprobado: 'Aprobado',
   rechazado: 'Rechazado', priorizado: 'Priorizado', en_desarrollo: 'En desarrollo',
   en_pruebas: 'En pruebas (UAT)', terminado: 'Terminado', cancelado: 'Cancelado',
+  en_firma: 'En firma',
 }
 export const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-500/[0.12] text-slate-600',
@@ -35,6 +36,7 @@ export const STATUS_CLASS: Record<string, string> = {
   en_pruebas: 'bg-orange-500/[0.12] text-orange-700',
   terminado: 'bg-teal-600/[0.14] text-teal-800',
   cancelado: 'bg-slate-600/[0.14] text-slate-700',
+  en_firma: 'bg-pink-500/[0.12] text-pink-700',
 }
 const STATUS_DOT: Record<string, string> = {
   en_backlog: 'bg-slate-400',
@@ -52,6 +54,7 @@ const STATUS_DOT: Record<string, string> = {
   en_pruebas: 'bg-orange-500',
   terminado: 'bg-teal-600',
   cancelado: 'bg-slate-500',
+  en_firma: 'bg-pink-500',
 }
 const SEV_CLASS: Record<string, string> = {
   S1: 'bg-red-500/[0.10] text-red-700 border border-red-500/25',

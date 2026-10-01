@@ -30,6 +30,7 @@ interface Detail {
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'En backlog', asignado: 'Asignado', en_atencion: 'En atención',
   escalado: 'Escalado', resuelto: 'Resuelto', cerrado: 'Cerrado',
+  en_firma: 'En firma',
 }
 const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-100 text-slate-600',
@@ -38,6 +39,7 @@ const STATUS_CLASS: Record<string, string> = {
   escalado: 'bg-red-100 text-red-700',
   resuelto: 'bg-emerald-100 text-emerald-700',
   cerrado: 'bg-slate-200 text-slate-600',
+  en_firma: 'bg-pink-500/[0.12] text-pink-700',
 }
 const SEV_CLASS: Record<string, string> = {
   S1: 'bg-red-50 text-red-700 border-red-300',

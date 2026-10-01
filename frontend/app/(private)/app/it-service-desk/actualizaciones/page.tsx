@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Server, Plus, Pencil, Power, Search, KeyRound, Globe, Link2, Timer } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import SlaConfig from '@/components/app/it-service-desk/actualizaciones/SlaConfig'
+import FirmaTI from '@/components/app/it-service-desk/actualizaciones/FirmaTI'
 import ControlAccesosConfig from '@/components/app/it-service-desk/actualizaciones/ControlAccesosConfig'
 import {
   getSystems, createSystem, updateSystem,
@@ -121,7 +122,7 @@ export default function ActualizacionesPage() {
         ))}
       </div>
 
-      {tab === 'accesos' && <ControlAccesosConfig />}
+      {tab === 'accesos' && <><FirmaTI /><ControlAccesosConfig /></>}
       {tab === 'sla' && <SlaConfig />}
 
       {tab === 'catalogo' && (loading ? (

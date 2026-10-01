@@ -78,6 +78,7 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
             if hasattr(cuenta, campo):
                 setattr(cuenta, campo, usuario or None)
 
+    await registrar_en_expediente(db, sol, inc, pdf, key, usuario)
     inc.status, inc.resolved_at = "terminado", ahora
     db.add(IncidentActivityLog(incident_id=inc.id, action="firmada_por_todos", performed_by=f_admin or inc.requester_id,
                                performed_by_name="DocuSign", performed_by_role="sistema", performed_at=ahora,
@@ -106,3 +107,32 @@ async def registrar_cuenta(db, sol, usuario: str, folio: str) -> None:
     for campo in ("usuario_asignado", "usuario_sistema"):
         if hasattr(cuenta, campo):
             setattr(cuenta, campo, usuario or None)
+
+
+
+async def registrar_en_expediente(db, sol, inc, documento: bytes, key: str, usuario: str) -> None:
+    """El formato firmado, en Usuarios -> Documentos del solicitante (misma referencia en MinIO, sin duplicarlo).
+    Nombre: ALTA|MOD_{FORMATO}_{MATRICULA}_{FOLIO}_{FECHA}.pdf, para leerlo como línea de tiempo."""
+    import hashlib
+    import httpx
+    from app.models.mesa_de_soporte import AccFormato
+    try:
+        f = (await db.execute(select(AccFormato).where(AccFormato.id == sol.formato_id))).scalar_one_or_none()
+        snap = sol.datos or {}
+        matricula = (snap.get("usuario") or {}).get("matricula") or "SINMAT"
+        mov = "MOD" if sol.movimiento == "modificacion" else "ALTA"
+        fecha = (sol.fecha_alta or datetime.now(timezone.utc).astimezone(ZoneInfo("America/Monterrey")).date()).isoformat()
+        clave = (f.clave if f else "FORMATO").upper()
+        nombre = f"{mov}_{clave}_{matricula}_{inc.folio}_{fecha}.pdf"
+        descripcion = f"{'Modificación' if mov == 'MOD' else 'Alta'} de usuario · {f.nombre if f else ''} · usuario {usuario or '—'}"
+        cuerpo = {"original_name": nombre, "object_key": key, "bucket": "dirdoc", "mime_type": "application/pdf",
+                  "size_bytes": len(documento), "checksum": hashlib.sha256(documento).hexdigest(), "description": descripcion,
+                  "uploaded_by": str((f.admin_user_id if f and f.admin_user_id else inc.requester_id)),
+                  "uploaded_by_name": "Control de accesos", "origen": "it-service-desk",
+                  "referencia": inc.folio, "uploaded_at": datetime.now(timezone.utc).isoformat()}
+        async with httpx.AsyncClient(timeout=10.0) as cli:
+            r = await cli.post(f"http://admin-service:8000/internal/users/{inc.requester_id}/files", json=cuerpo)
+            r.raise_for_status()
+        log.info("Formato %s registrado en el expediente como %s", inc.folio, nombre)
+    except Exception as e:
+        log.warning("No se pudo registrar %s en el expediente del empleado: %s", inc.folio, e)
