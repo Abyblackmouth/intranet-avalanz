@@ -50,7 +50,6 @@ MODULE_WIDE_ROLES = {
     "it-service-desk:incident-manager", "it-service-desk:project-manager",
     "it-service-desk:auditoria", "it-service-desk:comite-directivo",
     "it-service-desk:especialista-funcional", "it-service-desk:especialista-tecnico",
-    "it-service-desk:tecnico",
 }
 
 
@@ -84,7 +83,10 @@ async def list_incidents(
             query = query.where(Incident.company_id.in_(companies))
     elif not is_module_wide:
         # Solicitante -- solo ve lo suyo
-        query = query.where(Incident.requester_id == user.get("user_id"))
+        if "it-service-desk:tecnico" in roles:   # técnico (apoyo externo): lo que levantó y lo asignado a él
+            query = query.where((Incident.requester_id == user.get("user_id")) | (Incident.assigned_to_user_id == user.get("user_id")))
+        else:
+            query = query.where(Incident.requester_id == user.get("user_id"))
 
     if status:
         query = query.where(Incident.status == status)
@@ -175,7 +177,8 @@ async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_d
     roles = set(user.get("roles") or [])
     is_module_wide = bool(roles & MODULE_WIDE_ROLES) or "super_admin" in roles
     is_jefe_empresa = "it-service-desk:jefe-empresa" in roles
-    is_owner = incident.requester_id == user.get("user_id")
+    is_owner = incident.requester_id == user.get("user_id") or (
+        "it-service-desk:tecnico" in roles and incident.assigned_to_user_id == user.get("user_id"))
 
     if not is_module_wide and not is_owner:
         if is_jefe_empresa:
