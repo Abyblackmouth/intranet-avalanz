@@ -9,6 +9,7 @@ export interface GroupRow {
 }
 
 export interface CompanyRow {
+  family_id?: string | null
   company_id: string
   group_id: string
   nombre_comercial: string

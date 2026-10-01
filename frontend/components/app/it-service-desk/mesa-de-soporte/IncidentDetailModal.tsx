@@ -1,10 +1,12 @@
 'use client'
 
+import AccResumenSolicitud from '@/components/app/it-service-desk/mesa-de-soporte/AccResumenSolicitud'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { getIncidentDetail, getSystems, getSeverities, resolveIncident } from '@/services/itServiceDeskService'
+import { getIncidentDetail, getSystems, getSeverities, resolveIncident, marcarRevisado, cambiarSeveridad } from '@/services/itServiceDeskService'
 import { getSignedUrl } from '@/services/uploadService'
-import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip } from 'lucide-react'
+import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip, Printer, Eye } from 'lucide-react'
+import { imprimirTicket } from './imprimirTicket'
 import AssignIncidentModal from './AssignIncidentModal'
 
 interface Attachment { id: string; attachment_type: string; object_key: string; bucket: string; mime_type: string }
@@ -28,14 +30,16 @@ interface Detail {
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'En backlog', asignado: 'Asignado', en_atencion: 'En atención',
   escalado: 'Escalado', resuelto: 'Resuelto', cerrado: 'Cerrado',
+  en_firma: 'En firma',
 }
 const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-100 text-slate-600',
   asignado: 'bg-blue-100 text-blue-700',
-  en_atencion: 'bg-[#7c2d12]/10 text-[#7c2d12]',
+  en_atencion: 'bg-[#1a4fa0]/10 text-[#1a4fa0]',
   escalado: 'bg-red-100 text-red-700',
   resuelto: 'bg-emerald-100 text-emerald-700',
   cerrado: 'bg-slate-200 text-slate-600',
+  en_firma: 'bg-pink-500/[0.12] text-pink-700',
 }
 const SEV_CLASS: Record<string, string> = {
   S1: 'bg-red-50 text-red-700 border-red-300',
@@ -104,7 +108,7 @@ function AttachmentThumb({ a, index, label }: { a: Attachment; index: number; la
     <>
       {loading ? (
         <div className="w-full h-full flex items-center justify-center">
-          <div className="w-4 h-4 border-2 border-slate-300 border-t-[#7c2d12] rounded-full animate-spin" />
+          <div className="w-4 h-4 border-2 border-slate-300 border-t-[#1a4fa0] rounded-full animate-spin" />
         </div>
       ) : failed || !url ? (
         <div className="w-full h-full flex items-center justify-center text-slate-300">
@@ -120,7 +124,7 @@ function AttachmentThumb({ a, index, label }: { a: Attachment; index: number; la
   )
 
   return (
-    <a href={url ?? undefined} target="_blank" rel="noopener noreferrer" className="group relative w-24 h-24 rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#7c2d12] transition shrink-0 bg-slate-100">
+    <a href={url ?? undefined} target="_blank" rel="noopener noreferrer" className="group relative w-24 h-24 rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#1a4fa0] transition shrink-0 bg-slate-100">
       {inner}
     </a>
   )
@@ -132,6 +136,13 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   onChanged?: () => void
 }) {
   const { user } = useAuthStore()
+  const [showSev, setShowSev] = useState(false)
+  const [nuevaSev, setNuevaSev] = useState('')
+  const [motivoSev, setMotivoSev] = useState('')
+  const [guardandoSev, setGuardandoSev] = useState(false)
+  const [errorSev, setErrorSev] = useState<string | null>(null)
+  const [revisadoAt, setRevisadoAt] = useState<string | null>(null)
+  const [marcandoRevisado, setMarcandoRevisado] = useState(false)
   const [detail, setDetail] = useState<Detail | null>(null)
   const [systems, setSystems] = useState<{ id: string; name: string }[]>([])
   const [severities, setSeverities] = useState<{ id: string; code: string; name: string }[]>([])
@@ -196,6 +207,12 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const systemName = (id: string) => systems.find(s => s.id === id)?.name ?? '—'
   const sevInfo = (id: string | null) => id ? severities.find(s => s.id === id) : null
   const sev = detail ? sevInfo(detail.severity_validated_id ?? detail.severity_reported_id) : null
+  const esAccesoTicket = !!detail && ((detail as any).ticket_type === 'solicitud_acceso' || !!detail.folio?.startsWith('ACC-'))
+  const yo: any = (useAuthStore.getState() as any).user ?? {}
+  const misRoles: string[] = yo.roles ?? []
+  const esIM = misRoles.includes('it-service-desk:incident-manager') || misRoles.includes('super_admin')
+  const esEsp = misRoles.includes('it-service-desk:especialista-funcional') || misRoles.includes('it-service-desk:especialista-tecnico')
+  const puedeCambiarSev = !!detail && (esIM || (esEsp && String(detail.assigned_to_user_id ?? '') === String(yo.user_id ?? yo.id ?? '')))
 
   const reportEvidence = detail?.attachments.filter(a => a.attachment_type === 'evidencia_reporte') ?? []
   const resolutionEvidence = detail?.attachments.filter(a => a.attachment_type === 'evidencia_resolucion') ?? []
@@ -209,7 +226,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-300 shrink-0 bg-white">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-mono text-slate-400">{detail?.folio ?? '...'}</p>
+              <p className="text-sm text-slate-400"><span className="text-slate-500">Folio número:</span> <span className="font-mono">{detail?.folio ?? '...'}</span></p>
               {detail && (
                 <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${STATUS_CLASS[detail.status] ?? ''}`}>
                   {STATUS_LABEL[detail.status] ?? detail.status}
@@ -224,6 +241,50 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                 {sev.code} · {sev.name}
               </span>
             )}
+            {sev && puedeCambiarSev && !['resuelto', 'cerrado'].includes(detail!.status) && (
+              <button type="button" onClick={() => { setNuevaSev(''); setMotivoSev(''); setErrorSev(null); setShowSev(true) }}
+                className="h-9 px-3 rounded-lg text-[13px] font-semibold text-[#1a4fa0] border border-[#1a4fa0]/40 hover:bg-blue-50 transition">
+                Cambiar
+              </button>
+            )}
+            {showSev && detail && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/40" onClick={() => !guardandoSev && setShowSev(false)} />
+                <div role="dialog" aria-modal="true" aria-labelledby="titulo-sev" className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+                  <h3 id="titulo-sev" className="text-base font-bold text-slate-900">Cambiar severidad</h3>
+                  <p className="text-sm text-slate-500 mt-1">El SLA se recalcula con la nueva severidad y se le avisa al solicitante.</p>
+                  <label className="block mt-4 text-xs font-semibold text-slate-600 uppercase tracking-wide">Nueva severidad</label>
+                  <div role="radiogroup" className="mt-1.5 grid grid-cols-2 gap-2">
+                    {severities.filter(x => x.id !== (detail.severity_validated_id ?? detail.severity_reported_id)).map(x => (
+                      <button key={x.id} type="button" role="radio" aria-checked={nuevaSev === x.id} onClick={() => setNuevaSev(x.id)}
+                        className={`px-3 py-2 rounded-lg border-2 text-sm font-bold text-left transition ${SEV_CLASS[x.code] ?? 'bg-slate-50 text-slate-600 border-slate-300'} ${nuevaSev === x.id ? 'ring-2 ring-[#1a4fa0] ring-offset-1' : 'opacity-70 hover:opacity-100'}`}>
+                        {x.code} · {x.name}
+                      </button>
+                    ))}
+                  </div>
+                  <label htmlFor="motivo-sev" className="block mt-4 text-xs font-semibold text-slate-600 uppercase tracking-wide">Motivo <span className="text-red-500">*</span></label>
+                  <textarea id="motivo-sev" rows={3} value={motivoSev} onChange={e => setMotivoSev(e.target.value)}
+                    placeholder="Ej. Solo afecta a un usuario, no a toda la operación"
+                    className="mt-1.5 w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4fa0] resize-none" />
+                  {errorSev && <p role="alert" className="mt-2 text-sm text-red-600">{errorSev}</p>}
+                  <div className="mt-5 flex justify-end gap-2">
+                    <button type="button" disabled={guardandoSev} onClick={() => setShowSev(false)} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
+                    <button type="button" disabled={!nuevaSev || motivoSev.trim().length < 5 || guardandoSev}
+                      onClick={async () => {
+                        setGuardandoSev(true); setErrorSev(null)
+                        try {
+                          await cambiarSeveridad(detail.id, { severity_id: nuevaSev, motivo: motivoSev.trim() })
+                          const r = await getIncidentDetail(detail.id); setDetail(r.data); setShowSev(false)
+                        } catch (e: any) { const d = e?.response?.data?.detail; setErrorSev(typeof d === 'string' ? d : 'No se pudo cambiar la severidad') }
+                        finally { setGuardandoSev(false) }
+                      }}
+                      className="px-5 py-2 text-sm font-semibold rounded-lg bg-[#1a4fa0] text-white hover:bg-[#153f82] disabled:opacity-50">
+                      {guardandoSev ? 'Guardando…' : 'Cambiar severidad'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <button onClick={onClose} className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 transition">
               <X size={20} />
             </button>
@@ -234,7 +295,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
         <div className="flex-1 overflow-y-auto px-6 py-5 bg-white">
           {loading ? (
             <div className="flex items-center justify-center h-40">
-              <div className="w-6 h-6 border-2 border-[#7c2d12] border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : error || !detail ? (
             <div className="text-center py-12 text-red-500 text-sm">{error ?? 'No se pudo cargar el ticket'}</div>
@@ -263,7 +324,10 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                     <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.reported_type ?? '—'}</p></div>
                     <div><p className="text-[10px] text-slate-400 uppercase">Creado</p><p className="font-medium text-slate-800">{fmt(detail.created_at)}</p></div>
                   </div>
-                  <p className="text-sm text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-3">{detail.description}</p>
+                  {((detail as any).ticket_type === 'solicitud_acceso' || detail.folio?.startsWith('ACC-'))
+                    ? <AccResumenSolicitud incidentId={detail.id} fallback={detail.description} estado={detail.status} asignadoId={detail.assigned_to_user_id}
+                        onCambio={() => getIncidentDetail(detail.id).then(r => setDetail(r.data)).catch(() => {})} />
+                    : <p className="text-sm text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-3">{detail.description}</p>}
 
                   {reportEvidence.length > 0 && (
                     <div className="flex gap-2 mt-3 flex-wrap">
@@ -279,7 +343,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                     {canAssign && (
                       <button
                         onClick={() => setShowAssignModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#7c2d12] hover:bg-[#6b2610] shadow-sm transition"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#1a4fa0] hover:bg-[#153f82] shadow-sm transition"
                       >
                         <UserCog size={16} />
                         {detail.assigned_to_user_id ? 'Reasignar' : 'Asignar'}
@@ -315,7 +379,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                         <div><p className="text-[10px] text-slate-400 uppercase">Resuelto</p><p className="font-medium text-slate-800">{fmt(detail.resolved_at)}</p></div>
                         <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.resolution_type?.replace('_', ' ')}</p></div>
                       </div>
-                    ) : canResolve && !showResolveForm ? (
+                    ) : canResolve && !esAccesoTicket && !showResolveForm ? (
                       <button
                         onClick={() => setShowResolveForm(true)}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition"
@@ -323,7 +387,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                         <CheckCircle2 size={16} />
                         Marcar como resuelto
                       </button>
-                    ) : canResolve && showResolveForm ? (
+                    ) : canResolve && !esAccesoTicket && showResolveForm ? (
                       <div className="border border-slate-200 rounded-xl p-4 space-y-3">
                         <div>
                           <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Tipo de resolución</label>
@@ -382,7 +446,31 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
 
               {/* Columna derecha: SLA y bitacora -- mismo alto que la columna izquierda completa */}
               <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-5 h-full flex flex-col">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">SLA y bitácora</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">SLA y bitácora</p>
+                  <div className="flex items-center gap-1.5">
+                  {(revisadoAt ?? (detail as any).first_response_at) ? (
+                    <span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200" title="Primera respuesta registrada">
+                      <CheckCircle2 size={14} /> Revisado · {new Date(revisadoAt ?? (detail as any).first_response_at).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  ) : !['resuelto', 'cerrado'].includes(detail.status) && (
+                    <button type="button" disabled={marcandoRevisado}
+                      onClick={async () => {
+                        setMarcandoRevisado(true)
+                        try { const r = await marcarRevisado(detail.id); setRevisadoAt(r.data?.first_response_at ?? new Date().toISOString()) }
+                        catch (e: any) { alert(e?.response?.data?.detail ?? 'No se pudo marcar como revisado') }
+                        finally { setMarcandoRevisado(false) }
+                      }}
+                      className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white bg-[#1a4fa0] hover:bg-[#153f82] disabled:opacity-60 transition">
+                      <Eye size={14} /> {marcandoRevisado ? 'Marcando…' : 'Marcar como revisado'}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => imprimirTicket(detail)} title="Imprimir ticket" aria-label="Imprimir ticket"
+                    className="w-8 h-8 -my-1 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-[#1a4fa0] transition">
+                    <Printer size={16} />
+                  </button>
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="border-2 border-amber-300 rounded-xl p-3">
@@ -400,7 +488,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                   <div className="absolute left-[5px] top-1 bottom-1 w-px bg-slate-200" />
                   {detail.activity_log.map((ev, i) => (
                     <div key={i} className="relative pb-3 last:pb-0">
-                      <div className="absolute -left-5 top-0.5 w-3 h-3 rounded-full bg-white border-2 border-[#7c2d12]" />
+                      <div className="absolute -left-5 top-0.5 w-3 h-3 rounded-full bg-white border-2 border-[#1a4fa0]" />
                       <p className="text-[10px] font-mono text-slate-400">{fmt(ev.performed_at)}</p>
                       <p className="text-sm font-semibold text-slate-800">{ACTION_LABEL[ev.action] ?? ev.action}</p>
                       <p className="text-xs text-slate-500">{ev.performed_by_name} · {ev.performed_by_role}</p>

@@ -93,7 +93,7 @@ export default function AssignIncidentModal({
           value={team}
           onChange={(e) => setTeam(e.target.value)}
           disabled={!!lockedTeam}
-          className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#7c2d12] mb-1 disabled:opacity-60 disabled:bg-slate-50"
+          className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#1a4fa0] mb-1 disabled:opacity-60 disabled:bg-slate-50"
         >
           {TEAM_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
@@ -107,7 +107,7 @@ export default function AssignIncidentModal({
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
           disabled={loadingUsers}
-          className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#7c2d12] mb-2 disabled:opacity-50"
+          className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#1a4fa0] mb-2 disabled:opacity-50"
         >
           <option value="">{loadingUsers ? 'Cargando...' : users.length === 0 ? 'Nadie disponible para este equipo' : 'Selecciona una persona'}</option>
           {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -117,7 +117,7 @@ export default function AssignIncidentModal({
 
         <div className="flex justify-end gap-3 mt-4">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition">Cancelar</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-[#7c2d12] rounded-lg hover:bg-[#6b2610] disabled:opacity-50 transition">
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-[#1a4fa0] rounded-lg hover:bg-[#153f82] disabled:opacity-50 transition">
             {saving ? 'Asignando...' : 'Asignar'}
           </button>
         </div>

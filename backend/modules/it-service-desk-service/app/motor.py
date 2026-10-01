@@ -22,8 +22,9 @@ TEAM_BY_REPORTED_TYPE = {
 
 
 async def _usuarios_activos(role_slugs) -> Optional[set]:
-    """IDs de usuarios activos y sin bloquear con alguno de esos roles del
-    modulo (by-module-role ya filtra dados de baja y bloqueados). Regresa None
+    """IDs de usuarios activos con alguno de esos roles del modulo.
+    by-module-role descarta las bajas (inactivos) y los eliminados; un bloqueado
+    (intentos fallidos o bloqueo manual) SI recibe tickets: sigue siendo empleado. Regresa None
     si admin-service no respondio: en ese caso no se valida, para no dejar
     tickets sin asignar por una caida ajena al motor."""
     import httpx

@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { Eye, UserPlus, Clock } from 'lucide-react'
+import { Eye, UserPlus, Clock, CheckCircle2 } from 'lucide-react'
 
 // Prioridad de CDC (definida por el PM al priorizar). Letra P para no
 // confundirse con las S1-S4 de severidad de Incidente.
@@ -18,11 +18,12 @@ const STATUS_LABEL: Record<string, string> = {
   registrado: 'Registrado', en_revision: 'En revisión', aprobado: 'Aprobado',
   rechazado: 'Rechazado', priorizado: 'Priorizado', en_desarrollo: 'En desarrollo',
   en_pruebas: 'En pruebas (UAT)', terminado: 'Terminado', cancelado: 'Cancelado',
+  en_firma: 'En firma',
 }
 export const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-500/[0.12] text-slate-600',
   asignado: 'bg-blue-500/[0.12] text-blue-700',
-  en_atencion: 'bg-[#7c2d12]/[0.10] text-[#7c2d12]',
+  en_atencion: 'bg-[#1a4fa0]/[0.10] text-[#1a4fa0]',
   escalado: 'bg-red-500/[0.12] text-red-700',
   resuelto: 'bg-emerald-500/[0.14] text-emerald-700',
   cerrado: 'bg-slate-500/[0.14] text-slate-600',
@@ -35,11 +36,12 @@ export const STATUS_CLASS: Record<string, string> = {
   en_pruebas: 'bg-orange-500/[0.12] text-orange-700',
   terminado: 'bg-teal-600/[0.14] text-teal-800',
   cancelado: 'bg-slate-600/[0.14] text-slate-700',
+  en_firma: 'bg-pink-500/[0.12] text-pink-700',
 }
 const STATUS_DOT: Record<string, string> = {
   en_backlog: 'bg-slate-400',
   asignado: 'bg-blue-500',
-  en_atencion: 'bg-[#7c2d12]',
+  en_atencion: 'bg-[#1a4fa0]',
   escalado: 'bg-red-500',
   resuelto: 'bg-emerald-500',
   cerrado: 'bg-slate-400',
@@ -52,6 +54,7 @@ const STATUS_DOT: Record<string, string> = {
   en_pruebas: 'bg-orange-500',
   terminado: 'bg-teal-600',
   cancelado: 'bg-slate-500',
+  en_firma: 'bg-pink-500',
 }
 const SEV_CLASS: Record<string, string> = {
   S1: 'bg-red-500/[0.10] text-red-700 border border-red-500/25',
@@ -64,20 +67,31 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function SlaClock({ limit, status }: { limit: string; status: string }) {
-  const [show, setShow] = useState(false)
-  if (['resuelto', 'cerrado'].includes(status)) return null
-  const overdue = new Date(limit) < new Date()
+function SlaReloj({ tipo, letra, inicio, limite, cumplido }: {
+  tipo: 'Respuesta' | 'Resolución'; letra: string; inicio: string; limite?: string | null; cumplido?: string | null
+}) {
+  if (!limite) return <span className="inline-flex w-7 justify-center text-slate-300" title={`${tipo}: no aplica`}>—</span>
+  const lim = new Date(limite).getTime(), ini = new Date(inicio).getTime(), ahora = Date.now()
+  const hecho = cumplido ? new Date(cumplido).getTime() : null
+  const estado = hecho !== null ? (hecho <= lim ? 'ok' : 'tarde')
+    : ahora > lim ? 'vencido' : (lim - ahora) < (lim - ini) * 0.25 ? 'riesgo' : 'pend'
+  const E = {
+    ok:      { color: 'text-emerald-500', fondo: 'bg-emerald-600', txt: 'Cumplido a tiempo' },
+    pend:    { color: 'text-emerald-500', fondo: 'bg-emerald-600', txt: 'A tiempo' },
+    riesgo:  { color: 'text-amber-500',   fondo: 'bg-amber-500',   txt: 'Por vencer' },
+    vencido: { color: 'text-red-500',     fondo: 'bg-red-600',     txt: 'Vencido' },
+    tarde:   { color: 'text-red-500',     fondo: 'bg-red-600',     txt: 'Cumplido tarde' },
+  }[estado]
+  const f = (d: number) => new Date(d).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   return (
-    <span className="relative inline-block" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
-      <Clock size={22} className={overdue ? 'text-red-500' : 'text-emerald-500'} />
-      {show && (
-        <div className={`absolute z-20 right-0 top-full mt-1.5 w-52 rounded-lg shadow-lg px-3 py-2 text-left text-xs font-medium text-white ${overdue ? 'bg-red-600' : 'bg-emerald-600'}`}>
-          <p className="font-bold uppercase tracking-wide text-[10px] mb-1">{overdue ? 'SLA vencido' : 'SLA a tiempo'}</p>
-          <p>Límite de resolución:</p>
-          <p className="font-mono">{new Date(limit).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-        </div>
-      )}
+    <span className="relative group inline-flex items-center gap-0.5" aria-label={`${tipo}: ${E.txt}`}>
+      {hecho !== null ? <CheckCircle2 size={20} className={E.color} /> : <Clock size={20} className={E.color} />}
+      <span className={`text-[9px] font-bold ${E.color}`}>{letra}</span>
+      <span className={`pointer-events-none absolute right-0 top-full mt-1.5 z-30 w-max max-w-[230px] rounded-lg px-3 py-2 text-white text-[11px] text-left shadow-lg opacity-0 group-hover:opacity-100 transition ${E.fondo}`}>
+        <span className="block font-bold uppercase tracking-wide text-[10px] mb-0.5">{tipo} · {E.txt}</span>
+        <span className="block">Límite: <span className="font-mono">{f(lim)}</span></span>
+        {hecho !== null && <span className="block">{tipo === 'Respuesta' ? 'Revisado' : 'Resuelto'}: <span className="font-mono">{f(hecho)}</span></span>}
+      </span>
     </span>
   )
 }
@@ -142,7 +156,11 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
       </td>
       <td className="px-4 py-2 text-xs text-slate-500">{fmt(t.created_at)}</td>
       <td className="px-4 py-2 text-center">
-        {t.sla_resolution_limit && <SlaClock limit={t.sla_resolution_limit} status={t.status} />}
+        <span className="inline-flex items-center gap-2">
+          <SlaReloj tipo="Respuesta" letra="R" inicio={t.created_at} limite={(t as any).sla_response_limit} cumplido={(t as any).first_response_at} />
+          <SlaReloj tipo="Resolución" letra="S" inicio={t.created_at} limite={t.sla_resolution_limit}
+            cumplido={['resuelto', 'cerrado', 'terminado'].includes(t.status) ? ((t as any).resolved_at ?? (t as any).closed_at ?? t.sla_resolution_limit) : null} />
+        </span>
       </td>
       <td className="px-4 py-2 text-right">
         <div className="flex items-center justify-end gap-1">
@@ -150,7 +168,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
             <button
               onClick={(e) => { e.stopPropagation(); onAssign({ id: t.id, folio: t.folio }) }}
               title="Asignar"
-              className="p-1.5 rounded-lg text-[#7c2d12] hover:bg-[#7c2d12]/10 transition"
+              className="p-1.5 rounded-lg text-[#1a4fa0] hover:bg-[#1a4fa0]/10 transition"
             >
               <UserPlus size={22} />
             </button>

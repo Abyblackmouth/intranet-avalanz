@@ -1,3 +1,5 @@
+from zoneinfo import ZoneInfo
+TZ_MTY = ZoneInfo("America/Monterrey")   # hora de Monterrey para mostrar fechas
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -152,7 +154,9 @@ async def list_incidents(
             "requester_name": i.requester_name, "requester_company_name": i.requester_company_name,
             "created_at": i.created_at.isoformat(),
             "sla_response_limit": i.sla_response_limit.isoformat() if i.sla_response_limit else None,
+            "first_response_at": i.first_response_at.isoformat() if i.first_response_at else None,
             "sla_resolution_limit": i.sla_resolution_limit.isoformat() if i.sla_resolution_limit else None,
+            "resolved_at": i.resolved_at.isoformat() if i.resolved_at else None,
             "is_sla_breached": i.is_sla_breached,
             "ticket_type": i.ticket_type,
             "cdc_prioridad": cdc_detalle_cache[i.id].prioridad if i.ticket_type == "control_cambio" and i.id in cdc_detalle_cache else None,
@@ -210,6 +214,7 @@ async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_d
         "assigned_to_photo_object_key": assignee_profile.get("photo_object_key"),
         "assigned_at": incident.assigned_at.isoformat() if incident.assigned_at else None,
         "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+        "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
         "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
         "is_sla_breached": incident.is_sla_breached,
         "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
@@ -346,7 +351,9 @@ async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.
                             "requester_company_name": incident.requester_company_name,
                             "created_at": incident.created_at.isoformat(),
                             "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+                            "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
                             "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
+                            "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
                             "is_sla_breached": incident.is_sla_breached if hasattr(incident, "is_sla_breached") else False,
                             "ticket_type": incident.ticket_type,
                             **(extra or {}),
@@ -403,7 +410,7 @@ async def _notify_ticket_created(
         {"label": "Titulo", "value": title, "mono": False},
         {"label": "Sistema", "value": f"{system_name}{' / ' + module_name if module_name else ''}", "mono": False},
         {"label": "Severidad", "value": severity_name, "mono": False},
-        {"label": "Creado", "value": created_at.strftime('%d/%m/%Y %H:%M'), "mono": False},
+        {"label": "Creado", "value": created_at.astimezone(TZ_MTY).strftime('%d/%m/%Y %H:%M'), "mono": False},
     ]
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -447,7 +454,8 @@ async def _notify_ticket_resolved(to_email: str, full_name: str, folio: str, tit
                     "to_email": to_email,
                     "full_name": full_name,
                     "subject": f"Tu ticket #{folio} fue resuelto",
-                    "message": f"Notas: {rca_text}" if rca_text else "",
+                    "message": (f"Notas: {rca_text}\n\n" if rca_text else "")
+                               + "Si tienes alguna duda respecto a la resolución del ticket, comunícate a soporte@avalanz.com.",
                     "alert_type": "success",
                     "fields": fields,
                 },
@@ -533,7 +541,12 @@ async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
     )
     attachments = attach_result.scalars().all()
 
+    # SLA de respuesta: abrir el enlace cuenta como "revisado"
+    if incident.assigned_to_user_id and str(incident.assigned_to_user_id) == str(tok.created_for_user_id):
+        await _marcar_revisado(db, incident, str(tok.created_for_user_id), "asignado", "desde el correo")
+
     return {
+        "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
         "folio": incident.folio,
         "title": incident.title,
         "description": incident.description,
@@ -547,9 +560,50 @@ async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
         "severity_name": severity.name if severity else None,
         "created_at": incident.created_at.isoformat(),
         "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
+        "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
         "already_resolved": incident.status in ("resuelto", "cerrado"),
         "attachments": [{"id": a.id, "object_key": a.object_key, "bucket": a.bucket} for a in attachments],
     }
+
+
+async def _marcar_revisado(db: AsyncSession, incident, user_id: str, rol: str, via: str, nombre: str | None = None) -> bool:
+    """Marca la primera respuesta del ticket (SLA de respuesta). Solo la primera vez."""
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    if incident.first_response_at is not None:
+        return False
+    ahora = datetime.now(timezone.utc)
+    incident.first_response_at = ahora
+    if nombre is None:
+        try:
+            nombre = (await _get_requester_profile(user_id)).get("full_name", "")
+        except Exception:
+            nombre = ""
+    db.add(IncidentActivityLog(incident_id=incident.id, action=f"revisado {via}"[:50], performed_by=user_id,
+                               performed_by_name=nombre or "—", performed_by_role=rol, performed_at=ahora,
+                               company_id=incident.company_id))
+    await db.commit()
+    try:
+        await _broadcast_ticket_update(incident)   # la Mesa de Soporte se actualiza sola, venga del correo o del panel
+    except Exception:
+        pass
+    return True
+
+
+@router.post("/incidencias/{incident_id}/revisado")
+async def marcar_revisado(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Botón del panel: el asignado o un Incident Manager marcan el ticket como revisado."""
+    incident = (await db.execute(select(Incident).where(Incident.id == incident_id))).scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    uid = str(user.get("user_id") or user.get("sub") or "")
+    roles = set(user.get("roles") or [])
+    es_im = bool(roles & {"it-service-desk:incident-manager", "super_admin"}) or bool(user.get("is_super_admin"))
+    if str(incident.assigned_to_user_id or "") != uid and not es_im:
+        raise HTTPException(status_code=403, detail="Solo el asignado o un Incident Manager pueden marcarlo como revisado")
+    marcado = await _marcar_revisado(db, incident, uid, "asignado" if str(incident.assigned_to_user_id or "") == uid else "incident-manager",
+                                     "desde el panel", user.get("full_name"))
+    return {"success": True, "ya_estaba": not marcado,
+            "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None}
 
 
 @router.post("/atender/{token}/redirigir")
@@ -750,8 +804,8 @@ async def create_incident(
     folio = await _generate_folio(db, "INC", family_clave)
 
     now = datetime.now(timezone.utc)
-    sla_response_limit = now + timedelta(minutes=severity.response_sla_minutes)
-    sla_resolution_limit = now + timedelta(hours=severity.resolution_sla_hours)
+    from app.services.sla import limites_sla
+    sla_response_limit, sla_resolution_limit = limites_sla(severity, now)   # S1 en naturales; S2-S4 en horas hábiles
 
     incident = Incident(
         folio=folio,
@@ -849,7 +903,9 @@ async def create_incident(
             "folio": incident.folio,
             "status": incident.status,
             "sla_response_limit": incident.sla_response_limit.isoformat(),
+            "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
             "sla_resolution_limit": incident.sla_resolution_limit.isoformat(),
+            "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
             "evidencia_subida": len(files) if files else 0,
         },
     }
@@ -1112,47 +1168,6 @@ async def escalate_incident(
     return {"success": True, "message": "Ticket escalado"}
 
 
-# ------------------------------------------------------------------
-# Validar/ajustar severidad en triage -- solo Incident Manager
-# ------------------------------------------------------------------
-
-@router.patch("/incidencias/{incident_id}/severidad")
-async def validate_severity(
-    incident_id: str,
-    body: dict,
-    db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
-):
-    severity_id = (body or {}).get("severity_id", "").strip()
-    if not severity_id:
-        raise HTTPException(status_code=400, detail="Debes indicar la severidad validada")
-
-    roles = user.get("roles") or []
-    if "it-service-desk:incident-manager" not in roles and "super_admin" not in roles:
-        raise HTTPException(status_code=403, detail="Solo Incident Manager puede validar la severidad")
-
-    result = await db.execute(select(Incident).where(Incident.id == incident_id))
-    incident = result.scalar_one_or_none()
-    if not incident:
-        raise HTTPException(status_code=404, detail="Ticket no encontrado")
-
-    sev_result = await db.execute(select(TicketSeverity).where(TicketSeverity.id == severity_id))
-    severity = sev_result.scalar_one_or_none()
-    if not severity:
-        raise HTTPException(status_code=404, detail="Severidad no encontrada")
-
-    old_severity_id = incident.severity_validated_id or incident.severity_reported_id
-    incident.severity_validated_id = severity_id
-
-    db.add(IncidentActivityLog(
-        incident_id=incident.id, action="severidad_validada",
-        performed_by=user.get("user_id"), performed_by_name=user.get("full_name", ""),
-        performed_by_role="incident_manager", module_slug="it-service-desk",
-        detail={"severidad_anterior": old_severity_id, "severidad_nueva": severity_id},
-    ))
-    await db.commit()
-    await _broadcast_ticket_update(incident)
-    return {"success": True, "message": "Severidad validada"}
 
 
 # ------------------------------------------------------------------
@@ -1238,11 +1253,35 @@ async def get_dashboard_stats(
             return "en_backlog"
         if is_overdue(i):
             return "vencido"
-        if i.sla_resolution_limit and (i.sla_resolution_limit - now) <= timedelta(hours=2):
+        if i.sla_resolution_limit and (i.sla_resolution_limit - now) < (i.sla_resolution_limit - i.created_at) * 0.25:
             return "por_vencer"
         return "a_tiempo"
 
     total_completados = sum(1 for i in incidents if not is_open(i))
+
+    def _cumplimiento(limite_de, hecho_de) -> dict:
+        """Como los relojes de la tabla: cumplido antes del limite = a tiempo; abierto que aun
+        no vence = a tiempo; vencido o cumplido tarde = vencido. Sin limite, no cuenta."""
+        a_tiempo = vencidos = 0
+        for i in incidents:
+            lim = limite_de(i)
+            if not lim:
+                continue
+            hecho = hecho_de(i)
+            if (hecho and hecho <= lim) or (not hecho and now <= lim):
+                a_tiempo += 1
+            else:
+                vencidos += 1
+        total = a_tiempo + vencidos
+        return {"a_tiempo": a_tiempo, "vencidos": vencidos, "total": total,
+                "porcentaje": round(a_tiempo * 100 / total) if total else None}
+
+    resuelto_en = lambda i: (i.resolved_at or i.closed_at or i.updated_at) if not is_open(i) else None
+    cumplimiento = {
+        # Tickets viejos, resueltos antes de existir la marca de revision: la resolucion cuenta como respuesta
+        "respuesta": _cumplimiento(lambda i: i.sla_response_limit, lambda i: i.first_response_at or resuelto_en(i)),
+        "resolucion": _cumplimiento(lambda i: i.sla_resolution_limit, resuelto_en),
+    }
 
     open_incidents = [i for i in incidents if is_open(i)]
     sla_general = {
@@ -1306,12 +1345,13 @@ async def get_dashboard_stats(
         )
 
     histograma_map: Dict[str, int] = {}
-    cursor = start
-    while cursor.date() <= end.date():
-        histograma_map[cursor.date().isoformat()] = 0
-        cursor += timedelta(days=1)
+    dia = (start - MEXICO_UTC_OFFSET).date()          # dias en hora local, no en UTC
+    ultimo = (end - MEXICO_UTC_OFFSET).date()
+    while dia <= ultimo:
+        histograma_map[dia.isoformat()] = 0
+        dia += timedelta(days=1)
     for i in incidents:
-        key = i.created_at.date().isoformat()
+        key = (i.created_at - MEXICO_UTC_OFFSET).date().isoformat()
         if key in histograma_map:
             histograma_map[key] += 1
     histograma = [{"fecha": k, "cantidad": v} for k, v in sorted(histograma_map.items())]
@@ -1320,6 +1360,7 @@ async def get_dashboard_stats(
         "scope": scope,
         "rango": {"desde": start.isoformat(), "hasta": end.isoformat()},
         "total_completados_periodo": total_completados,
+        "cumplimiento": cumplimiento,
         "sla_general": sla_general,
         "por_especialidad": por_especialidad,
         "sla_tecnico": sla_tecnico,
@@ -1343,7 +1384,7 @@ async def export_incidents_excel(
     if not has_full_access:
         raise HTTPException(status_code=403, detail="No tienes permiso para exportar el concentrado")
 
-    result = await db.execute(select(Incident).where(Incident.ticket_type == "incidente").order_by(Incident.created_at))
+    result = await db.execute(select(Incident).where(Incident.ticket_type.in_(["incidente", "solicitud_acceso"])).order_by(Incident.created_at))
     incidents = result.scalars().all()
 
     sev_result = await db.execute(select(TicketSeverity))
@@ -1384,10 +1425,10 @@ async def export_incidents_excel(
         )
 
         # Cumplimiento SLA 1 (respuesta -- se usa la asignacion como primer contacto)
-        if i.assigned_at and i.sla_response_limit:
-            delta1 = (i.assigned_at - i.created_at).total_seconds() / 60
+        if (i.first_response_at or i.resolved_at) and i.sla_response_limit:
+            delta1 = ((i.first_response_at or i.resolved_at) - i.created_at).total_seconds() / 60
             sla1_horas = f"{delta1/60:.1f} h"
-            sla1_estado = "Cumplido" if i.assigned_at <= i.sla_response_limit else "Incumplido"
+            sla1_estado = "Cumplido" if (i.first_response_at or i.resolved_at) <= i.sla_response_limit else "Incumplido"
         else:
             sla1_horas = ""
             sla1_estado = "Pendiente"
@@ -1414,18 +1455,20 @@ async def export_incidents_excel(
 
         filas.append({
             "Folio": i.folio,
+            "Tipo": "Solicitud de acceso" if i.ticket_type == "solicitud_acceso" else "Incidente",
+            "Título": i.title,
             "Familia": requester_profile.get("family_clave", ""),
             "Empresa": i.requester_company_name,
             "Creado por": i.requester_name,
-            "Fecha de creación": i.created_at.replace(tzinfo=None) if i.created_at else None,
+            "Fecha de creación": i.created_at.astimezone(TZ_MTY).replace(tzinfo=None) if i.created_at else None,
             "Nivel crítico": f"{sev.code} - {sev.name}" if sev else "",
             "Sistema": sistema.name if sistema else "",
             "Módulo": modulo.name if modulo else "",
             "Estatus": STATUS_LABEL_ES.get(i.status, i.status),
             "Con quién está (equipo)": equipo,
             "Asignado a": assignee_profile.get("full_name", "") if i.assigned_to_user_id else "",
-            "Fecha inicial SLA": i.created_at.replace(tzinfo=None) if i.created_at else None,
-            "Fecha final SLA (resolución)": i.sla_resolution_limit.replace(tzinfo=None) if i.sla_resolution_limit else None,
+            "Fecha inicial SLA": i.created_at.astimezone(TZ_MTY).replace(tzinfo=None) if i.created_at else None,
+            "Fecha final SLA (resolución)": i.sla_resolution_limit.astimezone(TZ_MTY).replace(tzinfo=None) if i.sla_resolution_limit else None,
             "Horas en estatus actual": horas_estatus,
             "A tiempo / Vencido": "En backlog" if i.status == "en_backlog" else ("Vencido" if vencido else "A tiempo") if not es_final else ("Cumplió SLA" if cumplio_final else "Se venció"),
             "Días transcurridos": dias_transcurridos,
@@ -1468,7 +1511,7 @@ async def export_incidents_excel(
     wb.save(buffer)
     buffer.seek(0)
 
-    filename = f"concentrado_incidencias_{now.strftime('%Y%m%d_%H%M')}.xlsx"
+    filename = f"concentrado_incidencias_{now.astimezone(TZ_MTY).strftime('%Y%m%d_%H%M')}.xlsx"
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1557,7 +1600,10 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
     HISTOGRAMA_CID = "histograma_volumen"
 
     enviados = []
-    fecha_texto = now.strftime("%A %d de %B de %Y, %I:%M %p")
+    _local = now.astimezone(TZ_MTY)
+    _dias = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+    _meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+    fecha_texto = _dias[_local.weekday()] + ' ' + str(_local.day).zfill(2) + ' de ' + _meses[_local.month - 1] + ' de ' + str(_local.year) + ', ' + _local.strftime('%I:%M %p').lower()
 
     async def enviar_a(user_id: str, items: list):
         if not items:
@@ -1705,3 +1751,136 @@ async def auto_close_expired_incidents(db: AsyncSession = Depends(get_db)):
         await avisar_cdcs_cerrados(db, cdcs)
 
     return {"success": True, "cerrados": cerrados, "total": len(cerrados), "cdc_cerrados": [c.folio for c in cdcs]}
+
+
+
+# ── Tablero de SLA (Actualizaciones): leer y ajustar los tiempos por severidad ──
+class SeveridadSlaPayload(BaseModel):
+    response_sla_minutes: int
+    resolution_sla_hours: int
+    is_24_7: bool
+    rca_mandatory: bool
+
+
+def _puede_ajustar_sla(user: dict) -> None:
+    roles = set(user.get("roles") or [])
+    if not roles & {"it-service-desk:incident-manager", "super_admin"} and not user.get("is_super_admin"):
+        raise HTTPException(status_code=403, detail="Solo el Incident Manager o el super admin ajustan los SLA")
+
+
+def _sla_dict(sev) -> dict:
+    from app.services.sla import limites_sla
+    resp, resol = limites_sla(sev, datetime.now(timezone.utc))
+    return {"id": sev.id, "code": sev.code, "name": sev.name, "response_sla_minutes": sev.response_sla_minutes,
+            "resolution_sla_hours": sev.resolution_sla_hours, "is_24_7": sev.is_24_7, "rca_mandatory": sev.rca_mandatory,
+            "ejemplo": {"respuesta": resp.isoformat(), "resolucion": resol.isoformat()}}
+
+
+@router.get("/sla/severidades")
+async def sla_severidades(db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    _puede_ajustar_sla(user)
+    sevs = (await db.execute(select(TicketSeverity).order_by(TicketSeverity.code))).scalars().all()
+    return [_sla_dict(s) for s in sevs]
+
+
+@router.put("/sla/severidades/{code}")
+async def ajustar_sla(code: str, body: SeveridadSlaPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Ajusta una severidad. Aplica a los tickets nuevos; cada cambio queda en el historial de Ajustes."""
+    import uuid as _uuid
+    from sqlalchemy import text as _text
+    _puede_ajustar_sla(user)
+    if not 1 <= body.response_sla_minutes <= 10080:
+        raise HTTPException(status_code=422, detail="La respuesta debe estar entre 1 minuto y 7 días (10,080 min)")
+    if not 1 <= body.resolution_sla_hours <= 2000:
+        raise HTTPException(status_code=422, detail="La resolución debe estar entre 1 y 2,000 horas")
+    sev = (await db.execute(select(TicketSeverity).where(TicketSeverity.code == code))).scalar_one_or_none()
+    if not sev:
+        raise HTTPException(status_code=404, detail="Severidad no encontrada")
+    resumen = lambda r, z, n, c: f"respuesta {r} min · resolución {z} h · {'naturales' if n else 'hábiles'}{' · RCA obligatoria' if c else ''}"
+    antes = resumen(sev.response_sla_minutes, sev.resolution_sla_hours, sev.is_24_7, sev.rca_mandatory)
+    sev.response_sla_minutes, sev.resolution_sla_hours = body.response_sla_minutes, body.resolution_sla_hours
+    sev.is_24_7, sev.rca_mandatory = body.is_24_7, body.rca_mandatory
+    despues = resumen(sev.response_sla_minutes, sev.resolution_sla_hours, sev.is_24_7, sev.rca_mandatory)
+    if despues != antes:
+        await db.execute(_text(
+            "INSERT INTO ajustes_historial (id, key, valor_anterior, valor_nuevo, usuario_id, usuario_nombre, created_at) "
+            "VALUES (:id, :key, :ant, :nue, :uid, :unom, now())"),
+            {"id": str(_uuid.uuid4()), "key": f"sla.{sev.code}", "ant": antes, "nue": despues,
+             "uid": str(user.get("user_id") or user.get("sub") or "") or None, "unom": user.get("full_name") or ""})
+    await db.commit()
+    return _sla_dict(sev)
+
+
+
+# ── Cambio de severidad (triage o reclasificación): se guarda como severidad validada ──
+class CambioSeveridadPayload(BaseModel):
+    severity_id: str
+    motivo: str = ""
+
+
+@router.patch("/incidencias/{incident_id}/severidad")
+async def cambiar_severidad(incident_id: str, body: CambioSeveridadPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """El Incident Manager (cualquier ticket) o el especialista asignado cambian la severidad.
+    Se recalcula el SLA desde la creacion, queda en bitacora y se avisa al solicitante."""
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    from app.services.sla import limites_sla
+    from app.assignment import _notify_inapp
+    motivo = (body.motivo or "").strip() or "Ajuste de severidad"
+    incident = (await db.execute(select(Incident).where(Incident.id == incident_id))).scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    uid = str(user.get("user_id") or user.get("sub") or "")
+    roles = set(user.get("roles") or [])
+    es_im = bool(roles & {"it-service-desk:incident-manager", "super_admin"}) or bool(user.get("is_super_admin"))
+    es_especialista = bool(roles & {"it-service-desk:especialista-funcional", "it-service-desk:especialista-tecnico"})
+    if not es_im and not (es_especialista and str(incident.assigned_to_user_id or "") == uid):
+        raise HTTPException(status_code=403, detail="Solo el Incident Manager o el especialista asignado pueden cambiar la severidad")
+    if incident.status in ("resuelto", "cerrado"):
+        raise HTTPException(status_code=422, detail="El ticket ya está resuelto")
+    nueva = (await db.execute(select(TicketSeverity).where(TicketSeverity.id == body.severity_id))).scalar_one_or_none()
+    if not nueva:
+        raise HTTPException(status_code=404, detail="Severidad no encontrada")
+    actual_id = incident.severity_validated_id or incident.severity_reported_id
+    if actual_id and str(actual_id) == str(nueva.id):
+        raise HTTPException(status_code=422, detail="El ticket ya tiene esa severidad")
+    anterior = (await db.execute(select(TicketSeverity).where(TicketSeverity.id == actual_id))).scalar_one_or_none() if actual_id else None
+
+    incident.severity_validated_id = nueva.id
+    incident.sla_response_limit, incident.sla_resolution_limit = limites_sla(nueva, incident.created_at)
+    de = f"{anterior.code} · {anterior.name}" if anterior else "Sin severidad"
+    a = f"{nueva.code} · {nueva.name}"
+    db.add(IncidentActivityLog(incident_id=incident.id, action="cambio_severidad", performed_by=uid,
+                               performed_by_name=user.get("full_name") or "—",
+                               performed_by_role="incident-manager" if es_im else "especialista",
+                               performed_at=datetime.now(timezone.utc), company_id=incident.company_id,
+                               module_slug="it-service-desk", detail={"de": de, "a": a, "motivo": motivo}))
+    await db.commit()
+    await db.refresh(incident)
+    await _broadcast_ticket_update(incident)
+
+    # Aviso al solicitante: correo y campana
+    limite = incident.sla_resolution_limit.astimezone(TZ_MTY).strftime("%d/%m/%Y %H:%M") if incident.sla_resolution_limit else "—"
+    try:
+        perfil = await _get_requester_profile(incident.requester_id)
+        if perfil.get("email"):
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                await client.post("http://email-service:8000/api/v1/email/system-notification", json={
+                    "to_email": perfil["email"], "full_name": incident.requester_name,
+                    "subject": f"La severidad de tu ticket #{incident.folio} cambió",
+                    "message": f"Quien atiende tu ticket cambió su severidad de {de} a {a}. Motivo: {motivo}",
+                    "alert_type": "info",
+                    "fields": [{"label": "Folio", "value": incident.folio, "mono": True},
+                               {"label": "Título", "value": incident.title, "mono": False},
+                               {"label": "Severidad", "value": a, "mono": False},
+                               {"label": "Nueva fecha límite de resolución", "value": limite, "mono": False}],
+                })
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("No se pudo avisar del cambio de severidad de %s: %s", incident.folio, e)
+    if incident.requester_id:
+        await _notify_inapp(incident.requester_id, f"Tu ticket #{incident.folio} cambió de severidad",
+                            f"De {de} a {a}. Motivo: {motivo}", "info",
+                            {"incident_id": str(incident.id), "folio": incident.folio})
+    return {"success": True, "severidad": a,
+            "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+            "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None}

@@ -267,6 +267,8 @@ services:
     restart: unless-stopped
     env_file:
       - ../../backend/modules/it-service-desk-service/.env
+    volumes:
+      - ../../backend/modules/legal-service/docusign_private.pem:/app/docusign_private.pem:ro
     environment:
       DB_HOST: postgres
     depends_on:
@@ -312,6 +314,16 @@ services:
       - ../grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
       - ../grafana/avalanz-services-dashboard.json:/var/lib/grafana/dashboards/avalanz-services-dashboard.json:ro
       - ../grafana/avalanz-modulos-dashboard.json:/var/lib/grafana/dashboards/avalanz-modulos-dashboard.json:ro
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
+  # ── Gotenberg: HTML a PDF con Chromium (formatos de la intranet) ───────────
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: avalanz-gotenberg
+    restart: unless-stopped
+    command: ["gotenberg", "--api-timeout=30s", "--chromium-disable-javascript=true"]
     networks:
       - avalanz-network
     logging: *default-logging

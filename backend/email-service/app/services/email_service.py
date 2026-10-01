@@ -238,6 +238,7 @@ async def send_system_notification_email(
     action_url: Optional[str] = None,
     alert_type: Optional[str] = None,
     fields: Optional[list] = None,
+    attachments: Optional[list] = None,
 ) -> None:
     """fields (opcional): lista de {"label", "value", "mono": bool} que se
     renderiza como tabla organizada via _credentials() en vez de aventar
@@ -262,7 +263,7 @@ async def send_system_notification_email(
         message_block +
         action_btn
     )
-    await send_email(to_email, subject, _render(content, subject), full_name)
+    await send_email(to_email, subject, _render(content, subject), full_name, attachments=attachments)
 
 
 # ── Correo generico para modulos futuros ─────────────────────────────────────

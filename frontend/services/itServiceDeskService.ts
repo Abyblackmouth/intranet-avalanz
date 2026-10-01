@@ -169,3 +169,64 @@ export const subirActaCierreFirmada = (id: string, formData: FormData) =>
 // ── Tablero Proyectos ─────────────────────────────────────────────────────
 export const getTableroProyectos = () => api.get(`${CDC}/tablero/proyectos`)
 export const exportCdcExcel = () => api.get(`${CDC}/reportes/excel`, { responseType: 'blob' })
+
+// ── Ajustes del módulo (solo super admin) ─────────────────────────────────
+export const getAjustes = () => api.get('/api/v1/it-service-desk/ajustes')
+export const getAjustesHistorial = () => api.get('/api/v1/it-service-desk/ajustes/historial')
+export const updateAjuste = (key: string, valor: string | number | boolean) =>
+  api.put(`/api/v1/it-service-desk/ajustes/${encodeURIComponent(key)}`, { valor })
+
+// ── Control de accesos: configuración de formatos ─────────────────────────
+const ACC = '/api/v1/it-service-desk/control-accesos/config'
+export const accFormatos = () => api.get(`${ACC}/formatos`)
+export const accFormato = (id: string) => api.get(`${ACC}/formatos/${id}`)
+export const accActualizarFormato = (id: string, data: Record<string, any>) => api.patch(`${ACC}/formatos/${id}`, data)
+export const accGuardarEmpresas = (id: string, company_ids: string[]) => api.put(`${ACC}/formatos/${id}/empresas`, { company_ids })
+export const accCrearModulo = (id: string, data: { nombre: string; exclusivo_admin?: boolean }) => api.post(`${ACC}/formatos/${id}/modulos`, data)
+export const accActualizarModulo = (moduloId: string, data: Record<string, any>) => api.patch(`${ACC}/modulos/${moduloId}`, data)
+export const accOrdenarModulos = (id: string, ids: string[]) => api.put(`${ACC}/formatos/${id}/modulos/orden`, { ids })
+export const accCrearPerfil = (moduloId: string, nombre: string) => api.post(`${ACC}/modulos/${moduloId}/perfiles`, { nombre })
+export const accRenombrarPerfil = (perfilId: string, nombre: string) => api.patch(`${ACC}/perfiles/${perfilId}`, { nombre })
+export const accQuitarPerfil = (perfilId: string) => api.delete(`${ACC}/perfiles/${perfilId}`)
+export const accCrearRutina = (moduloId: string, nombre: string) => api.post(`${ACC}/modulos/${moduloId}/rutinas`, { nombre })
+export const accActualizarRutina = (rutinaId: string, data: Record<string, any>) => api.patch(`${ACC}/rutinas/${rutinaId}`, data)
+export const accQuitarRutina = (rutinaId: string) => api.delete(`${ACC}/rutinas/${rutinaId}`)
+export const accBuscarUsuarios = (q: string) => api.get('/api/v1/it-service-desk/control-cambios/catalogos/usuarios', { params: { q } })
+export const accVistaPrevia = (id: string, empresas?: string[]) =>
+  api.get(`${ACC}/formatos/${id}/vista-previa`, { params: empresas ? { empresas: empresas.join(',') } : {}, responseType: 'text' })
+
+// ── Control de accesos: formulario del solicitante ────────────────────────
+export const accFormatosDisponibles = () => api.get('/api/v1/it-service-desk/control-accesos/formatos')
+export const accFormulario = (id: string) => api.get(`/api/v1/it-service-desk/control-accesos/formatos/${id}/formulario`)
+export const accVistaPreviaSolicitud = (id: string, datos: Record<string, any>) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/formatos/${id}/vista-previa`, datos, { responseType: 'text' })
+export const accEnviarSolicitud = (id: string, datos: Record<string, any>) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/formatos/${id}/solicitudes`, datos)
+export const accResumenSolicitud = (incidentId: string) =>
+  api.get(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/resumen`)
+export const accGenerarPdfSolicitud = (incidentId: string) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/pdf`)
+export const marcarRevisado = (incidentId: string) =>
+  api.post(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/revisado`)
+
+// ── Tablero de SLA ──────────────────────────────────────────────────────────
+export const slaSeveridades = () => api.get('/api/v1/it-service-desk/mesa-de-soporte/sla/severidades')
+export const ajustarSla = (code: string, data: { response_sla_minutes: number; resolution_sla_hours: number; is_24_7: boolean; rca_mandatory: boolean }) =>
+  api.put(`/api/v1/it-service-desk/mesa-de-soporte/sla/severidades/${code}`, data)
+export const cambiarSeveridad = (incidentId: string, data: { severity_id: string; motivo: string }) =>
+  api.patch(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/severidad`, data)
+export const accAprobar = (incidentId: string, data: { jefe_admin_nombre: string; jefe_admin_correo: string }) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/aprobar`, data)
+export const accRechazar = (incidentId: string, motivo: string) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/rechazar`, { motivo })
+
+// ── Firma manual y contraseña temporal ─────────────────────────────────────
+export const accLiberar = (incidentId: string, data: { usuario_asignado: string; contrasena_temporal: string }) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/liberar`, data)
+export const accGuardarContrasena = (incidentId: string, contrasena_temporal: string) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/contrasena-temporal`, { contrasena_temporal })
+export const accVerFirmaTI = (formatoId: string) => api.get(`/api/v1/it-service-desk/control-accesos/formatos/${formatoId}/firma-ti`)
+export const accSubirFirmaTI = (formatoId: string, archivo: File) => {
+  const fd = new FormData(); fd.append('archivo', archivo)
+  return api.post(`/api/v1/it-service-desk/control-accesos/formatos/${formatoId}/firma-ti`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+}

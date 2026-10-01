@@ -15,6 +15,7 @@ interface Stats {
   scope: string
   rango: { desde: string; hasta: string }
   total_completados_periodo: number
+  cumplimiento?: Record<'respuesta' | 'resolucion', { a_tiempo: number; vencidos: number; total: number; porcentaje: number | null }>
   sla_general: SlaCount
   por_especialidad: { funcional: number; tecnico: number } | null
   sla_tecnico: SlaCount | null
@@ -135,7 +136,7 @@ function HistogramChart({ data }: { data: { fecha: string; cantidad: number }[] 
     ],
     series: [{
       type: 'line', data: data.map(d => d.cantidad), smooth: true, symbol: 'circle', symbolSize: 7,
-      lineStyle: { color: '#7c2d12', width: 2.5 }, itemStyle: { color: '#7c2d12' },
+      lineStyle: { color: '#1a4fa0', width: 2.5 }, itemStyle: { color: '#1a4fa0' },
       areaStyle: { color: 'rgba(124, 45, 18, 0.08)' },
     }],
   }
@@ -219,15 +220,21 @@ export default function ItServiceDeskDashboardPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="w-6 h-6 border-2 border-[#7c2d12] border-t-transparent rounded-full animate-spin" />
+          <div className="w-6 h-6 border-2 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : error || !stats ? (
         <div className="text-center py-20 text-red-500 text-sm">{error ?? 'No se pudieron cargar las metricas'}</div>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <KpiCard label="Completados en el periodo" value={stats.total_completados_periodo} icon={TrendingUp} color={COLOR_ON_TIME} />
-            <KpiCard label="Cumplimiento de SLA" value={slaPercent !== null ? `${slaPercent}%` : '—'} icon={Clock} color={slaPercent !== null && slaPercent >= 80 ? COLOR_ON_TIME : COLOR_OVERDUE} />
+            {(['respuesta', 'resolucion'] as const).map(k => {
+              const c = stats.cumplimiento?.[k]
+              const pct = c?.porcentaje ?? null
+              return <KpiCard key={k} label={`SLA de ${k === 'respuesta' ? 'respuesta' : 'resolución'}`}
+                value={pct !== null ? `${pct}% · ${c!.a_tiempo} de ${c!.total}` : '—'} icon={Clock}
+                color={pct !== null && pct >= 80 ? COLOR_ON_TIME : COLOR_OVERDUE} />
+            })}
             <KpiCard label="Tickets abiertos" value={slaGeneralTotal} icon={Users} color="#1a4fa0" />
           </div>
 

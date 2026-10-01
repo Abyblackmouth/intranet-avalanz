@@ -123,3 +123,19 @@ export const getModules = (params?: Record<string, string | number | boolean>) =
 
 export const getModuleRoles = (moduleId: string) =>
   api.get(`/api/v1/roles/modules/${moduleId}`)
+
+// ── Familias de empresas ──────────────────────────────────────────────────
+export const getFamilies = () => api.get('/api/v1/companies/families')
+export const createFamily = (data: { name: string; clave?: string }) => api.post('/api/v1/companies/families', data)
+export const updateFamily = (familyId: string, data: { name?: string; clave?: string; is_active?: boolean }) =>
+  api.patch(`/api/v1/companies/families/${familyId}`, data)
+
+// ── Alta masiva de empleados ──────────────────────────────────────────────
+export const bulkLayout = () => api.get('/api/v1/users/bulk/layout', { responseType: 'blob' })
+export const bulkRevision = (archivo: File) => {
+  const fd = new FormData(); fd.append('archivo', archivo)
+  return api.post('/api/v1/users/bulk/revision', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
+export const bulkConfirmar = (lote_id: string, incluir_avisos: boolean) => api.post('/api/v1/users/bulk/confirmar', { lote_id, incluir_avisos })
+export const bulkEstado = (id: string) => api.get(`/api/v1/users/bulk/estado/${id}`)
+export const bulkReporte = (id: string) => api.get(`/api/v1/users/bulk/reporte/${id}`, { responseType: 'blob' })

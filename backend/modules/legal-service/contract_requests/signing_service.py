@@ -1,3 +1,4 @@
+from zoneinfo import ZoneInfo
 """
 Signing service — abstraction layer for envelope signing.
 Supports two providers: email_sim and docusign.
@@ -140,7 +141,7 @@ async def _send_email_sim(db: AsyncSession, envelope_id: str, frontend_url: str,
           </tr>
           <tr style="background:#f8fafc;">
             <td style="padding:8px 12px; font-weight:bold; color:#64748b;">Válido hasta</td>
-            <td style="padding:8px 12px; color:#0f172a;">{expires_at.strftime('%d/%m/%Y')}</td>
+            <td style="padding:8px 12px; color:#0f172a;">{expires_at.astimezone(ZoneInfo("America/Monterrey")).strftime('%d/%m/%Y')}</td>
           </tr>
         </table>
         <p>Para revisar y firmar el documento, haz clic en el botón:</p>
@@ -152,7 +153,7 @@ async def _send_email_sim(db: AsyncSession, envelope_id: str, frontend_url: str,
         <p style="color:#64748b; font-size:13px;">O copia este enlace en tu navegador:<br>
         <span style="color:#1a4fa0;">{confirm_url}</span></p>
         <p style="color:#94a3b8; font-size:12px; margin-top:24px;">
-          Este enlace es de uso personal e intransferible. Expira el {expires_at.strftime('%d/%m/%Y')}.
+          Este enlace es de uso personal e intransferible. Expira el {expires_at.astimezone(ZoneInfo("America/Monterrey")).strftime('%d/%m/%Y')}.
           Si no esperabas este correo, ignóralo.
         </p>
         """

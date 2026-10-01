@@ -14,7 +14,7 @@ const OPTIONS = [
     icon: AlertTriangle,
     label: 'Incidente',
     desc: 'Algo no funciona o dejó de funcionar',
-    color: '#7c2d12',
+    color: '#1a4fa0',
     available: true,
   },
   {
@@ -31,7 +31,7 @@ const OPTIONS = [
     label: 'Solicitud de Accesos',
     desc: 'Alta, baja o cambio de acceso a un sistema',
     color: '#059669',
-    available: false,
+    available: true,
   },
 ]
 

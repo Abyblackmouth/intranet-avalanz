@@ -15,7 +15,7 @@ from shared.exceptions.http_exceptions import (
 PROTECTED_SUPER_ADMIN_EMAIL = "admin@avalanz.com"
 
 
-async def create_user(db, company_id, email, full_name, matricula=None, puesto=None, departamento=None, phone=None, is_super_admin=False, requested_by=None):
+async def create_user(db, company_id, email, full_name, matricula=None, puesto=None, departamento=None, phone=None, is_super_admin=False, requested_by=None, enviar_bienvenida=True):
     if is_super_admin and not _is_super_admin(requested_by):
         raise ForbiddenException("Solo un super admin puede crear otros super admins")
     result = await db.execute(select(User).where(User.email == email, User.is_deleted == False))
@@ -31,7 +31,8 @@ async def create_user(db, company_id, email, full_name, matricula=None, puesto=N
     db.add(user)
     await db.flush()
     await _sync_user_to_auth(str(user.id), email, full_name, temp_password, expires_at.isoformat())
-    await _send_welcome_email(email, full_name, temp_password, str(user.id))
+    if enviar_bienvenida:   # el alta masiva lo manda después, escalonado
+        await _send_welcome_email(email, full_name, temp_password, str(user.id))
     await db.commit()
     return {"user_id": str(user.id), "email": email, "full_name": full_name, "matricula": matricula, "puesto": puesto, "departamento": departamento, "phone": phone, "temp_password": temp_password, "temp_password_expires_at": expires_at.isoformat(), "message": "Usuario creado. La contrasena temporal tiene validez de 24 horas"}
 

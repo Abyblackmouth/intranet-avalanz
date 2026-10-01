@@ -1,4 +1,5 @@
 import base64
+import base64
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict, Any
@@ -50,6 +51,7 @@ class SystemNotificationEmailRequest(BaseModel):
     action_url: Optional[str] = None
     alert_type: Optional[str] = None
     fields: Optional[List[Dict[str, Any]]] = None
+    attachments: Optional[List["Attachment"]] = None
 
 
 class InlineImage(BaseModel):
@@ -62,6 +64,9 @@ class Attachment(BaseModel):
     filename: str
     content_base64: str
     subtype: str = "pdf"
+
+
+SystemNotificationEmailRequest.model_rebuild()   # resuelve el adjunto, definido después
 
 
 class ModuleEmailRequest(BaseModel):
@@ -118,6 +123,10 @@ async def system_notification_email(body: SystemNotificationEmailRequest):
         action_url=body.action_url,
         alert_type=body.alert_type,
         fields=body.fields,
+        attachments=[
+            {"filename": a.filename, "data": base64.b64decode(a.content_base64), "subtype": a.subtype}
+            for a in body.attachments
+        ] if body.attachments else None,
     )
     return BaseResponse(success=True, message="Notificacion enviada")
 

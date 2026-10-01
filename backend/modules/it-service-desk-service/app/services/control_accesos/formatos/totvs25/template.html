@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>{{ folio }} · Solicitud de {{ movimiento_titulo|lower }} de usuario · {{ sistema_titulo }}</title>
+<style>
+{{ fuentes|safe }}
+  :root { --azul: #1a4fa0; --tinta: #0f172a; --texto: #1e293b; --gris: #64748b; --linea: #cbd5e1; --suave: #f1f5f9; box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: inherit; }
+  body { margin: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Geist, "Segoe UI", Arial, sans-serif; color: var(--texto); color-scheme: light; }
+
+  /* ── Hoja A4 ─────────────────────────────────────── */
+  .hoja { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 11.3mm 12mm 8.5mm; position: relative;
+          display: flex; flex-direction: column; font-size: 8.3pt; line-height: 1.3; overflow: hidden; }
+  @page { size: A4; margin: 0; }
+
+  /* Encabezado de una línea */
+  .enc { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4mm; padding-bottom: 2mm; border-bottom: 2px solid var(--azul); }
+  .marca { display: flex; align-items: center; gap: 2mm; font-weight: 700; color: var(--azul); font-size: 9pt; letter-spacing: .04em; }
+  .marca img { height: 12mm; width: auto; display: block; }
+  .titulo { text-align: center; }
+  .titulo h1 { margin: 0; font-size: 11pt; color: var(--tinta); letter-spacing: .02em; }
+  .titulo p { margin: .4mm 0 0; font-size: 7.3pt; color: var(--gris); }
+  .folio { text-align: right; font-size: 7.5pt; color: var(--gris); }
+  .folio .folio-et { display: block; font-size: 6.6pt; color: var(--gris); }
+  .folio b { display: block; font-family: "Geist Mono", ui-monospace, monospace; font-size: 9pt; color: var(--azul); }
+
+  /* Secciones */
+  .sec { margin-top: 1.9mm; }
+  .sec h2 { margin: 0 0 1.2mm; font-size: 8.3pt; text-transform: uppercase; letter-spacing: .06em; color: var(--azul); display: flex; gap: 1.5mm; align-items: baseline; }
+  .sec h2 span { color: var(--gris); font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 7.3pt; }
+
+  /* Datos en dos columnas: etiqueta y valor en la misma línea */
+  .datos { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); border: 1px solid var(--linea); border-radius: 1.5mm; overflow: hidden; margin: 0; }
+  .datos div { display: grid; grid-template-columns: 23mm 1fr; border-bottom: 1px solid var(--linea); }
+  .datos div:nth-child(odd) { border-right: 1px solid var(--linea); }
+  .datos div:nth-last-child(-n+2) { border-bottom: 0; }
+  .datos dt { background: var(--suave); color: var(--gris); padding: .9mm 1.6mm; font-weight: 500; }
+  .datos dd { margin: 0; padding: .9mm 1.6mm; font-weight: 600; color: var(--tinta); font-size: 7.8pt; overflow-wrap: anywhere; }
+
+  /* Casillas en línea */
+  .opciones { display: flex; flex-wrap: wrap; gap: 1.5mm 4mm; align-items: center; }
+  .caja { display: inline-flex; align-items: center; gap: 1.2mm; white-space: nowrap; }
+  .caja i { width: 3mm; height: 3mm; border: 1.2px solid #475569; border-radius: .6mm; display: inline-grid; place-items: center; font-style: normal; font-size: 7pt; font-weight: 700; line-height: 1; }
+  .caja.on i { background: var(--azul); border-color: var(--azul); color: #fff; }
+  .caja.on { font-weight: 600; color: var(--tinta); }
+  .campo { display: inline-flex; gap: 1.2mm; align-items: baseline; }
+  .campo u { text-decoration: none; border-bottom: 1px solid var(--linea); min-width: 30mm; padding: 0 1mm; font-weight: 600; }
+  .fila2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+  .fila2 .campo { display: flex; width: 100%; }
+  .fila2 .campo u { flex: 1; min-width: 0; }
+
+  /* Grupos como columnas; sus empresas hacia abajo */
+  .grupos { display: grid; grid-template-columns: repeat(var(--cols, 6), 1fr); border: 1px solid var(--linea); border-radius: 1.5mm; overflow: hidden; }
+  .grupo { border-right: 1px solid var(--linea); display: flex; flex-direction: column; }
+  .grupo:last-child { border-right: 0; }
+  .grupo > b, .grupo.doble > div > b { background: var(--suave); border-bottom: 1px solid var(--linea); padding: .9mm 1.4mm; font-size: 7.4pt; color: var(--tinta); text-align: center; letter-spacing: .02em; }
+  .grupo.doble > div { display: flex; flex-direction: column; }
+  .grupo.doble > div + div { border-top: 1px solid var(--linea); }
+  .grupo ul { list-style: none; margin: 0; padding: 1mm 1.4mm 1.2mm; display: flex; flex-direction: column; gap: .8mm; }
+  .grupo li { font-size: 6.9pt; line-height: 1.2; }
+  .grupo .caja { white-space: normal; align-items: flex-start; }
+  .grupo .caja i { flex: 0 0 auto; margin-top: .2mm; width: 2.6mm; height: 2.6mm; font-size: 6pt; }
+
+  /* Tabla de módulos: casilla en lugar de número; bloque aparte para el administrador */
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid var(--linea); padding: .55mm 1.2mm; text-align: left; vertical-align: top; }
+  th { background: var(--suave); color: #334155; font-size: 7.1pt; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+  td { font-size: 7.7pt; }
+  td.chk { text-align: center; }
+  td.chk .caja { justify-content: center; }
+  td.mod { font-weight: 600; letter-spacing: .02em; color: var(--tinta); }
+  tr.admin-titulo th { background: #fffbeb; color: #92400e; border-color: #fcd34d; text-align: left; }
+  tr.admin-titulo th small { font-weight: 500; text-transform: none; letter-spacing: 0; margin-left: 2mm; }
+  tr.admin td { background: #fffdf5; border-color: #fcd34d; }
+  .nota { font-size: 6.8pt; color: var(--gris); margin: .8mm 0 0; }
+
+  /* Cláusula, firmas y bloque de TI */
+  .clausula { margin: 2.2mm 0 0; font-size: 6.8pt; line-height: 1.3; color: #334155; border-left: 2px solid var(--azul); padding: 1.2mm 2mm; background: #f8fafc; }
+  .clausula b { color: var(--tinta); }
+  .firmas { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; padding-top: 3mm; }
+  .firma { text-align: center; font-size: 7.4pt; }
+  .firma .linea { height: 7.7mm; border-bottom: 1px solid var(--tinta); margin-bottom: 1mm; }
+  .firma b { display: block; color: var(--tinta); font-size: 7.8pt; }
+  .firma span { color: var(--gris); }
+  .ti { margin-top: 2.2mm; display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 5mm; align-items: end;
+        border: 0.5mm dashed #1a4fa0; border-radius: 1.5mm; padding: 1.6mm 2.4mm 1.8mm; background: #e8f0fc; }
+  .ti > b { grid-column: 1 / -1; font-size: 7pt; text-transform: uppercase; letter-spacing: .06em; color: var(--azul); margin-bottom: -2mm; }
+  .ti .campo { display: flex; font-size: 7.4pt; }
+  .ti .campo u { flex: 1; text-decoration: none; border-bottom: 0.3mm solid #64748b; }
+  .ti .firma .linea { height: 6.5mm; }
+  .pie { margin-top: 1.8mm; padding-top: 1.5mm; border-top: 1px solid var(--linea); display: flex; justify-content: space-between; font-size: 6.6pt; color: var(--gris); }
+
+  /* Leyenda de prueba (DocuSign en ambiente de pruebas) */
+  .prueba { position: absolute; top: 118mm; left: 0; right: 0; text-align: center; transform: rotate(-24deg);
+            font-size: 40pt; font-weight: 800; color: rgba(185, 28, 28, .13); letter-spacing: .06em; pointer-events: none; }
+  .firma .linea, .ti .campo u { position: relative; }
+  .ancla { position: absolute; left: 1mm; top: 0.5mm; color: #fff; font-size: 2pt; line-height: 1; font-style: normal; }
+  .firmas.dos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+</style>
+</head>
+<body>
+<main class="hoja" aria-label="Solicitud de {{ movimiento_titulo|lower }} de usuario {{ sistema_titulo }}">
+  {% if prueba %}<div class="prueba">DOCUMENTO DE PRUEBA · SIN VALIDEZ</div>{% endif %}
+  <header class="enc">
+    <div class="marca">
+      {% if logo_src %}<img src="{{ logo_src }}" alt="Grupo Avalanz">{% else %}GRUPO AVALANZ{% endif %}
+    </div>
+    <div class="titulo">
+      <h1>SOLICITUD DE {{ movimiento_titulo|upper }} DE USUARIO · {{ sistema_titulo|upper }}</h1>
+      <p>Mesa de Servicios · Solicitudes de acceso</p>
+    </div>
+    <div class="folio"><span class="folio-et">Folio número:</span><b>{{ folio }}</b>{{ fecha }}</div>
+  </header>
+
+  {% macro caja(on, texto='') %}<span class="caja{{ ' on' if on }}"><i>{{ '✓' if on }}</i>{{ texto }}</span>{% endmacro %}
+
+  <section class="sec">
+    <h2>1. Datos del usuario <span>(precargados de la intranet)</span></h2>
+    <dl class="datos">
+      <div><dt>Nombre</dt><dd>{{ usuario.nombre }}</dd></div>
+      <div><dt>Matrícula</dt><dd>{{ usuario.matricula }}</dd></div>
+      <div><dt>Puesto</dt><dd>{{ usuario.puesto }}</dd></div>
+      <div><dt>Departamento</dt><dd>{{ usuario.departamento }}</dd></div>
+      <div><dt>Empresa</dt><dd>{{ usuario.empresa }}</dd></div>
+      <div><dt>Grupo</dt><dd>{{ usuario.grupo }}</dd></div>
+      <div><dt>Jefe</dt><dd>{{ usuario.jefe_nombre }}</dd></div>
+      <div><dt>Correo</dt><dd>{{ usuario.correo }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="sec">
+    <h2>2. Tipo de solicitud</h2>
+    <div class="fila2">
+      <div class="opciones">
+        {{ caja(tipo.alta_nueva, 'Alta nueva') }}
+        {{ caja(tipo.reemplazo, 'Reemplazo') }}
+        {{ caja(tipo.migracion, 'Migración') }}
+        {{ caja(tipo.auditoria, 'Auditoría (visor)') }}
+      </div>
+      <div class="opciones">
+        <span class="campo">Usuario modelo: <u>{{ tipo.usuario_modelo or '&nbsp;'|safe }}</u></span>
+        <span class="campo">Reemplaza a: <u>{{ tipo.reemplaza_a or '&nbsp;'|safe }}</u></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>3. Grupos y empresas a utilizar <span>(marca las empresas donde operará)</span></h2>
+    {% if not columnas %}<p class="nota" style="margin:0;padding:2mm;border:1px dashed var(--linea);border-radius:1.5mm;text-align:center">Todavía no hay empresas configuradas para este formato.</p>{% endif %}
+    <div class="grupos" style="--cols: {{ columnas|length or 1 }}{{ ';display:none' if not columnas }}">
+      {% for col in columnas %}
+      {% if col|length > 1 %}
+      <div class="grupo doble">{% for fam in col %}<div><b>{{ fam.nombre }}</b><ul>{% for e in fam.empresas %}<li>{{ caja(e.marcada, e.nombre) }}</li>{% endfor %}</ul></div>{% endfor %}</div>
+      {% else %}
+      <div class="grupo"><b>{{ col[0].nombre }}</b><ul>{% for e in col[0].empresas %}<li>{{ caja(e.marcada, e.nombre) }}</li>{% endfor %}</ul></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>4. Accesos a módulos <span>(marca el módulo e indica el perfil y las rutinas)</span></h2>
+    <table>
+      <colgroup><col style="width:7mm"><col style="width:48mm"><col style="width:40mm"><col></colgroup>
+      <thead><tr><th></th><th>Módulo</th><th>Perfil / rol</th><th>Rutinas o menús</th></tr></thead>
+      <tbody>
+        {% for m in modulos %}
+        <tr><td class="chk">{{ caja(m.marcado) }}</td><td class="mod">{{ m.nombre }}</td><td>{{ m.perfil or '' }}</td><td>{{ m.rutinas or '' }}</td></tr>
+        {% endfor %}
+        {% if modulos_admin %}
+        <tr class="admin-titulo"><th colspan="4">Exclusivo del administrador del sistema<small>Solo se otorga con autorización de TI</small></th></tr>
+        {% for m in modulos_admin %}
+        <tr class="admin"><td class="chk">{{ caja(m.marcado) }}</td><td class="mod">{{ m.nombre }}</td><td>{{ m.perfil or '' }}</td><td>{{ m.rutinas or '' }}</td></tr>
+        {% endfor %}
+        {% endif %}
+      </tbody>
+    </table>
+    <p class="nota">Cada módulo se habilita en todas las empresas marcadas en el punto 3. El nivel de acceso lo define el perfil del puesto.</p>
+  </section>
+
+  <section class="sec">
+    <h2>5. Vigencia y observaciones</h2>
+    <div class="fila2">
+      <div class="opciones">
+        {{ caja(vigencia.permanente, 'Permanente') }}
+        <span class="caja{{ ' on' if vigencia.temporal }}"><i>{{ '✓' if vigencia.temporal }}</i>Temporal hasta: <u style="border-bottom:1px solid var(--linea);min-width:20mm;display:inline-block;{{ 'font-weight:600' if vigencia.hasta }}">{{ vigencia.hasta or '&nbsp;'|safe }}</u></span>
+      </div>
+      <div class="opciones"><span class="campo">Observaciones: <u>{{ vigencia.observaciones or '&nbsp;'|safe }}</u></span></div>
+    </div>
+  </section>
+
+  <p class="clausula"><b>DECLARACIÓN DE RESPONSABILIDAD.</b> El usuario reconoce que las credenciales (usuario y contraseña) que se le asignen son personales, confidenciales e intransferibles, y que su uso queda bajo su exclusiva responsabilidad. Se obliga a: (i) no compartirlas, cederlas ni permitir que terceros las utilicen; (ii) utilizar el sistema únicamente para las funciones propias de su puesto; (iii) resguardar la confidencialidad de la información a la que tenga acceso, conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares y a las políticas internas de la organización; y (iv) reportar de inmediato cualquier uso no autorizado o sospecha de que sus credenciales se vieron comprometidas. Acepta que las operaciones realizadas con su usuario le son atribuibles, que pueden ser registradas y auditadas, y que sus accesos pueden modificarse o revocarse en cualquier momento. El incumplimiento podrá dar lugar a sanciones laborales, administrativas, civiles o penales, conforme a la legislación aplicable.</p>
+
+  <section class="firmas{% if firma_admin is defined and not firma_admin %} dos{% endif %}" aria-label="Firmas">
+    <div class="firma"><div class="linea">{% if anclas %}<i class="ancla">/f1/</i>{% endif %}</div><b>{{ usuario.nombre_firma or '&nbsp;'|safe }}</b><span>Usuario</span></div>
+    <div class="firma"><div class="linea">{% if anclas %}<i class="ancla">/f2/</i>{% endif %}</div><b>{{ usuario.jefe_nombre_firma or '&nbsp;'|safe }}</b><span>Jefe directo</span></div>
+    {% if firma_admin is not defined or firma_admin %}<div class="firma"><div class="linea">{% if anclas %}<i class="ancla">/f3/</i>{% endif %}</div><b>{{ usuario.jefe_admin_firma or '&nbsp;'|safe }}</b><span>Jefe administrativo</span></div>{% endif %}
+  </section>
+
+  <section class="ti" aria-label="Uso exclusivo de TI">
+    <b>Uso exclusivo de TI</b>
+    <span class="campo">Usuario asignado:&nbsp;<u>{{ ti.usuario_asignado or '&nbsp;'|safe }}{% if anclas %}<i class="ancla">/ua/</i>{% endif %}</u></span>
+    <span class="campo">Fecha de alta:&nbsp;<u>{{ ti.fecha_alta or '&nbsp;'|safe }}{% if anclas %}<i class="ancla">/fa/</i>{% endif %}</u></span>
+    <div class="firma"><div class="linea">{% if anclas %}<i class="ancla">/f4/</i>{% endif %}</div><b>{{ ti.admin_nombre or '&nbsp;'|safe }}</b><span>Administrador del sistema (TI)</span></div>
+  </section>
+
+  <footer class="pie">
+    <span>{{ folio }} · {{ sistema_titulo }} · Firma: {{ metodo_firma_texto }}</span>
+    <span>Generado por la Intranet Avalanz · Página 1 de 1</span>
+  </footer>
+</main>
+</body>
+</html>
