@@ -1168,47 +1168,6 @@ async def escalate_incident(
     return {"success": True, "message": "Ticket escalado"}
 
 
-# ------------------------------------------------------------------
-# Validar/ajustar severidad en triage -- solo Incident Manager
-# ------------------------------------------------------------------
-
-@router.patch("/incidencias/{incident_id}/severidad")
-async def validate_severity(
-    incident_id: str,
-    body: dict,
-    db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
-):
-    severity_id = (body or {}).get("severity_id", "").strip()
-    if not severity_id:
-        raise HTTPException(status_code=400, detail="Debes indicar la severidad validada")
-
-    roles = user.get("roles") or []
-    if "it-service-desk:incident-manager" not in roles and "super_admin" not in roles:
-        raise HTTPException(status_code=403, detail="Solo Incident Manager puede validar la severidad")
-
-    result = await db.execute(select(Incident).where(Incident.id == incident_id))
-    incident = result.scalar_one_or_none()
-    if not incident:
-        raise HTTPException(status_code=404, detail="Ticket no encontrado")
-
-    sev_result = await db.execute(select(TicketSeverity).where(TicketSeverity.id == severity_id))
-    severity = sev_result.scalar_one_or_none()
-    if not severity:
-        raise HTTPException(status_code=404, detail="Severidad no encontrada")
-
-    old_severity_id = incident.severity_validated_id or incident.severity_reported_id
-    incident.severity_validated_id = severity_id
-
-    db.add(IncidentActivityLog(
-        incident_id=incident.id, action="severidad_validada",
-        performed_by=user.get("user_id"), performed_by_name=user.get("full_name", ""),
-        performed_by_role="incident_manager", module_slug="it-service-desk",
-        detail={"severidad_anterior": old_severity_id, "severidad_nueva": severity_id},
-    ))
-    await db.commit()
-    await _broadcast_ticket_update(incident)
-    return {"success": True, "message": "Severidad validada"}
 
 
 # ------------------------------------------------------------------
@@ -1850,3 +1809,78 @@ async def ajustar_sla(code: str, body: SeveridadSlaPayload, db: AsyncSession = D
              "uid": str(user.get("user_id") or user.get("sub") or "") or None, "unom": user.get("full_name") or ""})
     await db.commit()
     return _sla_dict(sev)
+
+
+
+# ── Cambio de severidad (triage o reclasificación): se guarda como severidad validada ──
+class CambioSeveridadPayload(BaseModel):
+    severity_id: str
+    motivo: str = ""
+
+
+@router.patch("/incidencias/{incident_id}/severidad")
+async def cambiar_severidad(incident_id: str, body: CambioSeveridadPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """El Incident Manager (cualquier ticket) o el especialista asignado cambian la severidad.
+    Se recalcula el SLA desde la creacion, queda en bitacora y se avisa al solicitante."""
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    from app.services.sla import limites_sla
+    from app.assignment import _notify_inapp
+    motivo = (body.motivo or "").strip() or "Ajuste de severidad"
+    incident = (await db.execute(select(Incident).where(Incident.id == incident_id))).scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    uid = str(user.get("user_id") or user.get("sub") or "")
+    roles = set(user.get("roles") or [])
+    es_im = bool(roles & {"it-service-desk:incident-manager", "super_admin"}) or bool(user.get("is_super_admin"))
+    es_especialista = bool(roles & {"it-service-desk:especialista-funcional", "it-service-desk:especialista-tecnico"})
+    if not es_im and not (es_especialista and str(incident.assigned_to_user_id or "") == uid):
+        raise HTTPException(status_code=403, detail="Solo el Incident Manager o el especialista asignado pueden cambiar la severidad")
+    if incident.status in ("resuelto", "cerrado"):
+        raise HTTPException(status_code=422, detail="El ticket ya está resuelto")
+    nueva = (await db.execute(select(TicketSeverity).where(TicketSeverity.id == body.severity_id))).scalar_one_or_none()
+    if not nueva:
+        raise HTTPException(status_code=404, detail="Severidad no encontrada")
+    actual_id = incident.severity_validated_id or incident.severity_reported_id
+    if actual_id and str(actual_id) == str(nueva.id):
+        raise HTTPException(status_code=422, detail="El ticket ya tiene esa severidad")
+    anterior = (await db.execute(select(TicketSeverity).where(TicketSeverity.id == actual_id))).scalar_one_or_none() if actual_id else None
+
+    incident.severity_validated_id = nueva.id
+    incident.sla_response_limit, incident.sla_resolution_limit = limites_sla(nueva, incident.created_at)
+    de = f"{anterior.code} · {anterior.name}" if anterior else "Sin severidad"
+    a = f"{nueva.code} · {nueva.name}"
+    db.add(IncidentActivityLog(incident_id=incident.id, action="cambio_severidad", performed_by=uid,
+                               performed_by_name=user.get("full_name") or "—",
+                               performed_by_role="incident-manager" if es_im else "especialista",
+                               performed_at=datetime.now(timezone.utc), company_id=incident.company_id,
+                               module_slug="it-service-desk", detail={"de": de, "a": a, "motivo": motivo}))
+    await db.commit()
+    await db.refresh(incident)
+    await _broadcast_ticket_update(incident)
+
+    # Aviso al solicitante: correo y campana
+    limite = incident.sla_resolution_limit.astimezone(TZ_MTY).strftime("%d/%m/%Y %H:%M") if incident.sla_resolution_limit else "—"
+    try:
+        perfil = await _get_requester_profile(incident.requester_id)
+        if perfil.get("email"):
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                await client.post("http://email-service:8000/api/v1/email/system-notification", json={
+                    "to_email": perfil["email"], "full_name": incident.requester_name,
+                    "subject": f"La severidad de tu ticket #{incident.folio} cambió",
+                    "message": f"Quien atiende tu ticket cambió su severidad de {de} a {a}. Motivo: {motivo}",
+                    "alert_type": "info",
+                    "fields": [{"label": "Folio", "value": incident.folio, "mono": True},
+                               {"label": "Título", "value": incident.title, "mono": False},
+                               {"label": "Severidad", "value": a, "mono": False},
+                               {"label": "Nueva fecha límite de resolución", "value": limite, "mono": False}],
+                })
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("No se pudo avisar del cambio de severidad de %s: %s", incident.folio, e)
+    if incident.requester_id:
+        await _notify_inapp(incident.requester_id, f"Tu ticket #{incident.folio} cambió de severidad",
+                            f"De {de} a {a}. Motivo: {motivo}", "info",
+                            {"incident_id": str(incident.id), "folio": incident.folio})
+    return {"success": True, "severidad": a,
+            "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+            "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None}

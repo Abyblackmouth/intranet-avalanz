@@ -213,3 +213,5 @@ export const marcarRevisado = (incidentId: string) =>
 export const slaSeveridades = () => api.get('/api/v1/it-service-desk/mesa-de-soporte/sla/severidades')
 export const ajustarSla = (code: string, data: { response_sla_minutes: number; resolution_sla_hours: number; is_24_7: boolean; rca_mandatory: boolean }) =>
   api.put(`/api/v1/it-service-desk/mesa-de-soporte/sla/severidades/${code}`, data)
+export const cambiarSeveridad = (incidentId: string, data: { severity_id: string; motivo: string }) =>
+  api.patch(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/severidad`, data)

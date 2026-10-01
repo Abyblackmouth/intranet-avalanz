@@ -3,7 +3,7 @@
 import AccResumenSolicitud from '@/components/app/it-service-desk/mesa-de-soporte/AccResumenSolicitud'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { getIncidentDetail, getSystems, getSeverities, resolveIncident, marcarRevisado } from '@/services/itServiceDeskService'
+import { getIncidentDetail, getSystems, getSeverities, resolveIncident, marcarRevisado, cambiarSeveridad } from '@/services/itServiceDeskService'
 import { getSignedUrl } from '@/services/uploadService'
 import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip, Printer, Eye } from 'lucide-react'
 import { imprimirTicket } from './imprimirTicket'
@@ -134,6 +134,11 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   onChanged?: () => void
 }) {
   const { user } = useAuthStore()
+  const [showSev, setShowSev] = useState(false)
+  const [nuevaSev, setNuevaSev] = useState('')
+  const [motivoSev, setMotivoSev] = useState('')
+  const [guardandoSev, setGuardandoSev] = useState(false)
+  const [errorSev, setErrorSev] = useState<string | null>(null)
   const [revisadoAt, setRevisadoAt] = useState<string | null>(null)
   const [marcandoRevisado, setMarcandoRevisado] = useState(false)
   const [detail, setDetail] = useState<Detail | null>(null)
@@ -200,6 +205,11 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const systemName = (id: string) => systems.find(s => s.id === id)?.name ?? '—'
   const sevInfo = (id: string | null) => id ? severities.find(s => s.id === id) : null
   const sev = detail ? sevInfo(detail.severity_validated_id ?? detail.severity_reported_id) : null
+  const yo: any = (useAuthStore.getState() as any).user ?? {}
+  const misRoles: string[] = yo.roles ?? []
+  const esIM = misRoles.includes('it-service-desk:incident-manager') || misRoles.includes('super_admin')
+  const esEsp = misRoles.includes('it-service-desk:especialista-funcional') || misRoles.includes('it-service-desk:especialista-tecnico')
+  const puedeCambiarSev = !!detail && (esIM || (esEsp && String(detail.assigned_to_user_id ?? '') === String(yo.user_id ?? yo.id ?? '')))
 
   const reportEvidence = detail?.attachments.filter(a => a.attachment_type === 'evidencia_reporte') ?? []
   const resolutionEvidence = detail?.attachments.filter(a => a.attachment_type === 'evidencia_resolucion') ?? []
@@ -227,6 +237,50 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
               <span className={`px-4 py-2 rounded-xl border-2 text-base font-bold ${SEV_CLASS[sev.code] ?? 'bg-slate-50 text-slate-600 border-slate-300'}`}>
                 {sev.code} · {sev.name}
               </span>
+            )}
+            {sev && puedeCambiarSev && !['resuelto', 'cerrado'].includes(detail!.status) && (
+              <button type="button" onClick={() => { setNuevaSev(''); setMotivoSev(''); setErrorSev(null); setShowSev(true) }}
+                className="h-9 px-3 rounded-lg text-[13px] font-semibold text-[#1a4fa0] border border-[#1a4fa0]/40 hover:bg-blue-50 transition">
+                Cambiar
+              </button>
+            )}
+            {showSev && detail && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/40" onClick={() => !guardandoSev && setShowSev(false)} />
+                <div role="dialog" aria-modal="true" aria-labelledby="titulo-sev" className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+                  <h3 id="titulo-sev" className="text-base font-bold text-slate-900">Cambiar severidad</h3>
+                  <p className="text-sm text-slate-500 mt-1">El SLA se recalcula con la nueva severidad y se le avisa al solicitante.</p>
+                  <label className="block mt-4 text-xs font-semibold text-slate-600 uppercase tracking-wide">Nueva severidad</label>
+                  <div role="radiogroup" className="mt-1.5 grid grid-cols-2 gap-2">
+                    {severities.filter(x => x.id !== (detail.severity_validated_id ?? detail.severity_reported_id)).map(x => (
+                      <button key={x.id} type="button" role="radio" aria-checked={nuevaSev === x.id} onClick={() => setNuevaSev(x.id)}
+                        className={`px-3 py-2 rounded-lg border-2 text-sm font-bold text-left transition ${SEV_CLASS[x.code] ?? 'bg-slate-50 text-slate-600 border-slate-300'} ${nuevaSev === x.id ? 'ring-2 ring-[#1a4fa0] ring-offset-1' : 'opacity-70 hover:opacity-100'}`}>
+                        {x.code} · {x.name}
+                      </button>
+                    ))}
+                  </div>
+                  <label htmlFor="motivo-sev" className="block mt-4 text-xs font-semibold text-slate-600 uppercase tracking-wide">Motivo <span className="text-red-500">*</span></label>
+                  <textarea id="motivo-sev" rows={3} value={motivoSev} onChange={e => setMotivoSev(e.target.value)}
+                    placeholder="Ej. Solo afecta a un usuario, no a toda la operación"
+                    className="mt-1.5 w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1a4fa0] resize-none" />
+                  {errorSev && <p role="alert" className="mt-2 text-sm text-red-600">{errorSev}</p>}
+                  <div className="mt-5 flex justify-end gap-2">
+                    <button type="button" disabled={guardandoSev} onClick={() => setShowSev(false)} className="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
+                    <button type="button" disabled={!nuevaSev || motivoSev.trim().length < 5 || guardandoSev}
+                      onClick={async () => {
+                        setGuardandoSev(true); setErrorSev(null)
+                        try {
+                          await cambiarSeveridad(detail.id, { severity_id: nuevaSev, motivo: motivoSev.trim() })
+                          const r = await getIncidentDetail(detail.id); setDetail(r.data); setShowSev(false)
+                        } catch (e: any) { const d = e?.response?.data?.detail; setErrorSev(typeof d === 'string' ? d : 'No se pudo cambiar la severidad') }
+                        finally { setGuardandoSev(false) }
+                      }}
+                      className="px-5 py-2 text-sm font-semibold rounded-lg bg-[#1a4fa0] text-white hover:bg-[#153f82] disabled:opacity-50">
+                      {guardandoSev ? 'Guardando…' : 'Cambiar severidad'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
             <button onClick={onClose} className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 transition">
               <X size={20} />
