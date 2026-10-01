@@ -154,6 +154,7 @@ async def list_incidents(
             "sla_response_limit": i.sla_response_limit.isoformat() if i.sla_response_limit else None,
             "first_response_at": i.first_response_at.isoformat() if i.first_response_at else None,
             "sla_resolution_limit": i.sla_resolution_limit.isoformat() if i.sla_resolution_limit else None,
+            "resolved_at": i.resolved_at.isoformat() if i.resolved_at else None,
             "is_sla_breached": i.is_sla_breached,
             "ticket_type": i.ticket_type,
             "cdc_prioridad": cdc_detalle_cache[i.id].prioridad if i.ticket_type == "control_cambio" and i.id in cdc_detalle_cache else None,
@@ -350,6 +351,7 @@ async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.
                             "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
                             "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
                             "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
+                            "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
                             "is_sla_breached": incident.is_sla_breached if hasattr(incident, "is_sla_breached") else False,
                             "ticket_type": incident.ticket_type,
                             **(extra or {}),
@@ -556,6 +558,7 @@ async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
         "severity_name": severity.name if severity else None,
         "created_at": incident.created_at.isoformat(),
         "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
+        "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
         "already_resolved": incident.status in ("resuelto", "cerrado"),
         "attachments": [{"id": a.id, "object_key": a.object_key, "bucket": a.bucket} for a in attachments],
     }
@@ -898,6 +901,7 @@ async def create_incident(
             "sla_response_limit": incident.sla_response_limit.isoformat(),
             "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
             "sla_resolution_limit": incident.sla_resolution_limit.isoformat(),
+            "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
             "evidencia_subida": len(files) if files else 0,
         },
     }
