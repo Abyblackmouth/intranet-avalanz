@@ -1,6 +1,11 @@
 from pydantic_settings import BaseSettings
 
 class Config(BaseSettings):
+    # MinIO (Control de accesos: PDF firmados) -- mismas credenciales que Legal
+    MINIO_ENDPOINT: str = ""
+    MINIO_ACCESS_KEY: str = ""
+    MINIO_SECRET_KEY: str = ""
+
     # DocuSign (Control de accesos) -- misma cuenta que Legal
     DOCUSIGN_INTEGRATION_KEY: str = ""
     DOCUSIGN_USER_ID: str = ""

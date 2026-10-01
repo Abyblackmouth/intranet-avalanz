@@ -480,3 +480,49 @@ async def rechazar_solicitud(incident_id: str, body: RechazarPayload, db: AsyncS
                               f"TI rechazó tu solicitud. Motivo: {motivo}. Si aún necesitas el acceso, levanta una solicitud nueva con los ajustes.",
                               [{"label": "Formato", "value": f.nombre, "mono": False}], "warning")
     return {"success": True, "status": inc.status}
+
+
+
+# ── DocuSign: webhook y consulta de respaldo ────────────────────────────────
+from fastapi import Request as _Request
+
+
+async def _procesar(db, envelope_id: str) -> dict:
+    from app.services.control_accesos.firma.cierre import procesar_sobre
+    return await procesar_sobre(db, envelope_id, _avisar_solicitante, _get_requester_profile, _broadcast_ticket_update)
+
+
+@router.post("/docusign/webhook")
+async def docusign_webhook(request: _Request, db: AsyncSession = Depends(get_db)):
+    """Aviso de DocuSign para los sobres del Control de accesos. Solo procesa sobres propios;
+    responde 200 siempre que el aviso sea legible, para que DocuSign no reintente sin fin."""
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Payload inválido")
+    data = payload.get("data") or {}
+    envelope_id = data.get("envelopeId") or payload.get("envelopeId")
+    if not envelope_id:
+        return {"received": True, "accion": "ignorado"}
+    try:
+        return {"received": True, **(await _procesar(db, envelope_id))}
+    except Exception as e:
+        log.warning("Webhook de DocuSign: no se pudo procesar el sobre %s: %s", envelope_id, e)
+        return {"received": True, "accion": "error"}
+
+
+@router.post("/internal/docusign-poll")
+async def docusign_poll(request: _Request, db: AsyncSession = Depends(get_db)):
+    """Respaldo: revisa los sobres en firma. Solo desde dentro del contenedor."""
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        raise HTTPException(status_code=403, detail="Solo uso interno")
+    ids = (await db.execute(select(AccSolicitud.docusign_envelope_id).join(Incident, Incident.id == AccSolicitud.incident_id)
+                            .where(Incident.status == "en_firma", AccSolicitud.docusign_envelope_id.isnot(None)))).scalars().all()
+    resultados = []
+    for envelope_id in ids:
+        try:
+            resultados.append(await _procesar(db, envelope_id))
+        except Exception as e:
+            log.warning("Consulta de DocuSign: falló el sobre %s: %s", envelope_id, e)
+            resultados.append({"accion": "error", "sobre": envelope_id[:8]})
+    return {"revisados": len(ids), "resultados": resultados}
