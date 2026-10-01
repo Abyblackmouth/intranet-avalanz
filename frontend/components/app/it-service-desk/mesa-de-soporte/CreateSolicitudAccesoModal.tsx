@@ -2,7 +2,7 @@
 
 // Solicitud de acceso: elige el formato del sistema y lo llena por etapas.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, Check, KeyRound, Lock, Plus, X } from 'lucide-react'
+import { ArrowLeft, Check, KeyRound, Lock, Mail, Plus, User, X } from 'lucide-react'
 import { accEnviarSolicitud, accFormatosDisponibles, accFormulario, accVistaPreviaSolicitud } from '@/services/itServiceDeskService'
 
 interface FormatoCard { id: string; nombre: string; sistema: string; movimiento: 'alta' | 'modificacion' }
@@ -185,6 +185,8 @@ export default function CreateSolicitudAccesoModal({ onClose, onBack, onCreated 
       setEnviando(false)
     }
   }
+  const u = form?.usuario ?? {}
+  const iniciales = (u.nombre || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('')
   const titulo = form ? `${form.movimiento === 'modificacion' ? 'Modificación' : 'Alta'} de usuario · ${form.formato.nombre}` : 'Solicitud de acceso'
   const modulosNormales = form?.modulos.filter(m => !m.exclusivo_admin) ?? []
   const modulosAdmin = form?.modulos.filter(m => m.exclusivo_admin) ?? []
@@ -270,25 +272,50 @@ export default function CreateSolicitudAccesoModal({ onClose, onBack, onCreated 
 
                 {etapa === 0 && (
                   <div className="grid gap-5">
-                    <div>
+                    <section>
                       <h3 className="text-[15px] font-bold text-slate-900 mb-1">Tus datos</h3>
                       <p className="text-[13px] text-slate-500 mb-3">Vienen de tu perfil de la intranet. Si alguno está mal, pídele a Recursos Humanos que lo corrija.</p>
-                      <dl className="grid sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-x-6 gap-y-2 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-                        {[['Nombre', 'nombre'], ['Matrícula', 'matricula'], ['Puesto', 'puesto'], ['Departamento', 'departamento'], ['Empresa', 'empresa'], ['Grupo', 'grupo'], ['Correo', 'correo']].map(([l, k]) => (
-                          <div key={k} className="flex gap-2 text-[12.5px]"><dt className="w-24 shrink-0 text-slate-500">{l}</dt><dd className="font-medium text-slate-900 min-w-0 break-words">{form.usuario[k] || '—'}</dd></div>
-                        ))}
-                      </dl>
-                    </div>
-                    <div>
-                      <h3 className="text-[15px] font-bold text-slate-900 mb-3">Tu jefe directo</h3>
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <label className="grid gap-1.5"><span className="text-[12.5px] font-medium text-slate-600">Nombre completo</span>
-                          <input className={inputCls} value={datos.jefe.nombre} onChange={e => set('jefe', { nombre: e.target.value })} autoComplete="off" /></label>
-                        <label className="grid gap-1.5"><span className="text-[12.5px] font-medium text-slate-600">Correo</span>
-                          <input className={inputCls} type="email" inputMode="email" value={datos.jefe.correo} onChange={e => set('jefe', { correo: e.target.value })} autoComplete="off" /></label>
+                      <div className="rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="flex items-center gap-3 px-4 py-2.5 bg-gradient-to-r from-[#1a4fa0]/[0.07] to-transparent">
+                          <span className="w-9 h-9 rounded-full bg-[#1a4fa0] text-white flex items-center justify-center text-[12px] font-bold shrink-0" aria-hidden="true">{iniciales}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13.5px] font-bold text-slate-900 leading-tight break-words">{u.nombre || '—'}</p>
+                            <p className="text-[12px] text-slate-600 break-words">{[u.puesto, u.departamento].filter(Boolean).join(' · ') || '—'}</p>
+                          </div>
+                          {u.grupo && <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700">{u.grupo}</span>}
+                        </div>
+                        <dl className="grid sm:grid-cols-[minmax(0,1fr)_auto_auto] border-t border-slate-200 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 bg-slate-50/50">
+                          {[['Empresa', u.empresa], ['Matrícula', u.matricula], ['Correo', u.correo]].map(([l, v]) => (
+                            <div key={l} className="px-4 py-2 min-w-0">
+                              <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-slate-400">{l}</dt>
+                              <dd className="text-[12.5px] font-medium text-slate-900 break-words">{v || '—'}</dd>
+                            </div>
+                          ))}
+                        </dl>
                       </div>
-                      <p className="text-[12px] text-slate-500 mt-2">Tu jefe directo firmará la solicitud para autorizarla.</p>
-                    </div>
+                    </section>
+                    <section>
+                      <h3 className="text-[15px] font-bold text-slate-900 mb-1">Tu jefe directo</h3>
+                      <p className="text-[12.5px] text-slate-500 mb-3">Firmará tu solicitud para autorizarla. Escribe su nombre y correo tal como aparecen en la intranet.</p>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <label className="grid gap-1.5">
+                          <span className="text-[12.5px] font-medium text-slate-600">Nombre completo</span>
+                          <span className="relative">
+                            <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <input className={`${inputCls} pl-9`} placeholder="Ej. Juan Pérez López" value={datos.jefe.nombre}
+                              onChange={e => set('jefe', { nombre: e.target.value })} autoComplete="off" />
+                          </span>
+                        </label>
+                        <label className="grid gap-1.5">
+                          <span className="text-[12.5px] font-medium text-slate-600">Correo</span>
+                          <span className="relative">
+                            <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <input className={`${inputCls} pl-9`} type="email" inputMode="email" placeholder="nombre@avalanz.com" value={datos.jefe.correo}
+                              onChange={e => set('jefe', { correo: e.target.value })} autoComplete="off" />
+                          </span>
+                        </label>
+                      </div>
+                    </section>
                   </div>
                 )}
 

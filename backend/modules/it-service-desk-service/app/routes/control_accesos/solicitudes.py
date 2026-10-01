@@ -9,9 +9,9 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.mesa_de_soporte import AccCuenta, AccFormato, TicketSystem
+from app.models.mesa_de_soporte import AccCuenta, AccFormato, AccSolicitud, Incident, TicketSystem
 from app.routes.control_accesos.configuracion import _config_completa, _formato
-from app.routes.mesa_de_soporte.mesa_de_soporte import _get_requester_profile, get_current_user
+from app.routes.mesa_de_soporte.mesa_de_soporte import _broadcast_ticket_update, _generate_folio, _get_requester_profile, get_current_user
 from app.services.control_accesos.motor.documento import contexto_solicitud, ordenar_familias, renderizar
 
 router = APIRouter(prefix="/control-accesos")
@@ -97,3 +97,141 @@ async def vista_previa_solicitud(formato_id: str, datos: dict = Body(...), db: A
     fecha = datetime.now(ZoneInfo("America/Monterrey")).strftime("%d/%m/%Y")
     ctx = contexto_solicitud(config, datos, await _usuario(user), movimiento, FOLIO_PREVIO, fecha, metodo, prueba)
     return HTMLResponse(renderizar(f.clave, ctx))
+
+
+# ── Envío: crea el ticket de acceso y guarda la solicitud (la firma llega después de la revisión) ──
+import uuid
+from datetime import date, timezone
+
+
+def _validar(datos: dict, config: dict) -> list[str]:
+    """Revalida en el servidor todo lo que el formulario ya valido."""
+    errores = []
+    jefe = datos.get("jefe") or {}
+    if not (jefe.get("nombre") or "").strip():
+        errores.append("el nombre del jefe directo")
+    correo = (jefe.get("correo") or "").strip()
+    if "@" not in correo or "." not in correo.split("@")[-1]:
+        errores.append("un correo válido del jefe directo")
+    tipo = datos.get("tipo") or {}
+    if tipo.get("motivo") not in ("alta_nueva", "reemplazo", "migracion"):
+        errores.append("el tipo de solicitud")
+    if tipo.get("motivo") == "reemplazo" and not (tipo.get("reemplaza_a") or "").strip():
+        errores.append("a quién reemplaza")
+    validas = {c["id"] for c in config["catalogo_empresas"] if c.get("operando")} & set(config["empresas_elegidas"])
+    empresas = datos.get("empresas") or []
+    if not empresas or any(e not in validas for e in empresas):
+        errores.append("empresas válidas del formato")
+    modulos = {m["id"]: m for m in config["modulos"] if m["activo"]}
+    elegidos = datos.get("modulos") or []
+    if not elegidos:
+        errores.append("al menos un módulo")
+    for m in elegidos:
+        mod = modulos.get(m.get("modulo_id"))
+        if not mod:
+            errores.append("módulos válidos del formato")
+            continue
+        if m.get("perfil") not in [p["nombre"] for p in mod["perfiles"]]:
+            errores.append(f"un perfil válido para {mod['nombre']}")
+        rutinas = m.get("rutinas") or []
+        if not rutinas or any(not (r or "").strip() or "|" in r for r in rutinas):
+            errores.append(f"rutinas válidas para {mod['nombre']}")
+    vig = datos.get("vigencia") or {}
+    if vig.get("tipo") not in ("permanente", "temporal"):
+        errores.append("la vigencia")
+    if vig.get("tipo") == "temporal":
+        try:
+            if date.fromisoformat(vig.get("hasta") or "") <= date.today():
+                errores.append("una fecha de vigencia posterior a hoy")
+        except ValueError:
+            errores.append("una fecha de vigencia válida")
+    if datos.get("acepta") is not True:
+        errores.append("aceptar la declaración de responsabilidad")
+    return errores
+
+
+def _descripcion(datos: dict, config: dict, movimiento: str, formato: str) -> str:
+    """Resumen en texto, para leerlo desde la tabla y la búsqueda sin abrir la solicitud."""
+    nombres = {c["id"]: c["nombre_comercial"] for c in config["catalogo_empresas"]}
+    modulos = {m["id"]: m["nombre"] for m in config["modulos"]}
+    tipo = datos["tipo"]
+    motivo = {"alta_nueva": "Alta nueva", "reemplazo": "Reemplazo", "migracion": "Migración"}[tipo["motivo"]]
+    lineas = [f"Solicitud de {'modificación' if movimiento == 'modificacion' else 'alta'} de usuario en {formato}.",
+              f"Tipo: {motivo}" + (" · Auditoría (visor)" if tipo.get("auditoria") else "")
+              + (f" · Reemplaza a: {tipo['reemplaza_a']}" if tipo.get("reemplaza_a") else "")
+              + (f" · Usuario modelo: {tipo['usuario_modelo']}" if tipo.get("usuario_modelo") else ""),
+              "Empresas: " + ", ".join(nombres.get(e, e) for e in datos["empresas"]),
+              "Módulos:"]
+    for m in datos["modulos"]:
+        lineas.append(f"  - {modulos.get(m['modulo_id'], '')} ({m['perfil']}): " + " | ".join(m["rutinas"]))
+    vig = datos["vigencia"]
+    lineas.append("Vigencia: " + ("Permanente" if vig["tipo"] == "permanente" else f"Temporal hasta {vig['hasta']}"))
+    if (vig.get("observaciones") or "").strip():
+        lineas.append(f"Observaciones: {vig['observaciones'].strip()}")
+    lineas.append(f"Jefe directo: {datos['jefe']['nombre'].strip()} <{datos['jefe']['correo'].strip()}>")
+    return "\n".join(lineas)
+
+
+@router.post("/formatos/{formato_id}/solicitudes")
+async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    f = await _formato_activo(db, formato_id)
+    config = await _config_completa(db, f)
+    errores = _validar(datos, config)
+    if errores:
+        raise HTTPException(status_code=422, detail="Falta o no es válido: " + ", ".join(dict.fromkeys(errores)))
+
+    user_id = _uid(user)
+    company_id = (user.get("companies") or [None])[0]
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Tu usuario no tiene empresa asignada")
+    perfil = await _get_requester_profile(user_id)
+    usuario = await _usuario(user)
+    movimiento, cuenta = await _movimiento(db, f.id, user_id)
+    folio = await _generate_folio(db, "ACC", perfil.get("family_clave"))
+    now = datetime.now(timezone.utc)
+
+    # Directo al encargado de TI del formato; si no hay encargado, al backlog y lo asigna el motor
+    con_encargado = bool(f.admin_user_id)
+    incident = Incident(
+        id=str(uuid.uuid4()), folio=folio, ticket_type="solicitud_acceso",
+        title=f"{'Modificación' if movimiento == 'modificacion' else 'Alta'} de usuario · {f.nombre}"[:150],
+        company_id=company_id, requester_id=user_id,
+        requester_name=perfil.get("full_name", ""), requester_phone=perfil.get("phone"),
+        requester_puesto=perfil.get("puesto"), requester_area=perfil.get("departamento"),
+        requester_company_name=perfil.get("company_name", ""),
+        system_id=f.system_id, module_id=None, reported_type=None,
+        description=_descripcion(datos, config, movimiento, f.nombre),
+        severity_reported_id=f.severity_id, severity_validated_id=f.severity_id,
+        assigned_to_user_id=f.admin_user_id if con_encargado else None,
+        assigned_at=now if con_encargado else None,
+        status="en_revision" if con_encargado else "en_backlog",
+        created_at=now,
+    )
+    db.add(incident)
+    await db.flush()
+
+    if not cuenta:
+        cuenta = AccCuenta(formato_id=f.id, usuario_id=user_id, usuario_nombre=perfil.get("full_name", ""), estado="pendiente", accesos={})
+        db.add(cuenta)
+        await db.flush()
+
+    # Copia completa: el documento que se firme será idéntico al que vio el solicitante
+    datos_limpios = {k: datos[k] for k in ("jefe", "tipo", "empresas", "modulos", "vigencia", "acepta") if k in datos}
+    db.add(AccSolicitud(
+        incident_id=incident.id, formato_id=f.id, cuenta_id=cuenta.id, movimiento=movimiento,
+        datos={"captura": datos_limpios, "usuario": usuario, "config": config, "enviado_en": now.isoformat()},
+        created_at=now,
+    ))
+    await db.commit()
+
+    await _broadcast_ticket_update(incident, event_type="it_service_desk.ticket_created")
+    if not con_encargado:
+        try:
+            from app.rabbitmq import publish_incident_created
+            await publish_incident_created(str(incident.id))
+        except Exception:
+            pass   # se queda en backlog para asignación manual; no se pierde nada
+
+    return {"success": True, "message": "Solicitud enviada",
+            "data": {"id": incident.id, "folio": folio, "status": incident.status, "movimiento": movimiento,
+                     "asignado_a": f.admin_nombre if con_encargado else None}}
