@@ -267,6 +267,8 @@ services:
     restart: unless-stopped
     env_file:
       - ../../backend/modules/it-service-desk-service/.env
+    volumes:
+      - ../../backend/modules/legal-service/docusign_private.pem:/app/docusign_private.pem:ro
     environment:
       DB_HOST: postgres
     depends_on:
