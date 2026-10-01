@@ -69,6 +69,9 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 
+# Alta masiva antes que users: /users/bulk no debe tomarse como /users/{user_id}
+from app.routes.users_bulk import router as users_bulk_router
+app.include_router(users_bulk_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(modules_router, prefix="/api/v1")
 app.include_router(roles_router, prefix="/api/v1")

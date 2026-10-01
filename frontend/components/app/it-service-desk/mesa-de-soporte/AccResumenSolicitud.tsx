@@ -3,14 +3,14 @@
 // Resumen por secciones de una solicitud de acceso, para el panel del ticket.
 import { useEffect, useState } from 'react'
 import { Lock } from 'lucide-react'
-import { accResumenSolicitud } from '@/services/itServiceDeskService'
+import { accGenerarPdfSolicitud, accResumenSolicitud } from '@/services/itServiceDeskService'
 
 interface Resumen {
   movimiento: 'alta' | 'modificacion'
   tipo: { motivo: string; auditoria: boolean; usuario_modelo: string; reemplaza_a: string }
   familias: { id: string; nombre: string; empresas: string[] }[]
   modulos: { nombre: string; exclusivo_admin: boolean; perfil: string; rutinas: string[] }[]
-  vigencia: string; observaciones: string; jefe: { nombre?: string; correo?: string }
+  vigencia: string; observaciones: string; jefe: { nombre?: string; correo?: string }; tiene_pdf: boolean
 }
 
 const Etiqueta = ({ children }: { children: React.ReactNode }) => (
@@ -20,6 +20,7 @@ const Etiqueta = ({ children }: { children: React.ReactNode }) => (
 export default function AccResumenSolicitud({ incidentId, fallback }: { incidentId: string; fallback: string }) {
   const [r, setR] = useState<Resumen | null>(null)
   const [error, setError] = useState(false)
+  const [pdf, setPdf] = useState<'' | 'generando' | 'listo' | string>('')
   useEffect(() => { accResumenSolicitud(incidentId).then(x => setR(x.data)).catch(() => setError(true)) }, [incidentId])
 
   if (error) return <p className="text-sm text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-3 whitespace-pre-line">{fallback}</p>
@@ -27,6 +28,21 @@ export default function AccResumenSolicitud({ incidentId, fallback }: { incident
 
   return (
     <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 text-[13px]">
+      {!r.tiene_pdf && (
+        <div className="p-3 flex flex-wrap items-center gap-2 bg-amber-50/70">
+          <p className="flex-1 text-[12.5px] text-amber-900">
+            {pdf === 'listo' ? 'PDF adjuntado. Cierra y vuelve a abrir el ticket para verlo en las evidencias.'
+              : pdf && pdf !== 'generando' ? pdf : 'Esta solicitud no tiene su PDF adjunto.'}
+          </p>
+          {pdf !== 'listo' && (
+            <button type="button" disabled={pdf === 'generando'}
+              onClick={() => { setPdf('generando'); accGenerarPdfSolicitud(incidentId).then(() => setPdf('listo')).catch(e => setPdf(e?.response?.data?.detail ?? 'No se pudo generar el PDF')) }}
+              className="px-3 py-1.5 rounded-lg text-[12.5px] font-medium text-white bg-[#1a4fa0] hover:bg-blue-700 disabled:opacity-60">
+              {pdf === 'generando' ? 'Generando…' : 'Generar y adjuntar PDF'}
+            </button>
+          )}
+        </div>
+      )}
       <div className="p-3 flex flex-wrap items-center gap-1.5">
         <span className={`px-2 py-0.5 rounded-full text-[11.5px] font-semibold ${r.movimiento === 'modificacion' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'}`}>
           {r.movimiento === 'modificacion' ? 'Modificación' : 'Alta'}

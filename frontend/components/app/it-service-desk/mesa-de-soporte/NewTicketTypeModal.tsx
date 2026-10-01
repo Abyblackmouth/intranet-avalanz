@@ -14,7 +14,7 @@ const OPTIONS = [
     icon: AlertTriangle,
     label: 'Incidente',
     desc: 'Algo no funciona o dejó de funcionar',
-    color: '#7c2d12',
+    color: '#1a4fa0',
     available: true,
   },
   {

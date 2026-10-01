@@ -42,7 +42,7 @@ export async function imprimirTicket(d: any) {
     body { margin: 0; font: 9.5pt/1.4 "Segoe UI", Arial, sans-serif; color: #1e293b; }
     .enc { display: flex; align-items: center; gap: 4mm; border-bottom: 2px solid #1a4fa0; padding-bottom: 3mm; }
     .enc img { height: 12mm; } .enc .marca { font-weight: 700; color: #1a4fa0; }
-    .enc h1 { flex: 1; margin: 0; font-size: 13pt; color: #0f172a; } .enc .folio { text-align: right; font: 600 10pt monospace; color: #1a4fa0; }
+    .enc h1 { flex: 1; margin: 0; font-size: 13pt; color: #0f172a; } .enc .folio { text-align: right; font: 600 10pt monospace; color: #1a4fa0; } .folio-et { display: block; font: 500 8pt Arial, sans-serif; color: #64748b; }
     .estado { margin: 3mm 0 0; display: flex; gap: 2mm; flex-wrap: wrap; }
     .chip { display: inline-block; padding: .4mm 2.4mm; border-radius: 9mm; background: #eef2f7; font-size: 8.5pt; font-weight: 600; }
     h2 { margin: 5mm 0 1.5mm; font-size: 9pt; letter-spacing: .06em; text-transform: uppercase; color: #1a4fa0; }
@@ -54,7 +54,7 @@ export async function imprimirTicket(d: any) {
     .rojo { color: #b91c1c; } .pie { margin-top: 6mm; padding-top: 2mm; border-top: 1px solid #cbd5e1; font-size: 7.8pt; color: #64748b; display: flex; justify-content: space-between; }
   </style></head><body>
     <div class="enc">${LOGO ? `<img src="${window.location.origin}${LOGO}" alt="Grupo Avalanz">` : '<span class="marca">GRUPO AVALANZ</span>'}
-      <h1>${esc(d.title)}</h1><div class="folio">${esc(d.folio)}</div></div>
+      <h1>${esc(d.title)}</h1><div class="folio"><span class="folio-et">Folio número:</span>${esc(d.folio)}</div></div>
     <div class="estado"><span class="chip">${esc(ESTATUS[d.status] ?? d.status)}</span>${sv ? `<span class="chip">${esc(sv.code)} · ${esc(sv.name)}</span>` : ''}</div>
 
     <h2>Datos generales</h2><div class="grid">

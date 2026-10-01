@@ -201,7 +201,7 @@ export default function CreateControlCambioModal({ onClose, onCreated, onBack }:
                 <p className="text-[15px] font-bold text-slate-900 mb-1">La solicitud</p>
                 <p className="text-xs text-slate-400 mb-5">Cuéntanos qué necesitas y por qué.</p>
                 <div className="mb-3.5">
-                  <label className={labelCls}>Título del CDC <span className="text-red-600">*</span></label>
+                  <label className={labelCls}>Título del Control de Cambio <span className="text-red-600">*</span></label>
                   <input value={titulo} onChange={e => setTitulo(e.target.value)} maxLength={120} placeholder="Nombre breve y descriptivo (máx. 120 caracteres)" className={inputCls} />
                 </div>
                 <div className="mb-3.5">

@@ -74,7 +74,7 @@ function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandlePro
         transform: isExiting ? 'scale(0.9)' : 'scale(1)',
       }}
       className={`bg-white rounded-xl border p-3.5 transition-all duration-300 select-none h-[165px] flex flex-col ${
-        unlocked ? 'border-[#7c2d12] ring-2 ring-[#7c2d12]/20 cursor-move shadow-md' :
+        unlocked ? 'border-[#1a4fa0] ring-2 ring-[#1a4fa0]/20 cursor-move shadow-md' :
         isNew ? 'border-[#1a4fa0] ring-2 ring-[#1a4fa0]/25 shadow-md' :
         'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
       }`}
@@ -82,7 +82,7 @@ function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandlePro
       <div className="flex items-start justify-between gap-2 mb-2">
         <p className="text-xs font-mono text-slate-400 truncate">{ticket.folio}</p>
         <div className="flex items-center gap-1 shrink-0">
-          {unlocked && <GripVertical size={13} className="text-[#7c2d12]" />}
+          {unlocked && <GripVertical size={13} className="text-[#1a4fa0]" />}
           {sev && <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${SEV_CLASS[sev.code] ?? ''}`}>{sev.code}</span>}
         </div>
       </div>
@@ -187,10 +187,10 @@ function Column({ colKey, label, accent, flexGrow, pageSize, tickets, severities
     <div className="flex flex-col h-full transition-all min-w-0" style={{ flexGrow: isExpanded ? flexGrow * 2 : flexGrow, flexBasis: 0 }}>
       <button onClick={onToggleExpand} className="flex items-center gap-2 mb-2 px-1 group shrink-0">
         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: accent }} />
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-600 group-hover:text-[#7c2d12] transition">{label}</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-600 group-hover:text-[#1a4fa0] transition">{label}</p>
         <span className="text-[11px] text-slate-400 ml-auto">{total}</span>
       </button>
-      <div ref={setNodeRef} className={`flex-1 min-h-0 flex flex-col rounded-2xl p-2.5 transition ${isOver ? 'bg-[#7c2d12]/5 ring-2 ring-[#7c2d12]/20' : 'bg-slate-50'}`}>
+      <div ref={setNodeRef} className={`flex-1 min-h-0 flex flex-col rounded-2xl p-2.5 transition ${isOver ? 'bg-[#1a4fa0]/5 ring-2 ring-[#1a4fa0]/20' : 'bg-slate-50'}`}>
         {tickets.length === 0 ? (
           <p className="text-xs text-slate-300 italic text-center py-8">Sin tickets</p>
         ) : (
@@ -217,7 +217,7 @@ function Column({ colKey, label, accent, flexGrow, pageSize, tickets, severities
           <button
             onClick={onLoadMore}
             disabled={loadingMore}
-            className="w-full py-2 mt-auto text-xs font-medium text-slate-500 hover:text-[#7c2d12] transition disabled:opacity-50 shrink-0"
+            className="w-full py-2 mt-auto text-xs font-medium text-slate-500 hover:text-[#1a4fa0] transition disabled:opacity-50 shrink-0"
           >
             {loadingMore ? 'Cargando...' : (page + 1) * pageSize < total ? `Ver más (${total - (page + 1) * pageSize})` : 'Ver primeros'}
           </button>

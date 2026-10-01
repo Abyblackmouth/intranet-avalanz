@@ -174,7 +174,7 @@ function FaseColumna({ label, color, cols, items, onOpen }: {
         <div className="h-8 shrink-0 flex items-center justify-center">
           {items.length > porPagina && (
             <button type="button" onClick={() => setPagina(actual + 1 >= paginas ? 0 : actual + 1)}
-              className="text-xs font-medium text-slate-500 hover:text-[#7c2d12] transition">
+              className="text-xs font-medium text-slate-500 hover:text-[#1a4fa0] transition">
               {restantes > 0 ? `Ver más (${restantes})` : 'Ver primeros'}
             </button>
           )}

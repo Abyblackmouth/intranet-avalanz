@@ -232,19 +232,7 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
     db.add(solicitud)
 
     # El PDF de la solicitud, como evidencia del ticket. Si falla, el ticket se crea igual.
-    try:
-        metodo, prueba = await _ajustes_firma(db)
-        fecha = datetime.now(ZoneInfo("America/Monterrey")).strftime("%d/%m/%Y")
-        pdf = await html_a_pdf(renderizar(f.clave, contexto_solicitud(config, datos_limpios, usuario, movimiento, folio, fecha, metodo, prueba)))
-        nombre = f"SOLICITUD_{folio}_{datetime.now(ZoneInfo('America/Monterrey')).strftime('%Y%m%d_%H%M%S')}.pdf"
-        object_key = await _subir_archivo(pdf, nombre, "application/pdf", perfil.get("company_slug"), f"control-de-accesos/{folio}", raw_token)
-        if object_key:
-            solicitud.pdf_object_key = object_key
-            db.add(IncidentAttachment(incident_id=incident.id, attachment_type="evidencia_reporte", object_key=object_key,
-                                      mime_type="application/pdf", size_bytes=len(pdf), uploaded_by=user_id))
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning("No se pudo generar o subir el PDF de %s: %s", folio, e)
+    await _adjuntar_pdf(db, incident, solicitud, perfil.get("company_slug"), raw_token)
 
     await db.commit()
 
@@ -299,3 +287,56 @@ async def resumen_solicitud(incident_id: str, db: AsyncSession = Depends(get_db)
         "jefe": cap.get("jefe", {}),
         "tiene_pdf": bool(sol.pdf_object_key),
     }
+
+
+
+# ── PDF de la solicitud como evidencia (al enviar, o después con el botón) ──
+import logging
+
+log = logging.getLogger("control_accesos")
+
+
+async def _adjuntar_pdf(db: AsyncSession, incident: Incident, solicitud: AccSolicitud, company_slug: str, raw_token: str) -> bool:
+    """Genera el PDF con la copia guardada de la solicitud y lo adjunta al ticket. Nunca lanza error."""
+    try:
+        f = await _formato(db, solicitud.formato_id)
+        snap = solicitud.datos or {}
+        metodo, prueba = await _ajustes_firma(db)
+        enviado = snap.get("enviado_en")
+        cuando = datetime.fromisoformat(enviado) if enviado else datetime.now(timezone.utc)
+        fecha = cuando.astimezone(ZoneInfo("America/Monterrey")).strftime("%d/%m/%Y")
+        html = renderizar(f.clave, contexto_solicitud(snap["config"], snap["captura"], snap["usuario"], solicitud.movimiento,
+                                                      incident.folio, fecha, metodo, prueba))
+        pdf = await html_a_pdf(html)
+        nombre = f"SOLICITUD_{incident.folio}_{cuando.astimezone(ZoneInfo('America/Monterrey')).strftime('%Y%m%d_%H%M%S')}.pdf"
+        key = await _subir_archivo(pdf, nombre, "application/pdf", company_slug, f"control-de-accesos/{incident.folio}", raw_token)
+        if not key:
+            log.warning("El upload-service no aceptó el PDF de %s (empresa %s)", incident.folio, company_slug)
+            return False
+        solicitud.pdf_object_key = key
+        db.add(IncidentAttachment(incident_id=incident.id, attachment_type="evidencia_reporte", object_key=key,
+                                  mime_type="application/pdf", size_bytes=len(pdf), uploaded_by=incident.requester_id))
+        return True
+    except Exception as e:
+        log.warning("No se pudo generar o adjuntar el PDF de %s: %s", incident.folio, e)
+        return False
+
+
+@router.post("/solicitudes/{incident_id}/pdf")
+async def generar_pdf_solicitud(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user),
+                                raw_token: str = Depends(get_token_from_request)):
+    fila = (await db.execute(select(AccSolicitud, Incident).join(Incident, Incident.id == AccSolicitud.incident_id)
+                             .where(AccSolicitud.incident_id == incident_id))).first()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    sol, inc = fila
+    uid, roles = _uid(user), set(user.get("roles") or [])
+    if uid not in (inc.requester_id, inc.assigned_to_user_id) and not roles & {"it-service-desk:incident-manager", "super_admin"} and not user.get("is_super_admin"):
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta solicitud")
+    if sol.pdf_object_key:
+        return {"success": True, "ya_existia": True}
+    perfil = await _get_requester_profile(inc.requester_id)
+    if not await _adjuntar_pdf(db, inc, sol, perfil.get("company_slug"), raw_token):
+        raise HTTPException(status_code=502, detail="No se pudo generar o adjuntar el PDF. Revisa el registro del servicio.")
+    await db.commit()
+    return {"success": True}

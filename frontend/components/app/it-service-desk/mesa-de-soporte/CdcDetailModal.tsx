@@ -453,7 +453,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
           <>
             <header className="bg-white border-b border-slate-200 px-6 md:px-7 py-5 flex flex-wrap gap-5 items-start justify-between">
               <div className="min-w-0">
-                <span className="inline-block font-mono text-[13px] text-[#1a4fa0] bg-white border border-slate-200 rounded-md px-2.5 py-0.5">{detail.folio}</span>
+                <span className="inline-flex items-baseline gap-1.5 text-[12px] text-slate-500">Folio número:<span className="inline-block font-mono text-[13px] text-[#1a4fa0] bg-white border border-slate-200 rounded-md px-2.5 py-0.5">{detail.folio}</span></span>
                 <h2 id="cdc-title" className="font-[family-name:var(--font-jakarta)] font-bold text-xl md:text-2xl leading-tight tracking-tight text-slate-900 mt-2 mb-1.5 max-w-[44ch]">{detail.title}</h2>
                 <p className="text-[13.5px] text-slate-500 flex flex-wrap gap-x-5 gap-y-1">
                   <span>Control de Cambios{d.clasificacion ? <> · <b className="font-medium text-slate-700">{d.clasificacion === 'proyecto' ? 'Proyecto' : 'Cambio'}</b></> : null} · <b className="font-medium text-slate-700">{TIPO_LABEL[d.tipo_solicitud ?? ''] ?? d.tipo_solicitud ?? '—'}</b></span>

@@ -204,3 +204,5 @@ export const accEnviarSolicitud = (id: string, datos: Record<string, any>) =>
   api.post(`/api/v1/it-service-desk/control-accesos/formatos/${id}/solicitudes`, datos)
 export const accResumenSolicitud = (incidentId: string) =>
   api.get(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/resumen`)
+export const accGenerarPdfSolicitud = (incidentId: string) =>
+  api.post(`/api/v1/it-service-desk/control-accesos/solicitudes/${incidentId}/pdf`)

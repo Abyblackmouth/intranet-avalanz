@@ -16,7 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-500/[0.12] text-slate-600',
   asignado: 'bg-blue-500/[0.12] text-blue-700',
-  en_atencion: 'bg-[#7c2d12]/[0.10] text-[#7c2d12]',
+  en_atencion: 'bg-[#1a4fa0]/[0.10] text-[#1a4fa0]',
   escalado: 'bg-red-500/[0.12] text-red-700',
   resuelto: 'bg-emerald-500/[0.14] text-emerald-700',
   cerrado: 'bg-slate-500/[0.14] text-slate-600',
@@ -206,7 +206,7 @@ export default function IncidentDetailPage() {
                 {canAssign && (
                   <button
                     onClick={() => setShowAssignModal(true)}
-                    className="text-[11px] font-medium text-[#7c2d12] hover:underline"
+                    className="text-[11px] font-medium text-[#1a4fa0] hover:underline"
                   >
                     {detail.assigned_to_user_id ? 'Reasignar' : 'Asignar'}
                   </button>
@@ -252,7 +252,7 @@ export default function IncidentDetailPage() {
                   <div className="absolute left-[5px] top-1 bottom-1 w-px bg-slate-500/20" />
                   {detail.activity_log.map((ev, i) => (
                     <div key={i} className="relative pb-4 last:pb-0">
-                      <div className="absolute -left-5 top-0.5 w-3 h-3 rounded-full bg-white border-2 border-[#7c2d12]" />
+                      <div className="absolute -left-5 top-0.5 w-3 h-3 rounded-full bg-white border-2 border-[#1a4fa0]" />
                       <p className="text-[10px] font-mono text-slate-400">{fmt(ev.performed_at)}</p>
                       <p className="text-sm font-semibold text-slate-800">{ACTION_LABEL[ev.action] ?? ev.action}</p>
                       <p className="text-xs text-slate-500">{ev.performed_by_name} · {ev.performed_by_role}</p>

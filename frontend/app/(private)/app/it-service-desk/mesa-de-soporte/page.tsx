@@ -36,7 +36,7 @@ const STATUS_LABEL: Record<string, string> = {
 const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-500/[0.12] text-slate-600',
   asignado: 'bg-blue-500/[0.12] text-blue-700',
-  en_atencion: 'bg-[#7c2d12]/[0.10] text-[#7c2d12]',
+  en_atencion: 'bg-[#1a4fa0]/[0.10] text-[#1a4fa0]',
   escalado: 'bg-red-500/[0.12] text-red-700',
   resuelto: 'bg-emerald-500/[0.14] text-emerald-700',
   cerrado: 'bg-slate-500/[0.14] text-slate-600',
@@ -44,7 +44,7 @@ const STATUS_CLASS: Record<string, string> = {
 const STATUS_DOT: Record<string, string> = {
   en_backlog: 'bg-slate-400',
   asignado: 'bg-blue-500',
-  en_atencion: 'bg-[#7c2d12]',
+  en_atencion: 'bg-[#1a4fa0]',
   escalado: 'bg-red-500',
   resuelto: 'bg-emerald-500',
   cerrado: 'bg-slate-400',
@@ -305,15 +305,15 @@ export default function MesaDeSoportePage() {
       <div className="flex items-center gap-3 mb-2 shrink-0 flex-wrap">
         <div role="tablist" aria-label="Vista" className="inline-flex items-center gap-0.5 rounded-lg border border-slate-300 bg-white p-0.5">
           <button type="button" role="tab" aria-selected={viewMode === 'tabla'} onClick={() => setViewMode('tabla')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'tabla' ? 'bg-[#7c2d12] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'tabla' ? 'bg-[#1a4fa0] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
             <List size={13} /> Tabla
           </button>
           <button type="button" role="tab" aria-selected={viewMode === 'tablero'} onClick={() => setViewMode('tablero')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'tablero' ? 'bg-[#7c2d12] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'tablero' ? 'bg-[#1a4fa0] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
             <LayoutGrid size={13} /> Tablero incidentes
           </button>
           <button type="button" role="tab" aria-selected={viewMode === 'proyectos'} onClick={() => setViewMode('proyectos')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'proyectos' ? 'bg-[#7c2d12] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${viewMode === 'proyectos' ? 'bg-[#1a4fa0] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
             <LayoutGrid size={13} /> Tablero proyectos
           </button>
         </div>
@@ -355,7 +355,16 @@ export default function MesaDeSoportePage() {
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
+        {/* Botón principal: centrado en el espacio libre entre "ver" (izquierda) y las herramientas (derecha) */}
+        <div className="flex-1 flex justify-center min-w-[170px]">
+          <button type="button" onClick={() => setShowTypePicker(true)}
+            className="inline-flex items-center gap-2 h-9 pl-3.5 pr-5 rounded-full bg-[#1a4fa0] text-white text-[13px] font-semibold shadow-md shadow-[#1a4fa0]/25 transition hover:bg-[#153f82] hover:shadow-lg hover:shadow-[#1a4fa0]/35 hover:-translate-y-px active:translate-y-0 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30">
+            <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center"><Plus size={14} strokeWidth={2.5} /></span>
+            Nuevo ticket
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
           {isIncidentManager && (
             <>
               <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white pl-2.5 pr-1 py-0.5">
@@ -412,17 +421,6 @@ export default function MesaDeSoportePage() {
               </div>
             )
           })()}
-          <div className="relative group ml-3 pl-3 border-l border-slate-200">
-            {/* Al pasar el mouse, el círculo se extiende a la izquierda como una sola pastilla café */}
-            <span aria-hidden="true"
-              className="pointer-events-none absolute right-0 top-0 h-9 flex items-center rounded-full bg-[#7c2d12] text-white text-[13px] font-semibold whitespace-nowrap pl-4 pr-12 shadow-md z-10 origin-right opacity-0 scale-x-75 transition-all duration-200 ease-out group-hover:opacity-100 group-hover:scale-x-100 group-focus-within:opacity-100 group-focus-within:scale-x-100">
-              Nuevo ticket
-            </span>
-            <button type="button" onClick={() => setShowTypePicker(true)} aria-label="Nuevo ticket"
-              className="relative z-20 w-9 h-9 rounded-full flex items-center justify-center text-white bg-[#7c2d12] shadow-md transition-all duration-200 ease-out group-hover:scale-[1.18] group-hover:shadow-xl group-hover:shadow-[#7c2d12]/40 group-focus-within:scale-[1.18] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#7c2d12]/30">
-              <Plus size={18} />
-            </button>
-          </div>
         </div>
       </div>
 
@@ -448,13 +446,13 @@ export default function MesaDeSoportePage() {
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Buscar por folio o título..."
-                className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#7c2d12] focus:ring-2 focus:ring-[#7c2d12]/20"
+                className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/20"
               />
             </div>
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-              className="px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#7c2d12]"
+              className="px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#1a4fa0]"
             >
               <option value="">Todos los estatus</option>
               {tiposVisibles.length === 1
