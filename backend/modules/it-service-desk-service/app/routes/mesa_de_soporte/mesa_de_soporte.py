@@ -408,7 +408,7 @@ async def _notify_ticket_created(
         {"label": "Titulo", "value": title, "mono": False},
         {"label": "Sistema", "value": f"{system_name}{' / ' + module_name if module_name else ''}", "mono": False},
         {"label": "Severidad", "value": severity_name, "mono": False},
-        {"label": "Creado", "value": created_at.strftime('%d/%m/%Y %H:%M'), "mono": False},
+        {"label": "Creado", "value": created_at.astimezone(ZoneInfo("America/Monterrey")).strftime('%d/%m/%Y %H:%M'), "mono": False},
     ]
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -1292,11 +1292,35 @@ async def get_dashboard_stats(
             return "en_backlog"
         if is_overdue(i):
             return "vencido"
-        if i.sla_resolution_limit and (i.sla_resolution_limit - now) <= timedelta(hours=2):
+        if i.sla_resolution_limit and (i.sla_resolution_limit - now) < (i.sla_resolution_limit - i.created_at) * 0.25:
             return "por_vencer"
         return "a_tiempo"
 
     total_completados = sum(1 for i in incidents if not is_open(i))
+
+    def _cumplimiento(limite_de, hecho_de) -> dict:
+        """Como los relojes de la tabla: cumplido antes del limite = a tiempo; abierto que aun
+        no vence = a tiempo; vencido o cumplido tarde = vencido. Sin limite, no cuenta."""
+        a_tiempo = vencidos = 0
+        for i in incidents:
+            lim = limite_de(i)
+            if not lim:
+                continue
+            hecho = hecho_de(i)
+            if (hecho and hecho <= lim) or (not hecho and now <= lim):
+                a_tiempo += 1
+            else:
+                vencidos += 1
+        total = a_tiempo + vencidos
+        return {"a_tiempo": a_tiempo, "vencidos": vencidos, "total": total,
+                "porcentaje": round(a_tiempo * 100 / total) if total else None}
+
+    resuelto_en = lambda i: (i.resolved_at or i.closed_at or i.updated_at) if not is_open(i) else None
+    cumplimiento = {
+        # Tickets viejos, resueltos antes de existir la marca de revision: la resolucion cuenta como respuesta
+        "respuesta": _cumplimiento(lambda i: i.sla_response_limit, lambda i: i.first_response_at or resuelto_en(i)),
+        "resolucion": _cumplimiento(lambda i: i.sla_resolution_limit, resuelto_en),
+    }
 
     open_incidents = [i for i in incidents if is_open(i)]
     sla_general = {
@@ -1360,12 +1384,13 @@ async def get_dashboard_stats(
         )
 
     histograma_map: Dict[str, int] = {}
-    cursor = start
-    while cursor.date() <= end.date():
-        histograma_map[cursor.date().isoformat()] = 0
-        cursor += timedelta(days=1)
+    dia = (start - MEXICO_UTC_OFFSET).date()          # dias en hora local, no en UTC
+    ultimo = (end - MEXICO_UTC_OFFSET).date()
+    while dia <= ultimo:
+        histograma_map[dia.isoformat()] = 0
+        dia += timedelta(days=1)
     for i in incidents:
-        key = i.created_at.date().isoformat()
+        key = (i.created_at - MEXICO_UTC_OFFSET).date().isoformat()
         if key in histograma_map:
             histograma_map[key] += 1
     histograma = [{"fecha": k, "cantidad": v} for k, v in sorted(histograma_map.items())]
@@ -1374,6 +1399,7 @@ async def get_dashboard_stats(
         "scope": scope,
         "rango": {"desde": start.isoformat(), "hasta": end.isoformat()},
         "total_completados_periodo": total_completados,
+        "cumplimiento": cumplimiento,
         "sla_general": sla_general,
         "por_especialidad": por_especialidad,
         "sla_tecnico": sla_tecnico,
@@ -1522,7 +1548,7 @@ async def export_incidents_excel(
     wb.save(buffer)
     buffer.seek(0)
 
-    filename = f"concentrado_incidencias_{now.strftime('%Y%m%d_%H%M')}.xlsx"
+    filename = f"concentrado_incidencias_{now.astimezone(ZoneInfo("America/Monterrey")).strftime('%Y%m%d_%H%M')}.xlsx"
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1611,7 +1637,10 @@ async def send_daily_sla_report_internal(db: AsyncSession = Depends(get_db)):
     HISTOGRAMA_CID = "histograma_volumen"
 
     enviados = []
-    fecha_texto = now.strftime("%A %d de %B de %Y, %I:%M %p")
+    _local = now.astimezone(ZoneInfo("America/Monterrey"))
+    _dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+    _meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    fecha_texto = f"{_dias[_local.weekday()]} {_local.day:02d} de {_meses[_local.month - 1]} de {_local.year}, {_local.strftime('%I:%M %p').lower()}"
 
     async def enviar_a(user_id: str, items: list):
         if not items:
