@@ -105,6 +105,8 @@ async def vista_previa_solicitud(formato_id: str, datos: dict = Body(...), db: A
 import uuid
 from datetime import date, timedelta, timezone
 
+from app.services.sla import limites_sla
+
 
 def _validar(datos: dict, config: dict) -> list[str]:
     """Revalida en el servidor todo lo que el formulario ya valido."""
@@ -210,8 +212,8 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
         assigned_to_user_id=f.admin_user_id if con_encargado else None,
         assigned_at=now if con_encargado else None,
         status="en_revision" if con_encargado else "en_backlog",
-        sla_response_limit=now + timedelta(minutes=s1.response_sla_minutes) if s1 else None,
-        sla_resolution_limit=now + timedelta(hours=s1.resolution_sla_hours) if s1 else None,
+        sla_response_limit=limites_sla(s1, now)[0] if s1 else None,
+        sla_resolution_limit=limites_sla(s1, now)[1] if s1 else None,
         created_at=now,
     )
     db.add(incident)

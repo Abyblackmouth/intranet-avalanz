@@ -3,9 +3,9 @@
 import AccResumenSolicitud from '@/components/app/it-service-desk/mesa-de-soporte/AccResumenSolicitud'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { getIncidentDetail, getSystems, getSeverities, resolveIncident } from '@/services/itServiceDeskService'
+import { getIncidentDetail, getSystems, getSeverities, resolveIncident, marcarRevisado } from '@/services/itServiceDeskService'
 import { getSignedUrl } from '@/services/uploadService'
-import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip, Printer } from 'lucide-react'
+import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip, Printer, Eye } from 'lucide-react'
 import { imprimirTicket } from './imprimirTicket'
 import AssignIncidentModal from './AssignIncidentModal'
 
@@ -134,6 +134,8 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   onChanged?: () => void
 }) {
   const { user } = useAuthStore()
+  const [revisadoAt, setRevisadoAt] = useState<string | null>(null)
+  const [marcandoRevisado, setMarcandoRevisado] = useState(false)
   const [detail, setDetail] = useState<Detail | null>(null)
   const [systems, setSystems] = useState<{ id: string; name: string }[]>([])
   const [severities, setSeverities] = useState<{ id: string; code: string; name: string }[]>([])
@@ -388,10 +390,28 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
               <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-5 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-500">SLA y bitácora</p>
+                  <div className="flex items-center gap-1.5">
+                  {(revisadoAt ?? (detail as any).first_response_at) ? (
+                    <span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200" title="Primera respuesta registrada">
+                      <CheckCircle2 size={14} /> Revisado · {new Date(revisadoAt ?? (detail as any).first_response_at).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  ) : !['resuelto', 'cerrado'].includes(detail.status) && (
+                    <button type="button" disabled={marcandoRevisado}
+                      onClick={async () => {
+                        setMarcandoRevisado(true)
+                        try { const r = await marcarRevisado(detail.id); setRevisadoAt(r.data?.first_response_at ?? new Date().toISOString()) }
+                        catch (e: any) { alert(e?.response?.data?.detail ?? 'No se pudo marcar como revisado') }
+                        finally { setMarcandoRevisado(false) }
+                      }}
+                      className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white bg-[#1a4fa0] hover:bg-[#153f82] disabled:opacity-60 transition">
+                      <Eye size={14} /> {marcandoRevisado ? 'Marcando…' : 'Marcar como revisado'}
+                    </button>
+                  )}
                   <button type="button" onClick={() => imprimirTicket(detail)} title="Imprimir ticket" aria-label="Imprimir ticket"
                     className="w-8 h-8 -my-1 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-[#1a4fa0] transition">
                     <Printer size={16} />
                   </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">

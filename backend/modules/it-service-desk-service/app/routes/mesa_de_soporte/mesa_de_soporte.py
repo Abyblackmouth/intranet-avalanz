@@ -152,6 +152,7 @@ async def list_incidents(
             "requester_name": i.requester_name, "requester_company_name": i.requester_company_name,
             "created_at": i.created_at.isoformat(),
             "sla_response_limit": i.sla_response_limit.isoformat() if i.sla_response_limit else None,
+            "first_response_at": i.first_response_at.isoformat() if i.first_response_at else None,
             "sla_resolution_limit": i.sla_resolution_limit.isoformat() if i.sla_resolution_limit else None,
             "is_sla_breached": i.is_sla_breached,
             "ticket_type": i.ticket_type,
@@ -210,6 +211,7 @@ async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_d
         "assigned_to_photo_object_key": assignee_profile.get("photo_object_key"),
         "assigned_at": incident.assigned_at.isoformat() if incident.assigned_at else None,
         "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+        "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
         "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
         "is_sla_breached": incident.is_sla_breached,
         "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
@@ -346,6 +348,7 @@ async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.
                             "requester_company_name": incident.requester_company_name,
                             "created_at": incident.created_at.isoformat(),
                             "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
+                            "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
                             "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None,
                             "is_sla_breached": incident.is_sla_breached if hasattr(incident, "is_sla_breached") else False,
                             "ticket_type": incident.ticket_type,
@@ -534,7 +537,12 @@ async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
     )
     attachments = attach_result.scalars().all()
 
+    # SLA de respuesta: abrir el enlace cuenta como "revisado"
+    if incident.assigned_to_user_id and str(incident.assigned_to_user_id) == str(tok.created_for_user_id):
+        await _marcar_revisado(db, incident, str(tok.created_for_user_id), "asignado", "desde el correo")
+
     return {
+        "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
         "folio": incident.folio,
         "title": incident.title,
         "description": incident.description,
@@ -551,6 +559,44 @@ async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
         "already_resolved": incident.status in ("resuelto", "cerrado"),
         "attachments": [{"id": a.id, "object_key": a.object_key, "bucket": a.bucket} for a in attachments],
     }
+
+
+async def _marcar_revisado(db: AsyncSession, incident, user_id: str, rol: str, via: str, nombre: str | None = None) -> bool:
+    """Marca la primera respuesta del ticket (SLA de respuesta). Solo la primera vez."""
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    if incident.first_response_at is not None:
+        return False
+    ahora = datetime.now(timezone.utc)
+    incident.first_response_at = ahora
+    if nombre is None:
+        try:
+            nombre = (await _get_requester_profile(user_id)).get("full_name", "")
+        except Exception:
+            nombre = ""
+    db.add(IncidentActivityLog(incident_id=incident.id, action=f"revisado {via}"[:50], performed_by=user_id,
+                               performed_by_name=nombre or "—", performed_by_role=rol, performed_at=ahora,
+                               company_id=incident.company_id))
+    await db.commit()
+    return True
+
+
+@router.post("/incidencias/{incident_id}/revisado")
+async def marcar_revisado(incident_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Botón del panel: el asignado o un Incident Manager marcan el ticket como revisado."""
+    incident = (await db.execute(select(Incident).where(Incident.id == incident_id))).scalar_one_or_none()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    uid = str(user.get("user_id") or user.get("sub") or "")
+    roles = set(user.get("roles") or [])
+    es_im = bool(roles & {"it-service-desk:incident-manager", "super_admin"}) or bool(user.get("is_super_admin"))
+    if str(incident.assigned_to_user_id or "") != uid and not es_im:
+        raise HTTPException(status_code=403, detail="Solo el asignado o un Incident Manager pueden marcarlo como revisado")
+    marcado = await _marcar_revisado(db, incident, uid, "asignado" if str(incident.assigned_to_user_id or "") == uid else "incident-manager",
+                                     "desde el panel", user.get("full_name"))
+    if marcado:
+        await _broadcast_ticket_update(incident)
+    return {"success": True, "ya_estaba": not marcado,
+            "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None}
 
 
 @router.post("/atender/{token}/redirigir")
@@ -751,8 +797,8 @@ async def create_incident(
     folio = await _generate_folio(db, "INC", family_clave)
 
     now = datetime.now(timezone.utc)
-    sla_response_limit = now + timedelta(minutes=severity.response_sla_minutes)
-    sla_resolution_limit = now + timedelta(hours=severity.resolution_sla_hours)
+    from app.services.sla import limites_sla
+    sla_response_limit, sla_resolution_limit = limites_sla(severity, now)   # S1 en naturales; S2-S4 en horas hábiles
 
     incident = Incident(
         folio=folio,
@@ -850,6 +896,7 @@ async def create_incident(
             "folio": incident.folio,
             "status": incident.status,
             "sla_response_limit": incident.sla_response_limit.isoformat(),
+            "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
             "sla_resolution_limit": incident.sla_resolution_limit.isoformat(),
             "evidencia_subida": len(files) if files else 0,
         },
