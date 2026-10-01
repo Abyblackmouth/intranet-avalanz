@@ -580,6 +580,10 @@ async def _marcar_revisado(db: AsyncSession, incident, user_id: str, rol: str, v
                                performed_by_name=nombre or "—", performed_by_role=rol, performed_at=ahora,
                                company_id=incident.company_id))
     await db.commit()
+    try:
+        await _broadcast_ticket_update(incident)   # la Mesa de Soporte se actualiza sola, venga del correo o del panel
+    except Exception:
+        pass
     return True
 
 
@@ -596,8 +600,6 @@ async def marcar_revisado(incident_id: str, db: AsyncSession = Depends(get_db), 
         raise HTTPException(status_code=403, detail="Solo el asignado o un Incident Manager pueden marcarlo como revisado")
     marcado = await _marcar_revisado(db, incident, uid, "asignado" if str(incident.assigned_to_user_id or "") == uid else "incident-manager",
                                      "desde el panel", user.get("full_name"))
-    if marcado:
-        await _broadcast_ticket_update(incident)
     return {"success": True, "ya_estaba": not marcado,
             "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None}
 
