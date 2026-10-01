@@ -84,6 +84,8 @@ async def crear_sobre(pdf: bytes, folio: str, asunto: str, mensaje: str, firmant
             tabs["textTabs"] = [_ancla(t["etiqueta"], t["ancla"], {"required": "true" if t.get("obligatorio") else "false",
                                                                    "width": str(t.get("ancho", 160)), "font": "helvetica",
                                                                    "fontSize": "size9"}) for t in f["textos"]]
+        if f.get("fecha_ancla"):
+            tabs["dateSignedTabs"] = [_ancla(f"FECHA{n}", f["fecha_ancla"], {"font": "helvetica", "fontSize": "size9"})]
         ds.append({"recipientId": str(n), "routingOrder": str(f.get("routing_order", n)),
                    "name": f["name"], "email": f["email"], "tabs": tabs})
     cuerpo = {

@@ -1,3 +1,4 @@
+import httpx
 """Formulario del solicitante: formatos disponibles, datos para llenar el formato y
 vista previa ya llena. El envio (ticket, PDF y firma) llega en el siguiente paso."""
 from datetime import datetime
@@ -342,3 +343,138 @@ async def generar_pdf_solicitud(incident_id: str, db: AsyncSession = Depends(get
         raise HTTPException(status_code=502, detail="No se pudo generar o adjuntar el PDF. Revisa el registro del servicio.")
     await db.commit()
     return {"success": True}
+
+
+
+# ── Revisión de TI: aprobar (manda a firma) o rechazar ──────────────────────
+from pydantic import BaseModel as _BM
+
+
+class AprobarPayload(_BM):
+    jefe_admin_nombre: str = ""
+    jefe_admin_correo: str = ""
+
+
+class RechazarPayload(_BM):
+    motivo: str
+
+
+async def _revision(db: AsyncSession, incident_id: str, user: dict):
+    fila = (await db.execute(select(AccSolicitud, Incident).join(Incident, Incident.id == AccSolicitud.incident_id)
+                             .where(AccSolicitud.incident_id == incident_id))).first()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    sol, inc = fila
+    f = await _formato(db, sol.formato_id)
+    uid, roles = _uid(user), set(user.get("roles") or [])
+    es_im = bool(roles & {"it-service-desk:incident-manager", "super_admin"}) or bool(user.get("is_super_admin"))
+    if not (es_im or uid in (str(f.admin_user_id or ""), str(inc.assigned_to_user_id or ""))):
+        raise HTTPException(status_code=403, detail="Solo el encargado de TI del formato o un Incident Manager revisan esta solicitud")
+    if inc.status != "en_revision":
+        raise HTTPException(status_code=422, detail="La solicitud ya no está en revisión")
+    return sol, inc, f, uid
+
+
+async def _avisar_solicitante(inc: Incident, asunto: str, mensaje: str, campos: list[dict], tipo: str = "info"):
+    from app.assignment import _notify_inapp
+    try:
+        perfil = await _get_requester_profile(inc.requester_id)
+        if perfil.get("email"):
+            async with httpx.AsyncClient(timeout=8.0) as cli:
+                await cli.post("http://email-service:8000/api/v1/email/system-notification", json={
+                    "to_email": perfil["email"], "full_name": inc.requester_name, "subject": asunto, "message": mensaje,
+                    "alert_type": tipo, "fields": [{"label": "Folio", "value": inc.folio, "mono": True}] + campos})
+    except Exception as e:
+        log.warning("No se pudo avisar al solicitante de %s: %s", inc.folio, e)
+    if inc.requester_id:
+        await _notify_inapp(inc.requester_id, asunto, mensaje, tipo, {"incident_id": str(inc.id), "folio": inc.folio})
+
+
+def _bitacora(db, inc, uid, user, accion, detalle):
+    from app.models.mesa_de_soporte import IncidentActivityLog
+    db.add(IncidentActivityLog(incident_id=inc.id, action=accion, performed_by=uid, performed_by_name=user.get("full_name") or "—",
+                               performed_by_role="ti", performed_at=datetime.now(timezone.utc), company_id=inc.company_id,
+                               module_slug="it-service-desk", detail=detalle))
+
+
+@router.post("/solicitudes/{incident_id}/aprobar")
+async def aprobar_solicitud(incident_id: str, body: AprobarPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """TI aprueba: se genera el formato con anclas y se manda el sobre de DocuSign."""
+    from app.config import config as _cfg
+    from app.services.control_accesos.firma import docusign as ds
+    sol, inc, f, uid = await _revision(db, incident_id, user)
+    metodo, prueba = await _ajustes_firma(db)
+    if metodo != "docusign":
+        raise HTTPException(status_code=422, detail="El método de firma está en 'manual', que aún no está disponible. Cámbialo a DocuSign en Ajustes.")
+    if not ds.configurado():
+        raise HTTPException(status_code=503, detail="DocuSign no está configurado en el servidor")
+    con_admin = bool(body.jefe_admin_nombre.strip() or body.jefe_admin_correo.strip())
+    if con_admin and ("@" not in body.jefe_admin_correo or not body.jefe_admin_nombre.strip()):
+        raise HTTPException(status_code=422, detail="Escribe el nombre y un correo válido del jefe administrativo")
+
+    snap = sol.datos or {}
+    cap, usr = snap.get("captura", {}), snap.get("usuario", {})
+    jefe = cap.get("jefe", {})
+    ti = await _get_requester_profile(f.admin_user_id) if f.admin_user_id else {}
+    if not ti.get("email"):
+        raise HTTPException(status_code=422, detail="El formato no tiene un encargado de TI con correo")
+    if not usr.get("correo") or not jefe.get("correo"):
+        raise HTTPException(status_code=422, detail="Faltan los correos del usuario o del jefe directo en la solicitud")
+
+    enviado = datetime.fromisoformat(snap["enviado_en"]) if snap.get("enviado_en") else datetime.now(timezone.utc)
+    fecha = enviado.astimezone(ZoneInfo("America/Monterrey")).strftime("%d/%m/%Y")
+    ctx = contexto_solicitud(snap["config"], cap, usr, sol.movimiento, inc.folio, fecha, metodo, prueba,
+                             con_admin=con_admin, jefe_admin_nombre=body.jefe_admin_nombre.strip(), anclas=True)
+    pdf = await html_a_pdf(renderizar(f.clave, ctx))
+
+    firmantes = [{"name": usr.get("nombre") or inc.requester_name, "email": usr["correo"], "firma_ancla": "/f1/"},
+                 {"name": jefe.get("nombre"), "email": jefe["correo"].strip(), "firma_ancla": "/f2/"}]
+    if con_admin:
+        firmantes.append({"name": body.jefe_admin_nombre.strip(), "email": body.jefe_admin_correo.strip(), "firma_ancla": "/f3/"})
+    firmantes.append({"name": ti.get("full_name") or f.admin_nombre or "TI", "email": ti["email"], "firma_ancla": "/f4/",
+                      "fecha_ancla": "/fa/", "textos": [{"etiqueta": "usuario_asignado", "ancla": "/ua/", "obligatorio": True, "ancho": 150}]})
+    for n, x in enumerate(firmantes, start=1):
+        x["routing_order"] = n
+
+    webhook = f"{_cfg.FRONTEND_URL.rstrip('/')}/api/v1/it-service-desk/control-accesos/docusign/webhook"
+    try:
+        envelope_id = await ds.crear_sobre(pdf, inc.folio, f"Firma de solicitud de acceso {inc.folio} · {f.nombre}",
+                                           f"Solicitud de {sol.movimiento} de usuario en {f.nombre} para {usr.get('nombre', '')}. "
+                                           "Revísala y fírmala; al final TI asignará el usuario.", firmantes, webhook)
+    except Exception as e:
+        log.warning("DocuSign rechazó el sobre de %s: %s", inc.folio, e)
+        raise HTTPException(status_code=502, detail="DocuSign no aceptó el sobre. Revisa el registro del servicio.")
+
+    sol.docusign_envelope_id, sol.metodo_firma, sol.estado_firma = envelope_id, "docusign", "enviado"
+    sol.datos = {**snap, "revision": {"aprobada_por": user.get("full_name"), "aprobada_en": datetime.now(timezone.utc).isoformat(),
+                                      "jefe_admin": {"nombre": body.jefe_admin_nombre.strip(), "correo": body.jefe_admin_correo.strip()} if con_admin else None}}
+    inc.status = "en_firma"
+    _bitacora(db, inc, uid, user, "aprobada_enviada_a_firma",
+              {"firmantes": [x["name"] for x in firmantes], "jefe_administrativo": con_admin, "sobre": envelope_id})
+    await db.commit()
+    await _broadcast_ticket_update(inc)
+    orden = " → ".join(["tú", "tu jefe directo"] + (["el jefe administrativo"] if con_admin else []) + ["TI"])
+    await _avisar_solicitante(inc, f"Tu solicitud {inc.folio} fue aprobada",
+                              f"TI aprobó tu solicitud. Te llegará un correo de DocuSign para firmarla. Orden de firma: {orden}.",
+                              [{"label": "Formato", "value": f.nombre, "mono": False}], "success")
+    return {"success": True, "status": inc.status, "envelope_id": envelope_id, "firmantes": [x["name"] for x in firmantes]}
+
+
+@router.post("/solicitudes/{incident_id}/rechazar")
+async def rechazar_solicitud(incident_id: str, body: RechazarPayload, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """TI rechaza: el ticket termina como Rechazado, con su motivo."""
+    motivo = (body.motivo or "").strip()
+    if len(motivo) < 5:
+        raise HTTPException(status_code=422, detail="Escribe el motivo del rechazo")
+    sol, inc, f, uid = await _revision(db, incident_id, user)
+    ahora = datetime.now(timezone.utc)
+    sol.estado_firma = "rechazada"
+    sol.datos = {**(sol.datos or {}), "revision": {"rechazada_por": user.get("full_name"), "rechazada_en": ahora.isoformat(), "motivo": motivo}}
+    inc.status, inc.closed_at = "rechazado", ahora
+    _bitacora(db, inc, uid, user, "solicitud_rechazada", {"motivo": motivo})
+    await db.commit()
+    await _broadcast_ticket_update(inc)
+    await _avisar_solicitante(inc, f"Tu solicitud {inc.folio} fue rechazada",
+                              f"TI rechazó tu solicitud. Motivo: {motivo}. Si aún necesitas el acceso, levanta una solicitud nueva con los ajustes.",
+                              [{"label": "Formato", "value": f.nombre, "mono": False}], "warning")
+    return {"success": True, "status": inc.status}

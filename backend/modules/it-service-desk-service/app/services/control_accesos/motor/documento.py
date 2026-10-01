@@ -98,7 +98,8 @@ def contexto_vista_previa(config: dict, fecha: str, metodo_firma: str = "manual"
 
 
 def contexto_solicitud(config: dict, datos: dict, usuario: dict, movimiento: str, folio: str, fecha: str,
-                       metodo_firma: str = "manual", prueba: bool = False) -> dict:
+                       metodo_firma: str = "manual", prueba: bool = False, con_admin: bool = True,
+                       jefe_admin_nombre: str = "", anclas: bool = False) -> dict:
     """El formato lleno con lo que capturo el solicitante (vista previa final y PDF)."""
     ctx = contexto_vista_previa(config, fecha, metodo_firma, prueba)
     marcadas = set(datos.get("empresas") or [])
@@ -127,6 +128,9 @@ def contexto_solicitud(config: dict, datos: dict, usuario: dict, movimiento: str
                       "nombre_firma": usuario.get("nombre", ""), "jefe_nombre_firma": jefe.get("nombre") or ""}
     ctx["folio"] = folio
     ctx["movimiento_titulo"] = "Modificación" if movimiento == "modificacion" else "Alta"
+    ctx["firma_admin"] = con_admin                          # TI decide al aprobar si lleva jefe administrativo
+    ctx["usuario"]["jefe_admin_firma"] = jefe_admin_nombre
+    ctx["anclas"] = anclas                                  # solo en el PDF que va a DocuSign
     return ctx
 
 

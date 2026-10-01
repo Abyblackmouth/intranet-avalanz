@@ -171,7 +171,7 @@ class Incident(Base):
             "en_backlog", "asignado", "en_atencion", "escalado", "resuelto", "cerrado",
             "registrado", "en_revision", "aprobado", "rechazado", "priorizado", "en_arranque",
             "en_diseno_funcional", "en_diseno_tecnico", "en_paso_produccion",
-            "en_desarrollo", "en_pruebas", "terminado", "cancelado",
+            "en_desarrollo", "en_pruebas", "terminado", "cancelado", "en_firma",
             name="incident_status_enum",
         ),
         nullable=False,

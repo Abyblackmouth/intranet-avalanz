@@ -94,6 +94,9 @@
   /* Leyenda de prueba (DocuSign en ambiente de pruebas) */
   .prueba { position: absolute; top: 118mm; left: 0; right: 0; text-align: center; transform: rotate(-24deg);
             font-size: 40pt; font-weight: 800; color: rgba(185, 28, 28, .13); letter-spacing: .06em; pointer-events: none; }
+  .firma .linea, .ti .campo u { position: relative; }
+  .ancla { position: absolute; left: 1mm; top: 0.5mm; color: #fff; font-size: 2pt; line-height: 1; font-style: normal; }
+  .firmas.dos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 </style>
 </head>
 <body>
@@ -189,17 +192,17 @@
 
   <p class="clausula"><b>DECLARACIÓN DE RESPONSABILIDAD.</b> El usuario reconoce que las credenciales (usuario y contraseña) que se le asignen son personales, confidenciales e intransferibles, y que su uso queda bajo su exclusiva responsabilidad. Se obliga a: (i) no compartirlas, cederlas ni permitir que terceros las utilicen; (ii) utilizar el sistema únicamente para las funciones propias de su puesto; (iii) resguardar la confidencialidad de la información a la que tenga acceso, conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares y a las políticas internas de la organización; y (iv) reportar de inmediato cualquier uso no autorizado o sospecha de que sus credenciales se vieron comprometidas. Acepta que las operaciones realizadas con su usuario le son atribuibles, que pueden ser registradas y auditadas, y que sus accesos pueden modificarse o revocarse en cualquier momento. El incumplimiento podrá dar lugar a sanciones laborales, administrativas, civiles o penales, conforme a la legislación aplicable.</p>
 
-  <section class="firmas" aria-label="Firmas">
-    <div class="firma"><div class="linea"></div><b>{{ usuario.nombre_firma or '&nbsp;'|safe }}</b><span>Usuario</span></div>
-    <div class="firma"><div class="linea"></div><b>{{ usuario.jefe_nombre_firma or '&nbsp;'|safe }}</b><span>Jefe directo</span></div>
-    <div class="firma"><div class="linea"></div><b>&nbsp;</b><span>Jefe administrativo</span></div>
+  <section class="firmas{% if firma_admin is defined and not firma_admin %} dos{% endif %}" aria-label="Firmas">
+    <div class="firma"><div class="linea">{% if anclas %}<i class="ancla">/f1/</i>{% endif %}</div><b>{{ usuario.nombre_firma or '&nbsp;'|safe }}</b><span>Usuario</span></div>
+    <div class="firma"><div class="linea">{% if anclas %}<i class="ancla">/f2/</i>{% endif %}</div><b>{{ usuario.jefe_nombre_firma or '&nbsp;'|safe }}</b><span>Jefe directo</span></div>
+    {% if firma_admin is not defined or firma_admin %}<div class="firma"><div class="linea">{% if anclas %}<i class="ancla">/f3/</i>{% endif %}</div><b>{{ usuario.jefe_admin_firma or '&nbsp;'|safe }}</b><span>Jefe administrativo</span></div>{% endif %}
   </section>
 
   <section class="ti" aria-label="Uso exclusivo de TI">
     <b>Uso exclusivo de TI</b>
-    <span class="campo">Usuario asignado:&nbsp;<u>{{ ti.usuario_asignado or '&nbsp;'|safe }}</u></span>
-    <span class="campo">Fecha de alta:&nbsp;<u>{{ ti.fecha_alta or '&nbsp;'|safe }}</u></span>
-    <div class="firma"><div class="linea"></div><b>{{ ti.admin_nombre or '&nbsp;'|safe }}</b><span>Administrador del sistema (TI)</span></div>
+    <span class="campo">Usuario asignado:&nbsp;<u>{{ ti.usuario_asignado or '&nbsp;'|safe }}{% if anclas %}<i class="ancla">/ua/</i>{% endif %}</u></span>
+    <span class="campo">Fecha de alta:&nbsp;<u>{{ ti.fecha_alta or '&nbsp;'|safe }}{% if anclas %}<i class="ancla">/fa/</i>{% endif %}</u></span>
+    <div class="firma"><div class="linea">{% if anclas %}<i class="ancla">/f4/</i>{% endif %}</div><b>{{ ti.admin_nombre or '&nbsp;'|safe }}</b><span>Administrador del sistema (TI)</span></div>
   </section>
 
   <footer class="pie">
