@@ -37,7 +37,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
 
   const handleSave = async () => {
     if (!title.trim() || !systemId || !severityId || !description.trim()) {
-      return setError('Título, sistema, severidad y descripción son obligatorios')
+      return setError('La descripción corta, el sistema, la severidad y la descripción son obligatorios')
     }
     setSaving(true)
     setError(null)
@@ -67,11 +67,11 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
 
-        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Título</label>
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Descripción corta del ticket</label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Ej. No puedo timbrar facturas"
+          placeholder="Ej. No puedo timbrar facturas en TOTVS"
           className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50 mb-3"
         />
 

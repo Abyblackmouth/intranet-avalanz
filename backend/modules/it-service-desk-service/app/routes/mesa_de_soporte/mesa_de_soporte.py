@@ -1425,7 +1425,7 @@ async def export_incidents_excel(
     if not has_full_access:
         raise HTTPException(status_code=403, detail="No tienes permiso para exportar el concentrado")
 
-    result = await db.execute(select(Incident).where(Incident.ticket_type == "incidente").order_by(Incident.created_at))
+    result = await db.execute(select(Incident).where(Incident.ticket_type.in_(["incidente", "solicitud_acceso"])).order_by(Incident.created_at))
     incidents = result.scalars().all()
 
     sev_result = await db.execute(select(TicketSeverity))
@@ -1496,6 +1496,8 @@ async def export_incidents_excel(
 
         filas.append({
             "Folio": i.folio,
+            "Tipo": "Solicitud de acceso" if i.ticket_type == "solicitud_acceso" else "Incidente",
+            "Título": i.title,
             "Familia": requester_profile.get("family_clave", ""),
             "Empresa": i.requester_company_name,
             "Creado por": i.requester_name,
