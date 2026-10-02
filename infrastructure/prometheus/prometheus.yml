@@ -75,6 +75,13 @@ scrape_configs:
     metrics_path: "/metrics"
     scrape_interval: 15s
 
+  # Servicio de plataforma: asistente (RAG y chatbot)
+  - job_name: "assistant-service"
+    static_configs:
+      - targets: ["avalanz-assistant:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+
   # PostgreSQL — via postgres-exporter (puerto 9187)
   # Modulo operativo
   - job_name: "legal-service"

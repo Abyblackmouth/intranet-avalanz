@@ -1,0 +1,9 @@
+# ----------------------------------------------------------------------
+# Archivos excluidos de la imagen del asistente
+# Docker usa este archivo solo para este Dockerfile. Las rutas son
+# relativas al contexto de construccion (la carpeta backend).
+# El .env con secretos se entrega en tiempo de ejecucion (env_file).
+# ----------------------------------------------------------------------
+assistant-service/.env
+**/__pycache__
+**/*.pyc
