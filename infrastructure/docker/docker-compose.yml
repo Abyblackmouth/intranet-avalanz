@@ -70,6 +70,28 @@ services:
       retries: 5
     logging: *default-logging
 
+  # ── Assistant Service (RAG y chatbot) ────────────────────────────────────────
+  # Fuentes en solo lectura; modelos con escritura para guardar descargas.
+  # mem_limit protege a los demas servicios si el asistente consume de mas.
+  assistant-service:
+    build:
+      context: ../../backend
+      dockerfile: assistant-service/Dockerfile
+    container_name: avalanz-assistant
+    restart: unless-stopped
+    env_file:
+      - ../../backend/assistant-service/.env
+    volumes:
+      - /srv/avalanz/asistente/fuentes:/data/fuentes:ro
+      - /srv/avalanz/asistente/modelos:/data/modelos
+    mem_limit: 1g
+    depends_on:
+      postgres-vector:
+        condition: service_healthy
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
   # ── Redis ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine

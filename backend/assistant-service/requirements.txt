@@ -1,0 +1,32 @@
+# ----------------------------------------------------------------------
+# Servidor web
+# FastAPI para la API y Uvicorn como servidor ASGI. Mismas versiones que
+# el IT Service Desk para mantener un comportamiento uniforme.
+# ----------------------------------------------------------------------
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+
+# ----------------------------------------------------------------------
+# Base de datos
+# SQLAlchemy async con el driver asyncpg para PostgreSQL con pgvector.
+# ----------------------------------------------------------------------
+sqlalchemy==2.0.30
+asyncpg==0.29.0
+
+# ----------------------------------------------------------------------
+# Configuracion
+# Lee y valida las variables de entorno al arrancar el servicio.
+# ----------------------------------------------------------------------
+pydantic-settings==2.2.1
+
+# ----------------------------------------------------------------------
+# Seguridad
+# Valida el JWT que emite el auth-service de la plataforma.
+# ----------------------------------------------------------------------
+python-jose[cryptography]==3.3.0
+
+# ----------------------------------------------------------------------
+# Observabilidad
+# Expone /metrics para que Prometheus recolecte las metricas HTTP.
+# ----------------------------------------------------------------------
+prometheus-fastapi-instrumentator==7.0.0
