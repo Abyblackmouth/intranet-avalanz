@@ -72,6 +72,8 @@ Thumbs.db
 *.pem
 *.key
 *.crt
+# Certificados de Nginx: se ignora la carpeta completa, no solo por extension
+infrastructure/nginx/ssl/
 *.csr
 
 # ── Backups ───────────────────────────────────────────────────────────────────
