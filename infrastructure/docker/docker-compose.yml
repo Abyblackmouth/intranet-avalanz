@@ -50,6 +50,26 @@ services:
       retries: 5
     logging: *default-logging
 
+  # ── PostgreSQL con pgvector (asistente) ─────────────────────────────────────
+  postgres-vector:
+    image: pgvector/pgvector:0.8.0-pg15
+    container_name: avalanz-postgres-vector
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_VECTOR_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_VECTOR_PASSWORD}
+      POSTGRES_DB: avalanz_assistant
+    volumes:
+      - postgres-vector-data:/var/lib/postgresql/data
+    networks:
+      - avalanz-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_VECTOR_USER} -d avalanz_assistant"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
   # ── Redis ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -410,6 +430,7 @@ services:
 # ── Volumes ─────────────────────────────────────────────────────────────────
 volumes:
   postgres-data:
+  postgres-vector-data:
   redis-data:
   rabbitmq-data:
   minio-data:
