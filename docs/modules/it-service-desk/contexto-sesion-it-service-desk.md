@@ -25,7 +25,7 @@ Documento para arrancar un chat nuevo con todo el contexto. Léelo completo ante
 | Carpeta en el servidor | `~/intranet-avalanz` |
 | Carpeta en la laptop | `~/code/avalanz/intranet-avalanz` |
 | Stack | Next.js 16 · FastAPI · PostgreSQL · Docker Compose · Nginx · RabbitMQ · MinIO · Gotenberg · Prometheus/Grafana |
-| Frontend | PM2, proceso `intranet-frontend` (id 2) · despliegue: `~/intranet-avalanz/frontend/deploy-frontend.sh` (solo reinicia si compila) |
+| Frontend | PM2, proceso `intranet-frontend` (id 1 desde el reinicio del 2 oct 2026) · despliegue: `~/intranet-avalanz/frontend/deploy-frontend.sh` (solo reinicia si compila) |
 | Bases de datos | `avalanz_it_service_desk`, `avalanz_admin`, `avalanz_notify`, `avalanz_legal`… (usuario `avalanz_user`, contenedor `avalanz-postgres`) |
 | Contenedores clave | `avalanz-it-service-desk`, `avalanz-admin`, `avalanz-email`, `avalanz-legal`, `avalanz-gotenberg`, `avalanz-nginx`, `avalanz-postgres` |
 | Herramientas de administración | `~/intranet-avalanz/utilerias/` — **fuera de Git** (ignorada en `.git/info/exclude`), permisos 700. Contiene `limpieza-it-service-desk.py` (borra **todos** los tickets; simula por defecto, `--execute` pide la frase `BORRAR TICKETS DE PRUEBA`) |
