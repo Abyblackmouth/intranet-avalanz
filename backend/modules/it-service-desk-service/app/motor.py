@@ -58,7 +58,8 @@ async def resolve_assignment(
     team_type = TEAM_BY_REPORTED_TYPE.get(reported_type)
     roles = [team_type] if team_type else sorted(set(TEAM_BY_REPORTED_TYPE.values()))
     # El Incident Manager activado como equipo tambien vive en system_specialists
-    activos = await _usuarios_activos(roles + ["incident-manager"])
+    # Tambien el Tecnico (apoyo externo) que se ligo a ese sistema o modulo en el catalogo
+    activos = await _usuarios_activos(roles + ["incident-manager", "tecnico"])
 
     async def _buscar(system_filter, module_filter):
         conditions = [
