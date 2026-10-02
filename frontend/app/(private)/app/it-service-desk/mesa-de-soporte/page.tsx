@@ -298,7 +298,7 @@ export default function MesaDeSoportePage() {
     // Sin encabezado: su espacio se usa para los tableros. Es el mismo
     // contenedor que PageWrapper (que no se modifica), sin su cabecera.
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex-1 overflow-auto px-6 pt-3 pb-6 min-h-0">
+      <div className="flex-1 overflow-auto px-6 max-[1440px]:px-4 pt-3 pb-6 max-[1440px]:pb-4 min-h-0">
       <div className="flex flex-col h-full">
       {/* Barra superior de la Mesa de Soporte: vista a la izquierda; disponibilidad,
           exportación y nuevo ticket a la derecha. Mismos handlers de siempre. */}
@@ -507,17 +507,17 @@ export default function MesaDeSoportePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-100 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-300">
-                <th className="px-4 py-3">Folio</th>
-                <th className="px-4 py-3">Título</th>
-                <th className="px-4 py-3">Empresa</th>
-                <th className="px-4 py-3">Sistema</th>
-                <th className="px-4 py-3">Severidad</th>
-                <th className="px-4 py-3">Estatus</th>
-                <th className="px-4 py-3">Solicitante</th>
-                <th className="px-4 py-3">Asignado a</th>
-                <th className="px-4 py-3">Creado</th>
-                <th className="px-4 py-3 text-center">SLA</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
+                <th className="whitespace-nowrap px-4 py-3">Folio</th>
+                <th className="whitespace-nowrap px-4 py-3">Título</th>
+                <th className="whitespace-nowrap px-4 py-3">Empresa</th>
+                <th className="whitespace-nowrap px-4 py-3">Sistema</th>
+                <th className="whitespace-nowrap px-4 py-3">Severidad</th>
+                <th className="whitespace-nowrap px-4 py-3">Estatus</th>
+                <th className="whitespace-nowrap px-4 py-3">Solicitante</th>
+                <th className="whitespace-nowrap px-4 py-3">Asignado a</th>
+                <th className="whitespace-nowrap px-4 py-3">Creado</th>
+                <th className="whitespace-nowrap px-4 py-3 text-center">SLA</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-500/10">
