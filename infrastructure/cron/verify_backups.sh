@@ -17,7 +17,9 @@ echo "$LOG_PREFIX Iniciando verificación de integridad de backups..."
 # Formato: "bd:tabla1,tabla2,tabla3"
 CHECKS="avalanz_auth:users,user_sessions,login_history
 avalanz_admin:users,companies,groups,modules
-avalanz_notify:notifications"
+avalanz_notify:notifications
+avalanz_it_service_desk:incidents,ticket_systems,folio_counters
+avalanz_legal:envelopes,envelope_attachments"
 
 for CHECK in $CHECKS; do
     DB=$(echo "$CHECK" | cut -d: -f1)
@@ -82,7 +84,8 @@ for CHECK in $CHECKS; do
         COUNT=$(psql -h "$DB_HOST" -U "$DB_USER" -d "$TEMP_DB" -t -c \
             "SELECT COUNT(*) FROM $TABLE;" 2>/dev/null | tr -d ' ')
 
-        if [ $? -eq 0 ]; then
+        # COUNT solo es valido si es numerico; vacio significa que la tabla no existe
+        if [ -n "$COUNT" ] && [ "$COUNT" -eq "$COUNT" ] 2>/dev/null; then
             echo "$LOG_PREFIX $DB: tabla $TABLE OK ($COUNT registros)"
             TABLE_OK=$((TABLE_OK + 1))
         else
@@ -100,6 +103,18 @@ for CHECK in $CHECKS; do
         TOTAL_OK=$((TOTAL_OK + 1))
     else
         echo "$LOG_PREFIX $DB: verificación fallida — $TABLE_FAIL tablas con error"
+        TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    fi
+done
+
+# ── Cobertura: toda base del servidor debe tener verificacion configurada ──────
+# Si se agrega un modulo nuevo y no se registra en CHECKS, la verificacion
+# falla para que ninguna base quede sin revisar sin que nadie lo note
+SERVER_DBS=$(psql -h "$DB_HOST" -U "$DB_USER" -d postgres -tA -c \
+    "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres' AND datname !~ '_verify_[0-9]+\$' ORDER BY 1" 2>/dev/null)
+for SDB in $SERVER_DBS; do
+    if ! echo "$CHECKS" | grep -q "^${SDB}:"; then
+        echo "$LOG_PREFIX $SDB: ERROR — base sin verificacion configurada en CHECKS"
         TOTAL_FAIL=$((TOTAL_FAIL + 1))
     fi
 done

@@ -13,10 +13,22 @@ RECIPIENTS="abraham_covarrubias@avalanz.com soporte@avalanz.com"
 echo "$LOG_PREFIX Iniciando backup de PostgreSQL..."
 mkdir -p "$BACKUP_DIR"
 
-DATABASES="avalanz_auth avalanz_admin avalanz_notify"
+# Descubre todas las bases de usuario del servidor, asi cualquier modulo
+# nuevo queda respaldado sin editar este script. Se excluyen las plantillas,
+# la base interna postgres y las temporales que crea verify_backups.sh
+DATABASES=$(psql -h "$DB_HOST" -U "$DB_USER" -d postgres -tA -c \
+    "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres' AND datname !~ '_verify_[0-9]+\$' ORDER BY 1" \
+    2>/tmp/pg_list_error.txt)
+
+# Si la consulta falla se usa la lista conocida y se avisa en el reporte
+SUMMARY_INICIAL=""
+if [ -z "$DATABASES" ]; then
+    DATABASES="avalanz_auth avalanz_admin avalanz_notify avalanz_it_service_desk avalanz_legal"
+    SUMMARY_INICIAL="[AVISO] No se pudo consultar la lista de bases, se uso la lista conocida\n"
+fi
 TOTAL_OK=0
 TOTAL_FAIL=0
-SUMMARY=""
+SUMMARY="$SUMMARY_INICIAL"
 
 for DB in $DATABASES; do
     echo "$LOG_PREFIX Respaldando $DB..."
