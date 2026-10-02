@@ -128,16 +128,16 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
       className="hover:bg-slate-50 transition-colors duration-[3000ms] cursor-pointer"
       style={isNew ? { backgroundColor: '#fef9c3' } : undefined}
     >
-      <td className="px-4 py-2 font-mono text-xs text-slate-500">
+      <td className="px-4 max-[1440px]:px-2.5 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">
         <span className="inline-flex items-center gap-1">
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT[t.status] ?? 'bg-slate-300'}`} />
           {t.folio}
         </span>
       </td>
-      <td className="px-4 py-2 font-medium text-slate-800 max-w-xs truncate">{t.title}</td>
-      <td className="px-4 py-2 text-xs text-slate-500">{t.requester_company_name}</td>
-      <td className="px-4 py-2 text-xs text-slate-500">{sysName}</td>
-      <td className="px-4 py-2 text-center">
+      <td className="px-4 max-[1440px]:px-2.5 py-2 font-medium text-slate-800 max-w-xs truncate max-[1440px]:max-w-[220px]">{t.title}</td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">{t.requester_company_name}</td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">{sysName}</td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-center">
         {((t as any).ticket_type === 'control_cambio' || t.folio?.startsWith('CDC-'))
           ? ((t as any).cdc_prioridad
               ? <span title={t.status === 'rechazado' ? 'Urgencia indicada por el solicitante: el proyecto no llegó a priorización' : 'Prioridad definida por Gerencia de Proyectos'}
@@ -150,19 +150,19 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
           {STATUS_LABEL[t.status] ?? t.status}
         </span>
       </td>
-      <td className="px-4 py-2 text-xs text-slate-500">{t.requester_name}</td>
-      <td className="px-4 py-2 text-xs text-slate-500">
-        {t.assigned_to_name ?? <span className="italic text-slate-300">Sin asignar</span>}
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500"><span className="block max-[1440px]:max-w-[130px] max-[1440px]:truncate" title={t.requester_name}>{t.requester_name}</span></td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">
+        <span className="block max-[1440px]:max-w-[130px] max-[1440px]:truncate" title={t.assigned_to_name ?? ''}>{t.assigned_to_name ?? <span className="italic text-slate-300">Sin asignar</span>}</span>
       </td>
-      <td className="px-4 py-2 text-xs text-slate-500">{fmt(t.created_at)}</td>
-      <td className="px-4 py-2 text-center">
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500 whitespace-nowrap">{fmt(t.created_at)}</td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-center">
         <span className="inline-flex items-center gap-2">
           <SlaReloj tipo="Respuesta" letra="R" inicio={t.created_at} limite={(t as any).sla_response_limit} cumplido={(t as any).first_response_at} />
           <SlaReloj tipo="Resolución" letra="S" inicio={t.created_at} limite={t.sla_resolution_limit}
             cumplido={['resuelto', 'cerrado', 'terminado'].includes(t.status) ? ((t as any).resolved_at ?? (t as any).closed_at ?? t.sla_resolution_limit) : null} />
         </span>
       </td>
-      <td className="px-4 py-2 text-right">
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-right">
         <div className="flex items-center justify-end gap-1">
           {canAssign && t.status === 'en_backlog' && (
             <button

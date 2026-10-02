@@ -42,6 +42,8 @@ export default function Sidebar() {
   const { user, isAdmin, isSuperAdmin, isLoggingOut } = useAuthStore()
   if (isLoggingOut) return null
   const [collapsed, setCollapsed] = useState(false)
+  // En laptops de 13"-15" abre recogido (solo íconos) para dar espacio a las tablas; la flecha lo despliega
+  useEffect(() => { if (window.innerWidth <= 1440) setCollapsed(true) }, [])
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [mounted, setMounted] = useState(false)
 
@@ -64,13 +66,14 @@ export default function Sidebar() {
       className={`
         relative flex flex-col h-screen bg-white border-r-2 border-slate-300
         shadow-[4px_0_20px_rgba(0,0,0,0.08)] transition-all duration-300 shrink-0
-        ${mounted && collapsed ? 'w-16' : 'w-60'}
+        ${mounted && collapsed ? 'w-16' : 'w-60 max-[1440px]:w-52'}
       `}
     >
       {/* Boton colapsar */}
       {mounted && (
         <button
           onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? 'Abrir menú' : 'Recoger menú'} title={collapsed ? 'Abrir menú' : 'Recoger menú'}
           className="absolute -right-3.5 top-5 z-10 w-7 h-7 bg-[#1a4fa0] border border-[#1a4fa0] rounded-full flex items-center justify-center hover:bg-blue-700 shadow-md transition text-white"
         >
           {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
@@ -78,20 +81,20 @@ export default function Sidebar() {
       )}
 
       {/* Logo + nombre */}
-      <div className="flex flex-col items-center px-3 pt-5 pb-4 shrink-0">
+      <div className="flex flex-col items-center px-3 pt-5 pb-4 max-[1440px]:pt-3 max-[1440px]:pb-2 shrink-0">
         {mounted && collapsed ? (
           <div className="w-8 h-8">
             <img src="/logo_200.png" alt="Avalanz" className="w-full h-full object-contain" />
           </div>
         ) : (
           <>
-            <div className="w-20 h-20">
+            <div className="w-20 max-[1440px]:w-12 h-20 max-[1440px]:h-12">
               <img src="/logo_200.png" alt="Avalanz" className="w-full h-full object-contain" />
             </div>
-            <p className="text-slate-900 text-xl font-semibold mt-1 tracking-wide" style={{ fontFamily: "var(--font-jakarta)" }}>
+            <p className="text-slate-900 text-xl max-[1440px]:text-base font-semibold mt-1 tracking-wide" style={{ fontFamily: "var(--font-jakarta)" }}>
               Intranet Avalanz
             </p>
-            <p className="text-slate-300 text-[9px] tracking-widest uppercase mt-0.5">v1.0.0</p>
+            <p className="text-slate-300 text-[9px] tracking-widest uppercase mt-0.5 max-[1440px]:hidden">v1.0.0</p>
           </>
         )}
       </div>
@@ -143,7 +146,7 @@ export default function Sidebar() {
                       <div className={`flex items-center rounded-lg transition-all duration-150 ${moduleActive ? 'bg-[#1a4fa0]' : 'hover:bg-slate-100'}`}>
                         <Link
                           href={`/app/${slug}`}
-                          className={`flex items-center gap-2.5 px-2.5 py-2 flex-1 min-w-0 text-sm font-medium transition-colors ${moduleActive ? 'text-white' : 'text-slate-800'} ${collapsed ? 'justify-center' : ''}`}
+                          className={`flex items-center gap-2.5 px-2.5 py-2 max-[1440px]:py-1.5 flex-1 min-w-0 text-sm font-medium transition-colors ${moduleActive ? 'text-white' : 'text-slate-800'} ${collapsed ? 'justify-center' : ''}`}
                           title={collapsed ? (slug || '').charAt(0).toUpperCase() + (slug || '').slice(1) : undefined}
                         >
                           <span className="shrink-0">{getModuleIcon(icon)}</span>
@@ -204,7 +207,7 @@ const NavLink = ({ item, active, collapsed }: { item: NavItem; active: boolean; 
     href={item.href}
     title={collapsed ? item.label : undefined}
     className={`
-      flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-150
+      flex items-center gap-2.5 px-2.5 py-2 max-[1440px]:py-1.5 rounded-lg text-sm transition-all duration-150
       ${active
         ? 'bg-[#1a4fa0] text-white font-semibold'
         : 'text-slate-800 hover:bg-slate-100 font-medium'
