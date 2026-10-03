@@ -25,13 +25,36 @@ export const SEVERITY_LABEL: Record<string, string> = {
   S4: 'Es una duda o algo menor',
 }
 
+// Nivel y color de cada severidad (los mismos tonos que la tabla de la mesa)
+export const SEVERITY_LEVEL: Record<string, string> = { S1: 'Crítica', S2: 'Alta', S3: 'Media', S4: 'Baja' }
+const SEVERITY_STYLE: Record<string, string> = {
+  S1: 'bg-red-50 text-red-700 border-red-200',
+  S2: 'bg-orange-50 text-orange-700 border-orange-200',
+  S3: 'bg-amber-50 text-amber-700 border-amber-200',
+  S4: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+}
+
+export const severityText = (code: string, name: string) =>
+  `${code} · ${SEVERITY_LEVEL[code] ?? name} — ${SEVERITY_LABEL[code] ?? name}`
+
+// Etiqueta de color de la severidad
+const SeverityBadge = ({ code, name }: { code: string; name: string }) => (
+  <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-bold ${SEVERITY_STYLE[code] ?? 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+    {code} · {SEVERITY_LEVEL[code] ?? name}
+  </span>
+)
+
+// "ANA MARCELA RODRIGUEZ" -> "Ana Marcela Rodriguez"
+const titleCase = (name: string) =>
+  name.toLocaleLowerCase('es-MX').replace(/(^|\s)(\p{L})/gu, (_, space: string, letter: string) => space + letter.toLocaleUpperCase('es-MX'))
+
 // Pregunta del asistente en cada paso
 export const STEP_PROMPT: Record<TicketStep, string> = {
   describe: 'Cuéntame brevemente qué está pasando.',
   type: '¿Qué tipo de problema es?',
   system: '¿En qué sistema?',
   module: '¿Qué módulo?',
-  severity: '¿Qué tanto te afecta?',
+  severity: '¿Qué tan grave es? Elige la severidad:',
   attach: '¿Quieres agregar capturas de pantalla? Ayudan a resolverlo más rápido. Puedes pegarlas con Ctrl + V o arrastrarlas aquí.',
   review: 'Revisa el ticket antes de enviarlo:',
   sending: '',
@@ -134,7 +157,7 @@ export const TicketStatusLine = ({ ticket }: { ticket: TicketInfo }) => {
   if (ticket.assignState === 'assigned') {
     return (
       <span className="mt-1.5 flex items-center gap-1.5 text-[12.5px] font-medium text-emerald-700">
-        <Check size={14} /> Asignado a {ticket.assignedTo}
+        <Check size={14} /> Asignado a {titleCase(ticket.assignedTo ?? '')}
       </span>
     )
   }
@@ -290,9 +313,11 @@ const TicketControls = ({ draft, catalogs, catalogsError, onAdvance, onPatch, on
       <div className={box}>
         <div className="flex flex-col gap-1.5">
           {(catalogs?.severities ?? []).map((s) => (
-            <button key={s.id} type="button" className={`${chipIdle} rounded-lg text-left`}
-              onClick={() => onAdvance(`${s.code} · ${SEVERITY_LABEL[s.code] ?? s.name}`, { severityId: s.id }, 'attach')}>
-              <span className="font-semibold mr-1.5">{s.code}</span>{SEVERITY_LABEL[s.code] ?? s.name}
+            <button key={s.id} type="button"
+              className="flex items-center gap-2.5 rounded-lg border border-[#b8c4d4] bg-white px-3 py-2 text-left text-[12.5px] text-slate-700 transition-colors hover:border-[#1a4fa0] hover:bg-blue-50/40"
+              onClick={() => onAdvance(severityText(s.code, s.name), { severityId: s.id }, 'attach')}>
+              <SeverityBadge code={s.code} name={s.name} />
+              <span>{SEVERITY_LABEL[s.code] ?? s.name}</span>
             </button>
           ))}
         </div>
@@ -333,7 +358,9 @@ const TicketControls = ({ draft, catalogs, catalogsError, onAdvance, onPatch, on
         <dt className="text-slate-500">Sistema</dt>
         <dd className="text-slate-800">{system?.name ?? '-'}{selectedModule ? ` › ${selectedModule.name}` : ''}</dd>
         <dt className="text-slate-500">Severidad</dt>
-        <dd className="text-slate-800">{severity ? `${severity.code} · ${SEVERITY_LABEL[severity.code] ?? severity.name}` : '-'}</dd>
+        <dd className="flex items-center gap-2 text-slate-800">
+          {severity ? (<><SeverityBadge code={severity.code} name={severity.name} /><span>{SEVERITY_LABEL[severity.code] ?? severity.name}</span></>) : '-'}
+        </dd>
       </dl>
       <label className="block text-[11px] font-medium text-slate-500">
         Descripción
