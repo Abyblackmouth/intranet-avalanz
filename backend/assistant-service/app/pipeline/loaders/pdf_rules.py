@@ -10,8 +10,14 @@
 # Importaciones
 # ----------------------------------------------------------------------
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass
+
+# normalize_line y table_to_markdown se re-exportan para quien las importe desde aqui
+from app.pipeline.loaders.common import (
+    DEFAULT_IGNORED_SECTIONS,
+    normalize_line,
+    table_to_markdown,
+)
 
 
 # ----------------------------------------------------------------------
@@ -39,7 +45,7 @@ class PdfLayoutRules:
     # Letra maxima del texto de margen (encabezado y pie miden 8)
     margin_text_max_size: float = 9.0
     # Secciones sin contenido util que se descartan completas
-    ignored_sections: tuple[str, ...] = ("contenido", "control de versiones")
+    ignored_sections: tuple[str, ...] = DEFAULT_IGNORED_SECTIONS
 
 
 # ----------------------------------------------------------------------
@@ -50,13 +56,6 @@ class PdfLayoutRules:
 TOC_LINE = re.compile(r"\.{5,}\s*\d+\s*$")
 PAGE_NUMBER = re.compile(r"^p[aá]gina\s+\d+(\s+de\s+\d+)?$", re.IGNORECASE)
 SECTION_NUMBER = re.compile(r"^(\d+(?:\.\d+)*)\.?\s+\S")
-
-
-# ----------------------------------------------------------------------
-# Limpieza de una linea: espacios y saltos compactados
-# ----------------------------------------------------------------------
-def normalize_line(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip()
 
 
 # ----------------------------------------------------------------------
@@ -92,50 +91,3 @@ def heading_level(text: str, size: float, rules: PdfLayoutRules) -> int | None:
 def is_ignored_section(text: str, rules: PdfLayoutRules) -> bool:
     title = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", normalize_line(text)).lower()
     return title in rules.ignored_sections
-
-
-# ----------------------------------------------------------------------
-# Tabla a Markdown
-# Las celdas combinadas llegan como None en las columnas que cubren. Una
-# columna que en las filas de datos solo tiene None o vacio es
-# continuacion de la anterior y se une a ella. Despues se omiten filas y
-# columnas vacias, y cada celda queda en una sola linea.
-# ----------------------------------------------------------------------
-def table_to_markdown(rows: Sequence[Sequence[object]] | None) -> str:
-    rows = [list(row) for row in rows or []]
-    if not rows:
-        return ""
-    width = max(len(row) for row in rows)
-    rows = [row + [""] * (width - len(row)) for row in rows]
-    body = rows[1:]
-
-    # Columnas de continuacion: cubiertas por una celda combinada
-    continuation = {
-        j for j in range(1, width)
-        if any(row[j] is None for row in rows)
-        and not any(row[j] not in (None, "") for row in body)
-    }
-    groups: list[list[int]] = []
-    for j in range(width):
-        if j in continuation and groups:
-            groups[-1].append(j)
-        else:
-            groups.append([j])
-
-    # Cada grupo de columnas se convierte en una sola celda
-    merged = [
-        [normalize_line(" ".join(str(row[j]) for j in group if row[j] not in (None, "")))
-         for group in groups]
-        for row in rows
-    ]
-    cleaned = [row for row in merged if any(row)]
-    if not cleaned:
-        return ""
-
-    # Columnas vacias en todas las filas se omiten
-    keep = [i for i in range(len(groups)) if any(row[i] for row in cleaned)]
-    cleaned = [[row[i] for i in keep] for row in cleaned]
-    header, *body_rows = cleaned
-    lines = ["| " + " | ".join(header) + " |", "| " + " | ".join(["---"] * len(keep)) + " |"]
-    lines += ["| " + " | ".join(row) + " |" for row in body_rows]
-    return "\n".join(lines)
