@@ -11,11 +11,25 @@
 # Mensajes con mas palabras siempre se consideran preguntas
 max_words: 8
 
+# Tolerancia a errores de dedo: si ninguna regla coincide y el mensaje
+# tiene hasta fuzzy_max_words palabras, se compara contra los "examples"
+# de cada intencion; con un parecido de fuzzy_threshold o mas (0 a 1),
+# se toma esa intencion. "que reres" se parece 0.94 a "que eres".
+fuzzy_max_words: 4
+fuzzy_threshold: 0.85
+
 # Colas comunes que no cambian la intencion ("gracias amigo")
 tail: '(?: (?:asistente|amigo|amiga|crack|bro|avalanz|por favor|porfa|de nuevo|otra vez|mucho|muchisimo|a ti|a usted))*'
 
 intents:
   saludo:
+    examples:
+      - 'hola'
+      - 'buenos dias'
+      - 'buenas tardes'
+      - 'buenas noches'
+      - 'buen dia'
+      - 'que tal'
     patterns:
       - 'hola+'
       - 'hola+ (que tal|como estas|como esta|buen dia|buenos dias|buenas tardes|buenas noches|buenas)'
@@ -30,6 +44,11 @@ intents:
       - '¡Hola! Pregúntame lo que necesites sobre los procesos de TOTVS.'
 
   despedida:
+    examples:
+      - 'adios'
+      - 'hasta luego'
+      - 'nos vemos'
+      - 'eso es todo'
     patterns:
       - '(gracias )?(adios|hasta luego|hasta pronto|hasta manana|bye|nos vemos|chao|chau)'
       - '(eso )?(es|seria) todo( gracias)?'
@@ -38,6 +57,11 @@ intents:
       - '¡Que te vaya muy bien! Vuelve cuando tengas otra duda.'
 
   agradecimiento:
+    examples:
+      - 'gracias'
+      - 'muchas gracias'
+      - 'mil gracias'
+      - 'te agradezco'
     patterns:
       - '(muchas |mil |muchisimas )?gracias'
       - 'te (lo )?agradezco'
@@ -49,6 +73,12 @@ intents:
       - '¡De nada! Aquí sigo por si surge otra pregunta.'
 
   capacidades:
+    examples:
+      - 'que eres'
+      - 'quien eres'
+      - 'que puedes hacer'
+      - 'como funcionas'
+      - 'ayuda'
     patterns:
       - '(que|en que) (puedes hacer|me puedes ayudar|haces|sabes)'
       - '(quien|que) eres'
@@ -59,6 +89,11 @@ intents:
       - 'Soy el asistente de la intranet. Busco respuestas en los manuales, presentaciones y sesiones grabadas de capacitación, y te digo en qué documento y en qué página o minuto está cada una. Si no encuentro algo, te ayudo a levantar un ticket. Prueba preguntándome, por ejemplo: «¿Cómo doy de baja un activo?»'
 
   no_sirvio:
+    examples:
+      - 'no me sirvio'
+      - 'no es eso'
+      - 'no entendi'
+      - 'no me ayudo'
     show_ticket: true
     patterns:
       - '(no|eso no) (me )?(sirvio|ayudo|funciono|es)( eso)?'
@@ -69,6 +104,12 @@ intents:
       - 'Lamento que no te haya servido. Intenta preguntarme con otras palabras o con más detalle. Si prefieres, levanta un ticket para que un especialista te ayude.'
 
   confirmacion:
+    examples:
+      - 'perfecto'
+      - 'entendido'
+      - 'de acuerdo'
+      - 'excelente'
+      - 'listo'
     patterns:
       - '(ok|okay|okey|va|vale|perfecto|excelente|genial|listo|entendido|de acuerdo|sale|si|claro|muy bien|que bien|super)'
     replies:

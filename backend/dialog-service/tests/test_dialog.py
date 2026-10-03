@@ -63,3 +63,20 @@ def test_questions_forward_the_token_to_knowledge():
     result = asyncio.run(HandleMessage(DETECTOR, knowledge).run("¿Cómo doy de baja un activo?", "it-service-desk", "Bearer x"))
     assert result["type"] == "busqueda" and result["results"] == [{"title": "Manual"}]
     assert knowledge.calls == [("¿Cómo doy de baja un activo?", "it-service-desk", "Bearer x")]
+
+
+# ----------------------------------------------------------------------
+# Tolerancia a errores de dedo: se reconocen variantes cercanas, pero las
+# preguntas cortas reales no se confunden con platica
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("texto, intencion", [
+    ("que reres ?", "capacidades"), ("grasias", "agradecimiento"), ("ola", "saludo"),
+    ("graciaas", "agradecimiento"), ("buenos diass", "saludo"), ("hasta lugo", "despedida"),
+])
+def test_typos_are_tolerated(texto, intencion):
+    assert DETECTOR.detect(texto).intent == intencion
+
+
+@pytest.mark.parametrize("texto", ["que es ppd", "ppd", "baja", "nomina", "que es un mnemonico", "timbrado"])
+def test_short_questions_stay_questions(texto):
+    assert DETECTOR.detect(texto) is None
