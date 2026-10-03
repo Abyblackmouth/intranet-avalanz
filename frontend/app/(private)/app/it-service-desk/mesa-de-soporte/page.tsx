@@ -547,7 +547,8 @@ export default function MesaDeSoportePage() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-300 bg-slate-50 shrink-0">
+        {/* pr-20: deja libre la esquina inferior derecha para la esfera del asistente */}
+        <div className="flex items-center justify-between pl-4 pr-20 py-3 border-t border-slate-300 bg-slate-50 shrink-0">
             <p className="text-xs text-slate-500">
               Mostrando {(page - 1) * PER_PAGE + 1}-{Math.min(page * PER_PAGE, filtered.length)} de {filtered.length}
             </p>
