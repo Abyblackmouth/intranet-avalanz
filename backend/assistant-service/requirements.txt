@@ -41,3 +41,11 @@ pdfplumber==0.11.4
 python-docx==1.1.2
 # python-pptx lee presentaciones de PowerPoint, incluidas las notas del orador.
 python-pptx==1.0.2
+
+# ----------------------------------------------------------------------
+# Embeddings en CPU sin PyTorch
+# onnxruntime ejecuta el modelo exportado; tokenizers prepara el texto.
+# ----------------------------------------------------------------------
+numpy==1.26.4
+onnxruntime==1.18.1
+tokenizers==0.19.1

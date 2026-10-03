@@ -1,6 +1,3 @@
 # ----------------------------------------------------------------------
-# Dependencias de desarrollo
-# Solo para pruebas; no se instalan en la imagen de produccion.
+# Herramientas de operacion del asistente (exportacion de modelos, etc.)
 # ----------------------------------------------------------------------
-pytest==8.2.2
-numpy==1.26.4
