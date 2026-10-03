@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowUp, ChevronDown, FileText, LifeBuoy, RotateCcw, Table, Video } from 'lucide-react'
+import { ArrowUp, ArrowUpRight, ChevronDown, Download, FileText, LifeBuoy, RotateCcw, Table, Video, X } from 'lucide-react'
 import FluidOrb from '@/components/assistant/FluidOrb'
 import { readSessionClaims } from '@/components/assistant/session'
 import TicketControls, { SendingDots, STEP_PROMPT, TicketStatusLine, ticketContext, mergeFiles, type TicketContext } from '@/components/assistant/TicketFlow'
@@ -21,6 +21,7 @@ import {
   getAssistantAvailability,
   sendDialogMessage,
   getTicketCatalogs,
+  getDocumentLink,
   suggestTicketType,
   createChatTicket,
   type TicketCatalogs,
@@ -110,7 +111,14 @@ const cleanText = (result: AssistantResult) =>
 // Muestra la seccion mas relevante; las demas secciones del mismo
 // documento quedan como etiquetas que, al hacer clic, se muestran aqui.
 // ----------------------------------------------------------------------
-const DocumentCard = ({ group }: { group: ResultGroup }) => {
+// Accion para abrir la fuente: video, manual en PDF o descarga
+const openAction = (result: AssistantResult) => {
+  if (result.kind === 'speech') return { label: 'Ver en el video', Icon: Video }
+  if (result.document.toLowerCase().endsWith('.pdf')) return { label: 'Abrir en el manual', Icon: FileText }
+  return { label: 'Descargar', Icon: Download }
+}
+
+const DocumentCard = ({ group, onOpen }: { group: ResultGroup; onOpen: (result: AssistantResult) => void }) => {
   const [selected, setSelected] = useState(0)
   const [expanded, setExpanded] = useState(false)
   const Icon = KIND_ICON[group.kind] ?? FileText
@@ -136,11 +144,22 @@ const DocumentCard = ({ group }: { group: ResultGroup }) => {
       <p className={`mt-2 text-[12.5px] text-slate-600 leading-relaxed whitespace-pre-line ${expanded ? '' : 'line-clamp-5'}`}>
         {body}
       </p>
-      {long && (
-        <button type="button" onClick={() => setExpanded(!expanded)} className="mt-1 text-[12px] font-medium text-[#1a4fa0] hover:underline">
-          {expanded ? 'Ver menos' : 'Ver más'}
-        </button>
-      )}
+      <div className="mt-1.5 flex items-center gap-3">
+        {long && (
+          <button type="button" onClick={() => setExpanded(!expanded)} className="text-[12px] font-medium text-[#1a4fa0] hover:underline">
+            {expanded ? 'Ver menos' : 'Ver más'}
+          </button>
+        )}
+        {(() => {
+          const { label, Icon } = openAction(current)
+          return (
+            <button type="button" onClick={() => onOpen(current)}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#b8c4d4] px-2.5 py-1 text-[12px] font-medium text-[#1a4fa0] transition-colors hover:border-[#1a4fa0] hover:bg-blue-50">
+              <Icon size={13} />{label}
+            </button>
+          )
+        })()}
+      </div>
       {group.items.length > 1 && (
         <div className="mt-2.5 pt-2.5 border-t border-slate-200">
           <p className="text-[11px] text-slate-500 mb-1.5">También en este documento:</p>
@@ -166,7 +185,11 @@ const DocumentCard = ({ group }: { group: ResultGroup }) => {
 // ----------------------------------------------------------------------
 // Burbuja de mensaje
 // ----------------------------------------------------------------------
-const MessageBubble = ({ message, onTicket }: { message: ChatMessage; onTicket: (messageId: string) => void }) => {
+const MessageBubble = ({ message, onTicket, onOpenDocument }: {
+  message: ChatMessage
+  onTicket: (messageId: string) => void
+  onOpenDocument: (result: AssistantResult, module?: string) => void
+}) => {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -185,7 +208,7 @@ const MessageBubble = ({ message, onTicket }: { message: ChatMessage; onTicket: 
         {message.ticket && <TicketStatusLine ticket={message.ticket} />}
       </div>
       {groupResults(message.results ?? []).slice(0, 3).map((group) => (
-        <DocumentCard key={`${message.id}-${group.document}`} group={group} />
+        <DocumentCard key={`${message.id}-${group.document}`} group={group} onOpen={(r) => onOpenDocument(r, message.module)} />
       ))}
       {message.showTicket && ticketRoute && (
         <button
@@ -442,6 +465,41 @@ const AssistantWidget = () => {
     }, 600)
   }
 
+  // ------------------------------------------------------------------
+  // Visor de documentos: PDF en la pagina citada y video en el minuto
+  // citado; Word y PowerPoint se descargan
+  // ------------------------------------------------------------------
+  const [viewer, setViewer] = useState<{
+    url: string; mode: 'pdf' | 'video'; title: string; location: string; page: number | null; start: number | null
+  } | null>(null)
+
+  useEffect(() => {
+    if (!viewer) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setViewer(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [viewer])
+
+  const openDocument = async (result: AssistantResult, target?: string) => {
+    if (!target) return
+    try {
+      const link = await getDocumentLink(result.document, target)
+      if (link.mode === 'download') {
+        const a = document.createElement('a')
+        a.href = link.url
+        a.download = link.filename
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        return
+      }
+      setViewer({ url: link.url, mode: link.mode, title: result.title, location: result.location,
+                  page: result.page, start: result.start_seconds })
+    } catch {
+      addMessage({ role: 'assistant', text: 'No pude abrir el documento en este momento. Intenta de nuevo.' })
+    }
+  }
+
   const openTicket = (messageId: string) => {
     if (useAssistantStore.getState().ticketDraft) return
     const all = useAssistantStore.getState().messages
@@ -489,7 +547,7 @@ const AssistantWidget = () => {
               <AnimatePresence initial={false}>
                 {messages.map((message) => (
                   <motion.div key={message.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
-                    <MessageBubble message={message} onTicket={openTicket} />
+                    <MessageBubble message={message} onTicket={openTicket} onOpenDocument={(r, m) => void openDocument(r, m)} />
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -526,6 +584,41 @@ const AssistantWidget = () => {
               </div>
             </div>
           </motion.section>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {viewer && (
+          <motion.div key="visor" className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setViewer(null)}>
+            <motion.div role="dialog" aria-label={viewer.title}
+              className="flex h-[88vh] w-[min(1100px,94vw)] flex-col overflow-hidden rounded-2xl border border-[#b8c4d4] bg-white shadow-2xl"
+              initial={{ scale: 0.96, y: 12 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 12 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 border-b border-[#b8c4d4] px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-800">{viewer.title}</p>
+                  {viewer.location && <p className="text-[11px] text-slate-500">{viewer.location}</p>}
+                </div>
+                {viewer.mode === 'pdf' && (
+                  <a href={`${viewer.url}#page=${viewer.page ?? 1}`} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-[#1a4fa0] hover:bg-blue-50">
+                    <ArrowUpRight size={14} />Abrir en pestaña nueva
+                  </a>
+                )}
+                <button type="button" onClick={() => setViewer(null)} aria-label="Cerrar" title="Cerrar"
+                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#1a4fa0]">
+                  <X size={18} />
+                </button>
+              </div>
+              {viewer.mode === 'pdf' ? (
+                <iframe title={viewer.title} src={`${viewer.url}#page=${viewer.page ?? 1}`} className="w-full flex-1" />
+              ) : (
+                <video src={viewer.url} controls autoPlay className="w-full flex-1 bg-black"
+                  onLoadedMetadata={(e) => { if (viewer.start) e.currentTarget.currentTime = viewer.start }} />
+              )}
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

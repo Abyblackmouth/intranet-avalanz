@@ -11,6 +11,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api.health import router as health_router
 from app.api.search import router as search_router
+from app.api.documents import router as documents_router
 from app.composition import build_components
 from app.config import settings
 from app.database import engine
@@ -56,3 +57,4 @@ Instrumentator().instrument(app).expose(app)
 # ----------------------------------------------------------------------
 app.include_router(health_router)
 app.include_router(search_router, prefix="/api/v1/assistant")
+app.include_router(documents_router, prefix="/api/v1/assistant")
