@@ -66,12 +66,13 @@ class Embedder(Protocol):
 
 # ----------------------------------------------------------------------
 # Almacen de fragmentos
-# Guarda documentos, fragmentos y vectores. indexed_checksums permite a
+# Guarda documentos, fragmentos y vectores. indexed_documents (ruta ->
+# huella y modelo de embeddings) permite a
 # la ingesta saber que documentos son nuevos, cuales cambiaron y cuales
 # se borraron, sin volver a procesar lo que no cambio.
 # ----------------------------------------------------------------------
 class ChunkStore(Protocol):
-    async def indexed_checksums(self) -> dict[str, str]: ...
+    async def indexed_documents(self) -> dict[str, tuple[str, str]]: ...
 
     async def replace_document(
         self,
