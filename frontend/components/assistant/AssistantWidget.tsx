@@ -7,17 +7,23 @@
 // cerrar y abrir; se reinicia con el boton, con un inicio de sesion nuevo
 // o al cerrar sesion.
 // ----------------------------------------------------------------------
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUp, ChevronDown, FileText, LifeBuoy, RotateCcw, Table, Video } from 'lucide-react'
 import FluidOrb from '@/components/assistant/FluidOrb'
 import { readSessionClaims } from '@/components/assistant/session'
-import { useAssistantStore, type ChatMessage } from '@/store/assistantStore'
+import TicketControls, { SendingDots, STEP_PROMPT, TicketStatusLine, contextQuestion, mergeFiles } from '@/components/assistant/TicketFlow'
+import { useWSEvent } from '@/hooks/useWebSocket'
+import { useAssistantStore, type ChatMessage, type TicketDraft, type TicketStep } from '@/store/assistantStore'
 import { useAuthStore } from '@/store/authStore'
 import {
   getAssistantAvailability,
   sendDialogMessage,
+  getTicketCatalogs,
+  suggestTicketType,
+  createChatTicket,
+  type TicketCatalogs,
   type AssistantConfidence,
   type AssistantResult,
 } from '@/services/assistantService'
@@ -160,7 +166,7 @@ const DocumentCard = ({ group }: { group: ResultGroup }) => {
 // ----------------------------------------------------------------------
 // Burbuja de mensaje
 // ----------------------------------------------------------------------
-const MessageBubble = ({ message, onTicket }: { message: ChatMessage; onTicket: (module?: string) => void }) => {
+const MessageBubble = ({ message, onTicket }: { message: ChatMessage; onTicket: (messageId: string) => void }) => {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -176,6 +182,7 @@ const MessageBubble = ({ message, onTicket }: { message: ChatMessage; onTicket: 
     <div className="flex flex-col gap-2 max-w-[92%]">
       <div className="bg-white border border-[#b8c4d4] text-slate-800 text-[13.5px] leading-relaxed px-4 py-2.5 rounded-2xl rounded-bl-md shadow-sm w-fit">
         {message.text}
+        {message.ticket && <TicketStatusLine ticket={message.ticket} />}
       </div>
       {groupResults(message.results ?? []).slice(0, 3).map((group) => (
         <DocumentCard key={`${message.id}-${group.document}`} group={group} />
@@ -183,7 +190,7 @@ const MessageBubble = ({ message, onTicket }: { message: ChatMessage; onTicket: 
       {message.showTicket && ticketRoute && (
         <button
           type="button"
-          onClick={() => onTicket(message.module)}
+          onClick={() => onTicket(message.id)}
           className={strong
             ? 'flex items-center justify-center gap-2 w-fit px-4 py-2 rounded-xl bg-[#1a4fa0] text-white text-[13px] font-medium hover:bg-blue-800 transition-colors'
             : 'flex items-center gap-1.5 w-fit text-[12.5px] font-medium text-[#1a4fa0] hover:underline'}
@@ -203,7 +210,8 @@ const AssistantWidget = () => {
   const pathname = usePathname()
   const router = useRouter()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-  const { isOpen, greeted, messages, setOpen, addMessage, markGreeted, resetChat, clearAll, syncSession } = useAssistantStore()
+  const { isOpen, greeted, messages, setOpen, addMessage, markGreeted, resetChat, clearAll, syncSession,
+    ticketDraft, setTicketDraft, patchTicketDraft, updateTicket } = useAssistantStore()
 
   const [mounted, setMounted] = useState(false)
   const [available, setAvailable] = useState(false)
@@ -211,6 +219,10 @@ const AssistantWidget = () => {
   const [typing, setTyping] = useState(false)
   const [pending, setPending] = useState(false)
   const [draft, setDraft] = useState('')
+  const [catalogs, setCatalogs] = useState<TicketCatalogs | null>(null)
+  const [catalogsError, setCatalogsError] = useState(false)
+  // Asignaciones que llegan antes que la respuesta del alta (motor muy rapido)
+  const earlyAssignments = useRef(new Map<string, string>())
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -268,9 +280,118 @@ const AssistantWidget = () => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages.length, typing, pending, isOpen])
 
+  // ------------------------------------------------------------------
+  // Ticket desde el chat
+  // ------------------------------------------------------------------
+  const startTicketFlow = useCallback((question: string) => {
+    const q = question.trim()
+    setTicketDraft({
+      step: q ? 'type' : 'describe', title: q.slice(0, 150),
+      description: q ? `${q}\n\nLevantado desde el Asistente Avalanz.` : '',
+      suggestedType: null, reportedType: null, systemId: null, moduleId: null, severityId: null, files: [], error: null,
+    })
+    addMessage({ role: 'assistant', text: q ? STEP_PROMPT.type : STEP_PROMPT.describe })
+    if (!catalogs) {
+      setCatalogsError(false)
+      getTicketCatalogs().then(setCatalogs).catch(() => setCatalogsError(true))
+    }
+    if (q) suggestTicketType(q).then((r) => patchTicketDraft({ suggestedType: r.reported_type })).catch(() => undefined)
+  }, [addMessage, catalogs, patchTicketDraft, setTicketDraft])
+
+  const describeProblem = (text: string) => {
+    patchTicketDraft({ step: 'type', title: text.slice(0, 150), description: `${text}\n\nLevantado desde el Asistente Avalanz.` })
+    addMessage({ role: 'assistant', text: STEP_PROMPT.type })
+    suggestTicketType(text).then((r) => patchTicketDraft({ suggestedType: r.reported_type })).catch(() => undefined)
+  }
+
+  const advanceTicket = (answer: string, patch: Partial<TicketDraft>, next: TicketStep) => {
+    addMessage({ role: 'user', text: answer })
+    patchTicketDraft({ ...patch, step: next })
+    addMessage({ role: 'assistant', text: STEP_PROMPT[next] })
+  }
+
+  const cancelTicketFlow = () => {
+    setTicketDraft(null)
+    addMessage({ role: 'assistant', text: 'Listo, cancelé el ticket. ¿En qué más te ayudo?' })
+  }
+
+  const addTicketFiles = (incoming: File[]) => {
+    const current = useAssistantStore.getState().ticketDraft
+    if (!current || !incoming.length) return
+    const { files, error } = mergeFiles(current.files, incoming)
+    patchTicketDraft({ files, error })
+  }
+
+  // Pegar (Ctrl + V) o soltar imagenes en el panel durante el ticket
+  const acceptsFiles = () => ['attach', 'review'].includes(useAssistantStore.getState().ticketDraft?.step ?? '')
+  const handlePaste = (e: ClipboardEvent) => {
+    if (!acceptsFiles()) return
+    const images = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith('image/'))
+    if (!images.length) return
+    e.preventDefault()
+    addTicketFiles(images)
+  }
+  const handleDrop = (e: DragEvent) => {
+    if (!useAssistantStore.getState().ticketDraft) return
+    e.preventDefault()
+    if (acceptsFiles()) addTicketFiles(Array.from(e.dataTransfer.files))
+  }
+
+  const submitTicket = async () => {
+    const t = useAssistantStore.getState().ticketDraft
+    if (!t || !t.reportedType || !t.systemId || !t.severityId) return
+    if (!t.title.trim() || !t.description.trim()) {
+      patchTicketDraft({ error: 'El título y la descripción no pueden quedar vacíos.' })
+      return
+    }
+    patchTicketDraft({ step: 'sending', error: null })
+    try {
+      const created = await createChatTicket({
+        title: t.title.trim(), description: t.description.trim(), system_id: t.systemId, module_id: t.moduleId,
+        reported_type: t.reportedType, severity_reported_id: t.severityId,
+      }, t.files)
+      setTicketDraft(null)
+      const early = earlyAssignments.current.get(String(created.id))
+      addMessage({
+        role: 'assistant',
+        text: `Listo, se generó el ticket ${created.folio}. Revisa tu correo: te llegó la confirmación.`,
+        ticket: { id: String(created.id), folio: created.folio, assignState: early ? 'assigned' : 'pending', assignedTo: early ?? null },
+      })
+    } catch {
+      patchTicketDraft({ step: 'review', error: 'No pude generar el ticket. Intenta de nuevo o créalo desde la Mesa de soporte.' })
+    }
+  }
+
+  // Asignacion en vivo: el IT Service Desk avisa al solicitante por WebSocket
+  const onTicketEvent = useCallback((payload: unknown) => {
+    const data = payload as { id?: string; assigned_to_name?: string | null }
+    if (!data?.id || !data.assigned_to_name) return
+    earlyAssignments.current.set(String(data.id), data.assigned_to_name)
+    updateTicket(String(data.id), { assignState: 'assigned', assignedTo: data.assigned_to_name })
+  }, [updateTicket])
+  useWSEvent('it_service_desk.ticket_updated', onTicketEvent)
+  useWSEvent('it_service_desk.ticket_created', onTicketEvent)
+
+  // Si en 20 segundos no llega la asignacion (backlog), la linea viva se retira
+  useEffect(() => {
+    const pendientes = messages.filter((m) => m.ticket?.assignState === 'pending')
+    const timers = pendientes.map((m) =>
+      setTimeout(() => updateTicket(m.ticket!.id, { assignState: 'done' }), Math.max(0, m.createdAt + 20000 - Date.now()))
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [messages, updateTicket])
+
   const send = useCallback(async () => {
     const question = draft.trim()
     if (!question || pending || !module) return
+    if (ticketDraft && ticketDraft.step !== 'sending') {
+      setDraft('')
+      addMessage({ role: 'user', text: question })
+      if (/^(cancelar|cancela|salir)$/i.test(question)) { cancelTicketFlow(); return }
+      if (ticketDraft.step === 'describe') { describeProblem(question); return }
+      addMessage({ role: 'assistant', text: 'Para continuar, elige una de las opciones de abajo, o escribe «cancelar».' })
+      return
+    }
     setDraft('')
     addMessage({ role: 'user', text: question })
     setPending(true)
@@ -279,6 +400,9 @@ const AssistantWidget = () => {
       // Platica basica: respuesta directa, sin resultados
       if (data.reply) {
         addMessage({ role: 'assistant', text: data.reply, showTicket: Boolean(data.show_ticket), module })
+        if (data.action === 'open_ticket_flow' && !useAssistantStore.getState().ticketDraft) {
+          startTicketFlow(contextQuestion(useAssistantStore.getState().messages, undefined, 4))
+        }
         return
       }
       const empty = data.results.length === 0
@@ -296,7 +420,7 @@ const AssistantWidget = () => {
     } finally {
       setPending(false)
     }
-  }, [draft, pending, module, addMessage])
+  }, [draft, pending, module, addMessage, ticketDraft, startTicketFlow]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const restart = () => {
     resetChat()
@@ -307,11 +431,10 @@ const AssistantWidget = () => {
     }, 600)
   }
 
-  const openTicket = (target?: string) => {
-    const route = target ? TICKET_ROUTES[target] : undefined
-    if (!route) return
-    setOpen(false)
-    router.push(route)
+  const openTicket = (messageId: string) => {
+    if (useAssistantStore.getState().ticketDraft) return
+    const all = useAssistantStore.getState().messages
+    startTicketFlow(contextQuestion(all, all.findIndex((m) => m.id === messageId) + 1))
   }
 
   if (!mounted || !available) return null
@@ -330,6 +453,9 @@ const AssistantWidget = () => {
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
             style={{ transformOrigin: 'bottom right' }}
             onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+            onPaste={handlePaste}
+            onDragOver={(e) => { if (ticketDraft) e.preventDefault() }}
+            onDrop={handleDrop}
             className="fixed inset-0 z-50 flex flex-col bg-white sm:inset-auto sm:bottom-24 sm:right-[34px] sm:w-[380px] sm:h-[560px] sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl sm:border sm:border-[#b8c4d4] sm:shadow-[0_24px_48px_-12px_rgba(15,23,42,0.28),0_8px_16px_-8px_rgba(15,23,42,0.18)] overflow-hidden"
           >
             <header className="flex items-center gap-3 px-4 py-3 border-b border-[#b8c4d4] bg-white">
@@ -357,6 +483,12 @@ const AssistantWidget = () => {
                 ))}
               </AnimatePresence>
               {(typing || pending) && <TypingDots />}
+              {ticketDraft?.step === 'sending' && <SendingDots label="Generando ticket..." />}
+              {ticketDraft && ticketDraft.step !== 'sending' && ticketDraft.step !== 'describe' && (
+                <TicketControls draft={ticketDraft} catalogs={catalogs} catalogsError={catalogsError}
+                  onAdvance={advanceTicket} onPatch={patchTicketDraft} onAddFiles={addTicketFiles}
+                  onSubmit={() => void submitTicket()} onCancel={cancelTicketFlow} />
+              )}
             </div>
 
             <div className="border-t border-[#b8c4d4] bg-white p-3">
@@ -373,7 +505,7 @@ const AssistantWidget = () => {
                       void send()
                     }
                   }}
-                  placeholder="Escribe tu pregunta"
+                  placeholder={ticketDraft?.step === 'describe' ? 'Describe el problema' : ticketDraft ? 'Elige una opción o escribe «cancelar»' : 'Escribe tu pregunta'}
                   className="flex-1 resize-none bg-transparent outline-none text-[13.5px] text-slate-800 placeholder:text-slate-400 max-h-28 py-1"
                 />
                 <button type="button" onClick={() => void send()} aria-label="Enviar"
