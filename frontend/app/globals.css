@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Capa de contraste para pantallas brillantes (quitar esta linea para revertir) */
+@import "./contraste.css";
 
 :root {
   --background: #ffffff;
