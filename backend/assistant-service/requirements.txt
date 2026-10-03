@@ -30,3 +30,10 @@ python-jose[cryptography]==3.3.0
 # Expone /metrics para que Prometheus recolecte las metricas HTTP.
 # ----------------------------------------------------------------------
 prometheus-fastapi-instrumentator==7.0.0
+
+# ----------------------------------------------------------------------
+# Lectura de documentos
+# pdfplumber extrae texto, posicion, tamano de letra y tablas de PDF.
+# Licencia MIT (PyMuPDF se descarto por su licencia AGPL).
+# ----------------------------------------------------------------------
+pdfplumber==0.11.4
