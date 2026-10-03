@@ -56,3 +56,5 @@ tokenizers==0.19.1
 # ----------------------------------------------------------------------
 alembic==1.13.1
 psycopg2-binary==2.9.9
+# BM25 en memoria para la busqueda hibrida (misma libreria evaluada)
+rank-bm25==0.2.2
