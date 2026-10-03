@@ -323,13 +323,13 @@ const AssistantWidget = () => {
         onClick={() => setOpen(!isOpen)}
         aria-label={isOpen ? 'Cerrar asistente' : 'Abrir asistente'}
         title="Asistente Avalanz"
-        whileHover={{ scale: 1.07 }}
-        whileTap={{ scale: 0.94 }}
+        whileHover={{ scale: 1.18, y: -3 }}
+        whileTap={{ scale: 0.92, y: 0 }}
         initial={{ opacity: 0, scale: 0.6 }}
         animate={{ opacity: 1, scale: 1 }}
         className="fixed bottom-6 right-6 z-40 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30"
       >
-        <FluidOrb size={56} />
+        <FluidOrb size={44} blink={!isOpen} elevated />
       </motion.button>
     </>
   )
