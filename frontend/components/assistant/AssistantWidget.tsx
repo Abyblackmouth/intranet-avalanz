@@ -17,7 +17,7 @@ import { useAssistantStore, type ChatMessage } from '@/store/assistantStore'
 import { useAuthStore } from '@/store/authStore'
 import {
   getAssistantAvailability,
-  searchAssistant,
+  sendDialogMessage,
   type AssistantConfidence,
   type AssistantResult,
 } from '@/services/assistantService'
@@ -275,13 +275,18 @@ const AssistantWidget = () => {
     addMessage({ role: 'user', text: question })
     setPending(true)
     try {
-      const data = await searchAssistant(question, module)
+      const data = await sendDialogMessage(question, module)
+      // Platica basica: respuesta directa, sin resultados
+      if (data.reply) {
+        addMessage({ role: 'assistant', text: data.reply, showTicket: Boolean(data.show_ticket), module })
+        return
+      }
       const empty = data.results.length === 0
       addMessage({
         role: 'assistant',
-        text: empty ? 'No encontré información sobre eso en el material de capacitación.' : INTRO[data.confidence],
+        text: empty ? 'No encontré información sobre eso en el material de capacitación.' : INTRO[data.confidence as AssistantConfidence],
         results: data.results,
-        confidence: data.confidence,
+        confidence: data.confidence as AssistantConfidence,
         showTicket: empty || data.confidence !== 'alta',
         module,
       })

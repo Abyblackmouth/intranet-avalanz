@@ -22,7 +22,10 @@ export interface AssistantResult {
 }
 
 export interface AssistantSearchResponse {
-  confidence: AssistantConfidence
+  type?: 'conversacion' | 'busqueda'
+  reply?: string | null
+  show_ticket?: boolean
+  confidence: AssistantConfidence | 'conversacion'
   overlap: number
   results: AssistantResult[]
 }
@@ -36,5 +39,12 @@ export const getAssistantAvailability = async (module: string): Promise<boolean>
 // Busqueda hibrida en el conocimiento del modulo
 export const searchAssistant = async (question: string, module: string): Promise<AssistantSearchResponse> => {
   const { data } = await api.post<AssistantSearchResponse>('/api/v1/assistant/search', { question, module })
+  return data
+}
+
+// Mensaje del usuario al dialog-service: responde platica basica o
+// consulta el conocimiento (assistant-service) con el mismo formato
+export const sendDialogMessage = async (message: string, module: string): Promise<AssistantSearchResponse> => {
+  const { data } = await api.post<AssistantSearchResponse>('/api/v1/dialog/message', { message, module })
   return data
 }
