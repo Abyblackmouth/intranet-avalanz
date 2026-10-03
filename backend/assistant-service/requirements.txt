@@ -49,3 +49,10 @@ python-pptx==1.0.2
 numpy==1.26.4
 onnxruntime==1.18.1
 tokenizers==0.19.1
+
+# ----------------------------------------------------------------------
+# Migraciones de la base vectorial
+# Alembic con el driver sincrono psycopg2, igual que los demas servicios.
+# ----------------------------------------------------------------------
+alembic==1.13.1
+psycopg2-binary==2.9.9
