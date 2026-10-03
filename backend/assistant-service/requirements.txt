@@ -37,3 +37,5 @@ prometheus-fastapi-instrumentator==7.0.0
 # Licencia MIT (PyMuPDF se descarto por su licencia AGPL).
 # ----------------------------------------------------------------------
 pdfplumber==0.11.4
+# python-docx lee documentos de Word, incluidas las transcripciones de Teams.
+python-docx==1.1.2
