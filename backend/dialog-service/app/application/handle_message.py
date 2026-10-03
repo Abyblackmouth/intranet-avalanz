@@ -15,6 +15,7 @@ class HandleMessage:
         match = self.detector.detect(message)
         if match:
             return {"type": "conversacion", "intent": match.intent, "reply": match.reply,
-                    "show_ticket": match.show_ticket, "confidence": "conversacion", "overlap": 0, "results": []}
+                    "show_ticket": match.show_ticket, "action": match.action,
+                    "confidence": "conversacion", "overlap": 0, "results": []}
         data = await self.knowledge.search(message, module, authorization)
-        return {**data, "type": "busqueda", "intent": None, "reply": None, "show_ticket": False}
+        return {**data, "type": "busqueda", "intent": None, "reply": None, "show_ticket": False, "action": None}

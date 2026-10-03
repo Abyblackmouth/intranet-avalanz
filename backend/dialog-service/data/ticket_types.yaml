@@ -1,0 +1,54 @@
+# ----------------------------------------------------------------------
+# Sugerencia del tipo de ticket: funcional o tecnico
+# Palabras y frases sobre el texto normalizado (sin acentos, minusculas).
+# Si aparece alguna tecnica y no son mas las funcionales, se sugiere
+# "tecnico"; si no, "funcional". Es solo una SUGERENCIA: el usuario
+# decide con un clic.
+# ----------------------------------------------------------------------
+default: funcional
+
+tecnico:
+  - error
+  - falla
+  - fallo
+  - no carga
+  - no abre
+  - no funciona
+  - no responde
+  - no puedo entrar
+  - no me deja entrar
+  - no puedo ingresar
+  - acceso
+  - contrasena
+  - usuario bloqueado
+  - se cae
+  - caido
+  - caida
+  - lento
+  - lentitud
+  - se congela
+  - trabado
+  - pantalla en blanco
+  - conexion
+  - vpn
+  - servidor
+  - internet
+  - impresora
+  - no timbra
+  - mensaje de error
+
+funcional:
+  - como
+  - donde
+  - configurar
+  - configuracion
+  - proceso
+  - calculo
+  - calcular
+  - reporte
+  - dar de alta
+  - capturar
+  - registrar
+  - consultar
+  - duda
+  - parametro

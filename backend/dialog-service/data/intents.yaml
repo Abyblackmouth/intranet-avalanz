@@ -22,6 +22,18 @@ fuzzy_threshold: 0.85
 tail: '(?: (?:asistente|amigo|amiga|crack|bro|avalanz|por favor|porfa|de nuevo|otra vez|mucho|muchisimo|a ti|a usted))*'
 
 intents:
+  crear_ticket:
+    action: open_ticket_flow
+    patterns:
+      - '(quiero |necesito |me ayudas a |ayudame a |puedo |como )?(levantar|levanto|levanta|abrir|abro|abre|crear|creo|crea|generar|genero|genera|hacer|hago|registrar|registro) (un |el |una |mi )?(ticket|tiket|reporte|incidente|incidencia)'
+      - '(quiero |necesito |como )?(reportar|reporto) (un |una )?(problema|falla|error|incidente)'
+    examples:
+      - 'levantar un ticket'
+      - 'abrir un ticket'
+      - 'reportar un problema'
+    replies:
+      - 'Claro, te ayudo a levantar el ticket.'
+
   saludo:
     examples:
       - 'hola'

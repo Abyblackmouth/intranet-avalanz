@@ -12,6 +12,7 @@ class IntentMatch:
     intent: str
     reply: str
     show_ticket: bool = False
+    action: str | None = None
 
 
 # ----------------------------------------------------------------------
@@ -23,3 +24,8 @@ class KnowledgeUnavailable(Exception):
         super().__init__(detail)
         self.status = status
         self.detail = detail
+
+
+# La mesa de servicio respondio con error o no respondio
+class ServiceDeskUnavailable(KnowledgeUnavailable):
+    pass

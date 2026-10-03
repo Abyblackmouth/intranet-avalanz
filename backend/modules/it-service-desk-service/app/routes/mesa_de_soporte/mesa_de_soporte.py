@@ -330,6 +330,11 @@ async def _broadcast_ticket_update(incident, event_type: str = "it_service_desk.
                 for u in resp.json():
                     destinatarios_ws.add(u["id"])
 
+        # El solicitante tambien recibe los eventos de su propio ticket
+        # (el asistente le avisa en vivo a quien se asigno)
+        if getattr(incident, "requester_id", None):
+            destinatarios_ws.add(str(incident.requester_id))
+
         if destinatarios_ws:
             async with httpx.AsyncClient(timeout=3.0) as client:
                 await client.post(
