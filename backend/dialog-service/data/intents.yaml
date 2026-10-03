@@ -1,0 +1,76 @@
+# ----------------------------------------------------------------------
+# Intenciones de platica basica
+# Es un archivo de DATOS: agregar frases o respuestas no requiere tocar
+# codigo. Los patrones son expresiones regulares sobre el texto
+# normalizado (sin acentos, sin signos, minusculas, un solo espacio) y
+# deben coincidir con el mensaje COMPLETO. El orden importa: la primera
+# intencion que coincide gana. Si el mensaje mezcla platica y pregunta,
+# no coincide y se busca en el conocimiento.
+# ----------------------------------------------------------------------
+
+# Mensajes con mas palabras siempre se consideran preguntas
+max_words: 8
+
+# Colas comunes que no cambian la intencion ("gracias amigo")
+tail: '(?: (?:asistente|amigo|amiga|crack|bro|avalanz|por favor|porfa|de nuevo|otra vez|mucho|muchisimo|a ti|a usted))*'
+
+intents:
+  saludo:
+    patterns:
+      - 'hola+'
+      - 'hola+ (que tal|como estas|como esta|buen dia|buenos dias|buenas tardes|buenas noches|buenas)'
+      - '(buen dia|buenos dias|buenas tardes|buenas noches|buenas)'
+      - 'que tal'
+      - 'hey'
+      - 'hi'
+      - 'saludos'
+    replies:
+      - '¡Hola! ¿En qué te puedo ayudar?'
+      - '¡Hola de nuevo! Cuéntame qué necesitas.'
+      - '¡Hola! Pregúntame lo que necesites sobre los procesos de TOTVS.'
+
+  despedida:
+    patterns:
+      - '(gracias )?(adios|hasta luego|hasta pronto|hasta manana|bye|nos vemos|chao|chau)'
+      - '(eso )?(es|seria) todo( gracias)?'
+    replies:
+      - '¡Hasta luego! Cuando lo necesites, aquí estaré.'
+      - '¡Que te vaya muy bien! Vuelve cuando tengas otra duda.'
+
+  agradecimiento:
+    patterns:
+      - '(muchas |mil |muchisimas )?gracias'
+      - 'te (lo )?agradezco'
+      - '(ok|va|vale|perfecto|excelente|genial|listo|super|muy bien) (muchas |mil )?gracias'
+      - 'gracias (por (tu|la) ayuda|por todo|por la informacion)'
+    replies:
+      - '¡Con gusto! Si tienes otra duda, aquí estoy.'
+      - '¡Para eso estoy! ¿Algo más en lo que te ayude?'
+      - '¡De nada! Aquí sigo por si surge otra pregunta.'
+
+  capacidades:
+    patterns:
+      - '(que|en que) (puedes hacer|me puedes ayudar|haces|sabes)'
+      - '(quien|que) eres'
+      - 'como funcionas'
+      - '(necesito )?ayuda'
+      - 'eres (un |una )?(robot|humano|bot|persona|ia|maquina)'
+    replies:
+      - 'Soy el asistente de la intranet. Busco respuestas en los manuales, presentaciones y sesiones grabadas de capacitación, y te digo en qué documento y en qué página o minuto está cada una. Si no encuentro algo, te ayudo a levantar un ticket. Prueba preguntándome, por ejemplo: «¿Cómo doy de baja un activo?»'
+
+  no_sirvio:
+    show_ticket: true
+    patterns:
+      - '(no|eso no) (me )?(sirvio|ayudo|funciono|es)( eso)?'
+      - 'no es (lo que|eso)( busco| buscaba| necesito| necesitaba)?'
+      - 'no (te )?entendi'
+      - 'no encontre (nada|lo que buscaba)'
+    replies:
+      - 'Lamento que no te haya servido. Intenta preguntarme con otras palabras o con más detalle. Si prefieres, levanta un ticket para que un especialista te ayude.'
+
+  confirmacion:
+    patterns:
+      - '(ok|okay|okey|va|vale|perfecto|excelente|genial|listo|entendido|de acuerdo|sale|si|claro|muy bien|que bien|super)'
+    replies:
+      - '¡Perfecto! ¿Hay algo más en lo que te pueda ayudar?'
+      - '¡Excelente! Si surge otra duda, pregúntame.'

@@ -115,6 +115,25 @@ services:
       - avalanz-network
     logging: *default-logging
 
+  # ── Dialog Service (administrador del dialogo del asistente) ──────────────────
+  # Atiende cada mensaje: platica basica o consulta al assistant-service.
+  # Sin modelos ni base de datos: 256 MB bastan.
+  dialog-service:
+    build:
+      context: ../../backend
+      dockerfile: dialog-service/Dockerfile
+    container_name: avalanz-dialog
+    image: avalanz/dialog-service:latest
+    restart: unless-stopped
+    env_file:
+      - ../../backend/dialog-service/.env
+    mem_limit: 256m
+    depends_on:
+      - assistant-service
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
   # ── Redis ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine

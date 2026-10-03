@@ -81,6 +81,11 @@ scrape_configs:
       - targets: ["avalanz-assistant:8000"]
     metrics_path: "/metrics"
     scrape_interval: 15s
+  - job_name: "dialog-service"
+    static_configs:
+      - targets: ["avalanz-dialog:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
 
   # PostgreSQL — via postgres-exporter (puerto 9187)
   # Modulo operativo
