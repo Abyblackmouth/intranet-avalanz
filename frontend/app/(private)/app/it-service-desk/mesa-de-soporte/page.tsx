@@ -246,6 +246,10 @@ export default function MesaDeSoportePage() {
   }, [activeTypes]) // eslint-disable-line react-hooks/exhaustive-deps
   const [showCreate, setShowCreate] = useState(false)
   const [showTypePicker, setShowTypePicker] = useState(false)
+  // Abre el selector de nuevo ticket al llegar con ?nuevo=1 (desde el asistente)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('nuevo') === '1') setShowTypePicker(true)
+  }, [])
   const [showCreateCDC, setShowCreateCDC] = useState(false)
   const [showCreateACC, setShowCreateACC] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)

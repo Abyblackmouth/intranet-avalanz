@@ -1,0 +1,40 @@
+// ----------------------------------------------------------------------
+// Servicio del Asistente Avalanz
+// Disponibilidad por modulo y busqueda. Usa el cliente Axios comun, que
+// agrega el token y lo renueva automaticamente.
+// ----------------------------------------------------------------------
+import api from '@/services/api'
+
+export type AssistantConfidence = 'alta' | 'media' | 'baja'
+
+export interface AssistantResult {
+  title: string
+  document: string
+  module: string
+  kind: 'text' | 'table' | 'speech'
+  location: string
+  page: number | null
+  slide: number | null
+  start_seconds: number | null
+  context: string
+  text: string
+  score: number
+}
+
+export interface AssistantSearchResponse {
+  confidence: AssistantConfidence
+  overlap: number
+  results: AssistantResult[]
+}
+
+// Si el asistente esta activo para el usuario en el modulo
+export const getAssistantAvailability = async (module: string): Promise<boolean> => {
+  const { data } = await api.get<{ available: boolean }>('/api/v1/assistant/availability', { params: { module } })
+  return Boolean(data?.available)
+}
+
+// Busqueda hibrida en el conocimiento del modulo
+export const searchAssistant = async (question: string, module: string): Promise<AssistantSearchResponse> => {
+  const { data } = await api.post<AssistantSearchResponse>('/api/v1/assistant/search', { question, module })
+  return data
+}
