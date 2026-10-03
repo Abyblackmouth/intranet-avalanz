@@ -85,3 +85,18 @@ export const createChatTicket = async (fields: ChatTicketFields, files: File[]):
   const { data } = await api.post('/api/v1/dialog/ticket', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   return data
 }
+
+// ----------------------------------------------------------------------
+// Documento fuente: enlace firmado (15 min) para ver el PDF, ver el video
+// de una sesion grabada o descargar Word y PowerPoint
+// ----------------------------------------------------------------------
+export interface DocumentLink {
+  url: string
+  mode: 'pdf' | 'video' | 'download'
+  filename: string
+}
+
+export const getDocumentLink = async (document: string, module: string): Promise<DocumentLink> => {
+  const { data } = await api.post<DocumentLink>('/api/v1/assistant/documents/link', { document, module })
+  return data
+}
