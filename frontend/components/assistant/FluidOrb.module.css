@@ -22,18 +22,20 @@
   background: #1a4fa0;
   /* Volumen: sombra interior abajo y brillo interior arriba */
   box-shadow:
-    inset 0 calc(var(--orb-size) * -0.14) calc(var(--orb-size) * 0.22) rgba(5, 25, 60, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 calc(var(--orb-size) * -0.14) calc(var(--orb-size) * 0.22) rgba(5, 25, 60, 0.28),
     inset 0 calc(var(--orb-size) * 0.08) calc(var(--orb-size) * 0.16) rgba(255, 255, 255, 0.35);
 }
 
 /* Elevacion: tres capas de sombra (contacto, media y difusa) */
 .elevated .orb {
   box-shadow:
-    inset 0 calc(var(--orb-size) * -0.14) calc(var(--orb-size) * 0.22) rgba(5, 25, 60, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 calc(var(--orb-size) * -0.14) calc(var(--orb-size) * 0.22) rgba(5, 25, 60, 0.28),
     inset 0 calc(var(--orb-size) * 0.08) calc(var(--orb-size) * 0.16) rgba(255, 255, 255, 0.35),
-    0 2px 4px rgba(11, 46, 102, 0.28),
-    0 8px 18px rgba(26, 79, 160, 0.35),
-    0 18px 36px -6px rgba(11, 46, 102, 0.4);
+    0 1px 3px rgba(11, 46, 102, 0.16),
+    0 6px 18px rgba(26, 79, 160, 0.2),
+    0 18px 38px -8px rgba(11, 46, 102, 0.24);
 }
 
 /* Sombra de piso: elipse difusa debajo de la esfera */
@@ -44,7 +46,7 @@
   bottom: calc(var(--orb-size) * -0.3);
   height: calc(var(--orb-size) * 0.16);
   border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(11, 46, 102, 0.35), transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(11, 46, 102, 0.22), transparent 70%);
   filter: blur(3px);
   pointer-events: none;
 }
@@ -63,7 +65,7 @@
 .b1 { background: #4f8ff7; top: -12%; left: -12%; animation: drift1 7s ease-in-out infinite; }
 .b2 { background: #9cc2ff; bottom: -16%; right: -12%; animation: drift2 9s ease-in-out infinite; }
 .b3 { background: #ffffff; top: 22%; left: 28%; width: 46%; height: 46%; opacity: 0.55; animation: drift3 6s ease-in-out infinite; }
-.b4 { background: #0b2e66; bottom: -22%; left: -16%; mix-blend-mode: multiply; opacity: 0.55; animation: drift4 11s ease-in-out infinite; }
+.b4 { background: #0b2e66; bottom: -22%; left: -16%; mix-blend-mode: multiply; opacity: 0.4; animation: drift4 11s ease-in-out infinite; }
 
 .shine {
   position: absolute;
@@ -77,7 +79,7 @@
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  border: 2px solid rgba(79, 143, 247, 0.6);
+  border: 2px solid rgba(79, 143, 247, 0.45);
   opacity: 0;
   pointer-events: none;
 }
