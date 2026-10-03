@@ -78,6 +78,7 @@ services:
       context: ../../backend
       dockerfile: assistant-service/Dockerfile
     container_name: avalanz-assistant
+    image: avalanz/assistant-service:latest
     restart: unless-stopped
     env_file:
       - ../../backend/assistant-service/.env
@@ -85,6 +86,27 @@ services:
       - /srv/avalanz/asistente/fuentes:/data/fuentes:ro
       - /srv/avalanz/asistente/modelos:/data/modelos
     mem_limit: 1g
+    depends_on:
+      postgres-vector:
+        condition: service_healthy
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
+  # ── Ingesta del asistente (contenedor temporal, perfil jobs) ──────────────────
+  # Misma imagen que el servicio, con mas memoria y solo bajo demanda:
+  #   docker compose run --rm assistant-ingest
+  assistant-ingest:
+    image: avalanz/assistant-service:latest
+    profiles: ["jobs"]
+    env_file:
+      - ../../backend/assistant-service/.env
+    command: ["python", "-m", "app.jobs.ingest"]
+    volumes:
+      - /srv/avalanz/asistente/fuentes:/data/fuentes:ro
+      - /srv/avalanz/asistente/modelos:/data/modelos:ro
+    mem_limit: 2g
+    cpus: 2.0
     depends_on:
       postgres-vector:
         condition: service_healthy
