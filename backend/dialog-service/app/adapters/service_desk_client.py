@@ -21,9 +21,9 @@ class HttpServiceDeskClient:
     # ------------------------------------------------------------------
     # Peticion con manejo uniforme de errores
     # ------------------------------------------------------------------
-    async def _call(self, method: str, path: str, authorization: str, **kwargs) -> dict:
+    async def _call(self, method: str, path: str, authorization: str, extra_headers: dict | None = None, **kwargs) -> dict:
         try:
-            response = await self.client.request(method, path, headers={"Authorization": authorization}, **kwargs)
+            response = await self.client.request(method, path, headers={"Authorization": authorization, **(extra_headers or {})}, **kwargs)
         except httpx.HTTPError as error:
             raise ServiceDeskUnavailable(503, "mesa_no_disponible") from error
         if response.status_code not in (200, 201):
@@ -62,5 +62,7 @@ class HttpServiceDeskClient:
     async def create_incident(self, fields: dict, files: list[tuple[str, bytes, str]], authorization: str) -> dict:
         data = {k: v for k, v in fields.items() if v}
         upload = [("files", (name, content, ctype)) for name, content, ctype in files]
-        result = await self._call("POST", f"{DESK}/incidencias", authorization, data=data, files=upload or None)
+        # El origen marca el ticket como creado desde el chat (solo metricas)
+        result = await self._call("POST", f"{DESK}/incidencias", authorization,
+                                  extra_headers={"X-Ticket-Origin": "asistente"}, data=data, files=upload or None)
         return result.get("data", {})

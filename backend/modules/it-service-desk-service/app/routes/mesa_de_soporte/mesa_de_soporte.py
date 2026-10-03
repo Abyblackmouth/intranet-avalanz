@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List
 import httpx
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
+from fastapi import Header
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -795,8 +796,13 @@ async def create_incident(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
     raw_token: str = Depends(get_token_from_request),
+    x_ticket_origin: Optional[str] = Header(None),
 ):
     user_id = user.get("user_id")
+    # Origen del ticket, solo para metricas: el dialog-service manda
+    # "asistente" por la red interna; Nginx borra este encabezado en las
+    # peticiones del navegador, asi que no se puede falsificar desde fuera
+    origen = "asistente" if (x_ticket_origin or "").strip().lower() == "asistente" else "manual"
     company_id = user.get("companies", [None])[0] if user.get("companies") else None
     if not company_id:
         raise HTTPException(status_code=400, detail="El usuario no tiene empresa asignada")
@@ -817,6 +823,7 @@ async def create_incident(
 
     incident = Incident(
         folio=folio,
+        origin=origen,
         ticket_type="incidente",
         title=title,
         company_id=company_id,
