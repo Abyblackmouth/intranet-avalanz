@@ -58,39 +58,100 @@ const TypingDots = () => (
 )
 
 // ----------------------------------------------------------------------
-// Tarjeta de resultado: documento, ubicacion, secciones y extracto
-// En transcripciones, los nombres de quienes hablan se muestran como vinetas.
+// Agrupacion de resultados por documento
+// Conserva el orden de relevancia y quita secciones repetidas (mismo
+// documento, seccion y ubicacion). En transcripciones, los nombres de
+// quienes hablan se muestran como vinetas.
 // ----------------------------------------------------------------------
 const KIND_ICON = { text: FileText, table: Table, speech: Video }
 
-const ResultCard = ({ result }: { result: AssistantResult }) => {
+interface ResultGroup {
+  document: string
+  title: string
+  kind: AssistantResult['kind']
+  items: AssistantResult[]
+}
+
+const groupResults = (results: AssistantResult[]): ResultGroup[] => {
+  const groups = new Map<string, ResultGroup>()
+  const seen = new Set<string>()
+  for (const result of results) {
+    const key = `${result.document}|${result.context}|${result.location}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const group = groups.get(result.document) ?? { document: result.document, title: result.title, kind: result.kind, items: [] }
+    group.items.push(result)
+    groups.set(result.document, group)
+  }
+  return [...groups.values()]
+}
+
+const sectionPath = (result: AssistantResult) => result.context.split(' > ').slice(2).join(' › ')
+
+// Etiqueta corta: la ultima seccion y la ubicacion
+const sectionLabel = (result: AssistantResult) => {
+  const parts = result.context.split(' > ').slice(2)
+  const last = parts[parts.length - 1]
+  if (!last) return result.location || 'Fragmento'
+  return result.location ? `${last} · ${result.location}` : last
+}
+
+const cleanText = (result: AssistantResult) =>
+  result.kind === 'speech' ? result.text.replace(/^[^:\n]{2,40}:\s*/gm, '• ') : result.text
+
+// ----------------------------------------------------------------------
+// Tarjeta por documento
+// Muestra la seccion mas relevante; las demas secciones del mismo
+// documento quedan como etiquetas que, al hacer clic, se muestran aqui.
+// ----------------------------------------------------------------------
+const DocumentCard = ({ group }: { group: ResultGroup }) => {
+  const [selected, setSelected] = useState(0)
   const [expanded, setExpanded] = useState(false)
-  const Icon = KIND_ICON[result.kind] ?? FileText
-  const sections = result.context.split(' > ').slice(2).join(' › ')
-  const body = result.kind === 'speech' ? result.text.replace(/^[^:\n]{2,40}:\s*/gm, '• ') : result.text
+  const Icon = KIND_ICON[group.kind] ?? FileText
+  const current = group.items[selected]
+  const body = cleanText(current)
+  const path = sectionPath(current)
   const long = body.length > 260
 
   return (
-    <div className="bg-white border border-[#b8c4d4] rounded-xl p-3 hover:border-[#1a4fa0]/30 transition-colors">
+    <div className="bg-white border border-[#b8c4d4] rounded-xl p-3 hover:border-[#1a4fa0]/40 transition-colors">
       <div className="flex items-start gap-2">
         <Icon size={15} className="text-[#1a4fa0] mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-slate-800 leading-snug">{result.title}</p>
-          {sections && <p className="text-[11px] text-slate-500 truncate" title={sections}>{sections}</p>}
+          <p className="text-[13px] font-semibold text-slate-800 leading-snug">{group.title}</p>
+          {path && <p className="text-[11px] text-slate-500 truncate" title={path}>{path}</p>}
         </div>
-        {result.location && (
+        {current.location && (
           <span className="shrink-0 text-[11px] font-medium text-[#1a4fa0] bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
-            {result.location}
+            {current.location}
           </span>
         )}
       </div>
-      <p className={`mt-2 text-[12.5px] text-slate-600 leading-relaxed whitespace-pre-line ${expanded ? '' : 'line-clamp-4'}`}>
+      <p className={`mt-2 text-[12.5px] text-slate-600 leading-relaxed whitespace-pre-line ${expanded ? '' : 'line-clamp-5'}`}>
         {body}
       </p>
       {long && (
         <button type="button" onClick={() => setExpanded(!expanded)} className="mt-1 text-[12px] font-medium text-[#1a4fa0] hover:underline">
           {expanded ? 'Ver menos' : 'Ver más'}
         </button>
+      )}
+      {group.items.length > 1 && (
+        <div className="mt-2.5 pt-2.5 border-t border-slate-200">
+          <p className="text-[11px] text-slate-500 mb-1.5">También en este documento:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {group.items.map((item, i) => (i === selected ? null : (
+              <button
+                key={`${item.context}-${item.location}`}
+                type="button"
+                onClick={() => { setSelected(i); setExpanded(false) }}
+                className="max-w-full truncate text-[11px] text-slate-600 bg-slate-50 border border-[#b8c4d4] rounded-full px-2 py-0.5 hover:border-[#1a4fa0] hover:text-[#1a4fa0] transition-colors"
+                title={sectionPath(item) || item.location}
+              >
+                {sectionLabel(item)}
+              </button>
+            )))}
+          </div>
+        </div>
       )}
     </div>
   )
@@ -116,7 +177,9 @@ const MessageBubble = ({ message, onTicket }: { message: ChatMessage; onTicket: 
       <div className="bg-white border border-[#b8c4d4] text-slate-800 text-[13.5px] leading-relaxed px-4 py-2.5 rounded-2xl rounded-bl-md shadow-sm w-fit">
         {message.text}
       </div>
-      {message.results?.map((result, i) => <ResultCard key={`${message.id}-${i}`} result={result} />)}
+      {groupResults(message.results ?? []).slice(0, 3).map((group) => (
+        <DocumentCard key={`${message.id}-${group.document}`} group={group} />
+      ))}
       {message.showTicket && ticketRoute && (
         <button
           type="button"
