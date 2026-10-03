@@ -246,6 +246,10 @@ export default function MesaDeSoportePage() {
   }, [activeTypes]) // eslint-disable-line react-hooks/exhaustive-deps
   const [showCreate, setShowCreate] = useState(false)
   const [showTypePicker, setShowTypePicker] = useState(false)
+  // Abre el selector de nuevo ticket al llegar con ?nuevo=1 (desde el asistente)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('nuevo') === '1') setShowTypePicker(true)
+  }, [])
   const [showCreateCDC, setShowCreateCDC] = useState(false)
   const [showCreateACC, setShowCreateACC] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)
@@ -543,7 +547,8 @@ export default function MesaDeSoportePage() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-300 bg-slate-50 shrink-0">
+        {/* pr-20: deja libre la esquina inferior derecha para la esfera del asistente */}
+        <div className="flex items-center justify-between pl-4 pr-20 py-3 border-t border-slate-300 bg-slate-50 shrink-0">
             <p className="text-xs text-slate-500">
               Mostrando {(page - 1) * PER_PAGE + 1}-{Math.min(page * PER_PAGE, filtered.length)} de {filtered.length}
             </p>

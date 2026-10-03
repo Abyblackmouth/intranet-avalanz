@@ -53,6 +53,7 @@ async def readiness(session: AsyncSession = Depends(get_session)) -> JSONRespons
     # Carpetas montadas desde el servidor
     checks["fuentes"] = "ok" if Path(settings.SOURCES_PATH).is_dir() else "no_montada"
     checks["modelos"] = "ok" if Path(settings.MODELS_PATH).is_dir() else "no_montada"
+    checks["modelo"] = "ok" if (Path(settings.MODELS_PATH) / "e5-small" / "model.onnx").is_file() else "no_encontrado"
 
     # Listo solo si todas las revisiones pasaron
     ready = (
@@ -60,6 +61,7 @@ async def readiness(session: AsyncSession = Depends(get_session)) -> JSONRespons
         and checks["pgvector"] not in ("no_instalado", "desconocido")
         and checks["fuentes"] == "ok"
         and checks["modelos"] == "ok"
+        and checks["modelo"] == "ok"
     )
     return JSONResponse(
         status_code=200 if ready else 503,

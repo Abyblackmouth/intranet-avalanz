@@ -3,6 +3,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import ToastContainer from '@/components/shared/ToastContainer'
 import LogoutGuard from '@/components/auth/LogoutGuard'
+import AssistantWidget from '@/components/assistant/AssistantWidget'
 
 export default function PrivateLayout({
   children,
@@ -19,6 +20,7 @@ export default function PrivateLayout({
           <main className="flex-1 overflow-auto min-h-0">
             {children}
           </main>
+          <AssistantWidget />
         </div>
       </div>
       <ToastContainer />

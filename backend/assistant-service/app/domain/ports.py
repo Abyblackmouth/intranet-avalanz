@@ -10,11 +10,12 @@
 # Protocol define contratos por estructura: cualquier clase con estos
 # metodos los cumple, sin heredar de nada.
 # ----------------------------------------------------------------------
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
 
-from app.domain.models import Chunk, Document, ExtractedBlock, SourceKind
+from app.domain.models import Chunk, Document, ExtractedBlock, SearchHit, SearchResult, SourceKind
 
 
 # ----------------------------------------------------------------------
@@ -83,3 +84,37 @@ class ChunkStore(Protocol):
     ) -> None: ...
 
     async def remove_document(self, relative_path: str) -> None: ...
+
+
+# ----------------------------------------------------------------------
+# Busqueda semantica: los fragmentos mas cercanos a un vector, solo de
+# los modulos permitidos. Regresa (id, similitud) ordenados.
+# ----------------------------------------------------------------------
+class DenseSearcher(Protocol):
+    async def search(self, vector: Sequence[float], modules: Sequence[str],
+                     limit: int) -> list[tuple[uuid.UUID, float]]: ...
+
+
+# ----------------------------------------------------------------------
+# Busqueda por palabras: los fragmentos con mas coincidencias de
+# terminos, solo de los modulos permitidos. Regresa (id, puntuacion).
+# ----------------------------------------------------------------------
+class LexicalSearcher(Protocol):
+    async def search(self, query: str, modules: Sequence[str],
+                     limit: int) -> list[tuple[uuid.UUID, float]]: ...
+
+
+# ----------------------------------------------------------------------
+# Lectura de fragmentos con lo necesario para citarlos
+# ----------------------------------------------------------------------
+class HitReader(Protocol):
+    async def read(self, chunk_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, SearchHit]: ...
+
+
+# ----------------------------------------------------------------------
+# Bitacora de consultas: materia prima del tablero de brechas
+# ----------------------------------------------------------------------
+class QueryLog(Protocol):
+    async def record(self, *, user_id: str, module: str, question: str,
+                     result: SearchResult, latency_ms: int) -> None: ...
+

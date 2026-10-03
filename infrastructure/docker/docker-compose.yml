@@ -73,6 +73,7 @@ services:
   # ── Assistant Service (RAG y chatbot) ────────────────────────────────────────
   # Fuentes en solo lectura; modelos con escritura para guardar descargas.
   # mem_limit protege a los demas servicios si el asistente consume de mas.
+  # 1.5 GB: con el modelo ONNX fp32 cargado usa unos 900 MB.
   assistant-service:
     build:
       context: ../../backend
@@ -85,7 +86,7 @@ services:
     volumes:
       - /srv/avalanz/asistente/fuentes:/data/fuentes:ro
       - /srv/avalanz/asistente/modelos:/data/modelos
-    mem_limit: 1g
+    mem_limit: 1536m
     depends_on:
       postgres-vector:
         condition: service_healthy
@@ -110,6 +111,25 @@ services:
     depends_on:
       postgres-vector:
         condition: service_healthy
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
+  # ── Dialog Service (administrador del dialogo del asistente) ──────────────────
+  # Atiende cada mensaje: platica basica o consulta al assistant-service.
+  # Sin modelos ni base de datos: 256 MB bastan.
+  dialog-service:
+    build:
+      context: ../../backend
+      dockerfile: dialog-service/Dockerfile
+    container_name: avalanz-dialog
+    image: avalanz/dialog-service:latest
+    restart: unless-stopped
+    env_file:
+      - ../../backend/dialog-service/.env
+    mem_limit: 256m
+    depends_on:
+      - assistant-service
     networks:
       - avalanz-network
     logging: *default-logging

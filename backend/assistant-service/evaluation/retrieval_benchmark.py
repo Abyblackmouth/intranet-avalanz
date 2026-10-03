@@ -104,6 +104,38 @@ class OnnxRetriever:
 
 
 # ----------------------------------------------------------------------
+# Recuperador hibrido: fusion RRF de e5-small (ONNX fp32) y BM25
+# Cada fragmento suma 1 / (kappa + posicion) por cada lista donde aparece
+# entre los primeros "depth". speech_weight multiplica la puntuacion de
+# los fragmentos de habla para compensar el desbalance del corpus.
+# ----------------------------------------------------------------------
+class HybridRetriever:
+    def __init__(self, speech_weight: float = 1.0, depth: int = 20, kappa: int = 60) -> None:
+        self.dense = OnnxRetriever("model.onnx")
+        self.lexical = Bm25Retriever()
+        self.dimensions = self.dense.dimensions
+        self.speech_weight = speech_weight
+        self.depth = depth
+        self.kappa = kappa
+        self.kinds = None
+
+    def index(self, texts: list[str]) -> None:
+        self.dense.index(texts)
+        self.lexical.index(texts)
+
+    def search(self, query: str, k: int) -> list[tuple[int, float]]:
+        fused: dict[int, float] = {}
+        for ranking in (self.dense.search(query, self.depth), self.lexical.search(query, self.depth)):
+            for position, (i, _) in enumerate(ranking, start=1):
+                fused[i] = fused.get(i, 0.0) + 1.0 / (self.kappa + position)
+        if self.speech_weight != 1.0 and self.kinds is not None:
+            for i in fused:
+                if self.kinds[i] == BlockKind.SPEECH:
+                    fused[i] *= self.speech_weight
+        return sorted(fused.items(), key=lambda item: -item[1])[:k]
+
+
+# ----------------------------------------------------------------------
 # Recuperadores disponibles
 # ----------------------------------------------------------------------
 RETRIEVERS = {
@@ -113,6 +145,8 @@ RETRIEVERS = {
     "bge-m3": lambda: DenseRetriever("BAAI/bge-m3"),
     "e5-small-onnx": lambda: OnnxRetriever("model.onnx"),
     "e5-small-onnx-int8": lambda: OnnxRetriever("model_int8.onnx"),
+    "hybrid": lambda: HybridRetriever(),
+    "hybrid-habla-0.5": lambda: HybridRetriever(speech_weight=0.5),
 }
 
 
@@ -137,6 +171,9 @@ def main() -> None:
     corpus = build_corpus(Path(args.sources))
     questions = load_questions(Path(args.questions))
     retriever = RETRIEVERS[args.retriever]()
+    # El hibrido necesita saber que fragmentos son de habla
+    if hasattr(retriever, "kinds"):
+        retriever.kinds = [chunk.kind for _, chunk in corpus]
 
     # Indexacion: el texto que se vectoriza incluye el encabezado de contexto
     start = time.perf_counter()

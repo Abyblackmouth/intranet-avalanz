@@ -1,0 +1,7 @@
+# ----------------------------------------------------------------------
+# Archivos excluidos de la imagen del dialog-service
+# El .env con secretos llega en tiempo de ejecucion (env_file).
+# ----------------------------------------------------------------------
+dialog-service/.env
+**/__pycache__
+**/*.pyc
