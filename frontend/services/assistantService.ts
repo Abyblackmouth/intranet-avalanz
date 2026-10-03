@@ -26,6 +26,7 @@ export interface AssistantSearchResponse {
   reply?: string | null
   show_ticket?: boolean
   action?: string | null
+  intent?: string | null
   confidence: AssistantConfidence | 'conversacion'
   overlap: number
   results: AssistantResult[]
@@ -72,8 +73,8 @@ export const getTicketCatalogs = async (): Promise<TicketCatalogs> => {
   return data
 }
 
-export const suggestTicketType = async (text: string): Promise<{ reported_type: 'funcional' | 'tecnico'; keywords: string[] }> => {
-  const { data } = await api.post('/api/v1/dialog/ticket/suggest', { text })
+export const suggestTicketType = async (text: string, topics: string[] = []): Promise<{ reported_type: 'funcional' | 'tecnico'; keywords: string[]; system?: string | null }> => {
+  const { data } = await api.post('/api/v1/dialog/ticket/suggest', { text, topics })
   return data
 }
 

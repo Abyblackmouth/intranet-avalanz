@@ -52,3 +52,16 @@ funcional:
   - consultar
   - duda
   - parametro
+
+# ----------------------------------------------------------------------
+# Sistema sugerido segun el tema de los documentos que mostro el
+# asistente (primer nivel de la carpeta de fuentes). El nombre debe
+# coincidir con el del catalogo de sistemas del IT Service Desk.
+# ----------------------------------------------------------------------
+systems_by_topic:
+  activo-fijo: TOTVS
+  financiero: TOTVS
+  nomina: TOTVS
+  proyectos: TOTVS
+  ventas-facturacion: TOTVS
+  crm-odoo-dyce: CRM Odoo DYCE

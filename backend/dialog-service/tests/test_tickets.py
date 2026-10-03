@@ -35,3 +35,25 @@ def test_other_messages_do_not_open_the_flow(texto):
 ])
 def test_ticket_type_suggestion(texto, tipo):
     assert CLASSIFIER.suggest(texto)["reported_type"] == tipo
+
+
+# ----------------------------------------------------------------------
+# Sistema sugerido por el tema y "no le entiendo" como insatisfaccion
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("temas, sistema", [
+    (["activo-fijo"], "TOTVS"), (["Activo fijo", "nomina"], "TOTVS"),
+    (["crm-odoo-dyce"], "CRM Odoo DYCE"), (["roles"], None), ([], None),
+])
+def test_system_suggestion_by_topic(temas, sistema):
+    assert CLASSIFIER.suggest("no se como dar de baja un activo", temas)["system"] == sistema
+
+
+@pytest.mark.parametrize("texto", ["no le entiendo al manual", "no entiendo", "no me queda claro", "sigo sin entender el manual"])
+def test_not_understanding_is_no_sirvio(texto):
+    match = DETECTOR.detect(texto)
+    assert match is not None and match.intent == "no_sirvio" and match.show_ticket
+
+
+@pytest.mark.parametrize("texto", ["no entiendo como timbrar una factura", "no le entiendo al calculo del finiquito con fonacot"])
+def test_real_questions_with_no_entiendo_are_searched(texto):
+    assert DETECTOR.detect(texto) is None

@@ -21,6 +21,8 @@ export interface TicketDraft {
   title: string
   description: string
   suggestedType: 'funcional' | 'tecnico' | null
+  suggestedSystem: string | null
+  topics: string[]
   reportedType: 'funcional' | 'tecnico' | null
   systemId: string | null
   moduleId: string | null

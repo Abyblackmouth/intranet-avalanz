@@ -13,7 +13,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { ArrowUp, ChevronDown, FileText, LifeBuoy, RotateCcw, Table, Video } from 'lucide-react'
 import FluidOrb from '@/components/assistant/FluidOrb'
 import { readSessionClaims } from '@/components/assistant/session'
-import TicketControls, { SendingDots, STEP_PROMPT, TicketStatusLine, contextQuestion, mergeFiles } from '@/components/assistant/TicketFlow'
+import TicketControls, { SendingDots, STEP_PROMPT, TicketStatusLine, ticketContext, mergeFiles, type TicketContext } from '@/components/assistant/TicketFlow'
 import { useWSEvent } from '@/hooks/useWebSocket'
 import { useAssistantStore, type ChatMessage, type TicketDraft, type TicketStep } from '@/store/assistantStore'
 import { useAuthStore } from '@/store/authStore'
@@ -283,19 +283,23 @@ const AssistantWidget = () => {
   // ------------------------------------------------------------------
   // Ticket desde el chat
   // ------------------------------------------------------------------
-  const startTicketFlow = useCallback((question: string) => {
-    const q = question.trim()
+  const startTicketFlow = useCallback((ctx: TicketContext) => {
+    const q = ctx.title.trim()
     setTicketDraft({
-      step: q ? 'type' : 'describe', title: q.slice(0, 150),
-      description: q ? `${q}\n\nLevantado desde el Asistente Avalanz.` : '',
-      suggestedType: null, reportedType: null, systemId: null, moduleId: null, severityId: null, files: [], error: null,
+      step: q ? 'type' : 'describe', title: q, description: ctx.description,
+      suggestedType: null, suggestedSystem: null, topics: ctx.topics,
+      reportedType: null, systemId: null, moduleId: null, severityId: null, files: [], error: null,
     })
     addMessage({ role: 'assistant', text: q ? STEP_PROMPT.type : STEP_PROMPT.describe })
     if (!catalogs) {
       setCatalogsError(false)
       getTicketCatalogs().then(setCatalogs).catch(() => setCatalogsError(true))
     }
-    if (q) suggestTicketType(q).then((r) => patchTicketDraft({ suggestedType: r.reported_type })).catch(() => undefined)
+    if (q) {
+      suggestTicketType(ctx.questions.join('\n'), ctx.topics)
+        .then((r) => patchTicketDraft({ suggestedType: r.reported_type, suggestedSystem: r.system ?? null }))
+        .catch(() => undefined)
+    }
   }, [addMessage, catalogs, patchTicketDraft, setTicketDraft])
 
   const describeProblem = (text: string) => {
@@ -392,6 +396,8 @@ const AssistantWidget = () => {
       addMessage({ role: 'assistant', text: 'Para continuar, elige una de las opciones de abajo, o escribe «cancelar».' })
       return
     }
+    // Ultimo mensaje del asistente: si ofrecio el ticket, un "si" lo arranca
+    const previous = [...useAssistantStore.getState().messages].reverse().find((m) => m.role === 'assistant')
     setDraft('')
     addMessage({ role: 'user', text: question })
     setPending(true)
@@ -399,9 +405,14 @@ const AssistantWidget = () => {
       const data = await sendDialogMessage(question, module)
       // Platica basica: respuesta directa, sin resultados
       if (data.reply) {
+        if (data.intent === 'confirmacion' && previous?.showTicket && !useAssistantStore.getState().ticketDraft) {
+          const all = useAssistantStore.getState().messages
+          startTicketFlow(ticketContext(all, all.findIndex((m) => m.id === previous.id) + 1))
+          return
+        }
         addMessage({ role: 'assistant', text: data.reply, showTicket: Boolean(data.show_ticket), module })
         if (data.action === 'open_ticket_flow' && !useAssistantStore.getState().ticketDraft) {
-          startTicketFlow(contextQuestion(useAssistantStore.getState().messages, undefined, 4))
+          startTicketFlow(ticketContext(useAssistantStore.getState().messages))
         }
         return
       }
@@ -434,7 +445,7 @@ const AssistantWidget = () => {
   const openTicket = (messageId: string) => {
     if (useAssistantStore.getState().ticketDraft) return
     const all = useAssistantStore.getState().messages
-    startTicketFlow(contextQuestion(all, all.findIndex((m) => m.id === messageId) + 1))
+    startTicketFlow(ticketContext(all, all.findIndex((m) => m.id === messageId) + 1))
   }
 
   if (!mounted || !available) return null

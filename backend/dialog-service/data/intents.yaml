@@ -106,11 +106,16 @@ intents:
       - 'no es eso'
       - 'no entendi'
       - 'no me ayudo'
+      - 'no le entiendo'
     show_ticket: true
     patterns:
       - '(no|eso no) (me )?(sirvio|ayudo|funciono|es)( eso)?'
       - 'no es (lo que|eso)( busco| buscaba| necesito| necesitaba)?'
       - 'no (te )?entendi'
+      - 'no (le )?(entiendo|entendi)( (al|el|lo del) manual| eso| nada| bien)?'
+      - '(sigo sin|aun no|todavia no) (entender|entiendo|le entiendo)( (al|el) manual)?'
+      - 'no me queda claro( el manual| eso)?'
+      - 'no (me )?(sirvio|ayudo) (el|al) manual'
       - 'no encontre (nada|lo que buscaba)'
     replies:
       - 'Lamento que no te haya servido. Intenta preguntarme con otras palabras o con más detalle. Si prefieres, levanta un ticket para que un especialista te ayude.'

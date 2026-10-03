@@ -38,12 +38,13 @@ async def catalogs(request: Request, user: dict = Depends(validator.get_current_
 
 class SuggestRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
+    topics: list[str] = Field(default_factory=list, max_length=20)
 
 
 @router.post("/ticket/suggest")
 async def suggest(body: SuggestRequest, request: Request, user: dict = Depends(validator.get_current_user())) -> dict:
     _require_desk(user)
-    return request.app.state.classifier.suggest(body.text)
+    return request.app.state.classifier.suggest(body.text, body.topics)
 
 
 @router.post("/ticket")

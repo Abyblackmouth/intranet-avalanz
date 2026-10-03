@@ -40,15 +40,55 @@ export const STEP_PROMPT: Record<TicketStep, string> = {
 const plain = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 // ----------------------------------------------------------------------
-// Pregunta de contexto: la ultima pregunta del usuario que tuvo busqueda,
-// mirando hacia atras desde uptoIndex y hasta maxLookback mensajes
+// Contexto del ticket: lo que el usuario pregunto en la conversacion
+// reciente (hasta `window` mensajes, sin pasar de un ticket anterior) y
+// los documentos que el asistente le mostro. La platica ("hola", "si")
+// no cuenta, y las busquedas de confianza baja tampoco aportan temas ni
+// documentos: suelen ser ruido.
 // ----------------------------------------------------------------------
-export const contextQuestion = (messages: ChatMessage[], uptoIndex = messages.length, maxLookback = Infinity): string => {
-  const start = Math.min(uptoIndex, messages.length) - 1
-  for (let i = start; i >= 0 && start - i < maxLookback; i -= 1) {
-    if (messages[i].role === 'user' && messages[i + 1]?.results !== undefined) return messages[i].text
+export interface TicketContext {
+  title: string
+  description: string
+  topics: string[]
+  questions: string[]
+}
+
+export const ticketContext = (messages: ChatMessage[], uptoIndex = messages.length, window = 8): TicketContext => {
+  const end = Math.min(uptoIndex, messages.length)
+  const recent: ChatMessage[] = []
+  for (let i = end - 1; i >= 0 && end - i <= window; i -= 1) {
+    if (messages[i].ticket) break
+    recent.unshift(messages[i])
   }
-  return ''
+  const questions: string[] = []
+  const docs: string[] = []
+  const topics: string[] = []
+  recent.forEach((m, i) => {
+    const next = recent[i + 1]
+    if (m.role === 'user' && next && (next.results !== undefined || next.showTicket)) questions.push(m.text)
+    if (m.role === 'assistant' && m.results?.length && m.confidence !== 'baja') {
+      const top = m.results[0]
+      const section = top.context.split(' > ').slice(2).pop()
+      const label = section ? `${top.title} (${section}${top.location ? ` · ${top.location}` : ''})` : top.title
+      if (!docs.includes(label)) docs.push(label)
+      m.results.forEach((r) => {
+        const topic = r.context.split(' > ')[0]
+        if (topic && !topics.includes(topic)) topics.push(topic)
+      })
+    }
+  })
+  if (!questions.length) return { title: '', description: '', topics, questions }
+  const parts = [`Lo que pregunté al asistente:\n${questions.map((q) => `- ${q}`).join('\n')}`]
+  if (docs.length) parts.push(`Documentos que me mostró:\n${docs.slice(0, 3).map((d) => `- ${d}`).join('\n')}`)
+  parts.push('Levantado desde el Asistente Avalanz.')
+  return { title: questions[0].slice(0, 150), description: parts.join('\n\n'), topics, questions }
+}
+
+// El texto menciona el nombre como palabra completa ("otro" no coincide con "otros")
+const mentions = (text: string, name: string) => {
+  const n = plain(name).trim()
+  if (!n) return false
+  return new RegExp(`(^|[^a-z0-9])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(text)
 }
 
 // ----------------------------------------------------------------------
@@ -149,8 +189,11 @@ const TicketControls = ({ draft, catalogs, catalogsError, onAdvance, onPatch, on
   const system = systems.find((s) => s.id === draft.systemId)
   const selectedModule = system?.modules.find((m) => m.id === draft.moduleId)
   const severity = catalogs?.severities.find((s) => s.id === draft.severityId)
-  const context = plain(`${draft.title} ${draft.description}`)
-  const suggestedSystem = systems.find((s) => context.includes(plain(s.name)))
+  // Sugerencias: sistema mencionado en la pregunta o el del tema de los documentos
+  const asked = plain(draft.title)
+  const topicText = plain(draft.topics.join(' ')).replace(/[^a-z0-9]+/g, ' ')
+  const suggestedSystem = systems.find((s) => mentions(asked, s.name))
+    ?? systems.find((s) => !!draft.suggestedSystem && plain(s.name) === plain(draft.suggestedSystem))
   const removeFile = (index: number) => onPatch({ files: draft.files.filter((_, k) => k !== index), error: null })
 
   const picker = (
@@ -223,11 +266,15 @@ const TicketControls = ({ draft, catalogs, catalogsError, onAdvance, onPatch, on
   }
 
   if (draft.step === 'module') {
+    const modules = system?.modules ?? []
+    const suggestedModule = modules.find((m) => mentions(`${topicText} ${asked}`, m.name))
+    const ordered = suggestedModule ? [suggestedModule, ...modules.filter((m) => m.id !== suggestedModule.id)] : modules
     return (
       <div className={box}>
         <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto">
-          {(system?.modules ?? []).map((m) => (
-            <button key={m.id} type="button" className={chipIdle} onClick={() => onAdvance(m.name, { moduleId: m.id }, 'severity')}>
+          {ordered.map((m) => (
+            <button key={m.id} type="button" className={suggestedModule?.id === m.id ? chipSuggested : chipIdle}
+              onClick={() => onAdvance(m.name, { moduleId: m.id }, 'severity')}>
               {m.name}
             </button>
           ))}
