@@ -11,6 +11,13 @@ VERIFY_LOG="/var/log/cron/verify_backups.log"
 TOTAL_OK=0
 TOTAL_FAIL=0
 
+# Bases del servidor vectorial: se restauran en su propio servidor (tiene pgvector)
+VECTOR_DBS=""
+if [ -n "$VECTOR_DB_HOST" ]; then
+    VECTOR_DBS=$(PGPASSWORD="$VECTOR_PGPASSWORD" psql -h "$VECTOR_DB_HOST" -U "$VECTOR_DB_USER" -d postgres -tA -c \
+        "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres' AND datname !~ '_verify_[0-9]+\$' ORDER BY 1" 2>/dev/null)
+fi
+
 echo "$LOG_PREFIX Iniciando verificación de integridad de backups..."
 
 # ── Tablas mínimas esperadas por BD ───────────────────────────────────────────
@@ -19,11 +26,18 @@ CHECKS="avalanz_auth:users,user_sessions,login_history
 avalanz_admin:users,companies,groups,modules
 avalanz_notify:notifications
 avalanz_it_service_desk:incidents,ticket_systems,folio_counters
-avalanz_legal:envelopes,envelope_attachments"
+avalanz_legal:envelopes,envelope_attachments
+avalanz_assistant:documents,chunks"
 
 for CHECK in $CHECKS; do
     DB=$(echo "$CHECK" | cut -d: -f1)
     TABLES=$(echo "$CHECK" | cut -d: -f2)
+
+    # Servidor donde vive la base: el vectorial tiene credenciales propias
+    HOST="$DB_HOST"; USUARIO="$DB_USER"; CLAVE="$PGPASSWORD"
+    case " $(echo $VECTOR_DBS) " in
+        *" $DB "*) HOST="$VECTOR_DB_HOST"; USUARIO="$VECTOR_DB_USER"; CLAVE="$VECTOR_PGPASSWORD" ;;
+    esac
 
     echo "$LOG_PREFIX Verificando backup de $DB..."
 
@@ -51,7 +65,7 @@ for CHECK in $CHECKS; do
     # Crear BD temporal para restauración
     TEMP_DB="${DB}_verify_$(date '+%s')"
 
-    psql -h "$DB_HOST" -U "$DB_USER" -d postgres -c \
+    PGPASSWORD="$CLAVE" psql -h "$HOST" -U "$USUARIO" -d postgres -c \
         "CREATE DATABASE $TEMP_DB;" > /dev/null 2>&1
 
     if [ $? -ne 0 ]; then
@@ -61,14 +75,14 @@ for CHECK in $CHECKS; do
     fi
 
     # Restaurar backup en BD temporal
-    gunzip -c "$LATEST" | psql -h "$DB_HOST" -U "$DB_USER" -d "$TEMP_DB" \
+    gunzip -c "$LATEST" | PGPASSWORD="$CLAVE" psql -h "$HOST" -U "$USUARIO" -d "$TEMP_DB" \
         -q > /dev/null 2>&1
 
     RESTORE_EXIT=$?
 
     if [ $RESTORE_EXIT -ne 0 ]; then
         echo "$LOG_PREFIX $DB: ERROR — falló la restauración del backup (exit $RESTORE_EXIT)"
-        psql -h "$DB_HOST" -U "$DB_USER" -d postgres -c \
+        PGPASSWORD="$CLAVE" psql -h "$HOST" -U "$USUARIO" -d postgres -c \
             "DROP DATABASE IF EXISTS $TEMP_DB;" > /dev/null 2>&1
         TOTAL_FAIL=$((TOTAL_FAIL + 1))
         continue
@@ -81,7 +95,7 @@ for CHECK in $CHECKS; do
     TABLE_FAIL=0
 
     for TABLE in $(echo "$TABLES" | tr ',' ' '); do
-        COUNT=$(psql -h "$DB_HOST" -U "$DB_USER" -d "$TEMP_DB" -t -c \
+        COUNT=$(PGPASSWORD="$CLAVE" psql -h "$HOST" -U "$USUARIO" -d "$TEMP_DB" -t -c \
             "SELECT COUNT(*) FROM $TABLE;" 2>/dev/null | tr -d ' ')
 
         # COUNT solo es valido si es numerico; vacio significa que la tabla no existe
@@ -95,7 +109,7 @@ for CHECK in $CHECKS; do
     done
 
     # Eliminar BD temporal
-    psql -h "$DB_HOST" -U "$DB_USER" -d postgres -c \
+    PGPASSWORD="$CLAVE" psql -h "$HOST" -U "$USUARIO" -d postgres -c \
         "DROP DATABASE IF EXISTS $TEMP_DB;" > /dev/null 2>&1
 
     if [ $TABLE_FAIL -eq 0 ]; then
@@ -115,6 +129,14 @@ SERVER_DBS=$(psql -h "$DB_HOST" -U "$DB_USER" -d postgres -tA -c \
 for SDB in $SERVER_DBS; do
     if ! echo "$CHECKS" | grep -q "^${SDB}:"; then
         echo "$LOG_PREFIX $SDB: ERROR — base sin verificacion configurada en CHECKS"
+        TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    fi
+done
+
+# Cobertura del servidor vectorial
+for SDB in $VECTOR_DBS; do
+    if ! echo "$CHECKS" | grep -q "^${SDB}:"; then
+        echo "$LOG_PREFIX $SDB: ERROR — base vectorial sin verificacion configurada en CHECKS"
         TOTAL_FAIL=$((TOTAL_FAIL + 1))
     fi
 done

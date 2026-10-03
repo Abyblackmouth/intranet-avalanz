@@ -1,0 +1,925 @@
+{
+  "summary": {
+    "retriever": "bge-m3",
+    "dimensions": 1024,
+    "questions_file": "preguntas-v1.xlsx",
+    "date": "2026-10-03T19:44:06",
+    "chunks": 801,
+    "answerable": 20,
+    "unanswerable": 5,
+    "recall@1": 0.4,
+    "recall@3": 0.8,
+    "recall@5": 0.8,
+    "recall@10": 0.95,
+    "mrr@10": 0.585,
+    "top1_score_answerable": 0.668,
+    "top1_score_unanswerable": 0.566,
+    "speech_intrusion_top5": 0.22,
+    "index_seconds": 772.3,
+    "query_ms_mean": 372.0,
+    "query_ms_max": 411.5,
+    "ram_peak_mb": 3913
+  },
+  "questions": [
+    {
+      "id": "P01",
+      "kind": "proceso",
+      "topic": "activo-fijo",
+      "answerable": true,
+      "first_relevant_rank": null,
+      "top1_score": 0.6671,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 14",
+          "score": 0.6671
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 19",
+          "score": 0.6376
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 10",
+          "score": 0.6153
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 12",
+          "score": 0.6117
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 14",
+          "score": 0.6076
+        }
+      ]
+    },
+    {
+      "id": "P02",
+      "kind": "ubicacion",
+      "topic": "activo-fijo",
+      "answerable": true,
+      "first_relevant_rank": 3,
+      "top1_score": 0.6479,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 20",
+          "score": 0.6479
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 11",
+          "score": 0.6389
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 10",
+          "score": 0.6306
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 10",
+          "score": 0.6283
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 5",
+          "score": 0.6278
+        }
+      ]
+    },
+    {
+      "id": "P03",
+      "kind": "proceso",
+      "topic": "activo-fijo",
+      "answerable": true,
+      "first_relevant_rank": 2,
+      "top1_score": 0.6443,
+      "speech_in_top5": 1,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 19",
+          "score": 0.6443
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 12",
+          "score": 0.6286
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 12",
+          "score": 0.6229
+        },
+        {
+          "document": "prototipo-2026-09-23.transcripcion.docx",
+          "location": "minuto 46:11",
+          "score": 0.6149
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 11",
+          "score": 0.5804
+        }
+      ]
+    },
+    {
+      "id": "P04",
+      "kind": "proceso",
+      "topic": "financiero",
+      "answerable": true,
+      "first_relevant_rank": 2,
+      "top1_score": 0.6884,
+      "speech_in_top5": 1,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 12",
+          "score": 0.6884
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 11",
+          "score": 0.6003
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 19",
+          "score": 0.582
+        },
+        {
+          "document": "manual-autocapacitacion-activo-fijo-v2.pdf",
+          "location": "página 12",
+          "score": 0.5499
+        },
+        {
+          "document": "prototipo-2026-09-18.transcripcion.docx",
+          "location": "minuto 2:14:03",
+          "score": 0.5177
+        }
+      ]
+    },
+    {
+      "id": "P05",
+      "kind": "ubicacion",
+      "topic": "financiero",
+      "answerable": true,
+      "first_relevant_rank": 1,
+      "top1_score": 0.6559,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 20",
+          "score": 0.6559
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 13",
+          "score": 0.5211
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 21",
+          "score": 0.5196
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 25",
+          "score": 0.5118
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 20",
+          "score": 0.5076
+        }
+      ]
+    },
+    {
+      "id": "P06",
+      "kind": "proceso",
+      "topic": "financiero",
+      "answerable": true,
+      "first_relevant_rank": 1,
+      "top1_score": 0.7254,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 15",
+          "score": 0.7254
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 18",
+          "score": 0.6699
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 15",
+          "score": 0.6166
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.6121
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 29",
+          "score": 0.6109
+        }
+      ]
+    },
+    {
+      "id": "P07",
+      "kind": "ubicacion",
+      "topic": "proyectos",
+      "answerable": true,
+      "first_relevant_rank": 1,
+      "top1_score": 0.6452,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 18",
+          "score": 0.6452
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 13",
+          "score": 0.6098
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 22",
+          "score": 0.5897
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 24",
+          "score": 0.5766
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 19",
+          "score": 0.5623
+        }
+      ]
+    },
+    {
+      "id": "P08",
+      "kind": "proceso",
+      "topic": "proyectos",
+      "answerable": true,
+      "first_relevant_rank": 3,
+      "top1_score": 0.6919,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 21",
+          "score": 0.6919
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 13",
+          "score": 0.6719
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 12",
+          "score": 0.6606
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 19",
+          "score": 0.6198
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 11",
+          "score": 0.6127
+        }
+      ]
+    },
+    {
+      "id": "P09",
+      "kind": "ubicacion",
+      "topic": "proyectos",
+      "answerable": true,
+      "first_relevant_rank": 9,
+      "top1_score": 0.6205,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 19",
+          "score": 0.6205
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 13",
+          "score": 0.604
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 21",
+          "score": 0.6013
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 25",
+          "score": 0.5614
+        },
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 22",
+          "score": 0.547
+        }
+      ]
+    },
+    {
+      "id": "P10",
+      "kind": "proceso",
+      "topic": "nomina",
+      "answerable": true,
+      "first_relevant_rank": 9,
+      "top1_score": 0.6635,
+      "speech_in_top5": 5,
+      "top5": [
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 07:29",
+          "score": 0.6635
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 39:32",
+          "score": 0.6482
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 1:43:51",
+          "score": 0.6445
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 1:01:08",
+          "score": 0.6397
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 39:32",
+          "score": 0.6389
+        }
+      ]
+    },
+    {
+      "id": "P11",
+      "kind": "ubicacion",
+      "topic": "nomina",
+      "answerable": true,
+      "first_relevant_rank": 1,
+      "top1_score": 0.6821,
+      "speech_in_top5": 3,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-nomina-v2.pdf",
+          "location": "página 18",
+          "score": 0.6821
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 07:29",
+          "score": 0.6241
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 07:29",
+          "score": 0.6059
+        },
+        {
+          "document": "manual-autocapacitacion-nomina-v2.pdf",
+          "location": "página 20",
+          "score": 0.6038
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 2:00:28",
+          "score": 0.598
+        }
+      ]
+    },
+    {
+      "id": "P12",
+      "kind": "concepto",
+      "topic": "nomina",
+      "answerable": true,
+      "first_relevant_rank": 1,
+      "top1_score": 0.7079,
+      "speech_in_top5": 4,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-nomina-v2.pdf",
+          "location": "página 15",
+          "score": 0.7079
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 1:36:14",
+          "score": 0.6809
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 42:27",
+          "score": 0.6588
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 55:34",
+          "score": 0.6349
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 1:43:51",
+          "score": 0.6336
+        }
+      ]
+    },
+    {
+      "id": "P13",
+      "kind": "comparacion",
+      "topic": "nomina",
+      "answerable": true,
+      "first_relevant_rank": 3,
+      "top1_score": 0.7246,
+      "speech_in_top5": 2,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-nomina-v2.pdf",
+          "location": "página 16",
+          "score": 0.7246
+        },
+        {
+          "document": "prototipo-2026-09-18.transcripcion.docx",
+          "location": "minuto 1:28:11",
+          "score": 0.6606
+        },
+        {
+          "document": "manual-autocapacitacion-nomina-v2.pdf",
+          "location": "página 6",
+          "score": 0.6596
+        },
+        {
+          "document": "manual-autocapacitacion-nomina-v2.pdf",
+          "location": "página 6",
+          "score": 0.6286
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 42:27",
+          "score": 0.6213
+        }
+      ]
+    },
+    {
+      "id": "P14",
+      "kind": "sin_respuesta",
+      "topic": "nomina",
+      "answerable": false,
+      "first_relevant_rank": null,
+      "top1_score": 0.682,
+      "speech_in_top5": 5,
+      "top5": [
+        {
+          "document": "prototipo-2026-09-23.transcripcion.docx",
+          "location": "minuto 1:03:54",
+          "score": 0.682
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 1:31:15",
+          "score": 0.6759
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 37:20",
+          "score": 0.667
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 1:31:15",
+          "score": 0.6419
+        },
+        {
+          "document": "prototipo-2026-09-22.transcripcion.docx",
+          "location": "minuto 1:10:43",
+          "score": 0.633
+        }
+      ]
+    },
+    {
+      "id": "P15",
+      "kind": "proceso",
+      "topic": "crm-odoo-dyce",
+      "answerable": true,
+      "first_relevant_rank": 1,
+      "top1_score": 0.6861,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6861
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6698
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6418
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6358
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6338
+        }
+      ]
+    },
+    {
+      "id": "P16",
+      "kind": "proceso",
+      "topic": "crm-odoo-dyce",
+      "answerable": true,
+      "first_relevant_rank": 1,
+      "top1_score": 0.6577,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6577
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6291
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6273
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.6112
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.6011
+        }
+      ]
+    },
+    {
+      "id": "P17",
+      "kind": "proceso",
+      "topic": "ventas-facturacion",
+      "answerable": true,
+      "first_relevant_rank": 3,
+      "top1_score": 0.7313,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.7313
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 15",
+          "score": 0.6953
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.6464
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.6389
+        },
+        {
+          "document": "manual-autocapacitacion-financiero-v2.pdf",
+          "location": "página 14",
+          "score": 0.6256
+        }
+      ]
+    },
+    {
+      "id": "P18",
+      "kind": "ubicacion",
+      "topic": "crm-odoo-dyce",
+      "answerable": true,
+      "first_relevant_rank": 2,
+      "top1_score": 0.5917,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.5917
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.5892
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.5801
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.575
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.5703
+        }
+      ]
+    },
+    {
+      "id": "P19",
+      "kind": "proceso",
+      "topic": "ventas-facturacion",
+      "answerable": true,
+      "first_relevant_rank": 2,
+      "top1_score": 0.7212,
+      "speech_in_top5": 0,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.7212
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.7044
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.6573
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.656
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.6494
+        }
+      ]
+    },
+    {
+      "id": "P20",
+      "kind": "concepto",
+      "topic": "roles",
+      "answerable": true,
+      "first_relevant_rank": 1,
+      "top1_score": 0.6345,
+      "speech_in_top5": 2,
+      "top5": [
+        {
+          "document": "arquitectura-roles-it-service-desk.pptx",
+          "location": "diapositiva 8",
+          "score": 0.6345
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 10:40",
+          "score": 0.5827
+        },
+        {
+          "document": "arquitectura-roles-it-service-desk.pptx",
+          "location": "diapositiva 6",
+          "score": 0.5626
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 16:18",
+          "score": 0.527
+        },
+        {
+          "document": "arquitectura-roles-it-service-desk.pptx",
+          "location": "diapositiva 6",
+          "score": 0.5222
+        }
+      ]
+    },
+    {
+      "id": "P21",
+      "kind": "proceso",
+      "topic": "roles",
+      "answerable": true,
+      "first_relevant_rank": 7,
+      "top1_score": 0.5768,
+      "speech_in_top5": 4,
+      "top5": [
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 20:05",
+          "score": 0.5768
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 57:20",
+          "score": 0.5709
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 1:01:08",
+          "score": 0.5685
+        },
+        {
+          "document": "prototipo-2026-09-22.transcripcion.docx",
+          "location": "minuto 09:01",
+          "score": 0.5573
+        },
+        {
+          "document": "arquitectura-roles-it-service-desk.pptx",
+          "location": "diapositiva 10",
+          "score": 0.5502
+        }
+      ]
+    },
+    {
+      "id": "P22",
+      "kind": "sin_respuesta",
+      "topic": "ninguno",
+      "answerable": false,
+      "first_relevant_rank": null,
+      "top1_score": 0.5082,
+      "speech_in_top5": 2,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-proyectos-v2.pdf",
+          "location": "página 24",
+          "score": 0.5082
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.499
+        },
+        {
+          "document": "prototipo-2026-09-23.transcripcion.docx",
+          "location": "minuto 1:03:54",
+          "score": 0.4881
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 20:05",
+          "score": 0.4874
+        },
+        {
+          "document": "manual-autocapacitacion-nomina-v2.pdf",
+          "location": "página 25",
+          "score": 0.4849
+        }
+      ]
+    },
+    {
+      "id": "P23",
+      "kind": "sin_respuesta",
+      "topic": "ninguno",
+      "answerable": false,
+      "first_relevant_rank": null,
+      "top1_score": 0.5511,
+      "speech_in_top5": 1,
+      "top5": [
+        {
+          "document": "arquitectura-roles-it-service-desk.pptx",
+          "location": "diapositiva 6",
+          "score": 0.5511
+        },
+        {
+          "document": "arquitectura-roles-it-service-desk.pptx",
+          "location": "diapositiva 6",
+          "score": 0.5409
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.5366
+        },
+        {
+          "document": "prototipo-2026-09-22.transcripcion.docx",
+          "location": "minuto 09:01",
+          "score": 0.5357
+        },
+        {
+          "document": "arquitectura-roles-it-service-desk.pptx",
+          "location": "diapositiva 10",
+          "score": 0.5254
+        }
+      ]
+    },
+    {
+      "id": "P24",
+      "kind": "sin_respuesta",
+      "topic": "ninguno",
+      "answerable": false,
+      "first_relevant_rank": null,
+      "top1_score": 0.5611,
+      "speech_in_top5": 4,
+      "top5": [
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 31:14",
+          "score": 0.5611
+        },
+        {
+          "document": "capacitacion-2026-09-08.transcripcion.docx",
+          "location": "minuto 32:34",
+          "score": 0.5519
+        },
+        {
+          "document": "manual-autocapacitacion-nomina-v2.pdf",
+          "location": "página 9",
+          "score": 0.5489
+        },
+        {
+          "document": "prototipo-2026-09-23.transcripcion.docx",
+          "location": "minuto 1:02:55",
+          "score": 0.5459
+        },
+        {
+          "document": "capacitacion-2026-09-07.transcripcion.docx",
+          "location": "minuto 48:18",
+          "score": 0.544
+        }
+      ]
+    },
+    {
+      "id": "P25",
+      "kind": "sin_respuesta",
+      "topic": "ninguno",
+      "answerable": false,
+      "first_relevant_rank": null,
+      "top1_score": 0.5256,
+      "speech_in_top5": 1,
+      "top5": [
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.5256
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.5189
+        },
+        {
+          "document": "prototipo-2026-09-18.transcripcion.docx",
+          "location": "minuto 1:00:09",
+          "score": 0.5161
+        },
+        {
+          "document": "manual-autocapacitacion-crm-odoo-dyce-v1.docx",
+          "location": "",
+          "score": 0.5135
+        },
+        {
+          "document": "manual-autocapacitacion-ventas-facturacion-v1.docx",
+          "location": "",
+          "score": 0.5117
+        }
+      ]
+    }
+  ]
+}

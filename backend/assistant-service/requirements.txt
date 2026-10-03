@@ -30,3 +30,29 @@ python-jose[cryptography]==3.3.0
 # Expone /metrics para que Prometheus recolecte las metricas HTTP.
 # ----------------------------------------------------------------------
 prometheus-fastapi-instrumentator==7.0.0
+
+# ----------------------------------------------------------------------
+# Lectura de documentos
+# pdfplumber extrae texto, posicion, tamano de letra y tablas de PDF.
+# Licencia MIT (PyMuPDF se descarto por su licencia AGPL).
+# ----------------------------------------------------------------------
+pdfplumber==0.11.4
+# python-docx lee documentos de Word, incluidas las transcripciones de Teams.
+python-docx==1.1.2
+# python-pptx lee presentaciones de PowerPoint, incluidas las notas del orador.
+python-pptx==1.0.2
+
+# ----------------------------------------------------------------------
+# Embeddings en CPU sin PyTorch
+# onnxruntime ejecuta el modelo exportado; tokenizers prepara el texto.
+# ----------------------------------------------------------------------
+numpy==1.26.4
+onnxruntime==1.18.1
+tokenizers==0.19.1
+
+# ----------------------------------------------------------------------
+# Migraciones de la base vectorial
+# Alembic con el driver sincrono psycopg2, igual que los demas servicios.
+# ----------------------------------------------------------------------
+alembic==1.13.1
+psycopg2-binary==2.9.9
