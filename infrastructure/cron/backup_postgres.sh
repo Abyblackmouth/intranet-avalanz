@@ -30,29 +30,54 @@ TOTAL_OK=0
 TOTAL_FAIL=0
 SUMMARY="$SUMMARY_INICIAL"
 
-for DB in $DATABASES; do
-    echo "$LOG_PREFIX Respaldando $DB..."
+# ── Respaldo de una base ──────────────────────────────────────────────────────
+# Recibe base, servidor, usuario y contrasena. El estado de una tuberia es el
+# de su ultimo comando (gzip), asi que el exito se valida por el contenido del
+# volcado y por la ausencia de errores de pg_dump.
+respaldar() {
+    DB="$1"; HOST="$2"; USUARIO="$3"; CLAVE="$4"
+    echo "$LOG_PREFIX Respaldando $DB ($HOST)..."
     BACKUP_FILE="$BACKUP_DIR/${DB}_$DATE.sql.gz"
-    pg_dump -h "$DB_HOST" -U "$DB_USER" -d "$DB" \
+    PGPASSWORD="$CLAVE" pg_dump -h "$HOST" -U "$USUARIO" -d "$DB" \
         --no-password \
         --format=plain \
         --no-owner \
         --no-privileges \
         2>/tmp/pg_dump_error.txt | gzip > "$BACKUP_FILE"
 
-    if [ $? -eq 0 ] && [ -s "$BACKUP_FILE" ]; then
+    if ! grep -qi "error" /tmp/pg_dump_error.txt && gunzip -c "$BACKUP_FILE" | head -c 400 | grep -q "PostgreSQL database dump"; then
         SIZE=$(du -sh "$BACKUP_FILE" | cut -f1)
         echo "$LOG_PREFIX $DB: backup exitoso — $BACKUP_FILE ($SIZE)"
         SUMMARY="${SUMMARY}[OK] $DB — $SIZE\n"
         TOTAL_OK=$((TOTAL_OK + 1))
     else
-        ERROR=$(cat /tmp/pg_dump_error.txt)
+        ERROR=$(head -c 300 /tmp/pg_dump_error.txt)
         echo "$LOG_PREFIX $DB: ERROR en backup — $ERROR"
         SUMMARY="${SUMMARY}[ERROR] $DB — $ERROR\n"
         rm -f "$BACKUP_FILE"
         TOTAL_FAIL=$((TOTAL_FAIL + 1))
     fi
+}
+
+# ── Servidor principal ────────────────────────────────────────────────────────
+for DB in $DATABASES; do
+    respaldar "$DB" "$DB_HOST" "$DB_USER" "$PGPASSWORD"
 done
+
+# ── Servidor vectorial del asistente (credenciales propias) ──────────────────
+if [ -n "$VECTOR_DB_HOST" ]; then
+    VECTOR_DATABASES=$(PGPASSWORD="$VECTOR_PGPASSWORD" psql -h "$VECTOR_DB_HOST" -U "$VECTOR_DB_USER" -d postgres -tA -c \
+        "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres' AND datname !~ '_verify_[0-9]+\$' ORDER BY 1" \
+        2>/tmp/pg_vector_list_error.txt)
+    if [ -z "$VECTOR_DATABASES" ]; then
+        echo "$LOG_PREFIX ERROR: no se pudo consultar el servidor vectorial"
+        SUMMARY="${SUMMARY}[ERROR] servidor vectorial — no se pudo consultar la lista de bases\n"
+        TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    fi
+    for DB in $VECTOR_DATABASES; do
+        respaldar "$DB" "$VECTOR_DB_HOST" "$VECTOR_DB_USER" "$VECTOR_PGPASSWORD"
+    done
+fi
 
 # ── Eliminar backups con más de 30 días ───────────────────────────────────────
 echo "$LOG_PREFIX Eliminando backups de más de $RETENTION_DAYS días..."

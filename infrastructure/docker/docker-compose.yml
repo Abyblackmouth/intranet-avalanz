@@ -436,6 +436,9 @@ services:
       DB_HOST: postgres
       DB_USER: ${POSTGRES_USER}
       DB_NAME: avalanz_auth
+      VECTOR_DB_HOST: postgres-vector
+      VECTOR_DB_USER: ${POSTGRES_VECTOR_USER}
+      VECTOR_PGPASSWORD: ${POSTGRES_VECTOR_PASSWORD}
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - cron-backups:/backups
