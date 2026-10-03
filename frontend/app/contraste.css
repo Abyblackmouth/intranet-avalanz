@@ -1,0 +1,36 @@
+/* ----------------------------------------------------------------------
+   Capa de contraste de la Intranet Avalanz
+   Sube un escalon los grises de BORDE y de TEXTO para que se lean bien
+   en pantallas brillantes, sin tocar los fondos (bg-slate-*), que usan
+   los mismos tonos. Medido contra blanco:
+     border-slate-100  1.10 -> 1.23   border-slate-200  1.23 -> 1.48
+     border-slate-300  1.48 -> 1.77   text-slate-300    1.48 -> 2.56
+     text-slate-400    2.56 -> 3.50
+   Va en la capa de utilidades de Tailwind, despues de las originales:
+   una variante como hover:border-[#1a4fa0] sigue ganando al borde base.
+   Para revertir, quitar el @import de este archivo en globals.css.
+   ---------------------------------------------------------------------- */
+@layer utilities {
+  /* Bordes base */
+  .border-slate-100 { border-color: #e2e8f0; }
+  .border-slate-200 { border-color: #cbd5e1; }
+  .border-slate-300 { border-color: #b8c4d4; }
+
+  /* Lados individuales */
+  .border-t-slate-100, .border-b-slate-100, .border-l-slate-100, .border-r-slate-100 { border-color: #e2e8f0; }
+  .border-t-slate-200, .border-b-slate-200, .border-l-slate-200, .border-r-slate-200 { border-color: #cbd5e1; }
+  .border-t-slate-300, .border-b-slate-300, .border-l-slate-300, .border-r-slate-300 { border-color: #b8c4d4; }
+
+  /* Divisores entre elementos de una lista */
+  .divide-slate-100 > :not(:last-child) { border-color: #e2e8f0; }
+  .divide-slate-200 > :not(:last-child) { border-color: #cbd5e1; }
+
+  /* Hover y foco: no deben quedar mas claros que el borde base */
+  .hover\:border-slate-200:hover, .focus\:border-slate-200:focus { border-color: #cbd5e1; }
+  .hover\:border-slate-300:hover, .focus\:border-slate-300:focus { border-color: #b8c4d4; }
+
+  /* Textos secundarios */
+  .text-slate-300 { color: #94a3b8; }
+  .text-slate-400 { color: #7b8aa1; }
+  .placeholder\:text-slate-400::placeholder { color: #7b8aa1; }
+}
