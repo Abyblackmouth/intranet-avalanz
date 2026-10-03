@@ -1,7 +1,7 @@
 'use client'
 // ----------------------------------------------------------------------
 // Widget del Asistente Avalanz
-// Esfera flotante abajo a la izquierda de la columna de contenido. Al
+// Esfera flotante abajo a la izquierda de la pantalla (viewport). Al
 // darle clic despliega el chat. Aparece solo en los modulos donde el
 // asistente esta activo para el usuario. La conversacion se conserva al
 // cerrar y abrir; se reinicia con el boton, con un inicio de sesion nuevo
@@ -262,7 +262,7 @@ const AssistantWidget = () => {
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
             style={{ transformOrigin: 'bottom left' }}
             onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
-            className="fixed inset-0 z-50 flex flex-col bg-white sm:absolute sm:inset-auto sm:bottom-24 sm:left-6 sm:w-[380px] sm:h-[560px] sm:max-h-[calc(100%-7rem)] sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-2xl overflow-hidden"
+            className="fixed inset-0 z-50 flex flex-col bg-white sm:inset-auto sm:bottom-24 sm:left-6 sm:w-[380px] sm:h-[560px] sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-2xl overflow-hidden"
           >
             <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white">
               <FluidOrb size={30} />
@@ -327,7 +327,7 @@ const AssistantWidget = () => {
         whileTap={{ scale: 0.94 }}
         initial={{ opacity: 0, scale: 0.6 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="absolute bottom-6 left-6 z-40 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30"
+        className="fixed bottom-6 left-6 z-40 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30"
       >
         <FluidOrb size={56} />
       </motion.button>
