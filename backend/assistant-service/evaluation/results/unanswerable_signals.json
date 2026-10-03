@@ -1,0 +1,236 @@
+{
+  "auc": {
+    "e5_top1": 0.82,
+    "e5_margen": 0.65,
+    "bm25_top1": 0.61,
+    "acuerdo_top1": 0.75,
+    "coincidencias_top5": 0.91
+  },
+  "questions": [
+    {
+      "id": "P01",
+      "answerable": true,
+      "e5_top1": 0.8781318996013902,
+      "e5_margen": 0.0020561523432630624,
+      "bm25_top1": 12.695793400614978,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 3.0
+    },
+    {
+      "id": "P02",
+      "answerable": true,
+      "e5_top1": 0.9055506769577535,
+      "e5_margen": 0.00027359339111299175,
+      "bm25_top1": 15.975503907447177,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 2.0
+    },
+    {
+      "id": "P03",
+      "answerable": true,
+      "e5_top1": 0.8909760387917766,
+      "e5_margen": 0.0015190103224316243,
+      "bm25_top1": 23.0230843527972,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 1.0
+    },
+    {
+      "id": "P04",
+      "answerable": true,
+      "e5_top1": 0.9098577647748385,
+      "e5_margen": 0.018717156531596002,
+      "bm25_top1": 57.62270232903072,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 4.0
+    },
+    {
+      "id": "P05",
+      "answerable": true,
+      "e5_top1": 0.8570914123126065,
+      "e5_margen": 0.028981896526713014,
+      "bm25_top1": 15.526165764129727,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 1.0
+    },
+    {
+      "id": "P06",
+      "answerable": true,
+      "e5_top1": 0.8903485298182845,
+      "e5_margen": 0.013765622066124528,
+      "bm25_top1": 14.733314766390457,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 3.0
+    },
+    {
+      "id": "P07",
+      "answerable": true,
+      "e5_top1": 0.8893704123294464,
+      "e5_margen": 0.02955637642707265,
+      "bm25_top1": 9.038691327213572,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 1.0
+    },
+    {
+      "id": "P08",
+      "answerable": true,
+      "e5_top1": 0.8877967639581186,
+      "e5_margen": 0.014574862462178872,
+      "bm25_top1": 31.19288395812201,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 1.0
+    },
+    {
+      "id": "P09",
+      "answerable": true,
+      "e5_top1": 0.8967355383825486,
+      "e5_margen": 0.017782075537418507,
+      "bm25_top1": 23.669332560047014,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 2.0
+    },
+    {
+      "id": "P10",
+      "answerable": true,
+      "e5_top1": 0.8933335331805795,
+      "e5_margen": 0.0058681989567613835,
+      "bm25_top1": 39.41230109636977,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 0.0
+    },
+    {
+      "id": "P11",
+      "answerable": true,
+      "e5_top1": 0.8962588444985045,
+      "e5_margen": 0.00011546312096422096,
+      "bm25_top1": 38.52036023499231,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 1.0
+    },
+    {
+      "id": "P12",
+      "answerable": true,
+      "e5_top1": 0.8936972528390733,
+      "e5_margen": 0.009103115299965547,
+      "bm25_top1": 33.98736695047664,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 2.0
+    },
+    {
+      "id": "P13",
+      "answerable": true,
+      "e5_top1": 0.9130739289716974,
+      "e5_margen": 0.0036441359977361643,
+      "bm25_top1": 36.39818074414872,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 2.0
+    },
+    {
+      "id": "P14",
+      "answerable": false,
+      "e5_top1": 0.900970989476604,
+      "e5_margen": 0.008130514519507193,
+      "bm25_top1": 32.82982344496295,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 1.0
+    },
+    {
+      "id": "P15",
+      "answerable": true,
+      "e5_top1": 0.8941848978044186,
+      "e5_margen": 0.003872571038116557,
+      "bm25_top1": 29.204367993017847,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 4.0
+    },
+    {
+      "id": "P16",
+      "answerable": true,
+      "e5_top1": 0.8868396599385786,
+      "e5_margen": 0.003837788666634534,
+      "bm25_top1": 30.52865456167565,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 2.0
+    },
+    {
+      "id": "P17",
+      "answerable": true,
+      "e5_top1": 0.880969166578843,
+      "e5_margen": 0.005934032601479955,
+      "bm25_top1": 22.050546657243586,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 2.0
+    },
+    {
+      "id": "P18",
+      "answerable": true,
+      "e5_top1": 0.8805748391709445,
+      "e5_margen": 0.005361221224288393,
+      "bm25_top1": 26.037901442485797,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 2.0
+    },
+    {
+      "id": "P19",
+      "answerable": true,
+      "e5_top1": 0.9036046783655199,
+      "e5_margen": 0.005871262449866577,
+      "bm25_top1": 48.322432260435775,
+      "acuerdo_top1": 1.0,
+      "coincidencias_top5": 3.0
+    },
+    {
+      "id": "P20",
+      "answerable": true,
+      "e5_top1": 0.8948979085515846,
+      "e5_margen": 0.026866747177412997,
+      "bm25_top1": 23.392184129894005,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 1.0
+    },
+    {
+      "id": "P21",
+      "answerable": true,
+      "e5_top1": 0.8837979776136189,
+      "e5_margen": 0.008254143972601491,
+      "bm25_top1": 25.363288234322,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 0.0
+    },
+    {
+      "id": "P22",
+      "answerable": false,
+      "e5_top1": 0.8534585940831927,
+      "e5_margen": 0.004889098694377481,
+      "bm25_top1": 25.669573705510025,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 0.0
+    },
+    {
+      "id": "P23",
+      "answerable": false,
+      "e5_top1": 0.865486852403975,
+      "e5_margen": 0.010542182366896413,
+      "bm25_top1": 20.919856679487257,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 0.0
+    },
+    {
+      "id": "P24",
+      "answerable": false,
+      "e5_top1": 0.8666217677258645,
+      "e5_margen": 0.0008796405107853733,
+      "bm25_top1": 17.216323966784255,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 0.0
+    },
+    {
+      "id": "P25",
+      "answerable": false,
+      "e5_top1": 0.8439918532708879,
+      "e5_margen": 0.0007381339940475407,
+      "bm25_top1": 17.245820305867177,
+      "acuerdo_top1": 0.0,
+      "coincidencias_top5": 0.0
+    }
+  ]
+}
