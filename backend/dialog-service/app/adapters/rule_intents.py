@@ -34,7 +34,7 @@ class RuleIntentDetector:
         self.intents = [
             (name, [re.compile(f"(?:{p}){tail}") for p in spec["patterns"]],
              list(spec["replies"]), bool(spec.get("show_ticket", False)),
-             [normalize(e) for e in spec.get("examples", [])])
+             [normalize(e) for e in spec.get("examples", [])], spec.get("action"))
             for name, spec in definition["intents"].items()
         ]
 
@@ -51,17 +51,17 @@ class RuleIntentDetector:
         if not plain or len(plain.split()) > self.max_words:
             return None
         # 1. Reglas exactas, en orden
-        for name, patterns, replies, ticket, _ in self.intents:
+        for name, patterns, replies, ticket, _, action in self.intents:
             if any(pattern.fullmatch(plain) for pattern in patterns):
-                return IntentMatch(intent=name, reply=self.chooser(replies), show_ticket=ticket)
+                return IntentMatch(intent=name, reply=self.chooser(replies), show_ticket=ticket, action=action)
         # 2. Tolerancia a errores de dedo: solo mensajes muy cortos; gana
         #    el ejemplo mas parecido si alcanza el umbral
         if len(plain.split()) > self.fuzzy_max_words:
             return None
-        best = max(((SequenceMatcher(None, plain, example).ratio(), name, replies, ticket)
-                    for name, _, replies, ticket, examples in self.intents for example in examples),
+        best = max(((SequenceMatcher(None, plain, example).ratio(), name, replies, ticket, action)
+                    for name, _, replies, ticket, examples, action in self.intents for example in examples),
                    default=None, key=lambda item: item[0])
         if best is None or best[0] < self.fuzzy_threshold:
             return None
-        _, name, replies, ticket = best
-        return IntentMatch(intent=name, reply=self.chooser(replies), show_ticket=ticket)
+        _, name, replies, ticket, action = best
+        return IntentMatch(intent=name, reply=self.chooser(replies), show_ticket=ticket, action=action)

@@ -25,6 +25,8 @@ export interface AssistantSearchResponse {
   type?: 'conversacion' | 'busqueda'
   reply?: string | null
   show_ticket?: boolean
+  action?: string | null
+  intent?: string | null
   confidence: AssistantConfidence | 'conversacion'
   overlap: number
   results: AssistantResult[]
@@ -46,5 +48,40 @@ export const searchAssistant = async (question: string, module: string): Promise
 // consulta el conocimiento (assistant-service) con el mismo formato
 export const sendDialogMessage = async (message: string, module: string): Promise<AssistantSearchResponse> => {
   const { data } = await api.post<AssistantSearchResponse>('/api/v1/dialog/message', { message, module })
+  return data
+}
+
+// ----------------------------------------------------------------------
+// Ticket desde el chat (dialog-service)
+// ----------------------------------------------------------------------
+export interface TicketCatalogs {
+  systems: { id: string; name: string; modules: { id: string; name: string }[] }[]
+  severities: { id: string; code: string; name: string }[]
+}
+
+export interface ChatTicketFields {
+  title: string
+  description: string
+  system_id: string
+  module_id: string | null
+  reported_type: 'funcional' | 'tecnico'
+  severity_reported_id: string
+}
+
+export const getTicketCatalogs = async (): Promise<TicketCatalogs> => {
+  const { data } = await api.get<TicketCatalogs>('/api/v1/dialog/ticket/catalogs')
+  return data
+}
+
+export const suggestTicketType = async (text: string, topics: string[] = []): Promise<{ reported_type: 'funcional' | 'tecnico'; keywords: string[]; system?: string | null }> => {
+  const { data } = await api.post('/api/v1/dialog/ticket/suggest', { text, topics })
+  return data
+}
+
+export const createChatTicket = async (fields: ChatTicketFields, files: File[]): Promise<{ id: string; folio: string; status: string }> => {
+  const form = new FormData()
+  Object.entries(fields).forEach(([key, value]) => { if (value) form.append(key, value) })
+  files.forEach((file) => form.append('files', file))
+  const { data } = await api.post('/api/v1/dialog/ticket', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   return data
 }

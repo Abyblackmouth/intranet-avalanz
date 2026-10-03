@@ -22,6 +22,18 @@ fuzzy_threshold: 0.85
 tail: '(?: (?:asistente|amigo|amiga|crack|bro|avalanz|por favor|porfa|de nuevo|otra vez|mucho|muchisimo|a ti|a usted))*'
 
 intents:
+  crear_ticket:
+    action: open_ticket_flow
+    patterns:
+      - '(quiero |necesito |me ayudas a |ayudame a |puedo |como )?(levantar|levanto|levanta|abrir|abro|abre|crear|creo|crea|generar|genero|genera|hacer|hago|registrar|registro) (un |el |una |mi )?(ticket|tiket|reporte|incidente|incidencia)'
+      - '(quiero |necesito |como )?(reportar|reporto) (un |una )?(problema|falla|error|incidente)'
+    examples:
+      - 'levantar un ticket'
+      - 'abrir un ticket'
+      - 'reportar un problema'
+    replies:
+      - 'Claro, te ayudo a levantar el ticket.'
+
   saludo:
     examples:
       - 'hola'
@@ -94,11 +106,16 @@ intents:
       - 'no es eso'
       - 'no entendi'
       - 'no me ayudo'
+      - 'no le entiendo'
     show_ticket: true
     patterns:
       - '(no|eso no) (me )?(sirvio|ayudo|funciono|es)( eso)?'
       - 'no es (lo que|eso)( busco| buscaba| necesito| necesitaba)?'
       - 'no (te )?entendi'
+      - 'no (le )?(entiendo|entendi)( (al|el|lo del) manual| eso| nada| bien)?'
+      - '(sigo sin|aun no|todavia no) (entender|entiendo|le entiendo)( (al|el) manual)?'
+      - 'no me queda claro( el manual| eso)?'
+      - 'no (me )?(sirvio|ayudo) (el|al) manual'
       - 'no encontre (nada|lo que buscaba)'
     replies:
       - 'Lamento que no te haya servido. Intenta preguntarme con otras palabras o con más detalle. Si prefieres, levanta un ticket para que un especialista te ayude.'

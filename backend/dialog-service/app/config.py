@@ -24,5 +24,11 @@ class Settings(BaseSettings):
     # Archivo de intenciones de platica basica
     INTENTS_PATH: str = "data/intents.yaml"
 
+    # Mesa de servicio (IT Service Desk): direccion interna, base de los
+    # catalogos y palabras para sugerir funcional o tecnico
+    SERVICE_DESK_URL: str
+    SERVICE_DESK_CATALOG_BASE: str
+    TICKET_TYPES_PATH: str = "data/ticket_types.yaml"
+
 
 settings = Settings()
