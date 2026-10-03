@@ -15,6 +15,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
+      # Fuentes del asistente, solo lectura (las sirve /internal-fuentes/)
+      - /srv/avalanz/asistente/fuentes:/srv/fuentes:ro
       - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ../nginx/conf.d:/etc/nginx/conf.d:ro
       - ../nginx/ssl:/etc/nginx/ssl:ro
