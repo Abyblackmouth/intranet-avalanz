@@ -45,7 +45,7 @@ const errorText = (status?: number) => {
 // Tres puntos que crecen y se encogen en secuencia
 // ----------------------------------------------------------------------
 const TypingDots = () => (
-  <div className="flex items-center gap-1.5 px-4 py-3 bg-white border border-slate-200 rounded-2xl rounded-bl-md w-fit shadow-sm" aria-label="Escribiendo">
+  <div className="flex items-center gap-1.5 px-4 py-3 bg-white border border-slate-300 rounded-2xl rounded-bl-md w-fit shadow-sm" aria-label="Escribiendo">
     {[0, 1, 2].map((i) => (
       <motion.span
         key={i}
@@ -71,7 +71,7 @@ const ResultCard = ({ result }: { result: AssistantResult }) => {
   const long = body.length > 260
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 hover:border-[#1a4fa0]/30 transition-colors">
+    <div className="bg-white border border-slate-300 rounded-xl p-3 hover:border-[#1a4fa0]/30 transition-colors">
       <div className="flex items-start gap-2">
         <Icon size={15} className="text-[#1a4fa0] mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
@@ -113,7 +113,7 @@ const MessageBubble = ({ message, onTicket }: { message: ChatMessage; onTicket: 
   const strong = message.confidence === 'baja' || (message.results?.length ?? 0) === 0
   return (
     <div className="flex flex-col gap-2 max-w-[92%]">
-      <div className="bg-white border border-slate-200 text-slate-800 text-[13.5px] leading-relaxed px-4 py-2.5 rounded-2xl rounded-bl-md shadow-sm w-fit">
+      <div className="bg-white border border-slate-300 text-slate-800 text-[13.5px] leading-relaxed px-4 py-2.5 rounded-2xl rounded-bl-md shadow-sm w-fit">
         {message.text}
       </div>
       {message.results?.map((result, i) => <ResultCard key={`${message.id}-${i}`} result={result} />)}
@@ -262,9 +262,9 @@ const AssistantWidget = () => {
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
             style={{ transformOrigin: 'bottom right' }}
             onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
-            className="fixed inset-0 z-50 flex flex-col bg-white sm:inset-auto sm:bottom-24 sm:right-[29px] sm:w-[380px] sm:h-[560px] sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-2xl overflow-hidden"
+            className="fixed inset-0 z-50 flex flex-col bg-white sm:inset-auto sm:bottom-24 sm:right-[34px] sm:w-[380px] sm:h-[560px] sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl sm:border sm:border-slate-300 sm:shadow-[0_24px_48px_-12px_rgba(15,23,42,0.28),0_8px_16px_-8px_rgba(15,23,42,0.18)] overflow-hidden"
           >
-            <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white">
+            <header className="flex items-center gap-3 px-4 py-3 border-b border-slate-300 bg-white">
               <FluidOrb size={30} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-800 leading-tight">Asistente Avalanz</p>
@@ -291,8 +291,8 @@ const AssistantWidget = () => {
               {(typing || pending) && <TypingDots />}
             </div>
 
-            <div className="border-t border-slate-200 bg-white p-3">
-              <div className="flex items-end gap-2 border border-slate-200 rounded-xl px-3 py-2 focus-within:border-[#1a4fa0] focus-within:ring-2 focus-within:ring-[#1a4fa0]/10 transition-all">
+            <div className="border-t border-slate-300 bg-white p-3">
+              <div className="flex items-end gap-2 border border-slate-300 rounded-xl px-3 py-2 focus-within:border-[#1a4fa0] focus-within:ring-2 focus-within:ring-[#1a4fa0]/10 transition-all">
                 <textarea
                   ref={inputRef}
                   value={draft}
@@ -327,7 +327,7 @@ const AssistantWidget = () => {
         whileTap={{ scale: 0.92, y: 0 }}
         initial={{ opacity: 0, scale: 0.6 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="fixed bottom-6 right-[29px] z-40 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30"
+        className="fixed bottom-6 right-[34px] z-40 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30"
       >
         <FluidOrb size={44} blink={!isOpen} elevated />
       </motion.button>
