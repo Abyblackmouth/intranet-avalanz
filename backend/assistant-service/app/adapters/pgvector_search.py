@@ -36,6 +36,11 @@ class PgDenseSearcher:
             LIMIT :limit
         """)
         async with self.engine.connect() as connection:
+            # Busqueda EXACTA: con unos miles de fragmentos cuesta milisegundos, y el indice
+            # HNSW (aproximado) llegaba a devolver otros 20 vecinos distintos a los reales
+            # (P31 y P32 del banco, 10-15 % de coincidencia). Revisar si el corpus supera
+            # ~50,000 fragmentos: entonces volver al indice con hnsw.ef_search alto.
+            await connection.execute(text("SET LOCAL enable_indexscan = off"))
             rows = (await connection.execute(query, {"v": vector_literal(vector), "modules": list(modules),
                                                      "limit": limit})).all()
         return [(row[0], float(row[1])) for row in rows]
