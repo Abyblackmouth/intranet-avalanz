@@ -59,9 +59,16 @@ funcional:
 # coincidir con el del catalogo de sistemas del IT Service Desk.
 # ----------------------------------------------------------------------
 systems_by_topic:
-  activo-fijo: TOTVS
-  financiero: TOTVS
-  nomina: TOTVS
-  proyectos: TOTVS
-  ventas-facturacion: TOTVS
+  totvs-activo-fijo: TOTVS
+  totvs-compras: TOTVS
+  totvs-contabilidad: TOTVS
+  totvs-financiero: TOTVS
+  totvs-nomina: TOTVS
+  totvs-presupuesto: TOTVS
+  totvs-proyectos: TOTVS
+  totvs-prueba-integral: TOTVS
+  totvs-stock-costos: TOTVS
+  totvs-ventas-facturacion: TOTVS
   crm-odoo-dyce: CRM Odoo DYCE
+  portal-web-proveedores: Web Proveedor
+  # mesa-de-ayuda: pendiente de dar de alta su sistema en el catalogo del IT Service Desk
