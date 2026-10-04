@@ -3,7 +3,7 @@
 Ubicación sugerida: `docs/modules/assistant/assistant-fase-1-ingesta.md`
 Rama: `feature/assistant-service`
 Fecha: 3 de octubre de 2026
-Estado: **completada y en productivo** (la ingesta corre cada noche; todavía no hay búsqueda para usuarios ni widget)
+Estado: **completada y en productivo**. La ingesta corre cada noche; la búsqueda, el widget y el diálogo se documentan en el manual de la Fase 2.
 
 > Antecedente: `assistant-fase-0-infraestructura.md` (base vectorial, servicio, Nginx y Prometheus).
 
@@ -47,6 +47,8 @@ Estado del índice al cierre: **12 documentos, 801 fragmentos** (259 de texto, 4
 ## 3. Operación diaria: agregar o actualizar documentos
 
 ### Convención de carpetas
+
+> **Videos de sesiones (desde la Fase 2):** el visor del chat abre el video que está **junto a su transcripción y con el mismo nombre**: `capacitacion-2026-09-07.transcripcion.docx` ↔ `capacitacion-2026-09-07.mp4` (también `.webm` o `.m4v`). Si el video no sigue esta convención, el botón *Ver en el video* responde que no está disponible. La transcripción nunca se entrega al usuario.
 
 ```
 /srv/avalanz/asistente/fuentes/
@@ -344,10 +346,10 @@ Por qué en el crontab del servidor y no en el contenedor de cron: el contenedor
 
 | Pendiente | Cuándo |
 |---|---|
-| API de búsqueda híbrida (vectores + palabras con RRF), filtrada por módulo y permisos | Fase 2 |
-| Compensar el desbalance de transcripciones (22–35% de los primeros resultados) | Fase 2 |
-| Señal para el "no sé" (el umbral fijo no sirve con e5) | Fase 2 |
-| Medir la RAM del servicio en línea al vectorizar una pregunta | Fase 2 |
+| API de búsqueda híbrida (vectores + palabras con RRF), filtrada por módulo y permisos | **Resuelto en la Fase 2** |
+| Compensar el desbalance de transcripciones (22–35% de los primeros resultados) | **Resuelto en la Fase 2** (habla ×0.5, provisional) |
+| Señal para el "no sé" (el umbral fijo no sirve con e5) | **Resuelto en la Fase 2** (acuerdo BM25–e5, AUC 0.91) |
+| Medir la RAM del servicio en línea al vectorizar una pregunta | **Resuelto en la Fase 2** (899 MiB de 1.5 GiB) |
 | Spike de modelo de lenguaje local en CPU (opción B) | Antes de la Fase 3 |
 | Adaptador de Whisper por bloques de audio | Cuando llegue un video sin transcripción |
 | Conjunto de evaluación v2 (≥ 100 preguntas, incluidas sesiones grabadas) | Continuo |
