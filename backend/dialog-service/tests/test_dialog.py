@@ -80,3 +80,33 @@ def test_typos_are_tolerated(texto, intencion):
 @pytest.mark.parametrize("texto", ["que es ppd", "ppd", "baja", "nomina", "que es un mnemonico", "timbrado"])
 def test_short_questions_stay_questions(texto):
     assert DETECTOR.detect(texto) is None
+
+
+# ----------------------------------------------------------------------
+# Saludo al inicio: platica si el resto es platica; busqueda sin el saludo
+# ----------------------------------------------------------------------
+from app.application.greetings import strip_greeting
+
+
+@pytest.mark.parametrize("texto, esperado", [
+    ("Hola, que eres ?", "que eres ?"),
+    ("hola, ¿dónde veo los saldos bancarios?", "¿dónde veo los saldos bancarios?"),
+    ("Buenos días, no puedo cancelar una factura", "no puedo cancelar una factura"),
+    ("Hola, buenas tardes, ¿cómo timbro una factura?", "¿cómo timbro una factura?"),
+    ("hola", "hola"),
+    ("Holanda tiene sucursal?", "Holanda tiene sucursal?"),
+])
+def test_strip_greeting(texto, esperado):
+    assert strip_greeting(texto) == esperado
+
+
+def test_greeting_plus_small_talk_is_small_talk():
+    knowledge = FakeKnowledge()
+    result = asyncio.run(HandleMessage(DETECTOR, knowledge).run("Hola, que eres ?", "it-service-desk", "Bearer x"))
+    assert result["type"] == "conversacion" and result["intent"] == "capacidades" and knowledge.calls == []
+
+
+def test_greeting_is_removed_before_searching():
+    knowledge = FakeKnowledge()
+    asyncio.run(HandleMessage(DETECTOR, knowledge).run("hola, ¿dónde veo los saldos bancarios?", "it-service-desk", "Bearer x"))
+    assert knowledge.calls[0][0] == "¿dónde veo los saldos bancarios?"
