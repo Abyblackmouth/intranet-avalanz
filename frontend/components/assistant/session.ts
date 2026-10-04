@@ -29,7 +29,9 @@ const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slic
 const preferredName = (email: string, fullName: string): string => {
   const local = email.split('@')[0] ?? ''
   const fromEmail = local.split(/[._-]/)[0] ?? ''
-  if (/^[a-záéíóúñ]{2,}$/i.test(fromEmail)) return capitalize(fromEmail)
+  // Solo si el correo separa nombre y apellido (nombre_apellido, nombre.apellido);
+  // si no (andreshinojosaj), se usa el primer nombre de full_name
+  if (/[._-]/.test(local) && /^[a-záéíóúñ]{2,}$/i.test(fromEmail)) return capitalize(fromEmail)
   return capitalize(fullName.trim().split(/\s+/)[0] ?? '')
 }
 
