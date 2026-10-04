@@ -3,7 +3,7 @@
 Ubicación sugerida: `docs/modules/assistant/assistant-fase-0-infraestructura.md`
 Rama: `feature/assistant-service` (integrada a `develop` en `64b6092`)
 Fecha: 2 de octubre de 2026 · Actualizado: 3 de octubre de 2026 (cierre de la Fase 1)
-Estado: **completada y en productivo** (sin rutas de negocio ni widget todavía; no visible para usuarios)
+Estado: **completada y en productivo**. Las fases 1 y 2 ya se construyeron encima (ingesta, búsqueda, widget, diálogo y ticket desde el chat); ver sus manuales.
 
 > La continuación está en `assistant-fase-1-ingesta.md`: ingesta, modelo de embeddings, esquema y operación nocturna.
 
@@ -31,10 +31,10 @@ La **Fase 0** construye los cimientos, sin lógica de negocio todavía:
 |---|---|---|
 | **0. Cimientos** | Infraestructura de este documento | **Completada** |
 | 1. Ingesta | Extracción, transcripción, fragmentación, embeddings y pgvector; ingesta nocturna | **Completada** (ver manual de la Fase 1) |
-| 2. Búsqueda | Búsqueda híbrida filtrada por módulo y permisos | Pendiente |
-| 3. Respuesta | Primero sin redacción (fragmentos con sus citas, 100% on-premise); después, modelo local si el spike lo justifica | Pendiente |
-| 4. Widget | Botón flotante, activación por módulo | Pendiente |
-| 5. Escalamiento | Ticket prellenado que el usuario confirma | Pendiente |
+| 2. Búsqueda | Búsqueda híbrida filtrada por módulo y permisos | **Completada** (ver manual de la Fase 2) |
+| 3. Respuesta | Primero sin redacción (fragmentos con sus citas, 100% on-premise); después, modelo local si el spike lo justifica | **Completada sin redacción**: fragmentos agrupados por documento y visor de la fuente. Modelo local: pendiente |
+| 4. Widget | Botón flotante, activación por módulo | **Completada**, con capa de diálogo (`dialog-service`) |
+| 5. Escalamiento | Ticket prellenado que el usuario confirma | **Completada**: ticket conversacional con asignación en vivo |
 | 6. Brechas | Tablero de preguntas sin respuesta | Pendiente |
 
 ---
