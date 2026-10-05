@@ -57,10 +57,12 @@ interface AssistantState {
   isOpen: boolean
   messages: ChatMessage[]
   ticketDraft: TicketDraft | null
+  introShown: boolean
   syncSession: (key: string) => void
   setOpen: (open: boolean) => void
   addMessage: (message: Omit<ChatMessage, 'id' | 'createdAt'>) => void
   markGreeted: () => void
+  markIntroShown: () => void
   resetChat: () => void
   clearAll: () => void
   setTicketDraft: (draft: TicketDraft | null) => void
@@ -78,11 +80,12 @@ export const useAssistantStore = create<AssistantState>()(
       isOpen: false,
       messages: [],
       ticketDraft: null,
+      introShown: false,
 
       // Sesion nueva: conversacion nueva y saludo nuevo
       syncSession: (key) => {
         if (key && key !== get().sessionKey) {
-          set({ sessionKey: key, greeted: false, isOpen: false, messages: [], ticketDraft: null })
+          set({ sessionKey: key, greeted: false, isOpen: false, messages: [], ticketDraft: null, introShown: false })
         }
       },
       setOpen: (open) => set({ isOpen: open }),
@@ -91,9 +94,10 @@ export const useAssistantStore = create<AssistantState>()(
           messages: [...state.messages, { ...message, id: newId(), createdAt: Date.now() }].slice(-MAX_MESSAGES),
         })),
       markGreeted: () => set({ greeted: true }),
+      markIntroShown: () => set({ introShown: true }),
       // Reiniciar conserva el saludo como ya hecho en esta sesion
       resetChat: () => set({ messages: [], ticketDraft: null }),
-      clearAll: () => set({ sessionKey: '', greeted: false, isOpen: false, messages: [], ticketDraft: null }),
+      clearAll: () => set({ sessionKey: '', greeted: false, isOpen: false, messages: [], ticketDraft: null, introShown: false }),
 
       setTicketDraft: (draft) => set({ ticketDraft: draft }),
       patchTicketDraft: (patch) =>
@@ -111,7 +115,7 @@ export const useAssistantStore = create<AssistantState>()(
     {
       name: 'assistant-chat',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ sessionKey: state.sessionKey, greeted: state.greeted, messages: state.messages }),
+      partialize: (state) => ({ sessionKey: state.sessionKey, greeted: state.greeted, messages: state.messages, introShown: state.introShown }),
     }
   )
 )

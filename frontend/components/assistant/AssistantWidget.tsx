@@ -293,7 +293,7 @@ const AssistantWidget = () => {
   const router = useRouter()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const { isOpen, greeted, messages, setOpen, addMessage, markGreeted, resetChat, clearAll, syncSession,
-    ticketDraft, setTicketDraft, patchTicketDraft, updateTicket } = useAssistantStore()
+    ticketDraft, setTicketDraft, patchTicketDraft, updateTicket, introShown, markIntroShown } = useAssistantStore()
 
   const [mounted, setMounted] = useState(false)
   const [available, setAvailable] = useState(false)
@@ -339,6 +339,25 @@ const AssistantWidget = () => {
       active = false
     }
   }, [mounted, module])
+
+  // ------------------------------------------------------------------
+  // Presentacion: una vez por inicio de sesion, la esfera rebota y un globo
+  // saluda, para que se entienda que es un asistente. Los temporizadores
+  // viven en una referencia para que no se cancelen al marcarla como vista.
+  // ------------------------------------------------------------------
+  const [intro, setIntro] = useState<'off' | 'typing' | 'text'>('off')
+  const introTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => introTimers.current.forEach(clearTimeout), [])
+  useEffect(() => {
+    if (!mounted || !available || isOpen || introShown) return
+    markIntroShown()
+    introTimers.current = [
+      setTimeout(() => setIntro('typing'), 1500),
+      setTimeout(() => setIntro('text'), 2700),
+      setTimeout(() => setIntro('off'), 8700),
+    ]
+  }, [mounted, available, isOpen, introShown, markIntroShown])
+  useEffect(() => { if (isOpen) setIntro('off') }, [isOpen])
 
   // Saludo: una sola vez por inicio de sesion, con los tres puntos antes
   useEffect(() => {
@@ -681,15 +700,43 @@ const AssistantWidget = () => {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {intro !== 'off' && !isOpen && (
+          <motion.div key="presentacion" role="status"
+            initial={{ opacity: 0, y: 8, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 28 }} style={{ transformOrigin: 'bottom right' }}
+            onClick={() => { setIntro('off'); setOpen(true) }}
+            className="fixed bottom-[84px] right-[34px] z-40 max-w-[260px] cursor-pointer rounded-2xl rounded-br-md border border-[#b8c4d4] bg-white px-4 py-3 text-[13px] leading-snug text-slate-700 shadow-[0_12px_28px_-10px_rgba(15,23,42,0.35)]">
+            {intro === 'typing' ? (
+              <span className="flex items-center gap-1.5 py-1" aria-label="Escribiendo">
+                {[0, 1, 2].map((i) => (
+                  <motion.span key={i} className="block h-2 w-2 rounded-full bg-[#1a4fa0]"
+                    animate={{ scale: [0.55, 1, 0.55], opacity: [0.45, 1, 0.45] }}
+                    transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut', delay: i * 0.18 }} />
+                ))}
+              </span>
+            ) : (
+              <span>
+                ¡Hola{firstName ? `, ${firstName}` : ''}! 👋 Soy tu asistente.{' '}
+                <span className="font-medium text-[#1a4fa0]">Pregúntame lo que necesites.</span>
+              </span>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.button
         type="button"
-        onClick={() => setOpen(!isOpen)}
+        onClick={() => { setIntro('off'); setOpen(!isOpen) }}
         aria-label={isOpen ? 'Cerrar asistente' : 'Abrir asistente'}
         title="Asistente Avalanz"
         whileHover={{ scale: 1.18, y: -3 }}
         whileTap={{ scale: 0.92, y: 0 }}
         initial={{ opacity: 0, scale: 0.6 }}
-        animate={{ opacity: 1, scale: 1 }}
+        animate={intro === 'typing'
+          ? { opacity: 1, scale: [1, 1.12, 0.96, 1.05, 1], y: [0, -10, 0, -4, 0] }
+          : { opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
         className="fixed bottom-6 right-[34px] z-40 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30"
       >
         <FluidOrb size={44} blink={!isOpen} elevated />
