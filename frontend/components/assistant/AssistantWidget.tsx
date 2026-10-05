@@ -111,6 +111,67 @@ const cleanText = (result: AssistantResult) =>
 // Muestra la seccion mas relevante; las demas secciones del mismo
 // documento quedan como etiquetas que, al hacer clic, se muestran aqui.
 // ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// Extracto con tablas: las lineas "| a | b |" se muestran como tabla real.
+// Se omiten la fila separadora (| --- |) y, al inicio de una tabla, la
+// fila casi vacia que deja una tabla partida por un salto de pagina en el
+// PDF. Las filas casi vacias en medio de una tabla se conservan (hay
+// tablas legitimas con columnas en blanco, como los checklists).
+// ----------------------------------------------------------------------
+type Segmento = { tipo: 'texto'; texto: string } | { tipo: 'tabla'; filas: string[][]; encabezado: boolean }
+
+const segmentar = (texto: string): Segmento[] => {
+  const segmentos: Segmento[] = []
+  let parrafo: string[] = []
+  let filas: string[][] = []
+  let encabezado = false
+  const cerrarParrafo = () => {
+    if (parrafo.join('').trim()) segmentos.push({ tipo: 'texto', texto: parrafo.join('\n').trim() })
+    parrafo = []
+  }
+  const cerrarTabla = () => {
+    if (filas.length) segmentos.push({ tipo: 'tabla', filas, encabezado })
+    filas = []; encabezado = false
+  }
+  for (const linea of texto.split('\n')) {
+    const l = linea.trim()
+    if (l.length > 2 && l.startsWith('|') && l.endsWith('|')) {
+      cerrarParrafo()
+      const celdas = l.slice(1, -1).split('|').map((c) => c.trim())
+      if (celdas.every((c) => /^:?-{2,}:?$/.test(c))) { if (filas.length === 1) encabezado = true; continue }
+      const llenas = celdas.filter((c) => c.replace(/["'.\s]/g, '')).length
+      if (filas.length === 0 && celdas.length >= 3 && llenas <= 1) continue
+      filas.push(celdas)
+    } else {
+      cerrarTabla(); parrafo.push(linea)
+    }
+  }
+  cerrarParrafo(); cerrarTabla()
+  return segmentos
+}
+
+const RichExcerpt = ({ text, expanded }: { text: string; expanded: boolean }) => (
+  <div className={`mt-2 space-y-2 text-[12.5px] leading-relaxed text-slate-600 ${expanded ? '' : 'max-h-28 overflow-hidden'}`}>
+    {segmentar(text).map((s, i) => (s.tipo === 'texto' ? (
+      <p key={i} className="whitespace-pre-line">{s.texto}</p>
+    ) : (
+      <div key={i} className="overflow-x-auto">
+        <table className="w-full border-collapse text-[11.5px]">
+          <tbody>
+            {s.filas.map((fila, r) => (
+              <tr key={r} className={r === 0 && s.encabezado ? 'bg-slate-50 font-semibold text-slate-700' : ''}>
+                {fila.map((celda, k) => (
+                  <td key={k} className="border border-[#b8c4d4] px-1.5 py-1 align-top">{celda}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )))}
+  </div>
+)
+
 // Accion para abrir la fuente: video, manual en PDF o descarga
 const openAction = (result: AssistantResult) => {
   if (result.kind === 'speech') return { label: 'Ver en el video', Icon: Video }
@@ -125,7 +186,7 @@ const DocumentCard = ({ group, onOpen }: { group: ResultGroup; onOpen: (result: 
   const current = group.items[selected]
   const body = cleanText(current)
   const path = sectionPath(current)
-  const long = body.length > 260
+  const long = body.length > 260 || /^\s*\|/m.test(body)
 
   return (
     <div className="bg-white border border-[#b8c4d4] rounded-xl p-3 hover:border-[#1a4fa0]/40 transition-colors">
@@ -141,9 +202,7 @@ const DocumentCard = ({ group, onOpen }: { group: ResultGroup; onOpen: (result: 
           </span>
         )}
       </div>
-      <p className={`mt-2 text-[12.5px] text-slate-600 leading-relaxed whitespace-pre-line ${expanded ? '' : 'line-clamp-5'}`}>
-        {body}
-      </p>
+      <RichExcerpt text={body} expanded={expanded} />
       <div className="mt-1.5 flex items-center gap-3">
         {long && (
           <button type="button" onClick={() => setExpanded(!expanded)} className="text-[12px] font-medium text-[#1a4fa0] hover:underline">
