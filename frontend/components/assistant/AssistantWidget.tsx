@@ -104,7 +104,7 @@ const sectionLabel = (result: AssistantResult) => {
 }
 
 const cleanText = (result: AssistantResult) =>
-  result.kind === 'speech' ? result.text.replace(/^[^:\n]{2,40}:\s*/gm, '• ') : result.text
+  result.kind === 'speech' ? result.text.replace(/^(?!•)[^:\n]{2,40}:\s*/gm, '• ') : result.text
 
 // ----------------------------------------------------------------------
 // Tarjeta por documento
