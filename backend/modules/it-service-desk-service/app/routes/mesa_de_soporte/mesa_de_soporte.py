@@ -743,6 +743,9 @@ async def resolve_via_token(
 
     incident.status = "resuelto"
     incident.resolved_at = datetime.now(timezone.utc)
+    # Resolver implica haber revisado: si no habia revision, cuenta la resolucion
+    if incident.first_response_at is None:
+        incident.first_response_at = incident.resolved_at
     incident.resolution_type = resolution_type
     if rca_text:
         incident.rca_text = rca_text
@@ -966,6 +969,9 @@ async def resolve_logged_in(
 
     incident.status = "resuelto"
     incident.resolved_at = datetime.now(timezone.utc)
+    # Resolver implica haber revisado: si no habia revision, cuenta la resolucion
+    if incident.first_response_at is None:
+        incident.first_response_at = incident.resolved_at
     incident.resolution_type = resolution_type
     if rca_text:
         incident.rca_text = rca_text
