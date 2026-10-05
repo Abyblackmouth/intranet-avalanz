@@ -48,6 +48,11 @@ def is_relevant(question, document: Document, chunk: Chunk) -> bool:
         return False
     if PurePosixPath(document.relative_path).name != question.document:
         return False
+    # Los nombres de archivo se repiten entre temas (capacitacion-2026-09-08 existe en
+    # varios): el archivo tambien debe estar en la carpeta del tema de la pregunta
+    topic = getattr(question, "topic", None)
+    if topic and PurePosixPath(document.relative_path).parent.name != topic:
+        return False
     location = question.location
     number = re.search(r"\d+", location)
 

@@ -41,8 +41,9 @@ def test_ticket_type_suggestion(texto, tipo):
 # Sistema sugerido por el tema y "no le entiendo" como insatisfaccion
 # ----------------------------------------------------------------------
 @pytest.mark.parametrize("temas, sistema", [
-    (["activo-fijo"], "TOTVS"), (["Activo fijo", "nomina"], "TOTVS"),
-    (["crm-odoo-dyce"], "CRM Odoo DYCE"), (["roles"], None), ([], None),
+    (["totvs-activo-fijo"], "TOTVS"), (["Totvs activo fijo", "totvs-nomina"], "TOTVS"),
+    (["crm-odoo-dyce"], "CRM Odoo DYCE"), (["portal-web-proveedores"], "Web Proveedor"),
+    (["mesa-de-ayuda"], None), ([], None),
 ])
 def test_system_suggestion_by_topic(temas, sistema):
     assert CLASSIFIER.suggest("no se como dar de baja un activo", temas)["system"] == sistema

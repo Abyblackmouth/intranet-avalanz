@@ -34,9 +34,13 @@ class SearchSettings:
     # Resultados que se entregan
     top_k: int = 5
     # Peso de los fragmentos de habla (provisional: validar con preguntas v2)
-    speech_weight: float = 0.5
+    # Calibrado con el corpus de 3,737 fragmentos y las preguntas v2: 0.3 sube
+    # R@1 de 0.50 a 0.58 y MRR de 0.648 a 0.730 sin perder R@5 (0.2 da lo mismo)
+    speech_weight: float = 0.3
     # Ventana para contar coincidencias y cortes de confianza
-    overlap_window: int = 5
+    # Con el corpus grande, 5 marcaba como "baja" 8 de 24 preguntas con respuesta;
+    # con 15 solo 1 de 24 (detecta 2 de 6 sin respuesta en lugar de 4)
+    overlap_window: int = 15
     low_max: int = 0
     medium_max: int = 1
 

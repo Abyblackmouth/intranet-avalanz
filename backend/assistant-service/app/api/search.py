@@ -11,7 +11,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from app.application.privacy import mask_participants
 from app.config import settings
+from app.domain.models import BlockKind
 from shared.middleware.jwt_validator import JWTValidator
 
 router = APIRouter(tags=["asistente"])
@@ -65,6 +67,10 @@ async def search(body: SearchRequest, request: Request,
         raise HTTPException(status_code=503, detail="busqueda_no_disponible")
     result = await components.search.run(body.question, [body.module],
                                          str(user.get("user_id", "")), body.module)
+    # Los extractos de sesiones grabadas salen sin nombres de participantes
+    participants = getattr(components, "participants", None)
+    textos = [mask_participants(h.text, await participants.names(h.relative_path) if participants else [])
+              if h.kind == BlockKind.SPEECH else h.text for h in result.hits]
     return {
         "confidence": str(result.confidence),
         "overlap": result.overlap,
@@ -72,6 +78,6 @@ async def search(body: SearchRequest, request: Request,
             "title": h.document_title, "document": h.relative_path, "module": h.module,
             "kind": str(h.kind), "location": h.location.label(), "page": h.location.page,
             "slide": h.location.slide, "start_seconds": h.location.start_seconds,
-            "context": h.context_header, "text": h.text, "score": h.score,
-        } for h in result.hits],
+            "context": h.context_header, "text": textos[n], "score": h.score,
+        } for n, h in enumerate(result.hits)],
     }
