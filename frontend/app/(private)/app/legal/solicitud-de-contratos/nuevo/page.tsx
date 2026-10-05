@@ -61,18 +61,18 @@ const STEPS = [
 ]
 
 const StepIndicator = ({ current }: { current: number }) => (
-  <div className="flex items-center justify-center gap-0 mb-5">
+  <div className="flex items-center justify-center gap-0 mb-7 mt-1">
     {STEPS.map((step, idx) => {
       const done = current > step.id; const active = current === step.id; const Icon = step.icon
       return (
         <div key={step.id} className="flex items-center">
           <div className="flex flex-col items-center">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${done ? 'bg-[#1a4fa0] border-[#1a4fa0]' : active ? 'bg-white border-[#1a4fa0]' : 'bg-white border-slate-200'}`}>
-              {done ? <Check size={14} className="text-white" /> : <Icon size={13} className={active ? 'text-[#1a4fa0]' : 'text-slate-300'} />}
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${done ? 'bg-[#1a4fa0] border-[#1a4fa0]' : active ? 'bg-[#1a4fa0] border-[#1a4fa0] scale-110 shadow-[0_0_0_6px_rgba(26,79,160,0.12),0_8px_20px_-6px_rgba(26,79,160,0.5)]' : 'bg-white border-slate-300'}`}>
+              {done ? <Check size={20} className="text-white" /> : <Icon size={18} className={active ? 'text-white' : 'text-slate-400'} />}
             </div>
-            <span className={`mt-1 text-[11px] font-medium ${active ? 'text-[#1a4fa0]' : done ? 'text-slate-500' : 'text-slate-300'}`}>{step.label}</span>
+            <span className={`mt-2 text-[12.5px] font-semibold ${active ? 'text-[#1a4fa0]' : done ? 'text-slate-700' : 'text-slate-400'}`}>{step.label}</span>
           </div>
-          {idx < STEPS.length - 1 && <div className={`h-0.5 w-10 mx-1 mb-4 transition-all ${current > step.id ? 'bg-[#1a4fa0]' : 'bg-slate-200'}`} />}
+          {idx < STEPS.length - 1 && <div className={`h-[3px] w-16 mx-1.5 mb-6 rounded transition-all ${current > step.id ? 'bg-[#1a4fa0]' : 'bg-slate-300'}`} />}
         </div>
       )
     })}
@@ -145,10 +145,9 @@ const Step2 = ({ templateFields, formData, onChange, errors }: {
       <div className="space-y-5">
         {[...templateFields.field_groups].sort((a, b) => a.order - b.order).map(group => (
           <div key={group.id}>
-            <div className="flex items-center gap-2 mb-2.5">
-              <div className="h-px flex-1 bg-slate-100" />
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">{group.label}</span>
-              <div className="h-px flex-1 bg-slate-100" />
+            <div className="flex items-center gap-3 mb-3.5">
+              <span className="text-[13px] font-bold text-slate-700 uppercase tracking-wide">{group.label}</span>
+              <div className="h-px flex-1 bg-slate-300" />
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3">
               {group.fields.map(field => (
@@ -305,7 +304,7 @@ const CompanySelector = ({ companies, onSelect }: {
   const [selected, setSelected] = useState('')
   return (
     <div className="max-w-sm mx-auto">
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="bg-white rounded-xl border border-slate-300 shadow-[0_1px_3px_rgba(16,45,90,0.08)] p-5">
         <div className="flex items-center gap-2 mb-1">
           <Users size={15} className="text-[#1a4fa0]" />
           <h2 className="text-sm font-semibold text-slate-900">¿En nombre de qué empresa?</h2>
@@ -605,7 +604,7 @@ function NuevoContratoInner() {
           {!needsCompanySelect && (
             <div className={isPreviewStep ? 'max-w-5xl mx-auto' : 'max-w-6xl mx-auto'}>
               <StepIndicator current={step} />
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <div className="bg-white rounded-xl border border-slate-300 shadow-[0_1px_3px_rgba(16,45,90,0.08)] p-5">
                 {step === 1 && <Step1 templates={templates} selected={selectedTemplate} onSelect={setSelectedTemplate} />}
                 {step === 2 && <Step2 templateFields={loadingFields ? null : templateFields} formData={formData} onChange={handleFieldChange} errors={errors} />}
                 {step === 3 && <Step3Anexos attachmentDefs={attachmentDefs} uploadedFiles={uploadedFiles} onUpload={handleUpload} onRemove={handleRemove} existingAttachments={existingAttachments} isCorrection={isCorrection} />}
