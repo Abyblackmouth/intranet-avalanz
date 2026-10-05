@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   MoreHorizontal, Eye, CheckCircle, XCircle, AlertCircle, Users,
-  ChevronLeft, ChevronRight, X, Flag, FileText, RotateCcw,
+  ChevronLeft, ChevronRight, X, Flag, FileText, RotateCcw, Rows3, Rows4,
   Clock, Calendar, Building2, User, Scale, ChevronRight as Arrow, Mail, FileDown, History,
 } from 'lucide-react'
 import { EnvelopeListItem, SLAColor, LegalRole } from '@/types/contract.types'
@@ -45,7 +45,6 @@ const Avatar = ({ name, photoUrl, size = 'md' }: { name: string; photoUrl?: stri
   const initials = name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
   const colorIdx = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % avatarColors.length
   const sz = size === 'sm' ? 'w-6 h-6 text-[10px]' : size === 'lg' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs'
-  // Si en el futuro el backend envia la foto de perfil, se muestra; si no, iniciales con color por nombre.
   if (photoUrl) {
     return <img src={photoUrl} alt={name} className={`${sz} rounded-lg object-cover shrink-0`} />
   }
@@ -56,23 +55,23 @@ const Avatar = ({ name, photoUrl, size = 'md' }: { name: string; photoUrl?: stri
   )
 }
 
-// ── Estado ────────────────────────────────────────────────────────────────────
+// ── Estado — estilo it-service-desk (opacidad) ─────────────────────────────────
 
-const STATUS_CFG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-  borrador:          { label: 'Borrador',          bg: 'bg-slate-100',   text: 'text-slate-600',  dot: 'bg-slate-400'  },
-  pendiente_legal:   { label: 'Pendiente legal',   bg: 'bg-amber-50',    text: 'text-amber-700',  dot: 'bg-amber-400'  },
-  pendiente_cliente: { label: 'Pendiente cliente', bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-400' },
-  en_revision_legal: { label: 'En revisión',       bg: 'bg-blue-50',     text: 'text-blue-700',   dot: 'bg-blue-400'   },
-  en_firmas:         { label: 'En firmas',         bg: 'bg-violet-50',   text: 'text-violet-700', dot: 'bg-violet-400' },
-  firmado_parcial:   { label: 'Firmado parcial',   bg: 'bg-purple-50',   text: 'text-purple-700', dot: 'bg-purple-400' },
-  completado:        { label: 'Completado',        bg: 'bg-green-50',    text: 'text-green-700',  dot: 'bg-green-500'  },
-  rechazado:         { label: 'Rechazado',         bg: 'bg-red-50',      text: 'text-red-700',    dot: 'bg-red-500'    },
+const STATUS_CFG: Record<string, { label: string; cls: string; dot: string }> = {
+  borrador:          { label: 'Borrador',          cls: 'bg-slate-500/[0.12] text-slate-600',     dot: 'bg-slate-400'   },
+  pendiente_legal:   { label: 'Pendiente legal',   cls: 'bg-amber-500/[0.14] text-amber-700',     dot: 'bg-amber-500'   },
+  pendiente_cliente: { label: 'Pendiente cliente', cls: 'bg-orange-500/[0.12] text-orange-700',   dot: 'bg-orange-500'  },
+  en_revision_legal: { label: 'En revisión',       cls: 'bg-blue-500/[0.12] text-blue-700',       dot: 'bg-blue-500'    },
+  en_firmas:         { label: 'En firmas',         cls: 'bg-violet-500/[0.12] text-violet-700',   dot: 'bg-violet-500'  },
+  firmado_parcial:   { label: 'Firmado parcial',   cls: 'bg-purple-500/[0.12] text-purple-700',   dot: 'bg-purple-500'  },
+  completado:        { label: 'Completado',        cls: 'bg-emerald-500/[0.14] text-emerald-700', dot: 'bg-emerald-500' },
+  rechazado:         { label: 'Rechazado',         cls: 'bg-red-500/[0.12] text-red-700',         dot: 'bg-red-500'     },
 }
 
 const StatusBadge = ({ status }: { status: string }) => {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG['borrador']
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${cfg.bg} ${cfg.text}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium whitespace-nowrap ${cfg.cls}`}>
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
       {cfg.label}
     </span>
@@ -100,10 +99,10 @@ const SLAPill = ({ item }: { item: EnvelopeListItem }) => {
   const isClosed = item.status === 'completado' || item.status === 'rechazado'
   const colorClass = isClosed ? 'text-slate-400' : item.sla_color === 'red' ? 'text-red-600' : item.sla_color === 'yellow' ? 'text-amber-600' : 'text-green-600'
   if (item.is_sla_breached && !isClosed)
-    return (<span className="flex items-center gap-1 text-red-600"><span className="text-sm">{diffDays}</span><span className="text-xs"> {diffDays === 1 ? "día" : "días"}</span></span>)
+    return (<span className="flex items-center gap-1 text-red-600 font-semibold"><span className="text-sm">{diffDays}</span><span className="text-xs"> {diffDays === 1 ? "día" : "días"}</span></span>)
   if (diffDays === 0)
-    return <span className={`text-xs font-medium ${colorClass}`}><span className="text-sm">{diffHrs}</span><span className="text-xs"> {diffHrs === 1 ? "hr" : "hrs"}</span></span>
-  return <span className={`text-xs font-medium ${colorClass}`}><span className="text-sm">{diffDays}</span><span className="text-xs"> {diffDays === 1 ? "día" : "días"}</span></span>
+    return <span className={`font-semibold ${colorClass}`}><span className="text-sm">{diffHrs}</span><span className="text-xs"> {diffHrs === 1 ? "hr" : "hrs"}</span></span>
+  return <span className={`font-semibold ${colorClass}`}><span className="text-sm">{diffDays}</span><span className="text-xs"> {diffDays === 1 ? "día" : "días"}</span></span>
 }
 
 // ── Modal de motivo ───────────────────────────────────────────────────────────
@@ -290,7 +289,6 @@ const EnvelopeSlideOver = ({
               {data?.attachments?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Documentos</p>
-                  {/* Activos */}
                   <div className="space-y-2 mb-3">
                     {data.attachments.filter((a: any) => a.is_current !== false).map((a: any) => (
                       <div key={a.id} className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
@@ -317,7 +315,6 @@ const EnvelopeSlideOver = ({
                       </div>
                     ))}
                   </div>
-                  {/* Historial de versiones — oculto para solicitante */}
                   {role !== 'solicitante' && data.attachments.filter((a: any) => a.is_current === false).length > 0 && (
                     <div>
                       <p className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1"><History size={10} />Versiones anteriores</p>
@@ -714,20 +711,24 @@ interface Props {
   perPage: number
   total: number
   onPageChange: (p: number) => void
+  onPerPageChange?: (n: number) => void
   role: LegalRole
 }
 
 export default function ContractRequestsTable({
-  items, isLoading, onRefresh, page, perPage, total, onPageChange, role,
+  items, isLoading, onRefresh, page, perPage, total, onPageChange, onPerPageChange, role,
 }: Props) {
   const totalPages = Math.ceil(total / perPage)
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [compact, setCompact] = useState(true)
 
   const showSolicitante = role !== 'solicitante'
   const showAbogado = role === 'coordinador_legal' || role === 'director' || role === 'super_admin'
 
+  const padY = compact ? 'py-1.5' : 'py-2.5'
+
   const EmptyState = () => (
-    <div className="bg-white rounded-2xl ring-1 ring-slate-200/70 shadow-[0_1px_3px_rgba(16,45,90,0.07)] p-14 text-center">
+    <div className="bg-white rounded-2xl ring-1 ring-slate-300 shadow-[0_1px_3px_rgba(16,45,90,0.08)] p-14 text-center">
       <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
         <FileText size={24} className="text-slate-400" />
       </div>
@@ -743,32 +744,49 @@ export default function ContractRequestsTable({
     </div>
   )
 
-  const Pagination = () => totalPages <= 1 ? null : (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-      <p className="text-xs text-slate-400">
-        {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} de {total} sobres
+  const Pagination = () => (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-300 bg-slate-50 gap-3 flex-wrap">
+      <p className="text-xs text-slate-500">
+        {total === 0 ? '0' : `${(page - 1) * perPage + 1}–${Math.min(page * perPage, total)}`} de {total} sobres
       </p>
-      <div className="flex items-center gap-1">
-        <button onClick={() => onPageChange(page - 1)} disabled={page === 1}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition">
-          <ChevronLeft size={15} />
-        </button>
-        {Array.from({ length: totalPages }, (_, i) => i + 1)
-          .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-          .map((p, idx, arr) => (
-            <span key={p} className="flex items-center">
-              {idx > 0 && arr[idx - 1] !== p - 1 && <span className="text-slate-300 text-xs px-1">…</span>}
-              <button onClick={() => onPageChange(p)}
-                className={`w-8 h-8 rounded-lg text-sm transition ${p === page ? 'bg-[#1a4fa0] text-white font-medium' : 'text-slate-600 hover:bg-slate-100'}`}>
-                {p}
-              </button>
-            </span>
-          ))}
-        <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition">
-          <ChevronRight size={15} />
-        </button>
-      </div>
+      {onPerPageChange && (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          Mostrar
+          <select
+            value={perPage}
+            onChange={e => onPerPageChange(Number(e.target.value))}
+            className="h-7 border border-slate-300 rounded-lg px-1.5 text-xs bg-white outline-none focus:border-[#1a4fa0] cursor-pointer"
+          >
+            <option value={13}>13</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+          por página
+        </div>
+      )}
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button onClick={() => onPageChange(page - 1)} disabled={page === 1}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition">
+            <ChevronLeft size={15} />
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+            .map((p, idx, arr) => (
+              <span key={p} className="flex items-center">
+                {idx > 0 && arr[idx - 1] !== p - 1 && <span className="text-slate-300 text-xs px-1">…</span>}
+                <button onClick={() => onPageChange(p)}
+                  className={`w-8 h-8 rounded-lg text-sm transition border ${p === page ? 'bg-[#1a4fa0] text-white font-medium border-[#1a4fa0]' : 'text-slate-600 border-slate-300 hover:bg-white'}`}>
+                  {p}
+                </button>
+              </span>
+            ))}
+          <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-white border border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
     </div>
   )
 
@@ -778,74 +796,76 @@ export default function ContractRequestsTable({
   return (
     <>
       {/* ── DESKTOP: Tabla ── */}
-      <div className="hidden md:block bg-white rounded-2xl ring-1 ring-slate-200/70 shadow-[0_1px_3px_rgba(16,45,90,0.07)] overflow-hidden">
+      <div className="hidden md:block bg-white rounded-2xl ring-1 ring-slate-300 shadow-[0_4px_14px_-6px_rgba(16,45,90,0.14)] overflow-hidden">
+        {/* Barra de densidad */}
+        <div className="flex items-center justify-end px-4 py-2 border-b border-slate-200 bg-slate-50/70">
+          <div className="inline-flex items-center rounded-lg border border-slate-300 bg-white overflow-hidden">
+            <button onClick={() => setCompact(false)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11.5px] font-medium transition ${!compact ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+              <Rows3 size={13} /> Cómoda
+            </button>
+            <button onClick={() => setCompact(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11.5px] font-medium transition border-l border-slate-200 ${compact ? 'bg-[#1a4fa0] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+              <Rows4 size={13} /> Compacta
+            </button>
+          </div>
+        </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="w-full table-fixed" style={{ borderCollapse: 'collapse', fontSize: 13 }}>
-            <colgroup>
-              <col style={{ width: '3%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '8%' }} />
-              {showSolicitante && <><col style={{ width: '11%' }} /><col style={{ width: '23%' }} /></>}
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '11%' }} />
-              {showAbogado && <col style={{ width: '18%' }} />}
-              <col style={{ width: '4%' }} />
-            </colgroup>
+          <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 13, tableLayout: 'auto' }}>
             <thead>
-              <tr className="bg-slate-50/60 border-b border-slate-100">
-                <th className="px-3 py-2.5" />
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Folio</th>
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Tipo</th>
-                {showSolicitante && <><th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Empresa</th><th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Solicitante</th></>}
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">{role === 'solicitante' ? "Enviado" : "Recibido"}</th>
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Días</th>
-                <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Estado</th>
-                {showAbogado && <th className="text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-2.5">Abogado</th>}
-                <th className="px-3 py-2.5 w-10" />
+              <tr className="bg-slate-100 border-b-2 border-slate-300">
+                <th className="px-4 max-[1440px]:px-2.5 py-2.5 w-9" />
+                <th className="text-left text-[10.5px] font-semibold text-slate-600 uppercase tracking-wider px-4 max-[1440px]:px-2.5 py-2.5">Folio</th>
+                <th className="text-left text-[10.5px] font-semibold text-slate-600 uppercase tracking-wider px-4 max-[1440px]:px-2.5 py-2.5">Tipo</th>
+                {showSolicitante && <><th className="text-left text-[10.5px] font-semibold text-slate-600 uppercase tracking-wider px-4 max-[1440px]:px-2.5 py-2.5">Empresa</th><th className="text-left text-[10.5px] font-semibold text-slate-600 uppercase tracking-wider px-4 max-[1440px]:px-2.5 py-2.5">Solicitante</th></>}
+                <th className="text-left text-[10.5px] font-semibold text-slate-600 uppercase tracking-wider px-4 max-[1440px]:px-2.5 py-2.5">{role === 'solicitante' ? "Enviado" : "Recibido"}</th>
+                <th className="text-left text-[10.5px] font-semibold text-slate-600 uppercase tracking-wider px-4 max-[1440px]:px-2.5 py-2.5">Días</th>
+                <th className="text-left text-[10.5px] font-semibold text-slate-600 uppercase tracking-wider px-4 max-[1440px]:px-2.5 py-2.5">Estado</th>
+                {showAbogado && <th className="text-left text-[10.5px] font-semibold text-slate-600 uppercase tracking-wider px-4 max-[1440px]:px-2.5 py-2.5">Abogado</th>}
+                <th className="px-4 max-[1440px]:px-2.5 py-2.5 w-10" />
               </tr>
             </thead>
             <tbody>
               {items.map(item => (
                 <tr
                   key={item.id}
-                  className="group border-b border-slate-50 last:border-0 hover:bg-slate-50 hover:shadow-[inset_3px_0_0_0_#1a4fa0] transition-all duration-150 cursor-pointer"
+                  className="group border-b border-slate-200 last:border-0 even:bg-slate-50/40 hover:!bg-blue-50/50 hover:shadow-[inset_3px_0_0_0_#1a4fa0] transition-all duration-150 cursor-pointer"
                   onClick={() => setDetailId(item.id)}
                 >
-                  <td className="px-3 py-3 text-center"><SLADot color={item.sla_color} status={item.status} /></td>
-                  <td className="px-3 py-3">
-                    <span className="font-bold text-[#1a4fa0] font-mono group-hover:underline">{item.folio}</span>
+                  <td className={`px-4 max-[1440px]:px-2.5 ${padY} text-center`}><SLADot color={item.sla_color} status={item.status} /></td>
+                  <td className={`px-4 max-[1440px]:px-2.5 ${padY}`}>
+                    <span className="font-bold text-[#1a4fa0] font-mono text-xs group-hover:underline whitespace-nowrap">{item.folio}</span>
                   </td>
-                  <td className="px-3 py-3 text-slate-600">{item.contract_type_name}</td>
+                  <td className={`px-4 max-[1440px]:px-2.5 ${padY} text-slate-700 font-medium max-w-[200px] truncate`} title={item.contract_type_name}>{item.contract_type_name}</td>
                   {showSolicitante && (
                     <>
-                      <td className="px-3 py-3 text-xs text-slate-500 font-medium uppercase truncate">{item.company_name}</td>
-                      <td className="px-3 py-3">
+                      <td className={`px-4 max-[1440px]:px-2.5 ${padY} text-xs text-slate-500 font-semibold uppercase whitespace-nowrap`}>{item.company_name}</td>
+                      <td className={`px-4 max-[1440px]:px-2.5 ${padY}`}>
                         <div className="flex items-center gap-2 min-w-0">
                           <Avatar name={item.requested_by_name} photoUrl={(item as any).requested_by_photo_url} size="sm" />
-                          <p className="text-sm text-slate-700 truncate leading-tight">{item.requested_by_name}</p>
+                          <p className="text-sm text-slate-700 leading-tight whitespace-nowrap">{item.requested_by_name}</p>
                         </div>
                       </td>
                     </>
                   )}
-                  <td className="px-3 py-3 text-xs text-slate-500">{formatDate(item.submitted_at)}</td>
-                  <td className="px-3 py-3"><SLAPill item={item} /></td>
-                  <td className="px-3 py-3"><StatusBadge status={item.status} /></td>
+                  <td className={`px-4 max-[1440px]:px-2.5 ${padY} text-xs text-slate-500 whitespace-nowrap`}>{formatDate(item.submitted_at)}</td>
+                  <td className={`px-4 max-[1440px]:px-2.5 ${padY}`}><SLAPill item={item} /></td>
+                  <td className={`px-4 max-[1440px]:px-2.5 ${padY}`}><StatusBadge status={item.status} /></td>
                   {showAbogado && (
-                    <td className="px-3 py-3">
+                    <td className={`px-4 max-[1440px]:px-2.5 ${padY}`}>
                       {item.assigned_lawyer_name ? (
                         <div className="flex items-center gap-2 min-w-0">
                           <Avatar name={item.assigned_lawyer_name} photoUrl={(item as any).assigned_lawyer_photo_url} size="sm" />
-                          <span className="text-sm text-slate-700 truncate">{item.assigned_lawyer_name}</span>
+                          <span className="text-sm text-slate-700 whitespace-nowrap">{item.assigned_lawyer_name}</span>
                         </div>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs text-slate-400 border border-dashed border-slate-300">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] text-slate-400 italic border border-dashed border-slate-300">
                           Sin asignar
                         </span>
                       )}
                     </td>
                   )}
-                  <td className="px-2 py-3" onClick={e => e.stopPropagation()}>
+                  <td className={`px-2 ${padY}`} onClick={e => e.stopPropagation()}>
                     <ActionMenu item={item} role={role} onRefresh={() => onRefresh(true)} onViewDetail={() => setDetailId(item.id)} />
                   </td>
                 </tr>

@@ -197,7 +197,8 @@ export default function LoginPage() {
         <div style={{
           background: 'white',
           borderRadius: '20px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.04), 0 12px 40px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.05), 0 18px 50px rgba(15,31,56,0.16), 0 0 0 1px rgba(15,23,42,0.12)',
+          border: '1px solid #cbd5e1',
           padding: '40px 36px 36px',
         }}>
 

@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, SlidersHorizontal, Flag, FileCheck, Clock } from 'lucide-react'
-import PageWrapper from '@/components/layout/PageWrapper'
+import { Plus, Search, X } from 'lucide-react'
 import ContractRequestsTable from '@/components/app/legal/ContractRequestsTable'
 import { useAuthStore } from '@/store/authStore'
 import { ContractRequestListItem, ContractType } from '@/types/contract.types'
@@ -11,16 +10,14 @@ import { useWSEvent } from '@/hooks/useWebSocket'
 
 type LegalRole = 'solicitante' | 'jefe_solicitante' | 'abogado' | 'coordinador_legal' | 'director' | 'super_admin'
 
-const STATUS_OPTIONS = [
-  { value: 'all',               label: 'Todos los estados' },
-  { value: 'borrador',          label: 'Borrador' },
-  { value: 'pendiente_legal',   label: 'Pendiente legal' },
-  { value: 'pendiente_cliente', label: 'Pendiente cliente' },
-  { value: 'en_revision_legal', label: 'En revisión legal' },
-  { value: 'en_firmas',         label: 'En firmas' },
-  { value: 'firmado_parcial',   label: 'Firmado parcial' },
-  { value: 'completado',        label: 'Completado' },
-  { value: 'rechazado',         label: 'Rechazado' },
+const QUICK_CHIPS: { value: string; label: string; dot: string }[] = [
+  { value: 'all',               label: 'Todos',             dot: '' },
+  { value: 'pendiente_legal',   label: 'Pendiente legal',   dot: '#f59e0b' },
+  { value: 'en_revision_legal', label: 'En revisión',       dot: '#3b82f6' },
+  { value: 'pendiente_cliente', label: 'Pendiente cliente', dot: '#f97316' },
+  { value: 'en_firmas',         label: 'En firmas',         dot: '#8b5cf6' },
+  { value: 'completado',        label: 'Completado',        dot: '#10b981' },
+  { value: 'rechazado',         label: 'Rechazado',         dot: '#ef4444' },
 ]
 
 const resolveLegalRole = (roles: string[]): LegalRole => {
@@ -41,7 +38,7 @@ export default function ContractRequestsPage() {
   const [items, setItems] = useState<ContractRequestListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [perPage] = useState(8)
+  const [perPage, setPerPage] = useState(13)
   const [isLoading, setIsLoading] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
 
@@ -53,6 +50,7 @@ export default function ContractRequestsPage() {
   const [totalActive, setTotalActive] = useState(0)
   const [totalOverdue, setTotalOverdue] = useState(0)
   const [totalInSignatures, setTotalInSignatures] = useState(0)
+  const [totalCompleted, setTotalCompleted] = useState(0)
 
   const legalRole: LegalRole = mounted && user
     ? resolveLegalRole((user as any).roles || [])
@@ -89,14 +87,16 @@ export default function ContractRequestsPage() {
 
   const fetchKPIs = useCallback(async () => {
     try {
-      const [activeRes, overdueRes, signaturesRes] = await Promise.all([
+      const [activeRes, overdueRes, signaturesRes, completedRes] = await Promise.all([
         getEnvelopes({ per_page: 1 }),
         getEnvelopes({ per_page: 1, is_sla_breached: true }),
         getEnvelopes({ per_page: 1, status: 'en_firmas' }),
+        getEnvelopes({ per_page: 1, status: 'completado' }),
       ])
       setTotalActive(activeRes.data.total || 0)
       setTotalOverdue(overdueRes.data.total || 0)
       setTotalInSignatures(signaturesRes.data.total || 0)
+      setTotalCompleted(completedRes.data.total || 0)
     } catch {
       // silencioso
     }
@@ -104,14 +104,13 @@ export default function ContractRequestsPage() {
 
   useEffect(() => { fetchContractTypes() }, [fetchContractTypes])
   useEffect(() => { fetchKPIs() }, [fetchKPIs, refreshTick])
-  useEffect(() => { fetchItems() }, [page, search, filterStatus, filterType, refreshTick])
+  useEffect(() => { fetchItems() }, [page, perPage, search, filterStatus, filterType, refreshTick])
 
   const handleRefresh = (silent = false) => {
     setRefreshTick(t => t + 1)
     if (!silent) fetchItems(false)
   }
 
-  // Auto-refresh tabla via WebSocket
   useWSEvent('legal.tabla_actualizada', useCallback(() => {
     setRefreshTick(t => t + 1)
   }, []))
@@ -128,116 +127,111 @@ export default function ContractRequestsPage() {
     setPage(1)
   }
 
+  const selectChip = (value: string) => {
+    setFilterStatus(value)
+    setPage(1)
+  }
+
   const showNewButton = legalRole === 'solicitante' || legalRole === 'jefe_solicitante' || legalRole === 'super_admin'
 
+  const Stat = ({ n, label, color }: { n: number; label: string; color: string }) => (
+    <div className="flex items-center gap-2">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+      <span className="text-[15px] font-bold tabular-nums leading-none" style={{ color }}>{n}</span>
+      <span className="text-xs text-slate-500">{label}</span>
+    </div>
+  )
+
   return (
-    <PageWrapper
-      title="Solicitud de contratos"
-      description="Gestiona y da seguimiento a las solicitudes legales del grupo"
-      actions={
-        mounted && showNewButton ? (
-          <button onClick={() => router.push('/app/legal/solicitud-de-contratos/nuevo')} className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-            <Plus size={16} />
-            Crear contrato
-          </button>
-        ) : undefined
-      }
-    >
-      {/* KPIs — en una sola linea, mas delgados */}
-      <div className="grid grid-cols-3 gap-3 mb-3">
-        <div className="bg-white rounded-xl ring-1 ring-slate-200/70 shadow-[0_1px_2px_rgba(16,45,90,0.05)] px-4 py-2.5 flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-            <FileCheck size={15} className="text-[#1a4fa0]" />
-          </div>
-          <p className="text-lg font-bold text-slate-900 leading-none">{totalActive}</p>
-          <p className="text-xs text-slate-500">Solicitudes activas</p>
-        </div>
-        <div className="bg-white rounded-xl ring-1 ring-slate-200/70 shadow-[0_1px_2px_rgba(16,45,90,0.05)] px-4 py-2.5 flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-            <Flag size={15} className="text-red-600" />
-          </div>
-          <p className="text-lg font-bold text-red-600 leading-none">{totalOverdue}</p>
-          <p className="text-xs text-slate-500">Atrasadas (SLA vencido)</p>
-        </div>
-        <div className="bg-white rounded-xl ring-1 ring-slate-200/70 shadow-[0_1px_2px_rgba(16,45,90,0.05)] px-4 py-2.5 flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
-            <Clock size={15} className="text-violet-600" />
-          </div>
-          <p className="text-lg font-bold text-violet-600 leading-none">{totalInSignatures}</p>
-          <p className="text-xs text-slate-500">En espera de firmas</p>
-        </div>
-      </div>
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-auto px-6 pt-4 pb-6 min-h-0">
 
-      {/* Filtros */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 mb-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-48">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Buscar</label>
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Folio o solicitante..."
-                autoComplete="off"
-                value={search}
-                onChange={handleSearch}
-                className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
-              />
-            </div>
+        {/* Fila 1: stats (mismo contenedor/ancho que filtros) + boton Crear contrato a la misma altura */}
+        <div className="flex items-stretch gap-2 mb-2.5">
+          <div className="flex-1 flex items-center flex-wrap gap-x-6 gap-y-2 bg-white rounded-xl border border-slate-200 px-4 py-2.5">
+            <Stat n={totalActive} label="Activas" color="#1a4fa0" />
+            <span className="w-px h-4 bg-slate-200" />
+            <Stat n={totalOverdue} label="Atrasadas" color="#dc2626" />
+            <span className="w-px h-4 bg-slate-200" />
+            <Stat n={totalInSignatures} label="En firmas" color="#7c3aed" />
+            <span className="w-px h-4 bg-slate-200" />
+            <Stat n={totalCompleted} label="Completadas" color="#059669" />
           </div>
-
-          <div className="min-w-44">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
-            <select
-              value={filterStatus}
-              onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          {mounted && showNewButton && (
+            <button
+              onClick={() => router.push('/app/legal/solicitud-de-contratos/nuevo')}
+              className="inline-flex items-center gap-2 shrink-0 px-4 rounded-xl bg-[#1a4fa0] text-white text-[13px] font-semibold shadow-sm transition hover:bg-[#153f82]"
             >
-              {STATUS_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+              <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center"><Plus size={13} strokeWidth={2.5} /></span>
+              Crear contrato
+            </button>
+          )}
+        </div>
+
+        {/* Fila 2: filtros */}
+        <div className="flex items-center flex-wrap gap-2 mb-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por folio, solicitante o tipo…"
+              autoComplete="off"
+              value={search}
+              onChange={handleSearch}
+              className="w-full pl-9 pr-3 h-9 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-400 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/15 transition"
+            />
           </div>
 
-          <div className="min-w-44">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Tipo de contrato</label>
-            <select
-              value={filterType}
-              onChange={e => { setFilterType(e.target.value); setPage(1) }}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">Todos los tipos</option>
-              {contractTypes.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
+          {QUICK_CHIPS.map(c => {
+            const on = filterStatus === c.value
+            return (
+              <button
+                key={c.value}
+                onClick={() => selectChip(c.value)}
+                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 h-9 rounded-lg border transition ${
+                  on ? 'bg-slate-800 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-[#1a4fa0] hover:text-[#1a4fa0]'
+                }`}
+              >
+                {c.dot && <span className="w-[6px] h-[6px] rounded-full" style={{ background: c.dot }} />}
+                {c.label}
+              </button>
+            )
+          })}
 
-          <button
-            onClick={handleClearFilters}
-            className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition"
+          <select
+            value={filterType}
+            onChange={e => { setFilterType(e.target.value); setPage(1) }}
+            className="h-9 px-3 border border-slate-300 rounded-lg text-xs text-slate-700 bg-white outline-none focus:border-[#1a4fa0] cursor-pointer"
           >
-            <SlidersHorizontal size={14} />
-            Limpiar
-          </button>
+            <option value="all">Todos los tipos</option>
+            {contractTypes.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+
+          {(search || filterStatus !== 'all' || filterType !== 'all') && (
+            <button
+              onClick={handleClearFilters}
+              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 h-9 px-2"
+            >
+              <X size={13} /> Limpiar
+            </button>
+          )}
         </div>
 
-        <p className="text-xs text-slate-400 mt-3">
-          Mostrando {items.length} de {total} sobres
-        </p>
+        {/* Tabla */}
+        <ContractRequestsTable
+          items={items}
+          isLoading={isLoading}
+          onRefresh={handleRefresh}
+          page={page}
+          perPage={perPage}
+          total={total}
+          onPageChange={setPage}
+          onPerPageChange={(n) => { setPerPage(n); setPage(1) }}
+          role={legalRole}
+        />
       </div>
-
-      {/* Tabla */}
-      <ContractRequestsTable
-        items={items}
-        isLoading={isLoading}
-        onRefresh={handleRefresh}
-        page={page}
-        perPage={perPage}
-        total={total}
-        onPageChange={setPage}
-        role={legalRole}
-      />
-    </PageWrapper>
+    </div>
   )
 }
