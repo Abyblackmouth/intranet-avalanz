@@ -1,6 +1,7 @@
 'use client'
 
 // Liga pública para subir el formato firmado (firma manual), sin iniciar sesión.
+import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, FileUp, AlertTriangle, Loader2 } from 'lucide-react'
@@ -23,6 +24,7 @@ export default function SubirFirmado() {
       .catch(e => setError(e.message || 'Liga no válida'))
   }, [token])
   const agregar = (fs: File[]) => setArchivos(prev => [...prev, ...fs.filter(f => /pdf|jpeg|png|webp/.test(f.type))].slice(0, 10))
+  usePegarImagenes(agregar)   // Ctrl + V pega capturas como evidencia
   const subir = async () => {
     setSubiendo(true); setError(null)
     const fd = new FormData(); archivos.forEach(f => fd.append('archivos', f))

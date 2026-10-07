@@ -1,5 +1,6 @@
 'use client'
 
+import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import { useState } from 'react'
 import { submitCdcRevision } from '@/services/itServiceDeskService'
 import { X, Plus, Paperclip } from 'lucide-react'
@@ -55,6 +56,7 @@ export default function CdcRevisionForm({ incidentId, originalDescription, onDon
   const [motivo, setMotivo] = useState('')
   const [comentarios, setComentarios] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  usePegarImagenes(imgs => setFiles(prev => [...prev, ...imgs]))   // Ctrl + V pega capturas como evidencia
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [confirming, setConfirming] = useState(false)
   const [submitting, setSubmitting] = useState(false)

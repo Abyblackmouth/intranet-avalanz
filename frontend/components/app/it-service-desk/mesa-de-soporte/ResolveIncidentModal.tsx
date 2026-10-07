@@ -1,5 +1,6 @@
 'use client'
 
+import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import { useState } from 'react'
 import { X, CheckCircle2, Paperclip } from 'lucide-react'
 import { resolveIncident } from '@/services/itServiceDeskService'
@@ -13,6 +14,7 @@ export default function ResolveIncidentModal({ incidentId, folio, onClose, onRes
   const [resolutionType, setResolutionType] = useState('causa_raiz')
   const [rcaText, setRcaText] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  usePegarImagenes(imgs => setFiles(prev => [...prev, ...imgs]))   // Ctrl + V pega capturas como evidencia
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -68,7 +70,7 @@ export default function ResolveIncidentModal({ incidentId, folio, onClose, onRes
             value={rcaText}
             onChange={e => setRcaText(e.target.value)}
             rows={3}
-            placeholder="Describe brevemente la solución aplicada"
+            placeholder="Describe brevemente la solución aplicada · Puedes pegar capturas aquí con Ctrl + V"
             className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500 resize-none mb-3"
           />
 

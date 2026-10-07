@@ -1,5 +1,6 @@
 'use client'
 
+import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import { useState } from 'react'
 import { submitCdcPriorizacion } from '@/services/itServiceDeskService'
 import { X, Paperclip, Check, Pencil } from 'lucide-react'
@@ -108,6 +109,7 @@ export default function CdcPriorizacionForm({ incidentId, solicitado, esfuerzoRe
   const [responsable, setResponsable] = useState('')
   const [notas, setNotas] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  usePegarImagenes(imgs => setFiles(prev => [...prev, ...imgs]))   // Ctrl + V pega capturas como evidencia
   const [confirming, setConfirming] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)

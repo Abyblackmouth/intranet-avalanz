@@ -1,5 +1,6 @@
 'use client'
 
+import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import { useCallback, useEffect, useState } from 'react'
 import { getDesarrollo, registrarAvance, saveEntregaBorrador, generarEntrega, liberarPruebas, getDesarrolloCandidatos, reasignarDesarrollo } from '@/services/itServiceDeskService'
 import { getSignedUrl } from '@/services/uploadService'
@@ -81,6 +82,7 @@ export default function CdcDesarrollo({ incidentId, onChanged }: { incidentId: s
   const [cambios, setCambios] = useState<Record<string, { estado: EstadoRt; horas: string }>>({})
   const [comentario, setComentario] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  usePegarImagenes(imgs => setFiles(prev => [...prev, ...imgs]))   // Ctrl + V pega capturas como evidencia
   const [notaAbierta, setNotaAbierta] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ donde: string; ok: boolean; text: string } | null>(null)
