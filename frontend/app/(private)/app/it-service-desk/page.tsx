@@ -656,15 +656,19 @@ export default function ItServiceDeskDashboardPage() {
   return (
     <PaletaCtx.Provider value={c}>
       <div className="w-full shrink-0 min-h-[calc(100vh-49px)] bg-[var(--bg)] text-[14px] leading-[1.5] antialiased transition-colors" style={vars}>
-        <div className="w-full px-6 pt-5 pb-12">
-          <header className="flex flex-wrap items-end justify-between gap-4 mb-4">
-            <div>
-              <h1 className={`text-[22px] font-semibold m-0 ${INK}`}>Dashboard de métricas</h1>
-              <p className={`mt-0.5 mb-0 ${INK2}`}>
-                {hasFullAccess ? 'Vista completa del módulo' : `Vista de tu especialidad (${data?.scope ?? '...'})`}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="w-full px-6 pt-3 pb-12">
+          {/* Sin titulo: la ruta del navbar ya dice donde estas. Pestanas a la izquierda y filtros a la derecha, en una sola fila */}
+          <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 mb-5 border-b border-[var(--line)]">
+            <nav role="tablist" aria-label="Vistas del dashboard" className="flex gap-0.5 overflow-x-auto overflow-y-hidden -mb-px">
+              {TABS.map(t => (
+                <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+                  className={`font-[inherit] text-[14px] px-3.5 py-2.5 whitespace-nowrap bg-transparent border-0 border-b-[3px] cursor-pointer ${tab === t.id ? 'font-semibold' : `font-medium border-transparent ${INK2}`}`}
+                  style={tab === t.id ? { color: c.navy, borderBottomColor: c.navy } : undefined}>
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+            <div className="flex flex-wrap items-center gap-2 pb-2">
               <select aria-label="Empresa" value={empresa} onChange={e => setEmpresa(e.target.value)} className={control}>
                 <option value="">Todas las empresas</option>
                 {data?.opciones?.empresas?.map((e: D) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
@@ -682,15 +686,6 @@ export default function ItServiceDeskDashboardPage() {
             </div>
           </header>
 
-          <nav role="tablist" aria-label="Vistas del dashboard" className="flex gap-0.5 border-b border-[var(--line)] mb-5 overflow-x-auto overflow-y-hidden">
-            {TABS.map(t => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-                className={`font-[inherit] text-[14px] px-3.5 py-2.5 whitespace-nowrap bg-transparent border-0 border-b-[3px] cursor-pointer ${tab === t.id ? 'font-semibold' : `font-medium border-transparent ${INK2}`}`}
-                style={tab === t.id ? { color: c.navy, borderBottomColor: c.navy } : undefined}>
-                {t.label}
-              </button>
-            ))}
-          </nav>
 
           {loading && !data ? (
             <div className="flex items-center justify-center h-64">

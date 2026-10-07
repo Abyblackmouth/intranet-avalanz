@@ -21,6 +21,8 @@ const PAGINAS_FIJAS: Record<string, string> = {
   '/admin': 'Panel admin', '/admin/users': 'Usuarios', '/admin/companies': 'Empresas', '/admin/groups': 'Grupos',
   '/admin/modules': 'Módulos', '/admin/roles': 'Roles', '/admin/permissions': 'Permisos', '/profile': 'Mi perfil',
 }
+// Nombre de la pagina principal de cada modulo en la ruta (por defecto, Inicio)
+const PAGINA_PRINCIPAL: Record<string, string> = { 'it-service-desk': 'Dashboard de métricas' }
 const nombreDe = (slug: string) => (slug || '').split('-').map(w => (w ? w.charAt(0).toUpperCase() + w.slice(1) : '')).join(' ')
 
 // Ruta de la pantalla actual: [{ texto, href? }]. Sustituye a los titulos de cada pantalla.
@@ -29,7 +31,7 @@ function rutaDe(pathname: string, modules: any[]): { texto: string; href?: strin
   if (m) {
     const mod = modules.find((x: any) => (typeof x === 'string' ? x : x.slug) === m[1])
     const modNombre = (mod && typeof mod !== 'string' && mod.name) || nombreDe(m[1])
-    if (!m[2]) return [{ texto: modNombre }]
+    if (!m[2]) return [{ texto: modNombre, href: `/app/${m[1]}` }, { texto: PAGINA_PRINCIPAL[m[1]] ?? 'Inicio' }]
     const sub = mod && typeof mod !== 'string' ? (mod.submodules ?? []).find((s: any) => s.slug === m[2]) : null
     return [{ texto: modNombre, href: `/app/${m[1]}` }, { texto: sub?.name ?? nombreDe(m[2]) }]
   }
@@ -115,7 +117,7 @@ export default function Header() {
         <Link href="/" className="hover:text-[#475569] transition-colors shrink-0">Inicio</Link>
         {ruta.map((r, i) => (
           <span key={i} className="flex items-center gap-2 min-w-0">
-            <span className="text-[#cbd5e1] shrink-0">{i === 0 ? '/' : '·'}</span>
+            <span className="text-[#cbd5e1] shrink-0">/</span>
             {r.href ? (
               <Link href={r.href} className="hover:text-[#1a4fa0] transition-colors truncate text-[#475569]">{r.texto}</Link>
             ) : (
