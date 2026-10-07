@@ -63,7 +63,12 @@ export default function AccResumenSolicitud({ incidentId, fallback, estado, asig
   const [errorRev, setErrorRev] = useState<string | null>(null)
   const yo: any = (useAuthStore.getState() as any).user ?? {}
   const misRoles: string[] = yo.roles ?? []
-  const puedeRevisar = misRoles.includes('it-service-desk:incident-manager') || misRoles.includes('super_admin')
+  // Super admin se reconoce por el rol o por la marca de la sesion (igual que el backend)
+  const esSuperAdmin = misRoles.includes('super_admin') || !!yo.is_super_admin || !!(useAuthStore.getState() as any).isSuperAdmin?.()
+  const miId = String(yo.id ?? yo.user_id ?? '')
+  const puedeRevisar = misRoles.includes('it-service-desk:incident-manager') || esSuperAdmin
+  // La contrasena temporal la guarda TI: Incident Manager, super admin o el encargado del formato
+  const puedeFirmaTI = puedeRevisar || (!!(r as any)?.encargado_id && (r as any).encargado_id === miId) || (!!asignadoId && String(asignadoId) === miId)
     || (!!asignadoId && String(asignadoId) === String(yo.user_id ?? yo.id ?? ''))
   const recargar = () => accResumenSolicitud(incidentId).then(x => setR(x.data)).catch(() => {})
   const enviarRevision = async () => {
@@ -201,7 +206,7 @@ export default function AccResumenSolicitud({ incidentId, fallback, estado, asig
               <b>Usuario → Jefe directo{r.revision?.jefe_admin ? ` → ${r.revision.jefe_admin.nombre} (jefe administrativo)` : ''} → TI</b>.
             </p>
             {r.metodo_firma === 'manual' && r.estado_firma === 'por_firmar' && <p className="text-[13px] text-amber-700">Esperando el documento firmado del usuario.</p>}
-            {puedeRevisar && (r.metodo_firma === 'docusign' || r.estado_firma === 'por_liberar') && (
+            {puedeFirmaTI && (r.metodo_firma !== 'manual' || r.estado_firma === 'por_liberar') && (
               <div className="grid gap-2.5 border border-slate-300 rounded-lg p-3 bg-slate-50/60">
                 {r.metodo_firma === 'manual' && <p className="text-[13px] text-emerald-700 font-medium">El usuario subió el formato firmado (está en las evidencias). Revisa que estén todas las firmas.</p>}
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Contraseña temporal para el sistema</label>

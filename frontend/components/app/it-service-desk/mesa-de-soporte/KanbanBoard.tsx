@@ -62,7 +62,7 @@ function TicketCard({ ticket, severities, unlocked, onDoubleClick, dragHandlePro
   isExiting?: boolean
 }) {
   const sev = severities.find(s => s.id === (ticket.severity_validated_id ?? ticket.severity_reported_id))
-  const overdue = ticket.sla_resolution_limit && !['resuelto', 'cerrado'].includes(ticket.status) && new Date(ticket.sla_resolution_limit) < new Date()
+  const overdue = ticket.sla_resolution_limit && !['resuelto', 'cerrado', 'terminado', 'rechazado', 'cancelado'].includes(ticket.status) && new Date(ticket.sla_resolution_limit) < new Date()
 
   return (
     <div

@@ -54,6 +54,15 @@ MODULE_WIDE_ROLES = {
 }
 
 
+async def _empresas_jefe(user: dict) -> list:
+    """Empresa que puede ver un Jefe Empresa: la de su perfil en admin-service.
+    No se usa la lista de la sesion (su primer elemento es siempre AVALANZ).
+    Si no se puede saber, lista vacia: quien llama cierra a solo sus tickets."""
+    from app.services.empresa_usuario import empresa_de
+    cid = await empresa_de(user.get("user_id"))
+    return [cid] if cid else []
+
+
 @router.get("/incidencias")
 async def list_incidents(
     status: Optional[str] = None,
@@ -79,9 +88,13 @@ async def list_incidents(
     query = select(Incident).order_by(order_col)
 
     if is_jefe_empresa and not is_module_wide:
-        companies = user.get("companies") or []
-        if companies:
-            query = query.where(Incident.company_id.in_(companies))
+        from sqlalchemy import cast, String
+        empresas = await _empresas_jefe(user)
+        if empresas:
+            query = query.where(cast(Incident.company_id, String).in_(empresas))
+        else:
+            # Sin empresa conocida se cierra: solo sus propios tickets, nunca todos
+            query = query.where(Incident.requester_id == user.get("user_id"))
     elif not is_module_wide:
         # Solicitante -- solo ve lo suyo
         if "it-service-desk:tecnico" in roles:   # técnico (apoyo externo): lo que levantó y lo asignado a él
@@ -113,14 +126,11 @@ async def list_incidents(
     import httpx
     names_cache: dict = {}
     unique_assignees = {i.assigned_to_user_id for i in incidents if i.assigned_to_user_id}
-    if unique_assignees:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            for uid in unique_assignees:
-                try:
-                    resp = await client.get(f"http://admin-service:8000/internal/users/{uid}/profile")
-                    names_cache[uid] = resp.json().get("full_name") if resp.status_code == 200 else None
-                except Exception:
-                    names_cache[uid] = None
+    for uid in unique_assignees:
+        try:
+            names_cache[uid] = (await _get_requester_profile(str(uid))).get("full_name")
+        except Exception:
+            names_cache[uid] = None
 
     # CDC guarda su sistema/modulo en control_cambios_detalle, no en
     # incidents (que se queda NULL para CDC) -- se resuelve aqui para
@@ -183,7 +193,7 @@ async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_d
 
     if not is_module_wide and not is_owner:
         if is_jefe_empresa:
-            if incident.company_id not in (user.get("companies") or []):
+            if str(incident.company_id) not in await _empresas_jefe(user):
                 raise HTTPException(status_code=403, detail="No tienes acceso a este ticket")
         else:
             raise HTTPException(status_code=403, detail="No tienes acceso a este ticket")
@@ -223,6 +233,7 @@ async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_d
         "is_sla_breached": incident.is_sla_breached,
         "resolved_at": incident.resolved_at.isoformat() if incident.resolved_at else None,
         "resolution_type": incident.resolution_type,
+        "rca_text": incident.rca_text,
         "closed_at": incident.closed_at.isoformat() if incident.closed_at else None,
         "created_at": incident.created_at.isoformat(),
         "attachments": [
@@ -284,15 +295,40 @@ async def _upload_evidence_files(
 # Perfil del solicitante -- llamada interna a admin-service
 # ------------------------------------------------------------------
 
+# Perfiles de admin-service con memoria: los nombres casi nunca cambian y
+# admin-service limita las peticiones (429). Sin esta memoria, cada carga de
+# la lista o del detalle le preguntaba por cada persona y, al rebasar el
+# limite, la pantalla mostraba "Sin asignar" o el detalle no abria.
+_PERFILES: Dict[str, tuple] = {}
+_PERFIL_TTL = 600   # segundos
+
+
 async def _get_requester_profile(user_id: str) -> Dict[str, Any]:
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"http://admin-service:8000/internal/users/{user_id}/profile")
-            if resp.status_code != 200:
-                raise HTTPException(status_code=502, detail="No se pudo obtener el perfil del solicitante")
-            return resp.json()
-    except httpx.HTTPError:
-        raise HTTPException(status_code=502, detail="Error al comunicarse con admin-service")
+    import asyncio, time
+    clave = str(user_id)
+    ahora = time.monotonic()
+    guardado = _PERFILES.get(clave)
+    if guardado and ahora - guardado[0] < _PERFIL_TTL:
+        return guardado[1]
+    for intento in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"http://admin-service:8000/internal/users/{clave}/profile")
+            if resp.status_code == 200:
+                perfil = resp.json()
+                _PERFILES[clave] = (time.monotonic(), perfil)
+                return perfil
+            if resp.status_code == 429 and intento < 2:
+                await asyncio.sleep(0.4 * (intento + 1))
+                continue
+            break
+        except httpx.HTTPError:
+            if intento < 2:
+                await asyncio.sleep(0.3)
+                continue
+    if guardado:
+        return guardado[1]   # el ultimo conocido es mejor que tronar la pantalla
+    raise HTTPException(status_code=502, detail="No se pudo obtener el perfil del solicitante")
 
 
 # ------------------------------------------------------------------
@@ -527,15 +563,26 @@ async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
     tok = result.scalar_one_or_none()
     if not tok:
         raise HTTPException(status_code=404, detail="Enlace invalido")
-    if tok.used_at is not None:
-        raise HTTPException(status_code=410, detail="Este enlace ya fue utilizado")
-    if tok.expires_at < datetime.now(timezone.utc):
+    # Una liga ya usada no permite atender; si el ticket ya esta resuelto o
+    # cerrado, se puede consultar en modo solo lectura.
+    usado = tok.used_at is not None
+    if not usado and tok.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=410, detail="Este enlace ha expirado")
 
     inc_result = await db.execute(select(Incident).where(Incident.id == tok.incident_id))
     incident = inc_result.scalar_one_or_none()
     if not incident:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    ya_resuelto = incident.status in ("resuelto", "cerrado")
+    if usado and not ya_resuelto:
+        # Si el ticket ahora es de otra persona, se dice a quien se reasigno
+        if incident.assigned_to_user_id and str(incident.assigned_to_user_id) != str(tok.created_for_user_id):
+            try:
+                nombre = (await _get_requester_profile(str(incident.assigned_to_user_id))).get("full_name") or ""
+            except Exception:
+                nombre = ""
+            raise HTTPException(status_code=410, detail=f"Este ticket fue reasignado a {nombre}" if nombre else "Este ticket fue reasignado a otra persona")
+        raise HTTPException(status_code=410, detail="Este enlace ya fue utilizado")
 
     sev_result = await db.execute(
         select(TicketSeverity).where(TicketSeverity.id == (incident.severity_validated_id or incident.severity_reported_id))
@@ -551,10 +598,21 @@ async def get_incident_by_token(token: str, db: AsyncSession = Depends(get_db)):
     attachments = attach_result.scalars().all()
 
     # SLA de respuesta: abrir el enlace cuenta como "revisado"
-    if incident.assigned_to_user_id and str(incident.assigned_to_user_id) == str(tok.created_for_user_id):
+    if not usado and not ya_resuelto and incident.assigned_to_user_id and str(incident.assigned_to_user_id) == str(tok.created_for_user_id):
         await _marcar_revisado(db, incident, str(tok.created_for_user_id), "asignado", "desde el correo")
 
+    resuelto_por = None
+    if ya_resuelto:
+        from app.models.mesa_de_soporte import IncidentActivityLog
+        r = await db.execute(select(IncidentActivityLog.performed_by_name).where(
+            IncidentActivityLog.incident_id == incident.id, IncidentActivityLog.action == "ticket_resuelto"
+        ).order_by(IncidentActivityLog.performed_at.desc()).limit(1))
+        resuelto_por = r.scalar_one_or_none()
+
     return {
+        "resolved_by_name": resuelto_por,
+        "resolution_type": incident.resolution_type,
+        "rca_text": incident.rca_text if ya_resuelto else None,
         "first_response_at": incident.first_response_at.isoformat() if incident.first_response_at else None,
         "folio": incident.folio,
         "title": incident.title,
@@ -806,7 +864,8 @@ async def create_incident(
     # "asistente" por la red interna; Nginx borra este encabezado en las
     # peticiones del navegador, asi que no se puede falsificar desde fuera
     origen = "asistente" if (x_ticket_origin or "").strip().lower() == "asistente" else "manual"
-    company_id = user.get("companies", [None])[0] if user.get("companies") else None
+    from app.services.empresa_usuario import empresa_de
+    company_id = await empresa_de(user.get("user_id")) or ((user.get("companies") or [None])[0])
     if not company_id:
         raise HTTPException(status_code=400, detail="El usuario no tiene empresa asignada")
 
@@ -1389,6 +1448,72 @@ async def get_dashboard_stats(
         "histograma": histograma,
         "por_usuario": por_usuario,
     }
+
+
+# ------------------------------------------------------------------
+# Dashboard directivo (cinco vistas para tomar decisiones)
+# ------------------------------------------------------------------
+from app.services.metricas_directivas import construir_dashboard, etiqueta_tipo  # noqa: E402
+
+
+@router.get("/estadisticas/directivo")
+async def get_dashboard_directivo(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    empresa: Optional[str] = None,
+    tipo: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Dashboard directivo: resumen, problemas, equipo, adopcion y procesos.
+    El calculo vive en app/services/metricas_directivas.py; aqui solo se
+    valida el acceso, se interpreta el rango y se filtra por alcance,
+    empresa y tipo de ticket."""
+    roles = set(user.get("roles") or [])
+    has_full_access = bool(roles & DASHBOARD_FULL_ACCESS_ROLES) or "super_admin" in roles
+    is_funcional = "it-service-desk:especialista-funcional" in roles
+    is_tecnico = "it-service-desk:especialista-tecnico" in roles
+    if not has_full_access and not is_funcional and not is_tecnico:
+        raise HTTPException(status_code=403, detail="No tienes acceso al dashboard de metricas")
+
+    # Mismo criterio de fechas que /estadisticas: el frontend manda dias en
+    # hora local (UTC-6) y la base guarda en UTC.
+    MEXICO_UTC_OFFSET = timedelta(hours=6)
+    now = datetime.now(timezone.utc)
+    if date_to:
+        end_local = datetime.fromisoformat(date_to)
+        if end_local.hour == 0 and end_local.minute == 0 and end_local.second == 0:
+            end_local = end_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+        end = (end_local + MEXICO_UTC_OFFSET).replace(tzinfo=timezone.utc)
+    else:
+        end = now
+    if date_from:
+        start = (datetime.fromisoformat(date_from) + MEXICO_UTC_OFFSET).replace(tzinfo=timezone.utc)
+    else:
+        start = end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    query = select(Incident)
+    scope = "completo"
+    if not has_full_access:
+        scope = "especialista-funcional" if is_funcional else "especialista-tecnico"
+        query = query.where(Incident.assigned_team == scope)
+    incidents = (await db.execute(query)).scalars().all()
+
+    # Opciones de los filtros: salen de los propios tickets, antes de filtrar
+    empresas_vistas = {}
+    for i in incidents:
+        if i.company_id:
+            empresas_vistas[str(i.company_id)] = i.requester_company_name or "Sin nombre"
+    opciones = {
+        "empresas": [{"id": k, "nombre": v} for k, v in sorted(empresas_vistas.items(), key=lambda x: x[1])],
+        "tipos": [{"id": t, "nombre": etiqueta_tipo(t)} for t in sorted({i.ticket_type for i in incidents if i.ticket_type})],
+    }
+    if empresa:
+        incidents = [i for i in incidents if str(i.company_id) == empresa]
+    if tipo:
+        incidents = [i for i in incidents if i.ticket_type == tipo]
+
+    return await construir_dashboard(db, incidents, start, end, scope, opciones, _get_requester_profile)
 
 
 # ------------------------------------------------------------------
