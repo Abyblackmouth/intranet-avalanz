@@ -171,7 +171,7 @@ async def construir_dashboard(
         "resumen": resumen,
         "problemas": _problemas(creados, sis_de, sev_de),
         "equipo": await _equipo(incidents, start, end, now, act_por_ticket, perfil_de),
-        "adopcion": _adopcion(creados),
+        "adopcion": await _adopcion_completa(creados, start, corte),
         "procesos": await _procesos(db, incidents, start, end, now, act_por_ticket),
     }
 
@@ -618,3 +618,60 @@ async def _procesos(db, incidents, start, end, now, act_por_ticket) -> Dict[str,
 
 def etiqueta_tipo(t: str) -> str:
     return TIPO_LABEL.get(t, _bonito(t))
+
+
+
+# ------------------------------------------------------------------ 4b. Adopcion: datos de auth y del asistente
+async def _adopcion_completa(creados, start, corte) -> Dict[str, Any]:
+    """Agrega a la pestana de Adopcion los usuarios activos (auth-service) y
+    el uso del asistente (assistant-service). Si alguno no responde, su
+    tarjeta se queda como pendiente y el resto del dashboard sigue normal."""
+    import httpx
+    base = _adopcion(creados)
+    params = {"desde": start.isoformat(), "hasta": corte.isoformat()}
+    login = uso = None
+    async with httpx.AsyncClient(timeout=6.0) as client:
+        try:
+            r = await client.get("http://auth-service:8000/api/v1/auth/internal/login-stats", params=params)
+            login = r.json() if r.status_code == 200 else None
+        except httpx.HTTPError:
+            pass
+        try:
+            r = await client.get("http://assistant-service:8000/api/v1/assistant/internal/uso", params=params)
+            uso = r.json() if r.status_code == 200 else None
+        except httpx.HTTPError:
+            pass
+
+    # Semanas completas del periodo (lunes, hora de Monterrey), aunque alguna no tenga datos
+    lunes = start.astimezone(TZ_MTY).date()
+    lunes -= timedelta(days=lunes.weekday())
+    fin = corte.astimezone(TZ_MTY).date()
+    semanas = []
+    while lunes <= fin:
+        semanas.append(lunes)
+        lunes += timedelta(weeks=1)
+    etiquetas = [str(w.day) + " " + MESES[w.month - 1] for w in semanas]
+    claves = [w.isoformat() for w in semanas]
+
+    kpis = []
+    if login is not None:
+        por = {x["semana"]: x for x in login.get("semanas", [])}
+        base["usuarios_activos"] = {"semanas": etiquetas,
+                                    "series": [{"nombre": "Personas", "valores": [por.get(k, {}).get("personas", 0) for k in claves]}]}
+        kpis.append({"label": "Usuarios activos en el periodo", "valor": str(login.get("total_personas", 0)),
+                     "delta": str(login.get("total_inicios", 0)) + " inicios de sesión", "tono": "flat"})
+    if uso is not None:
+        por = {x["semana"]: x for x in uso.get("semanas", [])}
+        base["asistente"] = {"semanas": etiquetas,
+                             "sin_ticket": [por.get(k, {}).get("alta", 0) + por.get(k, {}).get("media", 0) for k in claves],
+                             "baja_confianza": [por.get(k, {}).get("baja", 0) for k in claves],
+                             "con_ticket": [por.get(k, {}).get("escaladas", 0) for k in claves]}
+        base["temas_sin_respuesta"] = uso.get("sin_respuesta", [])
+        total, baja = uso.get("total", 0), uso.get("total_baja", 0)
+        conf = _pct(total - baja, total)
+        kpis.append({"label": "Preguntas al asistente", "valor": str(total), "delta": "en el periodo", "tono": "flat"})
+        kpis.append({"label": "Respondidas con confianza", "valor": (str(conf) + "%") if conf is not None else "—",
+                     "delta": str(baja) + (" con baja confianza" if baja != 1 else " con baja confianza"),
+                     "tono": "flat" if conf is None else ("good" if conf >= 70 else "bad")})
+    base["kpis"] = kpis or None
+    return base

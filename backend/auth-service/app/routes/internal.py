@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, text
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
@@ -341,3 +341,25 @@ async def update_user_email(
     await db.execute(update(User).where(User.id == user_id).values(email=body.email))
     await db.commit()
     return {"success": True, "message": "Email actualizado"}
+
+
+
+@router.get("/login-stats")
+async def login_stats(desde: str, hasta: str, request: Request, db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+    """Inicios de sesion exitosos por semana (lunes, hora de Monterrey), solo
+    totales: nunca identificadores ni nombres. Solo para servicios internos:
+    lo que entra por nginx trae X-Forwarded-For o X-Real-IP y se rechaza."""
+    if request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    from datetime import datetime
+    d, h = datetime.fromisoformat(desde), datetime.fromisoformat(hasta)
+    filas = (await db.execute(text("""
+        select to_char(date_trunc('week', created_at at time zone 'America/Monterrey'), 'YYYY-MM-DD') as semana,
+               count(distinct user_id) as personas, count(*) as inicios
+        from login_history where success and created_at >= :d and created_at <= :h
+        group by 1 order by 1"""), {"d": d, "h": h})).all()
+    total = (await db.execute(text(
+        "select count(distinct user_id), count(*) from login_history where success and created_at >= :d and created_at <= :h"),
+        {"d": d, "h": h})).one()
+    return {"semanas": [{"semana": r[0], "personas": r[1], "inicios": r[2]} for r in filas],
+            "total_personas": total[0], "total_inicios": total[1]}
