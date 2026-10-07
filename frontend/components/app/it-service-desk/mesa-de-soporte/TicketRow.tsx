@@ -87,7 +87,7 @@ function SlaReloj({ tipo, letra, inicio, limite, cumplido }: {
     <span className="relative group inline-flex items-center gap-0.5" aria-label={`${tipo}: ${E.txt}`}>
       {hecho !== null ? <CheckCircle2 size={20} className={E.color} /> : <Clock size={20} className={E.color} />}
       <span className={`text-[9px] font-bold ${E.color}`}>{letra}</span>
-      <span className={`pointer-events-none absolute right-0 top-full mt-1.5 z-30 w-max max-w-[230px] rounded-lg px-3 py-2 text-white text-[11px] text-left shadow-lg opacity-0 group-hover:opacity-100 transition ${E.fondo}`}>
+      <span className={`pointer-events-none absolute right-0 top-full mt-1.5 z-30 w-max max-w-57.5 rounded-lg px-3 py-2 text-white text-[11px] text-left shadow-lg opacity-0 group-hover:opacity-100 transition ${E.fondo}`}>
         <span className="block font-bold uppercase tracking-wide text-[10px] mb-0.5">{tipo} · {E.txt}</span>
         <span className="block">Límite: <span className="font-mono">{f(lim)}</span></span>
         {hecho !== null && <span className="block">{tipo === 'Respuesta' ? 'Revisado' : 'Resuelto'}: <span className="font-mono">{f(hecho)}</span></span>}
@@ -134,7 +134,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
           {t.folio}
         </span>
       </td>
-      <td className="px-4 max-[1440px]:px-2.5 py-2 font-medium text-slate-800 max-w-xs truncate max-[1440px]:max-w-[220px]">{t.title}</td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 font-medium text-slate-800 max-w-xs truncate max-[1440px]:max-w-55">{t.title}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">{t.requester_company_name}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">{sysName}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-center">
@@ -150,9 +150,9 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
           {STATUS_LABEL[t.status] ?? t.status}
         </span>
       </td>
-      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500"><span className="block max-[1440px]:max-w-[130px] max-[1440px]:truncate" title={t.requester_name}>{t.requester_name}</span></td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500"><span className="block max-[1440px]:max-w-32.5 max-[1440px]:truncate" title={t.requester_name}>{t.requester_name}</span></td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">
-        <span className="block max-[1440px]:max-w-[130px] max-[1440px]:truncate" title={t.assigned_to_name ?? ''}>{t.assigned_to_name ?? <span className="italic text-slate-300">Sin asignar</span>}</span>
+        <span className="block max-[1440px]:max-w-32.5 max-[1440px]:truncate" title={t.assigned_to_name ?? ''}>{t.assigned_to_name ?? <span className="italic text-slate-300">Sin asignar</span>}</span>
       </td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500 whitespace-nowrap">{fmt(t.created_at)}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-center">

@@ -59,7 +59,7 @@ function Encuesta({ incidentId, onDone }: { incidentId: string; onDone: () => vo
         </Campo>
         <Campo label="¿Se cumplió lo que pediste?" req><Opciones valor={cumplio} onChange={setCumplio} opciones={[['si', 'Sí'], ['parcial', 'Parcialmente'], ['no', 'No']]} /></Campo>
         <Campo label="¿Se entregó a tiempo?" req><Opciones valor={aTiempo} onChange={setATiempo} opciones={[['si', 'Sí'], ['no', 'No']]} /></Campo>
-        <Campo label="Comentarios (opcional)"><textarea className={`${inputCls} min-h-[60px]`} value={coment} onChange={e => setComent(e.target.value)} /></Campo>
+        <Campo label="Comentarios (opcional)"><textarea className={`${inputCls} min-h-15`} value={coment} onChange={e => setComent(e.target.value)} /></Campo>
       </div>
       <div className="flex items-center justify-end gap-3 mt-4">
         {error && <p className="text-[13px] text-red-600 mr-auto">{error}</p>}
@@ -84,7 +84,7 @@ function ActaForm({ inicial, base, busy, onSave, onGenerate }: { inicial: any; b
   return (
     <div className="mt-4 pt-4 border-t border-slate-100 grid gap-4">
       <Campo label="Resultado del proyecto" req hint={hint}>
-        <textarea className={`${inputCls} min-h-[80px]`} placeholder="Qué se logró respecto al objetivo" value={d.resultado} onChange={e => setD({ ...d, resultado: e.target.value })} />
+        <textarea className={`${inputCls} min-h-20`} placeholder="Qué se logró respecto al objetivo" value={d.resultado} onChange={e => setD({ ...d, resultado: e.target.value })} />
       </Campo>
       <div>
         <p className="text-[13px] font-medium text-slate-700 mb-1.5">Alcance comprometido contra entregado</p>
@@ -102,10 +102,10 @@ function ActaForm({ inicial, base, busy, onSave, onGenerate }: { inicial: any; b
         </div>
         <button type="button" className="mt-2 text-[13px] font-medium text-[#1a4fa0] hover:underline" onClick={() => setD(x => ({ ...x, alcance: [...x.alcance, { punto: '', entregado: '', nota: '' }] }))}>+ Agregar punto</button>
       </div>
-      <Campo label="Pendientes y riesgos abiertos" hint={hint}><textarea className={`${inputCls} min-h-[70px]`} value={d.pendientes} onChange={e => setD({ ...d, pendientes: e.target.value })} /></Campo>
+      <Campo label="Pendientes y riesgos abiertos" hint={hint}><textarea className={`${inputCls} min-h-17.5`} value={d.pendientes} onChange={e => setD({ ...d, pendientes: e.target.value })} /></Campo>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Campo label="Lecciones: qué salió bien" hint={hint}><textarea className={`${inputCls} min-h-[80px]`} value={d.lecciones_bien} onChange={e => setD({ ...d, lecciones_bien: e.target.value })} /></Campo>
-        <Campo label="Lecciones: qué mejorar" hint={hint}><textarea className={`${inputCls} min-h-[80px]`} value={d.lecciones_mejorar} onChange={e => setD({ ...d, lecciones_mejorar: e.target.value })} /></Campo>
+        <Campo label="Lecciones: qué salió bien" hint={hint}><textarea className={`${inputCls} min-h-20`} value={d.lecciones_bien} onChange={e => setD({ ...d, lecciones_bien: e.target.value })} /></Campo>
+        <Campo label="Lecciones: qué mejorar" hint={hint}><textarea className={`${inputCls} min-h-20`} value={d.lecciones_mejorar} onChange={e => setD({ ...d, lecciones_mejorar: e.target.value })} /></Campo>
       </div>
       <p className="text-[12.5px] text-slate-500">Los indicadores, los criterios de la UAT, la encuesta, el índice del expediente y las firmas los agrega el sistema al generar.</p>
       <div className="flex flex-wrap gap-2 justify-end">

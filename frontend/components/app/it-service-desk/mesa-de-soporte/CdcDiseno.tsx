@@ -34,7 +34,7 @@ function SesionesEditor({ items, onChange }: { items: Sesion[]; onChange: (s: Se
           <input className={inputCls} placeholder="Tipo y duración (ej. Presencial · 1 h)" value={s.tipo} onChange={e => set(i, 'tipo', e.target.value)} />
           <input className={inputCls} placeholder="Participantes" value={s.participantes} onChange={e => set(i, 'participantes', e.target.value)} />
           <button type="button" aria-label="Quitar sesión" className={del} onClick={() => onChange(list.length > 1 ? list.filter((_, j) => j !== i) : [vacia])}>✕</button>
-          <textarea className={`${inputCls} sm:col-span-4 min-h-[60px]`} placeholder="Qué se entendió o acordó en la sesión" value={s.notas} onChange={e => set(i, 'notas', e.target.value)} />
+          <textarea className={`${inputCls} sm:col-span-4 min-h-15`} placeholder="Qué se entendió o acordó en la sesión" value={s.notas} onChange={e => set(i, 'notas', e.target.value)} />
         </div>
       ))}
       <button type="button" className="self-start text-[13px] font-medium text-[#1a4fa0] hover:underline" onClick={() => onChange([...list, vacia])}>+ Agregar sesión</button>
@@ -110,10 +110,10 @@ function FuncionalForm({ inicial, ctx, busy, onSave, onGenerate }: FormProps) {
   return (
     <div className="mt-4 pt-4 border-t border-slate-100">
       <Seccion titulo="Sesiones de entendimiento"><SesionesEditor items={d.sesiones} onChange={x => setD({ ...d, sesiones: x })} /></Seccion>
-      <Seccion titulo="Objetivo"><textarea className={`${inputCls} min-h-[70px]`} value={d.objetivo} onChange={e => setD({ ...d, objetivo: e.target.value })} /></Seccion>
+      <Seccion titulo="Objetivo"><textarea className={`${inputCls} min-h-17.5`} value={d.objetivo} onChange={e => setD({ ...d, objetivo: e.target.value })} /></Seccion>
       <Seccion titulo="Proceso">
-        <Campo label="Proceso actual" hint="Cómo se hace hoy. Las líneas que empiezan con '-' se vuelven viñetas."><textarea className={`${inputCls} min-h-[80px]`} value={d.proceso_actual} onChange={e => setD({ ...d, proceso_actual: e.target.value })} /></Campo>
-        <Campo label="Proceso propuesto" req hint="Cómo se hará con el cambio."><textarea className={`${inputCls} min-h-[80px]`} value={d.proceso_propuesto} onChange={e => setD({ ...d, proceso_propuesto: e.target.value })} /></Campo>
+        <Campo label="Proceso actual" hint="Cómo se hace hoy. Las líneas que empiezan con '-' se vuelven viñetas."><textarea className={`${inputCls} min-h-20`} value={d.proceso_actual} onChange={e => setD({ ...d, proceso_actual: e.target.value })} /></Campo>
+        <Campo label="Proceso propuesto" req hint="Cómo se hará con el cambio."><textarea className={`${inputCls} min-h-20`} value={d.proceso_propuesto} onChange={e => setD({ ...d, proceso_propuesto: e.target.value })} /></Campo>
       </Seccion>
       <Seccion titulo="Requerimientos funcionales">
         <p className="text-[13px] text-slate-500 -mt-1">Cada requerimiento necesita un criterio de aceptación: es lo que el solicitante validará en las pruebas UAT.</p>
@@ -121,12 +121,12 @@ function FuncionalForm({ inicial, ctx, busy, onSave, onGenerate }: FormProps) {
       </Seccion>
       <Seccion titulo="Reglas de negocio">
         <Campo label="Reglas que el sistema debe respetar" hint="Las líneas que empiezan con '-' se vuelven viñetas en el PDF.">
-          <textarea className={`${inputCls} min-h-[110px]`} placeholder={"- El RFC es obligatorio y único por empresa"} value={d.reglas} onChange={e => setD({ ...d, reglas: e.target.value })} />
+          <textarea className={`${inputCls} min-h-27.5`} placeholder={"- El RFC es obligatorio y único por empresa"} value={d.reglas} onChange={e => setD({ ...d, reglas: e.target.value })} />
         </Campo>
       </Seccion>
       <Seccion titulo="Pantallas, reportes y procesos afectados">
         <Campo label="Pantallas, reportes o procesos que cambian" hint="Las líneas que empiezan con '-' se vuelven viñetas en el PDF.">
-          <textarea className={`${inputCls} min-h-[110px]`} placeholder={"- Alta de proveedores\n- Reporte de antigüedad de saldos"} value={d.pantallas} onChange={e => setD({ ...d, pantallas: e.target.value })} />
+          <textarea className={`${inputCls} min-h-27.5`} placeholder={"- Alta de proveedores\n- Reporte de antigüedad de saldos"} value={d.pantallas} onChange={e => setD({ ...d, pantallas: e.target.value })} />
         </Campo>
       </Seccion>
       <Botones busy={busy} onSave={() => onSave(d)} onGenerate={() => onGenerate(d)} />
@@ -145,13 +145,13 @@ function TecnicoForm({ inicial, rfIds, busy, onSave, onGenerate }: FormProps) {
     <div className="mt-4 pt-4 border-t border-slate-100">
       <Seccion titulo="Sesiones de entendimiento"><SesionesEditor items={d.sesiones} onChange={x => setD({ ...d, sesiones: x })} /></Seccion>
       <Seccion titulo="Solución técnica">
-        <Campo label="Descripción de la solución" req><textarea className={`${inputCls} min-h-[90px]`} value={d.solucion} onChange={e => setD({ ...d, solucion: e.target.value })} /></Campo>
+        <Campo label="Descripción de la solución" req><textarea className={`${inputCls} min-h-22.5`} value={d.solucion} onChange={e => setD({ ...d, solucion: e.target.value })} /></Campo>
       </Seccion>
       <Seccion titulo="Objetos a crear o modificar">
         <TableEditor cols={[{ key: 'tipo', label: 'Tipo (rutina, PE, tabla…)' }, { key: 'nombre', label: 'Objeto' }, { key: 'accion', label: 'Crear / Modificar' }, { key: 'descripcion', label: 'Descripción' }]}
           rows={d.objetos} onChange={x => setD({ ...d, objetos: x })} addLabel="+ Agregar objeto" />
       </Seccion>
-      <Seccion titulo="Integraciones"><textarea className={`${inputCls} min-h-[60px]`} placeholder="Sistemas externos, servicios o interfaces involucradas" value={d.integraciones} onChange={e => setD({ ...d, integraciones: e.target.value })} /></Seccion>
+      <Seccion titulo="Integraciones"><textarea className={`${inputCls} min-h-15`} placeholder="Sistemas externos, servicios o interfaces involucradas" value={d.integraciones} onChange={e => setD({ ...d, integraciones: e.target.value })} /></Seccion>
       <Seccion titulo="Requerimientos técnicos">
         {rfIds.length
           ? <p className="text-[13px] text-slate-500 -mt-1">Liga cada requerimiento técnico a un RF del documento funcional: {rfIds.join(', ')}.</p>
@@ -160,12 +160,12 @@ function TecnicoForm({ inicial, rfIds, busy, onSave, onGenerate }: FormProps) {
       </Seccion>
       <Seccion titulo="Plan de pruebas técnicas">
         <Campo label="Pruebas a realizar antes de UAT" hint="Las líneas que empiezan con '-' se vuelven viñetas en el PDF.">
-          <textarea className={`${inputCls} min-h-[120px]`} placeholder={"- Carga en ambiente de pruebas\n- Validar bitácora de errores"} value={d.plan_pruebas} onChange={e => setD({ ...d, plan_pruebas: e.target.value })} />
+          <textarea className={`${inputCls} min-h-30`} placeholder={"- Carga en ambiente de pruebas\n- Validar bitácora de errores"} value={d.plan_pruebas} onChange={e => setD({ ...d, plan_pruebas: e.target.value })} />
         </Campo>
       </Seccion>
       <Seccion titulo="Riesgos técnicos">
         <Campo label="Riesgos y cómo mitigarlos" hint="Las líneas que empiezan con '-' se vuelven viñetas en el PDF.">
-          <textarea className={`${inputCls} min-h-[120px]`} placeholder={"- Riesgo y su mitigación"} value={d.riesgos} onChange={e => setD({ ...d, riesgos: e.target.value })} />
+          <textarea className={`${inputCls} min-h-30`} placeholder={"- Riesgo y su mitigación"} value={d.riesgos} onChange={e => setD({ ...d, riesgos: e.target.value })} />
         </Campo>
       </Seccion>
       <Botones busy={busy} onSave={() => onSave(d)} onGenerate={() => onGenerate(d)} />
@@ -232,7 +232,7 @@ export default function CdcDiseno({ incidentId, fase, onChanged }: { incidentId:
         </div>
         {reasignando && (
           <div className="mt-3 flex flex-wrap gap-2 items-center">
-            <select className={`${inputCls} !w-auto min-w-[260px]`} value={elegido} onChange={e => setElegido(e.target.value)}>
+            <select className={`${inputCls} !w-auto min-w-65`} value={elegido} onChange={e => setElegido(e.target.value)}>
               <option value="">Selecciona a quién asignar</option>
               {candidatos.map(c => <option key={c.id} value={c.id}>{c.name} · {c.rol}</option>)}
             </select>

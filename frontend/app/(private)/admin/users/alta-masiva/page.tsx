@@ -155,7 +155,7 @@ export default function AltaMasivaPage() {
             <section className="bg-white border border-slate-200 rounded-2xl shadow-sm">
               <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
                 <span className="w-8 h-8 rounded-xl bg-blue-50 text-[#1a4fa0] flex items-center justify-center font-bold text-sm">3</span>
-                <div className="flex-1 min-w-[200px]">
+                <div className="flex-1 min-w-50">
                   <h2 className="text-[15px] font-bold text-slate-900">Revisión de {rev.archivo}</h2>
                   <p className="text-[13px] text-slate-500">{rev.resumen.total} renglones. Haz clic en un contador para filtrar.</p>
                 </div>
@@ -175,7 +175,7 @@ export default function AltaMasivaPage() {
                 </div>
               )}
               <div className="overflow-x-auto">
-                <table className="w-full text-[13px] min-w-[900px]">
+                <table className="w-full text-[13px] min-w-225">
                   <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
                     <tr><th className="px-4 py-2 w-16">Renglón</th><th className="px-4 py-2 w-24">Estado</th><th className="px-4 py-2">Empleado</th>
                       <th className="px-4 py-2">Empresa · Departamento</th><th className="px-4 py-2">Accesos</th><th className="px-4 py-2">Observaciones</th></tr>

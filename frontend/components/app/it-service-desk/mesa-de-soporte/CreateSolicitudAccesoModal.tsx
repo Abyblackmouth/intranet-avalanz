@@ -78,7 +78,7 @@ function VistaPreviaLlena({ formatoId, datos }: { formatoId: string; datos: Dato
         <button type="button" onClick={() => marco.current?.contentWindow?.print()} disabled={!html}
           className="text-[13px] px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40">Imprimir</button>
       </div>
-      <div ref={caja} className="w-full max-w-[794px] mx-auto overflow-hidden rounded-lg border border-slate-200 shadow-sm bg-white" style={{ height: A4_H * escala }}>
+      <div ref={caja} className="w-full max-w-198.5 mx-auto overflow-hidden rounded-lg border border-slate-200 shadow-sm bg-white" style={{ height: A4_H * escala }}>
         {error ? <p className="p-8 text-center text-sm text-red-600">No se pudo generar la vista previa.</p> : html ? (
           <iframe ref={marco} title="Vista previa de tu solicitud" srcDoc={html} sandbox="allow-same-origin allow-modals"
             style={{ width: A4_W, height: A4_H, border: 0, transform: `scale(${escala})`, transformOrigin: 'top left' }} />
@@ -394,7 +394,7 @@ export default function CreateSolicitudAccesoModal({ onClose, onBack, onCreated 
                       return (
                         <div key={sel.modulo_id} className={`rounded-xl border p-4 grid gap-3 ${mod.exclusivo_admin ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'}`}>
                           <div className="flex flex-wrap items-center gap-3">
-                            <p className="flex-1 min-w-[160px] text-sm font-bold tracking-wide text-slate-900">{mod.nombre}</p>
+                            <p className="flex-1 min-w-40 text-sm font-bold tracking-wide text-slate-900">{mod.nombre}</p>
                             <label className="flex items-center gap-2 text-[13px] text-slate-600">Perfil / rol
                               <select className={`${inputCls} !w-44 !py-1.5`} value={sel.perfil} onChange={e => setModulo(sel.modulo_id, { perfil: e.target.value })}>
                                 <option value="">Elige…</option>

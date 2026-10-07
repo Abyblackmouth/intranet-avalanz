@@ -40,7 +40,7 @@ function Switch({ on, onClick, label }: { on: boolean; onClick: () => void; labe
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onClick}
       className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${on ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${on ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
     </button>
   )
 }
@@ -128,7 +128,7 @@ export default function ActualizacionesPage() {
       {tab === 'catalogo' && (loading ? (
         <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Cargando…</div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[290px_minmax(0,1fr)] gap-4 lg:h-[calc(100vh-215px)] lg:min-h-[480px]">
+        <div className="grid grid-cols-1 lg:grid-cols-[290px_minmax(0,1fr)] gap-4 lg:h-[calc(100vh-215px)] lg:min-h-120">
           {/* ── Lista de sistemas ── */}
           <aside className="hidden lg:flex flex-col bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
             <div className="p-3 border-b border-slate-200 grid gap-2">

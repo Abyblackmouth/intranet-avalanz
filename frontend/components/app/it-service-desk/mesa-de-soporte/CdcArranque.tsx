@@ -73,7 +73,7 @@ function PlanBreveEditor({ inicial, fechaCompromiso, busy, onSave, onGenerate }:
       </div>
       <div className="sm:col-span-2">
         <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Objetivo<span className="text-red-600">*</span></label>
-        <textarea className={`${inputCls} min-h-[70px]`} placeholder="Qué se va a lograr con este cambio" value={d.objetivo} onChange={e => setD({ ...d, objetivo: e.target.value })} />
+        <textarea className={`${inputCls} min-h-17.5`} placeholder="Qué se va a lograr con este cambio" value={d.objetivo} onChange={e => setD({ ...d, objetivo: e.target.value })} />
       </div>
       <div className="sm:col-span-2">
         <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Entregables<span className="text-red-600">*</span></label>
@@ -91,7 +91,7 @@ function PlanBreveEditor({ inicial, fechaCompromiso, busy, onSave, onGenerate }:
       </div>
       <div className="sm:col-span-2">
         <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Consideraciones <span className="font-normal text-slate-400">(opcional)</span></label>
-        <textarea className={`${inputCls} min-h-[60px]`} placeholder="Ventanas de liberación, dependencias, comunicación a usuarios…" value={d.consideraciones} onChange={e => setD({ ...d, consideraciones: e.target.value })} />
+        <textarea className={`${inputCls} min-h-15`} placeholder="Ventanas de liberación, dependencias, comunicación a usuarios…" value={d.consideraciones} onChange={e => setD({ ...d, consideraciones: e.target.value })} />
       </div>
       <div className="sm:col-span-2 flex flex-wrap gap-2 justify-end">
         <button type="button" disabled={busy} className={btnSec} onClick={() => onSave(d)}>Guardar borrador</button>
@@ -148,7 +148,7 @@ export function TableEditor({ cols, rows, onChange, addLabel }: { cols: Col[]; r
   const set = (i: number, k: string, v: string) => onChange(list.map((r, j) => j === i ? { ...r, [k]: v } : r))
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[620px] flex flex-col gap-2">
+      <div className="min-w-155 flex flex-col gap-2">
         <div className="grid gap-2 text-[12px] font-medium text-slate-500 px-0.5" style={tpl}>{cols.map(c => <span key={c.key}>{c.label}</span>)}<span /></div>
         {list.map((r, i) => (
           <div key={i} className="grid gap-2 items-start" style={tpl}>
@@ -212,7 +212,7 @@ function ActaEditor({ inicial, ctx, busy, onSave, onGenerate }: EditorProps) {
         </div>
       </Seccion>
       <Seccion titulo="2. Objetivo">
-        <Campo label="2.1 Objetivo del proyecto" req><textarea className={`${inputCls} min-h-[80px]`} value={d.objetivo} onChange={e => setD({ ...d, objetivo: e.target.value })} /></Campo>
+        <Campo label="2.1 Objetivo del proyecto" req><textarea className={`${inputCls} min-h-20`} value={d.objetivo} onChange={e => setD({ ...d, objetivo: e.target.value })} /></Campo>
         <Campo label="2.2 Alcance (dentro del proyecto)" req><ListEditor items={d.incluye} onChange={x => setD({ ...d, incluye: x })} placeholder="Qué sí incluye" addLabel="+ Agregar punto" /></Campo>
         <Campo label="2.3 Fuera del alcance (exclusiones)"><ListEditor items={d.excluye} onChange={x => setD({ ...d, excluye: x })} placeholder="Qué no incluye" addLabel="+ Agregar exclusión" /></Campo>
       </Seccion>
@@ -244,7 +244,7 @@ function AlcanceEditor({ inicial, ctx, busy, onSave, onGenerate }: EditorProps) 
     <div className="mt-4 pt-4 border-t border-slate-100">
       <Seccion titulo="Visión general">
         <Campo label="Descripción general del alcance" req hint="Las líneas que empiezan con '-' se vuelven viñetas en el PDF.">
-          <textarea className={`${inputCls} min-h-[110px]`} value={d.vision_general} onChange={e => setD({ ...d, vision_general: e.target.value })} />
+          <textarea className={`${inputCls} min-h-27.5`} value={d.vision_general} onChange={e => setD({ ...d, vision_general: e.target.value })} />
         </Campo>
       </Seccion>
       <Seccion titulo="Secciones del documento">
@@ -256,7 +256,7 @@ function AlcanceEditor({ inicial, ctx, busy, onSave, onGenerate }: EditorProps) 
               <button type="button" aria-label="Quitar sección" className="px-2 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
                 onClick={() => setD(x => ({ ...x, secciones: x.secciones.filter((_, j) => j !== i) }))}>✕</button>
             </div>
-            <textarea className={`${inputCls} min-h-[80px]`} placeholder="Contenido. Usa '-' al inicio de la línea para viñetas." value={s.contenido} onChange={e => setSec(i, 'contenido', e.target.value)} />
+            <textarea className={`${inputCls} min-h-20`} placeholder="Contenido. Usa '-' al inicio de la línea para viñetas." value={s.contenido} onChange={e => setSec(i, 'contenido', e.target.value)} />
           </div>
         ))}
         <button type="button" className="self-start text-[13px] font-medium text-[#1a4fa0] hover:underline"
@@ -278,14 +278,14 @@ function ResumenEditor({ inicial, ctx, busy, onSave, onGenerate }: EditorProps) 
   return (
     <div className="mt-4 pt-4 border-t border-slate-100">
       <Seccion titulo="Resumen ejecutivo">
-        <Campo label="Qué se hace y por qué" hint="Para la dirección: un párrafo corto."><textarea className={`${inputCls} min-h-[80px]`} value={d.resumen} onChange={e => setD({ ...d, resumen: e.target.value })} /></Campo>
+        <Campo label="Qué se hace y por qué" hint="Para la dirección: un párrafo corto."><textarea className={`${inputCls} min-h-20`} value={d.resumen} onChange={e => setD({ ...d, resumen: e.target.value })} /></Campo>
       </Seccion>
       <Seccion titulo="Stack tecnológico">
         <TableEditor cols={[{ key: 'categoria', label: 'Categoría' }, { key: 'componente', label: 'Componente' }, { key: 'tecnologia', label: 'Tecnología' }, { key: 'funcion', label: 'Función específica' }]}
           rows={d.componentes} onChange={x => setD({ ...d, componentes: x })} addLabel="+ Agregar componente" />
       </Seccion>
       <Seccion titulo="Arquitectura de alto nivel">
-        <Campo label="Descripción" hint="Los diagramas que subas en el expediente se mencionan automáticamente en esta sección."><textarea className={`${inputCls} min-h-[70px]`} value={d.arquitectura} onChange={e => setD({ ...d, arquitectura: e.target.value })} /></Campo>
+        <Campo label="Descripción" hint="Los diagramas que subas en el expediente se mencionan automáticamente en esta sección."><textarea className={`${inputCls} min-h-17.5`} value={d.arquitectura} onChange={e => setD({ ...d, arquitectura: e.target.value })} /></Campo>
       </Seccion>
       <Seccion titulo="Fases de implementación">
         <TableEditor cols={[{ key: 'fase', label: 'Fase' }, { key: 'nombre', label: 'Nombre' }, { key: 'componentes', label: 'Componentes' }, { key: 'entregable', label: 'Entregable' }]}

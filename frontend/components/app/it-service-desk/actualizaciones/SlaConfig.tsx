@@ -77,7 +77,7 @@ function Fila({ sev, onGuardado }: { sev: Sev; onGuardado: (s: Sev) => void }) {
           {estado === 'guardando' ? 'Guardando…' : 'Guardar'}
         </button>
         {estado === 'ok' && <p className="mt-1 text-[12px] text-emerald-700 inline-flex items-center gap-1"><Check size={12} /> Guardado</p>}
-        {estado && estado !== 'ok' && estado !== 'guardando' && <p className="mt-1 text-[12px] text-red-600 max-w-[200px] ml-auto">{estado}</p>}
+        {estado && estado !== 'ok' && estado !== 'guardando' && <p className="mt-1 text-[12px] text-red-600 max-w-50 ml-auto">{estado}</p>}
       </td>
     </tr>
   )
@@ -97,7 +97,7 @@ export default function SlaConfig() {
           <b> Naturales:</b> corren las 24 horas, todos los días. Los cambios aplican a los <b>tickets nuevos</b>; los existentes conservan sus fechas límite.</p>
       </div>
       <div className="bg-white border border-slate-300 rounded-2xl shadow-sm overflow-x-auto">
-        <table className="w-full min-w-[980px]">
+        <table className="w-full min-w-245">
           <thead>
             <tr className="text-left text-xs font-semibold text-slate-500 bg-slate-50 border-b border-slate-300">
               <th className="px-4 py-2.5">Severidad</th><th className="px-4 py-2.5">Respuesta</th><th className="px-4 py-2.5">Resolución</th>

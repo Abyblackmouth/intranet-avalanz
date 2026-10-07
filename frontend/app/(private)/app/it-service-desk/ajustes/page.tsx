@@ -23,7 +23,7 @@ function Control({ a, onSave }: { a: Ajuste; onSave: (valor: string | number | b
     return (
       <button type="button" role="switch" aria-checked={on} aria-label={a.label} onClick={() => onSave(!on)}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-        <span className={`inline-block h-4.5 w-4.5 h-[18px] w-[18px] rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
+        <span className={`inline-block h-4.5 w-4.5 h-4.5 w-4.5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5.5' : 'translate-x-[3px]'}`} />
       </button>
     )
   }
@@ -116,7 +116,7 @@ export default function AjustesPage() {
               <ul>
                 {ajustes.filter(a => a.grupo === g).map(a => (
                   <li key={a.key} className="px-5 py-4 border-b border-slate-100 last:border-0 flex flex-wrap items-center gap-x-6 gap-y-3">
-                    <div className="flex-1 min-w-[260px]">
+                    <div className="flex-1 min-w-65">
                       <p className="text-[14px] font-semibold text-slate-800">{a.label}</p>
                       <p className="text-[13px] text-slate-500 mt-0.5 max-w-[62ch]">{a.descripcion}</p>
                       <p className="text-[11px] font-mono text-slate-400 mt-1">{a.key}</p>
