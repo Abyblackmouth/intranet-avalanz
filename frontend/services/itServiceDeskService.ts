@@ -65,6 +65,10 @@ export const getSeverities = () => api.get('/api/v1/it-service-desk/mesa-de-sopo
 export const getDashboardStats = (params?: { date_from?: string; date_to?: string }) =>
   api.get('/api/v1/it-service-desk/mesa-de-soporte/estadisticas', { params })
 
+// Dashboard directivo (cinco vistas con conclusiones para tomar decisiones)
+export const getDashboardDirectivo = (params?: { date_from?: string; date_to?: string; empresa?: string; tipo?: string }) =>
+  api.get('/api/v1/it-service-desk/mesa-de-soporte/estadisticas/directivo', { params })
+
 // ── Exportar concentrado a Excel ────────────────────────────────────────────
 export const exportIncidentsExcel = () =>
   api.get('/api/v1/it-service-desk/mesa-de-soporte/reportes/incidencias-excel', { responseType: 'blob' })
