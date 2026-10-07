@@ -829,14 +829,14 @@ export default function ContractRequestsTable({
               {items.map(item => (
                 <tr
                   key={item.id}
-                  className="group border-b border-slate-200 last:border-0 even:bg-slate-50/40 hover:!bg-blue-50/50 hover:shadow-[inset_3px_0_0_0_#1a4fa0] transition-all duration-150 cursor-pointer"
+                  className="group border-b border-slate-200 last:border-0 even:bg-slate-50/40 hover:bg-blue-50/50! hover:shadow-[inset_3px_0_0_0_#1a4fa0] transition-all duration-150 cursor-pointer"
                   onClick={() => setDetailId(item.id)}
                 >
                   <td className={`px-4 max-[1440px]:px-2.5 ${padY} text-center`}><SLADot color={item.sla_color} status={item.status} /></td>
                   <td className={`px-4 max-[1440px]:px-2.5 ${padY}`}>
                     <span className="font-bold text-[#1a4fa0] font-mono text-xs group-hover:underline whitespace-nowrap">{item.folio}</span>
                   </td>
-                  <td className={`px-4 max-[1440px]:px-2.5 ${padY} text-slate-700 font-medium max-w-[200px] truncate`} title={item.contract_type_name}>{item.contract_type_name}</td>
+                  <td className={`px-4 max-[1440px]:px-2.5 ${padY} text-slate-700 font-medium max-w-50 truncate`} title={item.contract_type_name}>{item.contract_type_name}</td>
                   {showSolicitante && (
                     <>
                       <td className={`px-4 max-[1440px]:px-2.5 ${padY} text-xs text-slate-500 font-semibold uppercase whitespace-nowrap`}>{item.company_name}</td>
