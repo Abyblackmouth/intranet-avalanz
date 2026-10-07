@@ -508,10 +508,10 @@ function Adopcion({ d }: { d: D }) {
         <Card title="Preguntas que el asistente no supo responder" q="Agrupadas cuando se repiten: señal de qué documentar o capacitar.">
           {d.temas_sin_respuesta ? (
             d.temas_sin_respuesta.length ? (
-              <ul className="m-0 p-0 list-none">
-                {d.temas_sin_respuesta.map((t: D) => (
+              <ul className="m-0 p-0 list-none h-[300px] overflow-hidden">
+                {d.temas_sin_respuesta.slice(0, 7).map((t: D) => (
                   <li key={t.tema} className="flex justify-between gap-3 py-2 border-b border-[var(--grid)] last:border-0">
-                    <span className={INK}>{t.tema}</span>
+                    <span className={`${INK} truncate min-w-0`} title={t.tema}>{t.tema}</span>
                     <span className={`tabular-nums whitespace-nowrap ${INK2}`}>{t.preguntas} {t.preguntas === 1 ? 'pregunta' : 'preguntas'}</span>
                   </li>
                 ))}
