@@ -505,7 +505,7 @@ function Adopcion({ d }: { d: D }) {
         <Card title="Uso del asistente por semana" q="Preguntas, cuántas terminaron en ticket y cuántas con baja confianza.">
           {d.asistente ? <Asistente a={d.asistente} /> : <Pendiente texto={pend} />}
         </Card>
-        <Card title="Temas que el asistente no supo responder" q="Señal de qué documentar o capacitar.">
+        <Card title="Preguntas que el asistente no supo responder" q="Agrupadas cuando se repiten: señal de qué documentar o capacitar.">
           {d.temas_sin_respuesta ? (
             d.temas_sin_respuesta.length ? (
               <ul className="m-0 p-0 list-none">
@@ -540,7 +540,7 @@ function Asistente({ a }: { a: D }) {
   const option = {
     ...base(), xAxis: cat(a.semanas), yAxis: val(),
     series: [
-      { name: 'Respondidas sin ticket', type: 'bar', stack: 'a', barWidth: '45%', data: a.sin_ticket, itemStyle: { color: c.green } },
+      { name: 'Confianza alta o media', type: 'bar', stack: 'a', barWidth: '45%', data: a.sin_ticket, itemStyle: { color: c.green } },
       { name: 'Baja confianza', type: 'bar', stack: 'a', data: a.baja_confianza, itemStyle: { color: c.amber } },
       { name: 'Terminaron en ticket', type: 'bar', stack: 'a', data: a.con_ticket, itemStyle: { color: c.red } },
     ],
