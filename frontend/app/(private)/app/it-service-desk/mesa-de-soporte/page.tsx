@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
-import { getIncidents, getSystems, getSeverities, getSpecialists, createSpecialist, updateSpecialist, exportIncidentsExcel, exportCdcExcel } from '@/services/itServiceDeskService'
+import FiltroMaestro, { type FiltroMaestroItem, cumpleFiltroMaestro, descargarTicketsExcel } from '@/components/app/it-service-desk/mesa-de-soporte/FiltroMaestro'
+import { Download as IconoDescarga } from 'lucide-react'
+import { getModulesCatalog, getIncidents, getSystems, getSeverities, getSpecialists, createSpecialist, updateSpecialist, exportIncidentsExcel, exportCdcExcel } from '@/services/itServiceDeskService'
 import { Search, Eye, Plus, UserPlus, Clock, Download } from 'lucide-react'
 import CreateIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateIncidentModal'
 import IncidentDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/IncidentDetailModal'
@@ -213,6 +215,11 @@ export default function MesaDeSoportePage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [activeSevs, setActiveSevs] = useState<string[]>([])
+  const [maestro, setMaestro] = useState<FiltroMaestroItem[]>([])
+  const [modulos, setModulos] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    getModulesCatalog().then(r => { const d: any = r.data; setModulos(Array.isArray(d) ? d : (d?.data ?? [])) }).catch(() => {})
+  }, [])
   // Tipo de ticket: vacío = todos. El filtro inicial depende del rol y se aplica
   // una sola vez; después el usuario decide y el sistema no lo cambia solo.
   const [activeTypes, setActiveTypes] = useState<string[]>([])
@@ -292,7 +299,7 @@ export default function MesaDeSoportePage() {
     const matchSev = activeSevs.length === 0 || (sev && activeSevs.includes(sev.code))
     const tipo = (t as any).ticket_type ?? (t.folio?.startsWith('CDC-') ? 'control_cambio' : 'incidente')
     const matchTipo = activeTypes.length === 0 || activeTypes.includes(tipo)
-    return matchSearch && matchStatus && matchSev && matchTipo
+    return matchSearch && matchStatus && matchSev && matchTipo && cumpleFiltroMaestro(t, maestro)
   })
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
@@ -453,6 +460,7 @@ export default function MesaDeSoportePage() {
                 className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/20"
               />
             </div>
+            <FiltroMaestro tickets={incidents} sistemas={systems as any} modulos={modulos} valor={maestro} onChange={v => { setMaestro(v); setPage(1) }} />
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
@@ -471,6 +479,16 @@ export default function MesaDeSoportePage() {
                     </optgroup>
                   ))}
             </select>
+            <button type="button" disabled={!filtered.length}
+              title={`Descargar a Excel los ${filtered.length} tickets filtrados`}
+              onClick={() => descargarTicketsExcel(filtered, {
+                sistemas: systems as any, modulos,
+                severidad: (t: any) => sevInfo(t.severity_validated_id ?? t.severity_reported_id)?.code ?? '',
+                estatus: (t: any) => (ESTATUS_POR_TIPO as any)[tipoDe(t)]?.estatus.find((e: any) => e[0] === t.status)?.[1] ?? t.status,
+              })}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-50 whitespace-nowrap">
+              <IconoDescarga size={15} /> Descargar
+            </button>
           </div>
           <div className="flex items-center flex-wrap gap-2 mt-3">
             <span className="text-[11px] font-medium text-slate-500 mr-1">Severidad:</span>
