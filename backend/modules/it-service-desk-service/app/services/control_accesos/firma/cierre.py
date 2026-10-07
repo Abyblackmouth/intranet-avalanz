@@ -37,7 +37,9 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
 
     if st in ("declined", "voided"):
         sol.estado_firma = "declinado"
-        inc.status, inc.closed_at = "rechazado", ahora
+        inc.status, inc.closed_at, inc.resolved_at = "rechazado", ahora, ahora   # detiene el SLA
+        if inc.first_response_at is None:
+            inc.first_response_at = ahora
         db.add(IncidentActivityLog(incident_id=inc.id, action="firma_declinada", performed_by=inc.requester_id,
                                    performed_by_name="DocuSign", performed_by_role="sistema", performed_at=ahora,
                                    company_id=inc.company_id, module_slug="it-service-desk", detail={"estado_docusign": st}))

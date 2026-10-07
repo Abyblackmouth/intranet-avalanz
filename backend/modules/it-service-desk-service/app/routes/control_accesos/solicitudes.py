@@ -480,7 +480,7 @@ async def rechazar_solicitud(incident_id: str, body: RechazarPayload, db: AsyncS
     ahora = datetime.now(timezone.utc)
     sol.estado_firma = "rechazada"
     sol.datos = {**(sol.datos or {}), "revision": {"rechazada_por": user.get("full_name"), "rechazada_en": ahora.isoformat(), "motivo": motivo}}
-    inc.status, inc.closed_at = "rechazado", ahora
+    inc.status, inc.closed_at, inc.resolved_at = "rechazado", ahora, ahora   # el rechazo termina la solicitud: detiene el SLA
     if inc.first_response_at is None:   # terminar cuenta como revisar (SLA de respuesta)
         inc.first_response_at = ahora
     _bitacora(db, inc, uid, user, "solicitud_rechazada", {"motivo": motivo})
