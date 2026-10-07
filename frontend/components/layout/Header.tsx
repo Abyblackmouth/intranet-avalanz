@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { ChevronDown, LogOut, User, Shield, Clock } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter, usePathname } from 'next/navigation'
+import { ChevronDown, LogOut, User, Shield } from 'lucide-react'
+import { Plus_Jakarta_Sans, Inter } from 'next/font/google'
 import { useAuthStore } from '@/store/authStore'
 import { useAvatarPhoto } from '@/hooks/useAvatarPhoto'
 import { logout } from '@/services/authService'
@@ -11,8 +13,35 @@ import { useWebSocket, useWSEvent } from '@/hooks/useWebSocket'
 import { useToastStore } from '@/store/toastStore'
 import Cookies from 'js-cookie'
 
+const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['600', '700'], display: 'swap' })
+const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600'], display: 'swap' })
+
+// Nombres de las pantallas que no vienen de los modulos del usuario
+const PAGINAS_FIJAS: Record<string, string> = {
+  '/admin': 'Panel admin', '/admin/users': 'Usuarios', '/admin/companies': 'Empresas', '/admin/groups': 'Grupos',
+  '/admin/modules': 'Módulos', '/admin/roles': 'Roles', '/admin/permissions': 'Permisos', '/profile': 'Mi perfil',
+}
+const nombreDe = (slug: string) => (slug || '').split('-').map(w => (w ? w.charAt(0).toUpperCase() + w.slice(1) : '')).join(' ')
+
+// Ruta de la pantalla actual: [{ texto, href? }]. Sustituye a los titulos de cada pantalla.
+function rutaDe(pathname: string, modules: any[]): { texto: string; href?: string }[] {
+  const m = pathname.match(/^\/app\/([^/]+)(?:\/([^/]+))?/)
+  if (m) {
+    const mod = modules.find((x: any) => (typeof x === 'string' ? x : x.slug) === m[1])
+    const modNombre = (mod && typeof mod !== 'string' && mod.name) || nombreDe(m[1])
+    if (!m[2]) return [{ texto: modNombre }]
+    const sub = mod && typeof mod !== 'string' ? (mod.submodules ?? []).find((s: any) => s.slug === m[2]) : null
+    return [{ texto: modNombre, href: `/app/${m[1]}` }, { texto: sub?.name ?? nombreDe(m[2]) }]
+  }
+  const fija = Object.keys(PAGINAS_FIJAS).filter(k => pathname === k || pathname.startsWith(k + '/')).sort((a, b) => b.length - a.length)[0]
+  if (fija?.startsWith('/admin/')) return [{ texto: 'Administración', href: '/admin' }, { texto: PAGINAS_FIJAS[fija] }]
+  if (fija) return [{ texto: PAGINAS_FIJAS[fija] }]
+  return []
+}
+
 export default function Header() {
   const router = useRouter()
+  const pathname = usePathname()
   const { user, isAdmin, isSuperAdmin, logout: clearStore, setLoggingOut } = useAuthStore()
   const photoUrl = useAvatarPhoto()
   const [mounted, setMounted] = useState(false)
@@ -36,11 +65,7 @@ export default function Header() {
   const { addToast } = useToastStore()
   useWSEvent('notification.new', useCallback((data: any) => {
     if (data?.title) {
-      addToast({
-        type: data?.type ?? 'info',
-        title: data.title,
-        body: data?.body ?? '',
-      })
+      addToast({ type: data?.type ?? 'info', title: data.title, body: data?.body ?? '' })
     }
   }, [addToast]))
 
@@ -53,9 +78,7 @@ export default function Header() {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -73,112 +96,86 @@ export default function Header() {
     }
   }
 
-  const initials = mounted
-    ? (user?.full_name?.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() || 'U')
-    : 'U'
+  const initials = mounted ? (user?.full_name?.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() || 'U') : 'U'
+  const role = mounted ? (isSuperAdmin() ? 'Super Admin' : isAdmin() ? 'Admin Empresa' : 'Usuario') : 'Usuario'
 
-  const role = mounted
-    ? (isSuperAdmin() ? 'Super Admin' : isAdmin() ? 'Admin Empresa' : 'Usuario')
-    : 'Usuario'
-
-  const formattedDate = now
-    ? now.toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
-    : ''
-  const formattedTime = now
-    ? now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : ''
-
+  const hora = now ? now.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : ''
+  const fecha = now ? now.toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '') : ''
   const sessionStart = mounted && user?.session_started_at
-    ? new Date(user.session_started_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(user.session_started_at).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
     : null
 
+  const ruta = mounted ? rutaDe(pathname, user?.modules || []) : []
+
   return (
-    <header className="h-14 bg-white border-b-2 border-slate-300 flex items-center justify-between px-6 shrink-0">
+    <header className={`h-14 bg-white border-b-2 border-[#cbd5e1] flex items-center justify-between gap-4 px-6 shrink-0 ${inter.className}`}>
 
-      {/* Lado izquierdo — fecha, hora y conexion */}
-      <div className="flex items-center gap-4 text-slate-500">
+      {/* Izquierda: ruta de la pantalla actual */}
+      <nav aria-label="Ruta" className="flex items-center gap-2 min-w-0 text-[13px] text-[#94a3b8]">
+        <Link href="/" className="hover:text-[#475569] transition-colors shrink-0">Inicio</Link>
+        {ruta.map((r, i) => (
+          <span key={i} className="flex items-center gap-2 min-w-0">
+            <span className="text-[#cbd5e1] shrink-0">{i === 0 ? '/' : '·'}</span>
+            {r.href ? (
+              <Link href={r.href} className="hover:text-[#1a4fa0] transition-colors truncate text-[#475569]">{r.texto}</Link>
+            ) : (
+              <span className={`truncate text-[#1e293b] font-semibold ${jakarta.className}`}>{r.texto}</span>
+            )}
+          </span>
+        ))}
+      </nav>
+
+      {/* Derecha: reloj y conexion, notificaciones y usuario */}
+      <div className="flex items-center gap-3 shrink-0">
         {mounted && now && (
-          <div className="flex items-center gap-1.5 text-xs">
-            <Clock size={13} className="text-slate-400" />
-            <span className="font-mono text-slate-500">{formattedTime}</span>
-            <span className="text-slate-400">—</span>
-            <span className="text-slate-400 lowercase">{formattedDate}</span>
+          <div className="hidden md:flex flex-col items-end leading-tight pr-3 border-r border-[#e2e8f0]">
+            <span className="text-[13px] font-semibold text-[#1e293b] tabular-nums">
+              {hora}<span className="font-normal text-[#94a3b8] ml-1.5">{fecha}</span>
+            </span>
+            {sessionStart && <span className="text-[11px] text-[#94a3b8]">Conectado desde {sessionStart}</span>}
           </div>
         )}
-        {mounted && sessionStart && (
-          <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400">
-            <span className="text-slate-300">|</span>
-            <span className="text-slate-400">Conexion:</span>
-            <span className="text-slate-500">{sessionStart}</span>
-          </div>
-        )}
-      </div>
 
-      {/* Lado derecho — notificaciones y usuario */}
-      <div className="flex items-center gap-3">
-
-        {/* Campana de notificaciones */}
         {mounted && <NotificationBell />}
 
-        {/* Menu de usuario */}
         <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition"
-          >
+          <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#f1f5f9] transition">
             <div className="w-9 h-9 bg-sky-700 rounded-full flex items-center justify-center shrink-0 relative">
               {photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photoUrl}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover rounded-full"
-                  style={{ clipPath: 'circle(50%)' }}
-                />
+                <img src={photoUrl} alt="" className="absolute inset-0 w-full h-full object-cover rounded-full" style={{ clipPath: 'circle(50%)' }} />
               ) : (
                 <span className="text-white text-xs font-bold">{initials}</span>
               )}
             </div>
             <div className="text-left hidden sm:block">
-              <p className="text-sm font-medium text-slate-900 leading-tight">
-                {mounted ? (user?.full_name || 'Usuario') : 'Usuario'}
-              </p>
-              <p className="text-xs text-slate-500 leading-tight">{role}</p>
+              <p className="text-[13.5px] font-semibold text-[#1e293b] leading-tight">{mounted ? (user?.full_name || 'Usuario') : 'Usuario'}</p>
+              <p className="text-[11.5px] text-[#64748b] leading-tight">{role}</p>
             </div>
-            <ChevronDown size={14} className="text-slate-400 hidden sm:block" />
+            <ChevronDown size={14} className="text-[#94a3b8] hidden sm:block" />
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-50">
-              <div className="px-4 py-3 border-b border-slate-100">
-                <p className="text-sm font-medium text-slate-900 truncate">{user?.full_name}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+            <div className="absolute right-0 top-full mt-1 w-52 bg-white border-2 border-[#cbd5e1] rounded-xl shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)] py-1 z-50">
+              <div className="px-4 py-3 border-b border-[#e2e8f0]">
+                <p className="text-sm font-semibold text-[#1e293b] truncate">{user?.full_name}</p>
+                <p className="text-xs text-[#64748b] truncate">{user?.email}</p>
               </div>
               <div className="py-1">
-                <button
-                  onClick={() => { setMenuOpen(false); router.push('/profile') }}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
-                >
-                  <User size={15} className="text-slate-400" />
-                  Mi perfil
+                <button onClick={() => { setMenuOpen(false); router.push('/profile') }}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#334155] hover:bg-[#f1f5f9] transition">
+                  <User size={15} className="text-[#64748b]" /> Mi perfil
                 </button>
                 {mounted && isAdmin() && (
-                  <button
-                    onClick={() => { setMenuOpen(false); router.push('/admin') }}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
-                  >
-                    <Shield size={15} className="text-slate-400" />
-                    Panel admin
+                  <button onClick={() => { setMenuOpen(false); router.push('/admin') }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#334155] hover:bg-[#f1f5f9] transition">
+                    <Shield size={15} className="text-[#64748b]" /> Panel admin
                   </button>
                 )}
               </div>
-              <div className="border-t border-slate-100 py-1">
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition"
-                >
-                  <LogOut size={15} />
-                  Cerrar sesion
+              <div className="border-t border-[#e2e8f0] py-1">
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition">
+                  <LogOut size={15} /> Cerrar sesión
                 </button>
               </div>
             </div>

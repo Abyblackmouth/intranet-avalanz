@@ -444,3 +444,16 @@ class AjusteHistorial(Base):
     usuario_id = Column(UUID(as_uuid=False), nullable=True)
     usuario_nombre = Column(String(255), nullable=False, server_default="")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+# ------------------------------------------------------------------
+# Los titulos de los tickets siempre se guardan en MAYUSCULAS, vengan de
+# Incidentes, Control de Cambios o Accesos, al crear o al editar. Una sola
+# regla aqui en lugar de repetirla en cada endpoint.
+# ------------------------------------------------------------------
+from sqlalchemy import event as _event
+
+
+@_event.listens_for(Incident.title, "set", retval=True)
+def _titulo_en_mayusculas(target, value, oldvalue, initiator):
+    return " ".join(value.split()).upper() if isinstance(value, str) else value

@@ -1,5 +1,6 @@
 'use client'
 
+import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import AccResumenSolicitud from '@/components/app/it-service-desk/mesa-de-soporte/AccResumenSolicitud'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/store/authStore'
@@ -21,7 +22,7 @@ interface Detail {
   assigned_to_name: string | null; assigned_to_phone: string | null
   assigned_to_puesto: string | null; assigned_to_photo_object_key: string | null
   sla_response_limit: string | null; sla_resolution_limit: string | null; is_sla_breached: boolean
-  resolved_at: string | null; resolution_type: string | null; closed_at: string | null
+  resolved_at: string | null; resolution_type: string | null; rca_text?: string | null; closed_at: string | null
   created_at: string
   attachments: Attachment[]
   activity_log: { action: string; performed_by_name: string; performed_by_role: string; performed_at: string; detail: any }[]
@@ -153,6 +154,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const [resolutionType, setResolutionType] = useState('causa_raiz')
   const [rcaText, setRcaText] = useState('')
   const [resolveFiles, setResolveFiles] = useState<File[]>([])
+  usePegarImagenes(imgs => setResolveFiles(prev => [...prev, ...imgs]), showResolveForm)   // Ctrl + V solo con el formulario de resolver abierto
   const [submittingResolve, setSubmittingResolve] = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
 
@@ -181,7 +183,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const isEspecialistaTecnico = roles.includes('it-service-desk:especialista-tecnico')
   const canAssign = isIncidentManager || isEspecialistaFuncional || isEspecialistaTecnico
   const canResolve = detail
-    ? (isIncidentManager || user?.user_id === detail.assigned_to_user_id) && !['resuelto', 'cerrado'].includes(detail.status)
+    ? (isIncidentManager || user?.user_id === detail.assigned_to_user_id) && !['resuelto', 'cerrado', 'terminado', 'rechazado', 'cancelado'].includes(detail.status)
     : false
 
   const handleResolve = async () => {
@@ -241,7 +243,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                 {sev.code} · {sev.name}
               </span>
             )}
-            {sev && puedeCambiarSev && !['resuelto', 'cerrado'].includes(detail!.status) && (
+            {sev && puedeCambiarSev && !['resuelto', 'cerrado', 'terminado', 'rechazado', 'cancelado'].includes(detail!.status) && (
               <button type="button" onClick={() => { setNuevaSev(''); setMotivoSev(''); setErrorSev(null); setShowSev(true) }}
                 className="h-9 px-3 rounded-lg text-[13px] font-semibold text-[#1a4fa0] border border-[#1a4fa0]/40 hover:bg-blue-50 transition">
                 Cambiar
@@ -378,6 +380,12 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div><p className="text-[10px] text-slate-400 uppercase">Resuelto</p><p className="font-medium text-slate-800">{fmt(detail.resolved_at)}</p></div>
                         <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.resolution_type?.replace('_', ' ')}</p></div>
+                        {detail.rca_text && (
+                          <div className="col-span-2">
+                            <p className="text-[10px] text-slate-400 uppercase mb-1">Notas de resolución</p>
+                            <p className="text-sm text-slate-700 whitespace-pre-wrap border border-slate-300 rounded-lg px-3 py-2">{detail.rca_text}</p>
+                          </div>
+                        )}
                       </div>
                     ) : canResolve && !esAccesoTicket && !showResolveForm ? (
                       <button
@@ -406,7 +414,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                             value={rcaText}
                             onChange={e => setRcaText(e.target.value)}
                             rows={3}
-                            placeholder="Describe brevemente la solución aplicada"
+                            placeholder="Describe brevemente la solución aplicada · Puedes pegar capturas aquí con Ctrl + V"
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500 resize-none"
                           />
                         </div>
@@ -453,7 +461,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                     <span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200" title="Primera respuesta registrada">
                       <CheckCircle2 size={14} /> Revisado · {new Date(revisadoAt ?? (detail as any).first_response_at).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
-                  ) : !['resuelto', 'cerrado'].includes(detail.status) && (
+                  ) : !['resuelto', 'cerrado', 'terminado', 'rechazado', 'cancelado'].includes(detail.status) && (
                     <button type="button" disabled={marcandoRevisado}
                       onClick={async () => {
                         setMarcandoRevisado(true)

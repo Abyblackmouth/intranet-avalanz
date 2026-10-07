@@ -187,7 +187,8 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
         raise HTTPException(status_code=422, detail="Falta o no es válido: " + ", ".join(dict.fromkeys(errores)))
 
     user_id = _uid(user)
-    company_id = (user.get("companies") or [None])[0]
+    from app.services.empresa_usuario import empresa_de
+    company_id = await empresa_de(user.get("user_id")) or ((user.get("companies") or [None])[0])
     if not company_id:
         raise HTTPException(status_code=400, detail="Tu usuario no tiene empresa asignada")
     perfil = await _get_requester_profile(user_id)
@@ -478,6 +479,8 @@ async def rechazar_solicitud(incident_id: str, body: RechazarPayload, db: AsyncS
     sol.estado_firma = "rechazada"
     sol.datos = {**(sol.datos or {}), "revision": {"rechazada_por": user.get("full_name"), "rechazada_en": ahora.isoformat(), "motivo": motivo}}
     inc.status, inc.closed_at = "rechazado", ahora
+    if inc.first_response_at is None:   # terminar cuenta como revisar (SLA de respuesta)
+        inc.first_response_at = ahora
     _bitacora(db, inc, uid, user, "solicitud_rechazada", {"motivo": motivo})
     await db.commit()
     await db.refresh(inc)
@@ -818,6 +821,8 @@ async def liberar_solicitud(incident_id: str, body: LiberarPayload, db: AsyncSes
     from app.services.control_accesos.firma.cierre import registrar_en_expediente
     await registrar_en_expediente(db, sol, inc, documento, key, usuario_asig)
     inc.status, inc.resolved_at = "terminado", ahora
+    if inc.first_response_at is None:   # terminar cuenta como revisar (SLA de respuesta)
+        inc.first_response_at = ahora
     _bitacora(db, inc, _uid(user), user, "liberada_por_ti", {"usuario_asignado": usuario_asig, "huella_escaneo": huella})
     await db.commit()
     await db.refresh(inc)

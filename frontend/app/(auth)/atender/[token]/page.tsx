@@ -1,5 +1,6 @@
 'use client'
 
+import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import api from '@/services/api'
@@ -60,6 +61,7 @@ export default function AtenderTicketPage() {
   const [resolutionType, setResolutionType] = useState('causa_raiz')
   const [rcaText, setRcaText] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  usePegarImagenes(imgs => setFiles(prev => [...prev, ...imgs]))   // Ctrl + V pega capturas como evidencia
   const [submitting, setSubmitting] = useState(false)
   const [resolved, setResolved] = useState(false)
   const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null)
@@ -137,7 +139,7 @@ export default function AtenderTicketPage() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8 flex flex-col items-center gap-3 text-center">
         <AlertTriangle size={28} className="text-red-500" />
         <p className="text-sm font-medium text-slate-700">{error}</p>
-        <p className="text-xs text-slate-400">Este enlace puede haber expirado o ya fue utilizado.</p>
+        <p className="text-xs text-slate-400">{error?.includes('reasignado') ? 'Ya no necesitas atenderlo: ahora le corresponde a esa persona.' : 'Este enlace puede haber expirado o ya fue utilizado.'}</p>
       </div>
     )
   }
@@ -235,7 +237,7 @@ export default function AtenderTicketPage() {
             value={rcaText}
             onChange={(e) => setRcaText(e.target.value)}
             rows={3}
-            placeholder="Describe brevemente la solución aplicada"
+            placeholder="Describe brevemente la solución aplicada · Puedes pegar capturas aquí con Ctrl + V"
             className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#1a4fa0] mb-3 resize-none"
           />
 

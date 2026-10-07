@@ -1,5 +1,6 @@
 'use client'
 
+import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import { useEffect, useState } from 'react'
 import { getProduccion, confirmarProduccion } from '@/services/itServiceDeskService'
 import { Lock, Paperclip, X } from 'lucide-react'
@@ -21,6 +22,7 @@ export default function CdcProduccion({ incidentId, onChanged }: { incidentId: s
   const [instalo, setInstalo] = useState('')
   const [comentarios, setComentarios] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  usePegarImagenes(imgs => setFiles(prev => [...prev, ...imgs]))   // Ctrl + V pega capturas como evidencia
   const [confirmando, setConfirmando] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

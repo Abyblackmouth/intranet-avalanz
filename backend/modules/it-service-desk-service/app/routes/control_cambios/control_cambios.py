@@ -179,7 +179,8 @@ async def create_control_cambio(
     raw_token: str = Depends(get_token_from_request),
 ):
     user_id = user.get("user_id")
-    company_id = user.get("companies", [None])[0] if user.get("companies") else None
+    from app.services.empresa_usuario import empresa_de
+    company_id = await empresa_de(user.get("user_id")) or ((user.get("companies") or [None])[0])
     if not company_id:
         raise HTTPException(status_code=400, detail="El usuario no tiene empresa asignada")
 
@@ -354,7 +355,8 @@ async def get_control_cambio_detail(incident_id: str, db: AsyncSession = Depends
     is_owner = incident.requester_id == user.get("user_id")
     if not is_module_wide and not is_owner:
         if "it-service-desk:jefe-empresa" in roles:
-            if incident.company_id not in (user.get("companies") or []):
+            from app.services.empresa_usuario import empresa_de
+            if str(incident.company_id) != (await empresa_de(user.get("user_id")) or ""):
                 raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
         else:
             raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
