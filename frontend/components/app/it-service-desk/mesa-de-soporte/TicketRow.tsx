@@ -159,7 +159,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
         <span className="inline-flex items-center gap-2">
           <SlaReloj tipo="Respuesta" letra="R" inicio={t.created_at} limite={(t as any).sla_response_limit} cumplido={(t as any).first_response_at} />
           <SlaReloj tipo="Resolución" letra="S" inicio={t.created_at} limite={t.sla_resolution_limit}
-            cumplido={['resuelto', 'cerrado', 'terminado'].includes(t.status) ? ((t as any).resolved_at ?? (t as any).closed_at ?? t.sla_resolution_limit) : null} />
+            cumplido={(t as any).resolved_at ?? (t as any).closed_at} />
         </span>
       </td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-right">
