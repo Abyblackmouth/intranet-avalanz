@@ -292,6 +292,8 @@ async def resumen_solicitud(incident_id: str, db: AsyncSession = Depends(get_db)
         "jefe": cap.get("jefe", {}),
         "tiene_pdf": bool(sol.pdf_object_key),
         "estado_firma": sol.estado_firma,
+        "tiene_contrasena": __import__("app.services.control_accesos.contrasena", fromlist=["tiene"]).tiene(sol),
+        "metodo_firma": sol.metodo_firma,
         "revision": (sol.datos or {}).get("revision"),
     }
 
@@ -746,6 +748,7 @@ async def subir_firma_ti(formato_id: str, archivo: _UploadFile = _File(...), db:
 
 class LiberarPayload(_BM):
     usuario_asignado: str
+    contrasena_temporal: str | None = None
 
 
 @router.post("/solicitudes/{incident_id}/liberar")
@@ -817,6 +820,9 @@ async def liberar_solicitud(incident_id: str, body: LiberarPayload, db: AsyncSes
                               mime_type="application/pdf", size_bytes=len(documento), uploaded_by=_uid(user)))
     sol.estado_firma, sol.firmado_object_key, sol.usuario_asignado, sol.fecha_alta = "firmado", key, usuario_asig, local.date()
     sol.datos = {**(sol.datos or {}), "liberacion": {"por": nombre_ti, "en": ahora.isoformat(), "huella_escaneo": huella}}
+    from app.services.control_accesos import contrasena as _pw
+    pw_final = (body.contrasena_temporal or "").strip() or _pw.leer(sol)
+    _pw.borrar(sol)   # nunca se queda guardada despues de entregarla
     await registrar_cuenta(db, sol, usuario_asig, inc.folio)
     from app.services.control_accesos.firma.cierre import registrar_en_expediente
     await registrar_en_expediente(db, sol, inc, documento, key, usuario_asig)
@@ -829,7 +835,40 @@ async def liberar_solicitud(incident_id: str, body: LiberarPayload, db: AsyncSes
     await _broadcast_ticket_update(inc)
     if perfil.get("email"):
         await _correo(perfil["email"], inc.requester_name, f"Tu acceso de la solicitud {inc.folio} quedó liberado",
-                      f"TI liberó tu acceso. Tu usuario asignado es {usuario_asig}. Te adjuntamos el formato con todas las firmas.",
-                      [{"label": "Usuario asignado", "value": usuario_asig, "mono": True}],
+                      f"TI liberó tu acceso. Tu usuario asignado es {usuario_asig}."
+                      + (" Tu contraseña es temporal: el sistema te pedirá cambiarla en tu primer inicio de sesión." if pw_final else "")
+                      + " Te adjuntamos el formato con todas las firmas.",
+                      [{"label": "Usuario asignado", "value": usuario_asig, "mono": True}]
+                      + ([{"label": "Contraseña temporal", "value": pw_final, "mono": True}] if pw_final else []),
                       [(f"FIRMADO_{inc.folio}.pdf", documento)], None, "success")
     return {"success": True, "status": inc.status, "usuario_asignado": usuario_asig}
+
+
+
+class ContrasenaPayload(_BM):
+    contrasena_temporal: str
+
+
+@router.post("/solicitudes/{incident_id}/contrasena-temporal")
+async def guardar_contrasena_temporal(incident_id: str, body: ContrasenaPayload, db: AsyncSession = Depends(get_db),
+                                      user: dict = Depends(get_current_user)):
+    """TI guarda la contrasena temporal antes de firmar en DocuSign; viaja en el
+    correo final y se borra al enviarlo. Se guarda cifrada y nunca va a la bitacora."""
+    from app.services.control_accesos import contrasena as _pw
+    pw = (body.contrasena_temporal or "").strip()
+    if len(pw) < 8:
+        raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 8 caracteres")
+    fila = (await db.execute(select(AccSolicitud, Incident).join(Incident, Incident.id == AccSolicitud.incident_id)
+                             .where(AccSolicitud.incident_id == incident_id))).first()
+    if not fila:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    sol, inc = fila
+    f = await _formato(db, sol.formato_id)
+    if not _puede_firma(user, f):
+        raise HTTPException(status_code=403, detail="Solo TI del formato puede guardar la contraseña")
+    if sol.estado_firma in ("firmado", "declinado") or str(getattr(inc.status, "value", inc.status)) != "en_firma":
+        raise HTTPException(status_code=422, detail="La solicitud ya no está en firma")
+    _pw.guardar(sol, pw, user.get("full_name") or "TI")
+    _bitacora(db, inc, _uid(user), user, "contrasena_guardada", {"para": "correo final"})
+    await db.commit()
+    return {"success": True, "tiene_contrasena": True}

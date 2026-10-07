@@ -67,6 +67,9 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
     db.add(IncidentAttachment(incident_id=inc.id, attachment_type="evidencia_resolucion", object_key=key, bucket=BUCKET,
                               mime_type="application/pdf", size_bytes=len(pdf), uploaded_by=f_admin or inc.requester_id))
     sol.estado_firma, sol.firmado_object_key, sol.usuario_asignado, sol.fecha_alta = "firmado", key, usuario or None, sello.date()
+    from app.services.control_accesos import contrasena as _pw
+    pw_final = _pw.leer(sol)
+    _pw.borrar(sol)   # se entrega en el correo final y no se queda guardada
 
     cuenta = (await db.execute(select(AccCuenta).where(AccCuenta.id == sol.cuenta_id))).scalar_one_or_none() if sol.cuenta_id else None
     if cuenta:
@@ -88,8 +91,10 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
     await db.refresh(inc)
     await broadcast(inc)
     await avisar(inc, f"Tu acceso de la solicitud {inc.folio} quedó registrado",
-                 f"Todos firmaron tu solicitud y TI te asignó tu usuario: {usuario or '(sin capturar)'}.",
-                 [{"label": "Usuario asignado", "value": usuario or "—", "mono": True}], "success")
+                 f"Todos firmaron tu solicitud y TI te asignó tu usuario: {usuario or '(sin capturar)'}."
+                 + (" Tu contraseña es temporal: el sistema te pedirá cambiarla en tu primer inicio de sesión." if pw_final else ""),
+                 [{"label": "Usuario asignado", "value": usuario or "—", "mono": True}]
+                 + ([{"label": "Contraseña temporal", "value": pw_final, "mono": True}] if pw_final else []), "success")
     log.info("Solicitud %s firmada por todos; usuario asignado %s", inc.folio, usuario)
     return {"accion": "terminado", "folio": inc.folio, "usuario_asignado": usuario}
 
