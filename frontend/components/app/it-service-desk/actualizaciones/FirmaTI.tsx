@@ -24,7 +24,7 @@ function Tarjeta({ id, nombre }: { id: string; nombre: string }) {
       <div className="w-40 h-20 rounded-lg border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden">
         {firma?.imagen ? <img src={firma.imagen} alt="Tu firma" className="max-w-full max-h-full object-contain" /> : <PenLine className="text-slate-300" />}
       </div>
-      <div className="flex-1 min-w-[200px]">
+      <div className="flex-1 min-w-50">
         <p className="text-sm font-semibold text-slate-900">{nombre}</p>
         <p className="text-[12.5px] text-slate-500">{firma?.tiene ? `Firma guardada${firma.actualizada ? ' · ' + new Date(firma.actualizada).toLocaleDateString('es-MX') : ''}` : 'Aún no hay firma: no podrás liberar solicitudes con firma manual.'}</p>
         {estado && estado !== 'subiendo' && <p role="alert" className="text-[12.5px] text-red-600 mt-1">{estado}</p>}

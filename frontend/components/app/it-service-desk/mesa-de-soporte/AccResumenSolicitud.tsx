@@ -212,7 +212,7 @@ export default function AccResumenSolicitud({ incidentId, fallback, estado, asig
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Contraseña temporal para el sistema</label>
                 <div className="flex flex-wrap gap-2">
                   <input value={contrasena} onChange={e => setContrasena(e.target.value)} aria-label="Contraseña temporal" spellCheck={false}
-                    className="flex-1 min-w-[160px] h-9 px-3 border border-slate-300 rounded-lg font-mono text-[15px] tracking-wide bg-white outline-none focus:border-[#1a4fa0]" />
+                    className="flex-1 min-w-40 h-9 px-3 border border-slate-300 rounded-lg font-mono text-[15px] tracking-wide bg-white outline-none focus:border-[#1a4fa0]" />
                   <button type="button" onClick={copiar} className="h-9 px-3 rounded-lg text-[13px] font-semibold border border-slate-300 bg-white hover:bg-slate-50">{copiado ? '✓ Copiada' : '📋 Copiar'}</button>
                   <button type="button" onClick={() => setContrasena(generar())} className="h-9 px-3 rounded-lg text-[13px] border border-slate-300 bg-white hover:bg-slate-50">Generar otra</button>
                 </div>

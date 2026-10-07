@@ -70,7 +70,7 @@ function ConfirmField({ title, originalLabel, finalLabel, f, canConfirm, editor,
       </div>
       {f.editing ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <div className="flex-1 min-w-[180px]">{editor}</div>
+          <div className="flex-1 min-w-45">{editor}</div>
           <button type="button" onClick={f.cancelEdit} className="px-3 py-2 text-sm text-slate-600">Cancelar</button>
           <button type="button" onClick={f.apply} disabled={!f.draft} className="border-[1.5px] border-slate-300 rounded-lg px-3.5 py-2 text-sm font-medium bg-white hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-50">Aplicar</button>
           {error && <p className="basis-full text-xs text-red-600">{error}</p>}
@@ -230,7 +230,7 @@ export default function CdcPriorizacionForm({ incidentId, solicitado, esfuerzoRe
             </div>
             <div className="sm:col-span-2">
               <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Notas para el Comité Directivo <span className="font-normal text-slate-400">(opcional, no se envían al solicitante)</span></label>
-              <textarea className={`${inputCls} min-h-[70px]`} placeholder="Dependencias, costo estimado, por qué esta prioridad…" value={notas} onChange={e => setNotas(e.target.value)} />
+              <textarea className={`${inputCls} min-h-17.5`} placeholder="Dependencias, costo estimado, por qué esta prioridad…" value={notas} onChange={e => setNotas(e.target.value)} />
             </div>
           </div>
         </div>

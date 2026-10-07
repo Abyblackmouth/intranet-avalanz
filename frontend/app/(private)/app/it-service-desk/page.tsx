@@ -93,7 +93,7 @@ function KpiStrip({ kpis }: { kpis: Kpi[] }) {
   return (
     <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
       {kpis.map(k => (
-        <div key={k.label} className={`${PANEL} px-[14px] py-3`}>
+        <div key={k.label} className={`${PANEL} px-3.5 py-3`}>
           <div className={`text-[13px] ${INK2}`}>{k.label}</div>
           <div className={`text-[26px] font-semibold leading-[1.2] my-0.5 tabular-nums ${INK}`}>{k.valor}</div>
           <div className="text-[12px] font-medium" style={{ color: color[k.tono] }}>{k.delta}</div>
@@ -333,7 +333,7 @@ function ResueltosCard({ lista }: { lista: D[] }) {
               {lista.map((t: D) => (
                 <tr key={t.folio}>
                   <td className={`${td} whitespace-nowrap font-medium`} style={{ color: c.navy }}>{t.folio}</td>
-                  <td className={`${td} max-w-[340px] truncate`} title={t.titulo}>{t.titulo}</td>
+                  <td className={`${td} max-w-85 truncate`} title={t.titulo}>{t.titulo}</td>
                   <td className={`${td} whitespace-nowrap ${INK2}`}>{t.sistema}</td>
                   <td className={`${td} whitespace-nowrap ${INK2}`}>{t.severidad}</td>
                   <td className={`${td} whitespace-nowrap`}>{t.resolvio}</td>
@@ -508,7 +508,7 @@ function Adopcion({ d }: { d: D }) {
         <Card title="Preguntas que el asistente no supo responder" q="Agrupadas cuando se repiten: señal de qué documentar o capacitar.">
           {d.temas_sin_respuesta ? (
             d.temas_sin_respuesta.length ? (
-              <ul className="m-0 p-0 list-none h-[300px] overflow-hidden">
+              <ul className="m-0 p-0 list-none h-75 overflow-hidden">
                 {d.temas_sin_respuesta.slice(0, 7).map((t: D) => (
                   <li key={t.tema} className="flex justify-between gap-3 py-2 border-b border-[var(--grid)] last:border-0">
                     <span className={`${INK} truncate min-w-0`} title={t.tema}>{t.tema}</span>

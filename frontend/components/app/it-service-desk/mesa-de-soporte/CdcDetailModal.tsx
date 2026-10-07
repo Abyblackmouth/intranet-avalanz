@@ -471,7 +471,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
 
             <div className="flex-1 overflow-y-auto overscroll-contain px-6 md:px-7 py-6">
               <section className="bg-white border border-slate-200 rounded-2xl shadow-sm px-5 pt-5 pb-4 mb-6 overflow-x-auto" aria-label="Etapas del Control de Cambios">
-                <ol className="grid grid-cols-12 min-w-[1260px]">
+                <ol className="grid grid-cols-12 min-w-315">
                   {STAGES.map((s, i) => {
                     const done = i < current || (i === current && status === 'cerrado')
                     const now = i === current && !done
@@ -480,7 +480,7 @@ export default function CdcDetailModal({ incidentId, onClose, onChanged }: { inc
                     const label = stop && status === 'rechazado' ? 'Rechazado' : s.label
                     return (
                       <li key={s.key} className="relative pt-8 text-[13px]">
-                        <span className={`absolute top-[10px] h-[3px] ${i === 0 ? 'left-2.5' : 'left-0'} ${i === STAGES.length - 1 ? 'right-[calc(100%-10px)]' : 'right-0'} ${done ? 'bg-[var(--cdc-done)]' : 'bg-slate-200'}`} />
+                        <span className={`absolute top-2.5 h-[3px] ${i === 0 ? 'left-2.5' : 'left-0'} ${i === STAGES.length - 1 ? 'right-[calc(100%-10px)]' : 'right-0'} ${done ? 'bg-[var(--cdc-done)]' : 'bg-slate-200'}`} />
                         <span className={`absolute top-0.5 left-0 w-5 h-5 rounded-full border-[3px] z-10 flex items-center justify-center
                           ${done ? 'bg-[var(--cdc-done)] border-[var(--cdc-done)]' : stop ? 'bg-red-600 border-red-600' : hold ? 'bg-white border-amber-500 ring-4 ring-amber-100' : now ? 'bg-white border-[var(--cdc-current)] ring-4 ring-[var(--cdc-current-soft)]' : 'bg-white border-slate-300'}`}>
                           {done && <Check className="w-3 h-3 text-white" strokeWidth={3.5} />}

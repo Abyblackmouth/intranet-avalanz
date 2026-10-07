@@ -85,11 +85,11 @@ export default function CreateControlCambioModal({ onClose, onCreated, onBack }:
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-black/40" onClick={onClose} />
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[640px] max-h-[90vh] flex flex-col overflow-hidden" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+      <div className="fixed inset-0 z-60 bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-160 max-h-[90vh] flex flex-col overflow-hidden" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
 
-          <div className="flex items-center justify-between px-8 py-[22px] border-b border-slate-200">
+          <div className="flex items-center justify-between px-8 py-5.5 border-b border-slate-200">
             <div>
               <p className="text-[17px] font-bold text-slate-900">Nuevo Control de Cambios</p>
               <p className="text-xs text-slate-400 mt-0.5">Etapa: Registrado</p>
@@ -108,7 +108,7 @@ export default function CreateControlCambioModal({ onClose, onCreated, onBack }:
             {Array.from({ length: total }, (_, i) => i + 1).map(i => (
               <div key={i} className="contents">
                 <div
-                  className={`w-[26px] h-[26px] rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition ${
+                  className={`w-6.5 h-6.5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition ${
                     i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-[#1a4fa0] text-white' : 'bg-slate-200 text-slate-400'
                   }`}
                 >
@@ -118,11 +118,11 @@ export default function CreateControlCambioModal({ onClose, onCreated, onBack }:
               </div>
             ))}
           </div>
-          <div className="flex justify-between px-8 pt-1.5 pb-[18px] text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+          <div className="flex justify-between px-8 pt-1.5 pb-4.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">
             <span>Datos</span><span>Alcance</span><span>Solicitud</span><span>Prioridad</span><span>Confirmar</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-8 pb-2 min-h-[320px]">
+          <div className="flex-1 overflow-y-auto px-8 pb-2 min-h-80">
 
             {step === 1 && (
               <div>
@@ -206,11 +206,11 @@ export default function CreateControlCambioModal({ onClose, onCreated, onBack }:
                 </div>
                 <div className="mb-3.5">
                   <label className={labelCls}>Descripción detallada <span className="text-red-600">*</span></label>
-                  <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={3} placeholder="Necesidad o problema a resolver, situación actual y comportamiento esperado..." className={`${inputCls} resize-y min-h-[70px]`} />
+                  <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={3} placeholder="Necesidad o problema a resolver, situación actual y comportamiento esperado..." className={`${inputCls} resize-y min-h-17.5`} />
                 </div>
                 <div>
                   <label className={labelCls}>Justificación / beneficio esperado <span className="text-red-600">*</span></label>
-                  <textarea value={justificacion} onChange={e => setJustificacion(e.target.value)} rows={3} placeholder="Beneficio de negocio, ahorro, riesgo mitigado o cumplimiento que sustenta la solicitud..." className={`${inputCls} resize-y min-h-[70px]`} />
+                  <textarea value={justificacion} onChange={e => setJustificacion(e.target.value)} rows={3} placeholder="Beneficio de negocio, ahorro, riesgo mitigado o cumplimiento que sustenta la solicitud..." className={`${inputCls} resize-y min-h-17.5`} />
                 </div>
               </div>
             )}
@@ -271,7 +271,7 @@ export default function CreateControlCambioModal({ onClose, onCreated, onBack }:
 
           </div>
 
-          <div className="flex items-center justify-between px-8 py-[18px] border-t border-slate-200 bg-slate-50">
+          <div className="flex items-center justify-between px-8 py-4.5 border-t border-slate-200 bg-slate-50">
             {onBack && (
               <button type="button" onClick={onBack} className="mr-auto inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition">
                 <span aria-hidden="true">←</span> Regresar

@@ -128,7 +128,7 @@ export default function Sidebar() {
   }
   const cerrarFlot = () => { cierre.current = setTimeout(() => setFlot(null), 220) }
 
-  const fila = 'w-full flex items-center gap-3 min-h-[40px] rounded-[10px] text-[14.5px] transition-colors duration-75'
+  const fila = 'w-full flex items-center gap-3 min-h-10 rounded-[10px] text-[14.5px] transition-colors duration-75'
   const filaNormal = 'text-[#334155] font-medium hover:bg-[#1a4fa0]/[0.10] hover:text-[#1e293b]'
   const filaActiva = 'bg-[#1a4fa0] text-white font-semibold hover:bg-[#173f82]'
   const seccion = `text-[#64748b] text-[10.5px] font-semibold uppercase tracking-[0.09em] px-2.5 pt-4 pb-2 ${jakarta.className}`
@@ -227,7 +227,7 @@ export default function Sidebar() {
                             return (
                               <li key={sub.href}>
                                 <Link href={sub.href} tabIndex={abierto ? 0 : -1}
-                                  className={`flex items-center gap-[9px] min-h-[34px] px-2.5 rounded-lg text-[13.5px] whitespace-nowrap transition-colors duration-75
+                                  className={`flex items-center gap-[9px] min-h-8.5 px-2.5 rounded-lg text-[13.5px] whitespace-nowrap transition-colors duration-75
                                     ${activo ? 'bg-[#eef4fc] text-[#1a4fa0] font-semibold' : 'text-[#475569] hover:bg-[#1a4fa0]/[0.10] hover:text-[#1e293b]'}`}>
                                   <span className={`shrink-0 w-4 h-4 grid place-items-center ${activo ? 'text-[#1a4fa0]' : 'text-[#64748b]'}`}>{sub.icon}</span>
                                   <span className="truncate">{sub.nombre}</span>
@@ -248,7 +248,7 @@ export default function Sidebar() {
 
       {/* Menu flotante (sidebar recogido) */}
       {flot && (
-        <div role="menu" className={`fixed z-50 min-w-[220px] bg-white border-2 border-[#cbd5e1] rounded-xl p-2 shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)] ${inter.className}`}
+        <div role="menu" className={`fixed z-50 min-w-55 bg-white border-2 border-[#cbd5e1] rounded-xl p-2 shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)] ${inter.className}`}
           style={{ top: flot.top, left: flot.left }}
           onMouseEnter={() => cierre.current && clearTimeout(cierre.current)} onMouseLeave={cerrarFlot}>
           <p className={`mx-2 mt-0.5 mb-1.5 text-[13px] font-bold text-[#1e293b] ${jakarta.className}`}>{flot.mod.nombre}</p>
@@ -256,7 +256,7 @@ export default function Sidebar() {
             const activo = enRuta(sub.href, sub.exacto)
             return (
               <Link key={sub.href} href={sub.href} role="menuitem"
-                className={`flex items-center gap-[9px] min-h-[34px] px-2.5 rounded-lg text-[13.5px] transition-colors duration-75
+                className={`flex items-center gap-[9px] min-h-8.5 px-2.5 rounded-lg text-[13.5px] transition-colors duration-75
                   ${activo ? 'bg-[#eef4fc] text-[#1a4fa0] font-semibold' : 'text-[#475569] hover:bg-[#1a4fa0]/[0.10] hover:text-[#1e293b]'}`}>
                 <span className={`shrink-0 w-4 h-4 grid place-items-center ${activo ? 'text-[#1a4fa0]' : 'text-[#64748b]'}`}>{sub.icon}</span>
                 {sub.nombre}

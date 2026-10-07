@@ -30,8 +30,8 @@ export default function ReopenIncidentModal({ incidentId, folio, onClose, onReop
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-black/40" onClick={onClose} />
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-60 bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">

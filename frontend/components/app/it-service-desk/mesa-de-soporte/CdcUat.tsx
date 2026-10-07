@@ -159,7 +159,7 @@ export default function CdcUat({ incidentId, onChanged }: { incidentId: string; 
                 </div>
 
                 {data.puede_validar && (
-                  <textarea className={`${inputCls} min-h-[60px] mt-3 ${r.cumple === false && !r.comentario.trim() ? 'border-amber-400' : ''}`}
+                  <textarea className={`${inputCls} min-h-15 mt-3 ${r.cumple === false && !r.comentario.trim() ? 'border-amber-400' : ''}`}
                     placeholder={r.cumple === false ? 'Obligatorio: qué falla, qué esperabas y qué pasó' : 'Comentario (opcional)'}
                     value={r.comentario} onChange={e => set(c.id, { comentario: e.target.value })} />
                 )}
@@ -186,7 +186,7 @@ export default function CdcUat({ incidentId, onChanged }: { incidentId: string; 
         {data.puede_validar && (
           <div className="mt-4">
             <label className="block text-[13px] font-medium text-slate-700 mb-1.5">Comentarios generales <span className="font-normal text-slate-400">(opcional)</span></label>
-            <textarea className={`${inputCls} min-h-[60px]`} value={comentario} onChange={e => setComentario(e.target.value)} />
+            <textarea className={`${inputCls} min-h-15`} value={comentario} onChange={e => setComentario(e.target.value)} />
           </div>
         )}
 

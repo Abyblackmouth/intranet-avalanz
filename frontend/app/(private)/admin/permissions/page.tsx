@@ -516,7 +516,7 @@ export default function PermissionsPage() {
 
           {/* Filtros */}
           <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-50">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="search"

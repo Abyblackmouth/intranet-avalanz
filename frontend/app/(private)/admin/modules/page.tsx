@@ -313,7 +313,7 @@ function ModuleForm({
 
       {/* Modal de progreso scaffold */}
       {scaffolding && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl px-10 py-10 flex flex-col items-center gap-5 w-full max-w-sm mx-4">
             <div className="w-14 h-14 border-4 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
             <div className="text-center">
@@ -552,7 +552,7 @@ function SubmoduleForm({
 
       {/* Modal de progreso scaffold */}
       {scaffolding && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl px-10 py-10 flex flex-col items-center gap-5 w-full max-w-sm mx-4">
             <div className="w-14 h-14 border-4 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
             <div className="text-center">

@@ -48,10 +48,10 @@ export default function NewTicketTypeModal({ onClose, onSelect }: NewTicketTypeM
   return (
     <>
       <div
-        className={`fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${shellIn ? 'opacity-100' : 'opacity-0'}`}
+        className={`fixed inset-0 z-60 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${shellIn ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+      <div className="fixed inset-0 z-60 flex items-center justify-center p-4 pointer-events-none">
         <div
           className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-7 relative pointer-events-auto transition-all"
           style={{

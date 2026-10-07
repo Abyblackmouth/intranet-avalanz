@@ -75,7 +75,7 @@ export default function CdcProduccion({ incidentId, onChanged }: { incidentId: s
           <Campo label="Quién instaló" req><input className={inputCls} placeholder="Persona o proveedor" value={instalo} onChange={e => setInstalo(e.target.value)} /></Campo>
         </div>
         <Campo label={`Comentarios${resultado && resultado !== 'exitoso' ? '' : ' (opcional)'}`} req={!!resultado && resultado !== 'exitoso'}>
-          <textarea className={`${inputCls} min-h-[80px]`} placeholder={resultado === 'revertido' ? 'Qué falló y cómo se revirtió' : 'Cómo fue la instalación'} value={comentarios} onChange={e => setComentarios(e.target.value)} />
+          <textarea className={`${inputCls} min-h-20`} placeholder={resultado === 'revertido' ? 'Qué falló y cómo se revirtió' : 'Cómo fue la instalación'} value={comentarios} onChange={e => setComentarios(e.target.value)} />
         </Campo>
         <div>
           <p className="text-[13px] font-medium text-slate-700 mb-1.5">Evidencia<span className="text-red-600">*</span></p>

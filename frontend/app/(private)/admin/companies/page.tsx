@@ -88,7 +88,7 @@ function FamiliasPanel({ families, onClose, onChanged }: { families: Family[]; o
                   <button type="button" role="switch" aria-checked={f.is_active} aria-label={`${f.is_active ? 'Desactivar' : 'Activar'} ${f.name}`} disabled={busy}
                     onClick={() => run(() => updateFamily(f.id, { is_active: !f.is_active }))}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${f.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${f.is_active ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${f.is_active ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
                   </button>
                 </>
               )}
@@ -290,7 +290,7 @@ export default function CompaniesPage() {
       {/* Tabla */}
       <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[860px]">
+          <table className="w-full text-sm min-w-215">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <th className="px-4 py-2.5 w-28">Operando</th>
@@ -313,7 +313,7 @@ export default function CompaniesPage() {
                         <button type="button" role="switch" aria-checked={c.is_active} aria-label={`${c.is_active ? 'Marcar como no operando' : 'Marcar como operando'} ${c.nombre_comercial}`}
                           onClick={() => handleToggle(c)} disabled={togglingId === c.company_id}
                           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:cursor-wait ${c.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${c.is_active ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${c.is_active ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
                         </button>
                       ) : (
                         <span className={`text-[12px] font-medium ${c.is_active ? 'text-emerald-700' : 'text-slate-400'}`}>{c.is_active ? 'Operando' : 'No operando'}</span>
@@ -321,7 +321,7 @@ export default function CompaniesPage() {
                     </td>
                     <td className="px-4 py-2.5 min-w-0">
                       <p className={`font-semibold ${c.is_active ? 'text-slate-900' : 'text-slate-500'}`}>{c.nombre_comercial}</p>
-                      <p className="text-[12px] text-slate-500 truncate max-w-[420px]" title={c.name}>{c.name}</p>
+                      <p className="text-[12px] text-slate-500 truncate max-w-105" title={c.name}>{c.name}</p>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-[12.5px]">{c.rfc ?? <span className="italic text-slate-300">Sin RFC</span>}</td>
                     <td className="px-4 py-2.5 text-[13px]">{grupoDe[c.group_id] ?? '—'}</td>

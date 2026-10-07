@@ -419,7 +419,7 @@ export default function GroupsPage() {
                       disabled={togglingId === group.group_id}
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed ${group.is_active ? 'bg-emerald-500' : 'bg-slate-200'}`}
                     >
-                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${group.is_active ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${group.is_active ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
                     </button>
                   </div>
                 )}

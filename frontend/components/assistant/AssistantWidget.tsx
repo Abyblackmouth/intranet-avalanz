@@ -603,7 +603,7 @@ const AssistantWidget = () => {
             onPaste={handlePaste}
             onDragOver={(e) => { if (ticketDraft) e.preventDefault() }}
             onDrop={handleDrop}
-            className="fixed inset-0 z-50 flex flex-col bg-white sm:inset-auto sm:bottom-24 sm:right-[34px] sm:w-[380px] sm:h-[560px] sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl sm:border sm:border-[#b8c4d4] sm:shadow-[0_24px_48px_-12px_rgba(15,23,42,0.28),0_8px_16px_-8px_rgba(15,23,42,0.18)] overflow-hidden"
+            className="fixed inset-0 z-50 flex flex-col bg-white sm:inset-auto sm:bottom-24 sm:right-8.5 sm:w-95 sm:h-140 sm:max-h-[calc(100vh-8rem)] sm:rounded-2xl sm:border sm:border-[#b8c4d4] sm:shadow-[0_24px_48px_-12px_rgba(15,23,42,0.28),0_8px_16px_-8px_rgba(15,23,42,0.18)] overflow-hidden"
           >
             <header className="flex items-center gap-3 px-4 py-3 border-b border-[#b8c4d4] bg-white">
               <FluidOrb size={30} />
@@ -667,7 +667,7 @@ const AssistantWidget = () => {
 
       <AnimatePresence>
         {viewer && (
-          <motion.div key="visor" className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4"
+          <motion.div key="visor" className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/50 p-4"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setViewer(null)}>
             <motion.div role="dialog" aria-label={viewer.title}
               className="flex h-[88vh] w-[min(1100px,94vw)] flex-col overflow-hidden rounded-2xl border border-[#b8c4d4] bg-white shadow-2xl"
@@ -706,7 +706,7 @@ const AssistantWidget = () => {
             initial={{ opacity: 0, y: 12, scale: 0.85 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 380, damping: 22 }} style={{ transformOrigin: 'bottom right' }}
             onClick={() => { setIntro('off'); setOpen(true) }}
-            className="fixed bottom-[92px] right-[34px] z-40 w-[280px] cursor-pointer overflow-hidden rounded-2xl rounded-br-md border border-[#b8c4d4] bg-white shadow-[0_18px_40px_-12px_rgba(15,23,42,0.45)]">
+            className="fixed bottom-23 right-8.5 z-40 w-70 cursor-pointer overflow-hidden rounded-2xl rounded-br-md border border-[#b8c4d4] bg-white shadow-[0_18px_40px_-12px_rgba(15,23,42,0.45)]">
             <div className="h-1 bg-[#1a4fa0]" />
             <div className="flex gap-3 px-4 py-3">
               <FluidOrb size={30} />
@@ -748,7 +748,7 @@ const AssistantWidget = () => {
           ? { opacity: 1, scale: [1, 1.18, 1.05, 1.14, 1.12], y: [0, -10, 0, -4, 0] }
           : intro === 'text' ? { opacity: 1, scale: 1.12, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.8, ease: 'easeOut' }}
-        className="fixed bottom-6 right-[34px] z-40 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30"
+        className="fixed bottom-6 right-8.5 z-40 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30"
       >
         {intro !== 'off' && [0, 1, 2].map((i) => (
           <motion.span key={`onda-${i}`} className="pointer-events-none absolute inset-0 rounded-full border-2 border-[#4f8ff7]"

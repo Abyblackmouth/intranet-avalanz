@@ -360,7 +360,7 @@ export default function MesaDeSoportePage() {
         )}
 
         {/* Botón principal: centrado en el espacio libre entre "ver" (izquierda) y las herramientas (derecha) */}
-        <div className="flex-1 flex justify-center min-w-[170px]">
+        <div className="flex-1 flex justify-center min-w-42.5">
           <button type="button" onClick={() => setShowTypePicker(true)}
             className="inline-flex items-center gap-2 h-9 pl-3.5 pr-5 rounded-full bg-[#1a4fa0] text-white text-[13px] font-semibold shadow-md shadow-[#1a4fa0]/25 transition hover:bg-[#153f82] hover:shadow-lg hover:shadow-[#1a4fa0]/35 hover:-translate-y-px active:translate-y-0 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#1a4fa0]/30">
             <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center"><Plus size={14} strokeWidth={2.5} /></span>
@@ -444,7 +444,7 @@ export default function MesaDeSoportePage() {
       <div className="bg-white rounded-2xl border border-slate-400 shadow-xl overflow-hidden relative flex flex-col flex-1 min-h-0">
                 <div className="p-4 border-b border-slate-200 bg-slate-50/80 pt-5">
           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-50">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 value={search}

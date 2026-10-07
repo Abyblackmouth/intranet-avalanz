@@ -297,7 +297,7 @@ export default function CdcKanbanBoard({ onOpen, refreshKey = 0, clasif = 'todos
               }
               return (
                 <div key={f.key} className="shrink-0 h-full flex flex-col">
-                  <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5 px-1 h-[16px] leading-[16px]" style={{ color: f.color }}>{f.label}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5 px-1 h-4 leading-[16px]" style={{ color: f.color }}>{f.label}</p>
                   <div className="flex gap-2.5 items-stretch rounded-2xl flex-1 min-h-0" style={{ background: `${f.color}0d`, padding: 6 }}>
                     {f.etapas.filter(([k]) => k !== 'en_backlog').map(([k, l]) => (
                       <Columna rows={rows} key={k} label={l} color={f.color} conEtapa={false} onOpen={onOpen} esCerrado={k === 'cerrado'}

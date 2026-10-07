@@ -58,7 +58,7 @@ function NotaForm({ inicial, busy, onSave, onGenerate }: { inicial: any; busy: b
   const hint = "Las líneas que empiezan con '-' se vuelven viñetas en el PDF."
   const area = (k: keyof typeof d, label: string, req: boolean, ph: string) => (
     <Campo label={label} req={req} hint={hint}>
-      <textarea className={`${inputCls} min-h-[90px]`} placeholder={ph} value={d[k]} onChange={e => setD({ ...d, [k]: e.target.value })} />
+      <textarea className={`${inputCls} min-h-22.5`} placeholder={ph} value={d[k]} onChange={e => setD({ ...d, [k]: e.target.value })} />
     </Campo>
   )
   return (
@@ -180,7 +180,7 @@ export default function CdcDesarrollo({ incidentId, onChanged }: { incidentId: s
         </div>
         {reasignando && (
           <div className="mb-4 flex flex-wrap gap-2 items-center">
-            <select className={`${inputCls} !w-auto min-w-[280px]`} value={elegido} onChange={e => setElegido(e.target.value)}>
+            <select className={`${inputCls} !w-auto min-w-70`} value={elegido} onChange={e => setElegido(e.target.value)}>
               <option value="">Selecciona quién desarrolla</option>
               {candidatos.map(c => <option key={c.id} value={c.id}>{c.name} · {c.rol}</option>)}
             </select>
@@ -212,7 +212,7 @@ export default function CdcDesarrollo({ incidentId, onChanged }: { incidentId: s
           <>
             <p className="text-[13px] text-slate-500 mt-0.5 mb-3">Las horas son las <b>reales acumuladas</b> de cada requerimiento a la fecha, no solo las de hoy.</p>
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="w-full min-w-180 text-sm">
                 <thead className="bg-slate-50 text-[12px] text-slate-500">
                   <tr><th className="text-left font-medium px-3 py-2">RT</th><th className="text-left font-medium px-3 py-2">Requerimiento</th>
                     <th className="text-right font-medium px-3 py-2">Estimadas</th><th className="text-left font-medium px-3 py-2">Estado</th>
@@ -234,7 +234,7 @@ export default function CdcDesarrollo({ incidentId, onChanged }: { incidentId: s
                             </select>
                           ) : <span className={`text-[12px] font-semibold px-2.5 py-0.5 rounded-full ${ESTADO[estado].cls}`}>{ESTADO[estado].label}</span>}
                         </td>
-                        <td className="px-3 py-2 align-top w-[130px]">
+                        <td className="px-3 py-2 align-top w-32.5">
                           {data.puede_editar
                             ? <input aria-label={`Horas reales de ${rt.id}`} inputMode="decimal" className={`${inputCls} !py-1.5`} placeholder="0" value={c?.horas ?? rt.horas_reales?.toString() ?? ''} onChange={e => setRt(rt, 'horas', e.target.value)} />
                             : <span className="text-slate-700">{h(rt.horas_reales)}</span>}
@@ -252,7 +252,7 @@ export default function CdcDesarrollo({ incidentId, onChanged }: { incidentId: s
         {data.puede_editar && (
           <div className="mt-5 border border-slate-200 rounded-xl bg-white p-4">
             <p className="text-[13.5px] font-semibold text-slate-800">Registrar avance</p>
-            <textarea className={`${inputCls} min-h-[70px] mt-2`} placeholder="Qué se hizo, qué falta, bloqueos… (opcional si solo actualizas requerimientos)" value={comentario} onChange={e => setComentario(e.target.value)} />
+            <textarea className={`${inputCls} min-h-17.5 mt-2`} placeholder="Qué se hizo, qué falta, bloqueos… (opcional si solo actualizas requerimientos)" value={comentario} onChange={e => setComentario(e.target.value)} />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <label className={`${btnSec} cursor-pointer inline-flex items-center gap-1.5`}><Paperclip className="w-3.5 h-3.5" />Adjuntar evidencia
                 <input type="file" multiple className="hidden" onChange={e => { const l = Array.from(e.target.files ?? []); setFiles(f => [...f, ...l]); e.target.value = '' }} />

@@ -170,7 +170,7 @@ export default function ContractRequestsPage() {
 
         {/* Fila 2: filtros */}
         <div className="flex items-center flex-wrap gap-2 mb-3">
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-50">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -192,7 +192,7 @@ export default function ContractRequestsPage() {
                   on ? 'bg-slate-800 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-600 hover:border-[#1a4fa0] hover:text-[#1a4fa0]'
                 }`}
               >
-                {c.dot && <span className="w-[6px] h-[6px] rounded-full" style={{ background: c.dot }} />}
+                {c.dot && <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />}
                 {c.label}
               </button>
             )

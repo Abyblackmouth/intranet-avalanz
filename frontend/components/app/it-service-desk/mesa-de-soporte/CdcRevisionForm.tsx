@@ -136,7 +136,7 @@ export default function CdcRevisionForm({ incidentId, originalDescription, onDon
                 <Field label="Fecha"><input type="date" className={inputCls} value={nueva.fecha} onChange={e => setNueva({ ...nueva, fecha: e.target.value })} /></Field>
                 <Field label="Tipo y duración"><input className={inputCls} placeholder="Presencial · 1 h" value={nueva.tipo} onChange={e => setNueva({ ...nueva, tipo: e.target.value })} /></Field>
                 <Field label="Participantes" full><input className={inputCls} placeholder="Nombres separados por coma" value={nueva.participantes} onChange={e => setNueva({ ...nueva, participantes: e.target.value })} /></Field>
-                <Field label="Qué se acordó" full error={errors.sesion}><textarea className={`${inputCls} min-h-[70px]`} value={nueva.notas} onChange={e => setNueva({ ...nueva, notas: e.target.value })} /></Field>
+                <Field label="Qué se acordó" full error={errors.sesion}><textarea className={`${inputCls} min-h-17.5`} value={nueva.notas} onChange={e => setNueva({ ...nueva, notas: e.target.value })} /></Field>
               </div>
               <div className="flex justify-end gap-2 mt-3">
                 <button type="button" onClick={() => { setAdding(false); setErrors(({ sesion, ...r }) => r) }} className="px-4 py-2 text-sm text-slate-600">Descartar</button>
@@ -151,7 +151,7 @@ export default function CdcRevisionForm({ incidentId, originalDescription, onDon
         <Section title="Análisis" hint="Evalúa la solicitud antes de decidir. Estos campos son obligatorios para cualquier dictamen.">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Factibilidad técnica y funcional" required full error={errors.factibilidad}>
-              <textarea maxLength={1500} className={`${inputCls} min-h-[100px] ${errors.factibilidad ? errCls : ''}`} placeholder="¿Se puede hacer con lo que ya tiene el sistema? ¿Requiere desarrollo del proveedor?" value={factibilidad} onChange={e => setFactibilidad(e.target.value)} />
+              <textarea maxLength={1500} className={`${inputCls} min-h-25 ${errors.factibilidad ? errCls : ''}`} placeholder="¿Se puede hacer con lo que ya tiene el sistema? ¿Requiere desarrollo del proveedor?" value={factibilidad} onChange={e => setFactibilidad(e.target.value)} />
               <p className="text-xs text-slate-400 text-right mt-1">{factibilidad.length} / 1500</p>
             </Field>
             <Field label="Impacto en la operación" required error={errors.impacto}>
@@ -165,7 +165,7 @@ export default function CdcRevisionForm({ incidentId, originalDescription, onDon
               </select>
             </Field>
             <Field label="Riesgos o dependencias" optional full>
-              <textarea className={`${inputCls} min-h-[70px]`} placeholder="Otros sistemas afectados, cierres contables, disponibilidad del proveedor…" value={riesgos} onChange={e => setRiesgos(e.target.value)} />
+              <textarea className={`${inputCls} min-h-17.5`} placeholder="Otros sistemas afectados, cierres contables, disponibilidad del proveedor…" value={riesgos} onChange={e => setRiesgos(e.target.value)} />
             </Field>
           </div>
         </Section>
@@ -188,9 +188,9 @@ export default function CdcRevisionForm({ incidentId, originalDescription, onDon
           {resultado === 'ajuste_alcance' && (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 grid gap-3">
               <p className="text-[13.5px] font-semibold text-amber-800">Ajuste de alcance que se enviará al solicitante</p>
-              <Field label="Qué pidió originalmente" required><textarea className={`${inputCls} min-h-[64px]`} value={alcanceOriginal} onChange={e => setAlcanceOriginal(e.target.value)} /></Field>
-              <Field label="Alcance propuesto" required error={errors.alcancePropuesto}><textarea className={`${inputCls} min-h-[64px] ${errors.alcancePropuesto ? errCls : ''}`} placeholder="Qué sí se va a hacer" value={alcancePropuesto} onChange={e => setAlcancePropuesto(e.target.value)} /></Field>
-              <Field label="Por qué se ajusta" required error={errors.motivoAjuste}><textarea className={`${inputCls} min-h-[64px] ${errors.motivoAjuste ? errCls : ''}`} value={motivoAjuste} onChange={e => setMotivoAjuste(e.target.value)} /></Field>
+              <Field label="Qué pidió originalmente" required><textarea className={`${inputCls} min-h-16`} value={alcanceOriginal} onChange={e => setAlcanceOriginal(e.target.value)} /></Field>
+              <Field label="Alcance propuesto" required error={errors.alcancePropuesto}><textarea className={`${inputCls} min-h-16 ${errors.alcancePropuesto ? errCls : ''}`} placeholder="Qué sí se va a hacer" value={alcancePropuesto} onChange={e => setAlcancePropuesto(e.target.value)} /></Field>
+              <Field label="Por qué se ajusta" required error={errors.motivoAjuste}><textarea className={`${inputCls} min-h-16 ${errors.motivoAjuste ? errCls : ''}`} value={motivoAjuste} onChange={e => setMotivoAjuste(e.target.value)} /></Field>
             </div>
           )}
 
@@ -202,13 +202,13 @@ export default function CdcRevisionForm({ incidentId, originalDescription, onDon
                   <option value="">Selecciona</option>{RECHAZO_CATS.map(c => <option key={c}>{c}</option>)}
                 </select>
               </Field>
-              <Field label="Explicación para el solicitante" required error={errors.motivo}><textarea className={`${inputCls} min-h-[70px] ${errors.motivo ? errCls : ''}`} placeholder="Explica con claridad por qué no procede y, si aplica, qué alternativa tiene." value={motivo} onChange={e => setMotivo(e.target.value)} /></Field>
+              <Field label="Explicación para el solicitante" required error={errors.motivo}><textarea className={`${inputCls} min-h-17.5 ${errors.motivo ? errCls : ''}`} placeholder="Explica con claridad por qué no procede y, si aplica, qué alternativa tiene." value={motivo} onChange={e => setMotivo(e.target.value)} /></Field>
             </div>
           )}
         </Section>
 
         <Section title="Comentarios para el solicitante" hint="Se incluyen en el correo de notificación y en el dictamen.">
-          <textarea className={`${inputCls} min-h-[70px]`} placeholder="Siguientes pasos, qué esperar, a quién contactar…" value={comentarios} onChange={e => setComentarios(e.target.value)} />
+          <textarea className={`${inputCls} min-h-17.5`} placeholder="Siguientes pasos, qué esperar, a quién contactar…" value={comentarios} onChange={e => setComentarios(e.target.value)} />
         </Section>
 
         <Section title="Anexos de esta etapa" hint="Minutas, cotizaciones del proveedor o capturas. Quedan en el expediente junto al dictamen. Máximo 10 MB por archivo.">
