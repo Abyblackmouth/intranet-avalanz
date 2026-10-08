@@ -534,6 +534,8 @@ async def assign_incident_manual(
     incident = result.scalar_one_or_none()
     if not incident:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if str(getattr(incident.status, "value", incident.status)) in ("resuelto", "cerrado", "terminado", "cancelado", "rechazado"):
+        raise HTTPException(status_code=422, detail="Este ticket ya está resuelto; para volver a trabajarlo, primero reábrelo.")
 
     from app.assignment import finalize_assignment
     await finalize_assignment(
