@@ -120,7 +120,11 @@ export default function Header() {
     api.get(`/api/v1/users/${id}`).then((r: any) => {
       const p = r.data?.data ?? r.data ?? {}
       const empresa = p.company?.nombre_comercial || p.company?.name || p.company?.razon_social || (p.is_super_admin ? 'Grupo Avalanz' : '')
-      setEmpresaPuesto([empresa, p.puesto].filter(Boolean).join(' · '))
+      const SIGLAS = new Set(['erp', 'ti', 'rh', 'totvs', 'crm', 'sat', 'ceo', 'cfo', 'cto', 'coo', 'it', 'qa', 'ui', 'ux'])
+      const MENORES = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y', 'e', 'en', 'a', 'para', 'por'])
+      const puesto = (p.puesto || '').toLowerCase().split(/\s+/).filter(Boolean).map((w: string, i: number) =>
+        SIGLAS.has(w) ? w.toUpperCase() : (i > 0 && MENORES.has(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      setEmpresaPuesto([empresa, puesto].filter(Boolean).join(' · '))
     }).catch(() => {})
   }, [mounted, (user as any)?.user_id])
 
@@ -167,7 +171,7 @@ export default function Header() {
             </div>
             <div className="text-left hidden sm:block">
               <p className="text-[13.5px] font-semibold text-[#1e293b] leading-tight">{mounted ? (user?.full_name || 'Usuario') : 'Usuario'}</p>
-              <p className="text-[11.5px] text-[#64748b] leading-tight max-w-60 truncate" title={role}>{empresaPuesto || role}</p>
+              <p className="text-[11.5px] text-[#64748b] leading-tight whitespace-nowrap" title={role}>{empresaPuesto || role}</p>
             </div>
             <ChevronDown size={14} className="text-[#94a3b8] hidden sm:block" />
           </button>
