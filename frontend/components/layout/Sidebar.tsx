@@ -275,7 +275,7 @@ export default function Sidebar() {
                 {iniciales(lineas[0])}
               </span>
             ) : (
-              <div className="flex flex-col items-start gap-1.5">
+              <div className="flex flex-col items-center gap-1.5">
                 {lineas.map(l => (
                   <span key={l} className={`max-w-full truncate px-2.5 py-0.5 rounded-full border text-[11.5px] font-semibold ${color(l)} ${jakarta.className}`}>{l}</span>
                 ))}
