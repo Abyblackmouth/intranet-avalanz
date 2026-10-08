@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Users, Building2, LayoutGrid,
-  Shield, Key, Layers, LayoutDashboard,
+  Shield, Key, Layers, LayoutDashboard, BadgeCheck,
 } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { Plus_Jakarta_Sans, Inter } from 'next/font/google'
@@ -245,6 +245,38 @@ export default function Sidebar() {
           </div>
         )}
       </div>
+
+      {/* Rol de la persona, al pie: global (Super Admin / Admin Empresa) y por modulo */}
+      {mounted && (() => {
+        const roles: string[] = (user as any)?.roles ?? []
+        const nombreMod = (slug: string) => {
+          const m = (user?.modules || []).find((x: any) => (typeof x === 'string' ? x : x.slug) === slug)
+          return (m && typeof m !== 'string' && m.name) || nombreDe(slug)
+        }
+        const lineas: string[] = []
+        if (roles.includes('super_admin')) lineas.push('Super Admin')
+        else if (roles.includes('admin_empresa')) lineas.push('Admin Empresa')
+        for (const r of roles) {
+          const [mod, rol] = r.split(':')
+          if (rol) lineas.push(`${nombreMod(mod)} · ${nombreDe(rol)}`)
+        }
+        if (!lineas.length) lineas.push('Usuario')
+        return (
+          <div className={`shrink-0 border-t border-[#e2e8f0] ${collapsed ? 'px-2 py-3 flex justify-center' : 'px-3 py-3'}`} title={collapsed ? lineas.join('\n') : undefined}>
+            {collapsed ? (
+              <span className="w-9 h-9 grid place-items-center rounded-[10px] bg-[#eef4fc] text-[#1a4fa0]"><BadgeCheck size={18} strokeWidth={1.9} /></span>
+            ) : (
+              <div className="flex items-start gap-2.5 rounded-[10px] bg-[#f8fafc] border border-[#e2e8f0] px-3 py-2.5">
+                <BadgeCheck size={18} strokeWidth={1.9} className="text-[#1a4fa0] shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className={`text-[13px] font-semibold text-[#1e293b] truncate ${jakarta.className}`}>{lineas[0]}</p>
+                  {lineas.slice(1).map(l => <p key={l} className={`text-[12px] text-[#64748b] truncate ${inter.className}`} title={l}>{l}</p>)}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Menu flotante (sidebar recogido) */}
       {flot && (
