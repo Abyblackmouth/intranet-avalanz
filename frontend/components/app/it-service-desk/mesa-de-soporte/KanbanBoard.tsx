@@ -25,7 +25,7 @@ interface KanbanTicket {
 const COLUMNS = [
   { key: 'en_backlog', label: 'Backlog', accent: '#94a3b8', flexGrow: 0.5, pageSize: 4 },
   { key: 'asignado', label: 'Asignado', accent: '#1a4fa0', flexGrow: 1.5, pageSize: 12 },
-  { key: 'resuelto', label: 'Resuelto', accent: '#059669', flexGrow: 1, pageSize: 8 },
+  { key: 'resuelto', label: 'Terminado', accent: '#059669', flexGrow: 1, pageSize: 8 },
   { key: 'cerrado', label: 'Cerrado', accent: '#475569', flexGrow: 1, pageSize: 8 },
 ]
 

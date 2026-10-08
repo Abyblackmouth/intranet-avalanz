@@ -33,7 +33,7 @@ interface SeverityItem { id: string; code: string; name: string }
 
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'En backlog', asignado: 'Asignado', en_atencion: 'En atención',
-  escalado: 'Escalado', resuelto: 'Resuelto', cerrado: 'Cerrado',
+  escalado: 'Escalado', resuelto: 'Terminado', cerrado: 'Cerrado',
 }
 const STATUS_CLASS: Record<string, string> = {
   en_backlog: 'bg-slate-500/[0.12] text-slate-600',
@@ -234,7 +234,7 @@ export default function MesaDeSoportePage() {
   // Estatus de cada tipo de ticket, en el orden de su ciclo. El desplegable solo
   // ofrece los de los tipos activos (sin tipos activos = todos los tipos).
   const FLUJO_INCIDENTE: [string, string][] = [['en_backlog', 'En backlog'], ['asignado', 'Asignado'], ['en_atencion', 'En atención'],
-    ['escalado', 'Escalado'], ['resuelto', 'Resuelto'], ['cerrado', 'Cerrado']]
+    ['escalado', 'Escalado'], ['resuelto', 'Terminado'], ['cerrado', 'Cerrado']]
   const ESTATUS_POR_TIPO: Record<string, { label: string; estatus: [string, string][] }> = {
     incidente: { label: 'Incidentes', estatus: FLUJO_INCIDENTE },
     solicitud_acceso: { label: 'Solicitudes de acceso', estatus: FLUJO_INCIDENTE },

@@ -30,7 +30,7 @@ interface Detail {
 
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'En backlog', asignado: 'Asignado', en_atencion: 'En atención',
-  escalado: 'Escalado', resuelto: 'Resuelto', cerrado: 'Cerrado',
+  escalado: 'Escalado', resuelto: 'Terminado', cerrado: 'Cerrado',
   en_firma: 'En firma',
 }
 const STATUS_CLASS: Record<string, string> = {
