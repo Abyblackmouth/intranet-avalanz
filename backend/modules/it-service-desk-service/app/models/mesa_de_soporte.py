@@ -457,3 +457,26 @@ from sqlalchemy import event as _event
 @_event.listens_for(Incident.title, "set", retval=True)
 def _titulo_en_mayusculas(target, value, oldvalue, initiator):
     return " ".join(value.split()).upper() if isinstance(value, str) else value
+
+
+# ------------------------------------------------------------------
+# Comunicados operativos (Actualizaciones > Comunicados): avisos con vigencia
+# que se muestran en un modal a los usuarios del IT Service Desk.
+# ------------------------------------------------------------------
+import sqlalchemy as _sa_com
+
+
+class Comunicado(Base):
+    __tablename__ = "comunicados"
+
+    id = _sa_com.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    titulo = _sa_com.Column(_sa_com.String(150), nullable=False)
+    mensaje = _sa_com.Column(_sa_com.Text, nullable=False)
+    inicio = _sa_com.Column(_sa_com.DateTime(timezone=True), nullable=False)
+    fin = _sa_com.Column(_sa_com.DateTime(timezone=True), nullable=False)
+    activo = _sa_com.Column(_sa_com.Boolean, nullable=False, default=True, server_default=_sa_com.text("true"))
+    version = _sa_com.Column(_sa_com.Integer, nullable=False, default=1, server_default="1")
+    creado_por = _sa_com.Column(UUID(as_uuid=True), nullable=True)
+    creado_por_nombre = _sa_com.Column(_sa_com.String(200), nullable=True)
+    created_at = _sa_com.Column(_sa_com.DateTime(timezone=True), nullable=False, server_default=_sa_com.func.now())
+    updated_at = _sa_com.Column(_sa_com.DateTime(timezone=True), nullable=False, server_default=_sa_com.func.now())

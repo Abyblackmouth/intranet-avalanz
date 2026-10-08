@@ -234,3 +234,12 @@ export const accSubirFirmaTI = (formatoId: string, archivo: File) => {
   const fd = new FormData(); fd.append('archivo', archivo)
   return api.post(`/api/v1/it-service-desk/control-accesos/formatos/${formatoId}/firma-ti`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
+
+// ── Comunicados (Actualizaciones) ──────────────────────────────────────────
+export const getComunicados = () => api.get('/api/v1/it-service-desk/actualizaciones/comunicados')
+export const crearComunicado = (data: { titulo: string; mensaje: string; inicio: string; fin: string }) =>
+  api.post('/api/v1/it-service-desk/actualizaciones/comunicados', data)
+export const editarComunicado = (id: string, data: Record<string, any>) =>
+  api.patch(`/api/v1/it-service-desk/actualizaciones/comunicados/${id}`, data)
+export const borrarComunicado = (id: string) => api.delete(`/api/v1/it-service-desk/actualizaciones/comunicados/${id}`)
+export const getComunicadosActivos = () => api.get('/api/v1/it-service-desk/comunicados/activos')
