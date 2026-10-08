@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   ChevronLeft, ChevronRight, Users, Building2, LayoutGrid,
-  Shield, Key, Layers, LayoutDashboard, BadgeCheck,
+  Shield, Key, Layers, LayoutDashboard,
 } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
 import { Plus_Jakarta_Sans, Inter } from 'next/font/google'
@@ -246,7 +246,8 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* Rol de la persona, al pie: global (Super Admin / Admin Empresa) y por modulo */}
+      {/* Rol de la persona, al pie, con los mismos colores que la tabla de Usuarios:
+          Super Admin rojo, Admin Empresa ambar, roles de modulo azul */}
       {mounted && (() => {
         const roles: string[] = (user as any)?.roles ?? []
         const nombreMod = (slug: string) => {
@@ -261,17 +262,23 @@ export default function Sidebar() {
           if (rol) lineas.push(`${nombreMod(mod)} · ${nombreDe(rol)}`)
         }
         if (!lineas.length) lineas.push('Usuario')
+        const color = (l: string) => l === 'Super Admin' ? 'bg-red-100 text-red-700 border-red-200'
+          : l === 'Admin Empresa' ? 'bg-amber-100 text-amber-700 border-amber-200'
+          : 'bg-blue-50 text-[#1a4fa0] border-blue-200'
+        const iniciales = (l: string) => l === 'Super Admin' ? 'SA' : l === 'Admin Empresa' ? 'AE'
+          : l.split(' · ').pop()!.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
         return (
-          <div className={`shrink-0 border-t border-[#e2e8f0] ${collapsed ? 'px-2 py-3 flex justify-center' : 'px-3 py-3'}`} title={collapsed ? lineas.join('\n') : undefined}>
+          <div className={`shrink-0 border-t border-[#e2e8f0] ${collapsed ? 'px-2 py-3 flex justify-center' : 'px-3 py-3'}`}
+            title={lineas.join('\n')}>
             {collapsed ? (
-              <span className="w-9 h-9 grid place-items-center rounded-[10px] bg-[#eef4fc] text-[#1a4fa0]"><BadgeCheck size={18} strokeWidth={1.9} /></span>
+              <span className={`inline-flex items-center justify-center min-w-8 h-6 px-1.5 rounded-full border text-[10.5px] font-bold ${color(lineas[0])} ${jakarta.className}`}>
+                {iniciales(lineas[0])}
+              </span>
             ) : (
-              <div className="flex items-start gap-2.5 rounded-[10px] bg-[#f8fafc] border border-[#e2e8f0] px-3 py-2.5">
-                <BadgeCheck size={18} strokeWidth={1.9} className="text-[#1a4fa0] shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <p className={`text-[13px] font-semibold text-[#1e293b] truncate ${jakarta.className}`}>{lineas[0]}</p>
-                  {lineas.slice(1).map(l => <p key={l} className={`text-[12px] text-[#64748b] truncate ${inter.className}`} title={l}>{l}</p>)}
-                </div>
+              <div className="flex flex-col items-start gap-1.5">
+                {lineas.map(l => (
+                  <span key={l} className={`max-w-full truncate px-2.5 py-0.5 rounded-full border text-[11.5px] font-semibold ${color(l)} ${jakarta.className}`}>{l}</span>
+                ))}
               </div>
             )}
           </div>
