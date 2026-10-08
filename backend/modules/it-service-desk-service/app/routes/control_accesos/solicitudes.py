@@ -201,6 +201,10 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
 
     # Directo al encargado de TI del formato; si no hay encargado, al backlog y lo asigna el motor
     con_encargado = bool(f.admin_user_id)
+    # El SLA sale de la severidad que el administrador configuro en el formato
+    # (el usuario nunca la elige). Si el formato no tiene severidad, se usa S1.
+    sev_formato = (await db.execute(select(TicketSeverity).where(TicketSeverity.id == f.severity_id))).scalar_one_or_none() if f.severity_id else None
+    sev_sla = sev_formato or s1
     incident = Incident(
         id=str(uuid.uuid4()), folio=folio, ticket_type="solicitud_acceso",
         title=f"{'Modificación' if movimiento == 'modificacion' else 'Alta'} de usuario · {f.nombre}"[:150],
@@ -214,8 +218,8 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
         assigned_to_user_id=f.admin_user_id if con_encargado else None,
         assigned_at=now if con_encargado else None,
         status="en_revision" if con_encargado else "en_backlog",
-        sla_response_limit=limites_sla(s1, now)[0] if s1 else None,
-        sla_resolution_limit=limites_sla(s1, now)[1] if s1 else None,
+        sla_response_limit=limites_sla(sev_sla, now)[0] if sev_sla else None,
+        sla_resolution_limit=limites_sla(sev_sla, now)[1] if sev_sla else None,
         created_at=now,
     )
     db.add(incident)
