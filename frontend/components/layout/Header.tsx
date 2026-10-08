@@ -68,6 +68,8 @@ export default function Header() {
   useWSEvent('notification.new', useCallback((data: any) => {
     if (data?.title) {
       addToast({ type: data?.type ?? 'info', title: data.title, body: data?.body ?? '' })
+      // Sonido del aviso (el navegador lo permite despues del primer clic en la pagina)
+      try { const a = new Audio('/notification.wav'); a.volume = 0.6; a.play().catch(() => {}) } catch {}
     }
   }, [addToast]))
 
