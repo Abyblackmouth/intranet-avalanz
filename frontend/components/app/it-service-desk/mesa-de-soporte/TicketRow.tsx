@@ -67,21 +67,30 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-// Titulo completo en una tarjeta, solo si el puntero se queda 2 segundos y el
-// titulo esta cortado. No va a la par del resaltado de la fila.
+// Titulo completo en una tarjeta, solo si el puntero se queda QUIETO 2 segundos
+// sobre un titulo cortado. Cada movimiento reinicia la cuenta, y solo puede haber
+// una tarjeta abierta a la vez (al abrir otra, la anterior se cierra).
+let cerrarTarjetaAbierta: (() => void) | null = null
+
 function TituloConDemora({ texto }: { texto: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   const espera = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const [visible, setVisible] = useState(false)
-  const salir = () => {
-    if (espera.current) clearTimeout(espera.current)
+  const cerrar = () => {
+    if (espera.current) { clearTimeout(espera.current); espera.current = null }
     setVisible(false); setPos(null)
+    if (cerrarTarjetaAbierta === cerrar) cerrarTarjetaAbierta = null
   }
-  const entrar = () => {
+  const contar = () => {
+    if (pos) return
+    if (espera.current) clearTimeout(espera.current)
     espera.current = setTimeout(() => {
+      espera.current = null
       const el = ref.current
-      if (!el || el.scrollWidth <= el.clientWidth) return   // cabe completo: no hace falta
+      if (!el || el.scrollWidth <= el.clientWidth) return
+      cerrarTarjetaAbierta?.()
+      cerrarTarjetaAbierta = cerrar
       const r = el.getBoundingClientRect()
       setPos({ x: r.left, y: r.bottom + 6 })
       requestAnimationFrame(() => setVisible(true))
@@ -90,12 +99,12 @@ function TituloConDemora({ texto }: { texto: string }) {
   useEffect(() => () => { if (espera.current) clearTimeout(espera.current) }, [])
   useEffect(() => {
     if (!pos) return
-    window.addEventListener('scroll', salir, true)
-    return () => window.removeEventListener('scroll', salir, true)
+    window.addEventListener('scroll', cerrar, true)
+    return () => window.removeEventListener('scroll', cerrar, true)
   }, [pos])
   return (
     <>
-      <span ref={ref} onMouseEnter={entrar} onMouseLeave={salir} className="block truncate">{texto}</span>
+      <span ref={ref} onMouseMove={contar} onMouseLeave={cerrar} className="block truncate">{texto}</span>
       {pos && (
         <span role="tooltip" style={{ left: pos.x, top: pos.y }}
           className={`fixed z-50 max-w-105 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium leading-snug text-slate-800 whitespace-normal pointer-events-none shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)] transition-opacity duration-150 ${visible ? 'opacity-100' : 'opacity-0'}`}>
@@ -164,7 +173,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
   return (
     <tr
       onClick={() => onView(t.id)}
-      className="transition-colors duration-[3000ms] cursor-pointer [&>td]:transition-colors [&>td]:duration-75 [&:hover>td]:bg-[#1a4fa0]/5"
+      className="transition-colors duration-[3000ms] cursor-pointer [&>td]:transition-colors [&>td]:duration-75 [&:hover>td]:bg-[#1a4fa0]/8"
       style={isNew ? { backgroundColor: '#fef9c3' } : undefined}
     >
       <td className="px-4 max-[1440px]:px-2.5 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">
