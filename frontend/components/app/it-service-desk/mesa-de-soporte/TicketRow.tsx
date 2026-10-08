@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Eye, UserPlus, Clock, CheckCircle2 } from 'lucide-react'
 
 // Prioridad de CDC (definida por el PM al priorizar). Letra P para no
@@ -67,6 +67,45 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// Titulo completo en una tarjeta, solo si el puntero se queda 2 segundos y el
+// titulo esta cortado. No va a la par del resaltado de la fila.
+function TituloConDemora({ texto }: { texto: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const espera = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [visible, setVisible] = useState(false)
+  const salir = () => {
+    if (espera.current) clearTimeout(espera.current)
+    setVisible(false); setPos(null)
+  }
+  const entrar = () => {
+    espera.current = setTimeout(() => {
+      const el = ref.current
+      if (!el || el.scrollWidth <= el.clientWidth) return   // cabe completo: no hace falta
+      const r = el.getBoundingClientRect()
+      setPos({ x: r.left, y: r.bottom + 6 })
+      requestAnimationFrame(() => setVisible(true))
+    }, 2000)
+  }
+  useEffect(() => () => { if (espera.current) clearTimeout(espera.current) }, [])
+  useEffect(() => {
+    if (!pos) return
+    window.addEventListener('scroll', salir, true)
+    return () => window.removeEventListener('scroll', salir, true)
+  }, [pos])
+  return (
+    <>
+      <span ref={ref} onMouseEnter={entrar} onMouseLeave={salir} className="block truncate">{texto}</span>
+      {pos && (
+        <span role="tooltip" style={{ left: pos.x, top: pos.y }}
+          className={`fixed z-50 max-w-105 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-medium leading-snug text-slate-800 whitespace-normal pointer-events-none shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)] transition-opacity duration-150 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+          {texto}
+        </span>
+      )}
+    </>
+  )
+}
+
 function SlaReloj({ tipo, letra, inicio, limite, cumplido }: {
   tipo: 'Respuesta' | 'Resolución'; letra: string; inicio: string; limite?: string | null; cumplido?: string | null
 }) {
@@ -125,7 +164,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
   return (
     <tr
       onClick={() => onView(t.id)}
-      className="hover:bg-slate-50 transition-colors duration-[3000ms] cursor-pointer"
+      className="transition-colors duration-[3000ms] cursor-pointer [&>td]:transition-colors [&>td]:duration-75 [&:hover>td]:bg-[#1a4fa0]/5"
       style={isNew ? { backgroundColor: '#fef9c3' } : undefined}
     >
       <td className="px-4 max-[1440px]:px-2.5 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">
@@ -134,7 +173,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
           {t.folio}
         </span>
       </td>
-      <td className="px-4 max-[1440px]:px-2.5 py-2 font-medium text-slate-800 max-w-xs truncate max-[1440px]:max-w-55">{t.title}</td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 font-medium text-slate-800 max-w-xs truncate max-[1440px]:max-w-55"><TituloConDemora texto={t.title} /></td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">{t.requester_company_name}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">{sysName}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-center">
