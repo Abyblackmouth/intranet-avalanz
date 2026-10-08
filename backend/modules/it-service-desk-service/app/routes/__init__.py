@@ -8,6 +8,9 @@ from app.routes.control_cambios.control_cambios import router as control_cambios
 router = APIRouter()
 router.include_router(it_service_desk_router)
 router.include_router(mesa_de_soporte_router)
+from app.routes.actualizaciones.comunicados import admin_router as comunicados_admin_router, publico_router as comunicados_router
+router.include_router(comunicados_admin_router)   # antes que actualizaciones, para que ninguna ruta suya lo tape
+router.include_router(comunicados_router)
 router.include_router(actualizaciones_router)
 router.include_router(control_cambios_router)
 router.include_router(ajustes_router)

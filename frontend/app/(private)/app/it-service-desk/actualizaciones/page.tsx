@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Server, Plus, Pencil, Power, Search, KeyRound, Globe, Link2, Timer } from 'lucide-react'
+import { Server, Plus, Pencil, Power, Search, KeyRound, Globe, Link2, Timer, Megaphone } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import SlaConfig from '@/components/app/it-service-desk/actualizaciones/SlaConfig'
+import ComunicadosConfig from '@/components/app/it-service-desk/actualizaciones/ComunicadosConfig'
 import FirmaTI from '@/components/app/it-service-desk/actualizaciones/FirmaTI'
 import ControlAccesosConfig from '@/components/app/it-service-desk/actualizaciones/ControlAccesosConfig'
 import {
@@ -46,7 +47,7 @@ function Switch({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 }
 
 export default function ActualizacionesPage() {
-  const [tab, setTab] = useState<'catalogo' | 'accesos' | 'sla'>('catalogo')
+  const [tab, setTab] = useState<'catalogo' | 'accesos' | 'sla' | 'comunicados'>('catalogo')
   const [systems, setSystems] = useState<SystemRow[]>([])
   const [modules, setModules] = useState<ModuleRow[]>([])
   const [specialists, setSpecialists] = useState<SpecialistRow[]>([])
@@ -114,7 +115,7 @@ export default function ActualizacionesPage() {
   return (
     <PageWrapper title="Actualizaciones" description="Catálogo de sistemas, módulos y especialistas · formatos de Control de accesos" actions={null}>
       <div className="flex items-center gap-1 border-b border-slate-200 mb-4">
-        {[{ key: 'catalogo', label: 'Catálogo', icon: Server }, { key: 'accesos', label: 'Control de accesos', icon: KeyRound }, { key: 'sla', label: 'SLA', icon: Timer }].map(t => (
+        {[{ key: 'catalogo', label: 'Catálogo', icon: Server }, { key: 'accesos', label: 'Control de accesos', icon: KeyRound }, { key: 'sla', label: 'SLA', icon: Timer }, { key: 'comunicados', label: 'Comunicados', icon: Megaphone }].map(t => (
           <button key={t.key} type="button" onClick={() => setTab(t.key as any)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.key ? 'border-[#1a4fa0] text-[#1a4fa0]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             <t.icon size={15} /> {t.label}
@@ -124,6 +125,7 @@ export default function ActualizacionesPage() {
 
       {tab === 'accesos' && <><FirmaTI /><ControlAccesosConfig /></>}
       {tab === 'sla' && <SlaConfig />}
+      {tab === 'comunicados' && <ComunicadosConfig />}
 
       {tab === 'catalogo' && (loading ? (
         <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Cargando…</div>
