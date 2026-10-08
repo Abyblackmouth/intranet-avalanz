@@ -96,17 +96,6 @@ async def _notify_inapp(user_id: str, title: str, body: str, notif_type: str = "
             )
     except Exception:
         pass
-    # Aviso en tiempo real (toast y campana al instante), igual que Legal. Si
-    # websocket-service no responde, la notificacion ya quedo en la campana.
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            await client.post("http://websocket-service:8000/ws/send", json={
-                "user_id": str(user_id), "event_type": "notification.new",
-                "data": {**(data or {}), "title": title, "body": body, "type": notif_type},
-                "module_slug": "it-service-desk",
-            })
-    except Exception:
-        pass
 
 
 async def _notify_requester_of_reassignment(to_email: str, requester_name: str, folio: str, new_assignee_name: str) -> None:
