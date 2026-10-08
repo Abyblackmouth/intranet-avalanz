@@ -455,17 +455,22 @@ async def _equipo(incidents, start, end, now, act_por_ticket, perfil_de) -> Dict
         u = por_usr.setdefault(uid, {"abiertos": 0, "resueltos": 0, "horas": [], "incumplidos": 0,
                                      "reasignados": 0, "equipo": TEAM_LABEL.get(i.assigned_team or "", "—"),
                                      "a_tiempo": 0})
+        # Solo cuenta contra la persona lo que le llego ANTES de su limite: un
+        # ticket reasignado que ya venia vencido no es incumplimiento de quien lo recibe.
+        llego = i.assigned_at or i.created_at
+        suyo = lambda lim: bool(lim) and llego <= lim
         if _abierto(i):
             u["abiertos"] += 1
-            if (i.sla_resolution_limit and i.sla_resolution_limit < now) or \
-               (i.sla_response_limit and not i.first_response_at and i.sla_response_limit < now):
+            vencio_res = suyo(i.sla_resolution_limit) and i.sla_resolution_limit < now
+            vencio_resp = suyo(i.sla_response_limit) and not i.first_response_at and i.sla_response_limit < now
+            if vencio_res or vencio_resp:
                 u["incumplidos"] += 1
         else:
             u["resueltos"] += 1
-            u["horas"].append(_horas(c - i.created_at))
-            tarde_res = i.sla_resolution_limit and c > i.sla_resolution_limit
+            u["horas"].append(_horas(c - max(llego, i.created_at)))   # desde que le llego
+            tarde_res = suyo(i.sla_resolution_limit) and c > i.sla_resolution_limit
             resp = i.first_response_at or c
-            tarde_resp = i.sla_response_limit and resp > i.sla_response_limit
+            tarde_resp = suyo(i.sla_response_limit) and resp > i.sla_response_limit
             if tarde_res or tarde_resp:
                 u["incumplidos"] += 1
             else:
@@ -473,7 +478,7 @@ async def _equipo(incidents, start, end, now, act_por_ticket, perfil_de) -> Dict
         if any(r[1] == "reasignacion_manual" for r in act_por_ticket.get(str(i.id), [])):
             u["reasignados"] += 1
 
-    personas, areas = [], defaultdict(lambda: {"resueltos": 0, "a_tiempo": 0, "horas": []})
+    personas, areas = [], defaultdict(lambda: {"resueltos": 0, "a_tiempo": 0, "incumplidos": 0, "horas": []})
     for uid, u in por_usr.items():
         try:
             perfil = await perfil_de(uid)
@@ -487,12 +492,13 @@ async def _equipo(incidents, start, end, now, act_por_ticket, perfil_de) -> Dict
         a = areas[area]
         a["resueltos"] += u["resueltos"]
         a["a_tiempo"] += u["a_tiempo"]
+        a["incumplidos"] += u["incumplidos"]   # incluye los abiertos que ya vencieron
         a["horas"] += u["horas"]
     personas.sort(key=lambda p: (-p["abiertos"], -p["resueltos"]))
     lista_areas = sorted(
-        [{"area": k, "resueltos": v["resueltos"], "cumplimiento": _pct(v["a_tiempo"], v["resueltos"]),
+        [{"area": k, "resueltos": v["resueltos"], "cumplimiento": _pct(v["a_tiempo"], v["a_tiempo"] + v["incumplidos"]),
           "prom_horas": round(sum(v["horas"]) / len(v["horas"]), 1) if v["horas"] else None}
-         for k, v in areas.items() if v["resueltos"]],
+         for k, v in areas.items() if v["a_tiempo"] + v["incumplidos"]],
         key=lambda x: (x["cumplimiento"] if x["cumplimiento"] is not None else 101))
 
     if not personas:
