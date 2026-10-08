@@ -119,7 +119,7 @@ export default function Header() {
     if (!mounted || !id) return
     api.get(`/api/v1/users/${id}`).then((r: any) => {
       const p = r.data?.data ?? r.data ?? {}
-      const empresa = p.company?.nombre_comercial || p.company?.name || p.company?.razon_social || (p.is_super_admin ? 'Grupo Avalanz' : '')
+      const empresa = p.company_name || p.company?.nombre_comercial || p.company?.name || (p.is_super_admin ? 'Grupo Avalanz' : '')
       const SIGLAS = new Set(['erp', 'ti', 'rh', 'totvs', 'crm', 'sat', 'ceo', 'cfo', 'cto', 'coo', 'it', 'qa', 'ui', 'ux'])
       const MENORES = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y', 'e', 'en', 'a', 'para', 'por'])
       const puesto = (p.puesto || '').toLowerCase().split(/\s+/).filter(Boolean).map((w: string, i: number) =>
