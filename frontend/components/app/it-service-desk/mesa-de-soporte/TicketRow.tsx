@@ -14,7 +14,7 @@ export const PRIO_CLASS: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   en_backlog: 'En backlog', asignado: 'Asignado', en_atencion: 'En atención',
-  escalado: 'Escalado', resuelto: 'Resuelto', cerrado: 'Cerrado',
+  escalado: 'Escalado', resuelto: 'Terminado', cerrado: 'Cerrado',
   registrado: 'Registrado', en_revision: 'En revisión', aprobado: 'Aprobado',
   rechazado: 'Rechazado', priorizado: 'Priorizado', en_desarrollo: 'En desarrollo',
   en_pruebas: 'En pruebas (UAT)', terminado: 'Terminado', cancelado: 'Cancelado',
