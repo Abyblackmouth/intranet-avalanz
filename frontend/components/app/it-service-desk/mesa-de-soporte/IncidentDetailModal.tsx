@@ -321,8 +321,9 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3 text-sm mb-3 border-t border-slate-100 pt-3">
+                  <div className="grid grid-cols-4 gap-3 text-sm mb-3 border-t border-slate-100 pt-3">
                     <div><p className="text-[10px] text-slate-400 uppercase">Sistema</p><p className="font-medium text-slate-800">{systemName(detail.system_id)}</p></div>
+                    <div className="min-w-0"><p className="text-[10px] text-slate-400 uppercase">Módulo</p><p className="font-medium text-slate-800 truncate" title={(detail as any).module_name ?? ""}>{(detail as any).module_name ?? '—'}</p></div>
                     <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.reported_type ?? '—'}</p></div>
                     <div><p className="text-[10px] text-slate-400 uppercase">Creado</p><p className="font-medium text-slate-800">{fmt(detail.created_at)}</p></div>
                   </div>

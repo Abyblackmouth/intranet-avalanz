@@ -216,6 +216,7 @@ async def get_incident_detail(incident_id: str, db: AsyncSession = Depends(get_d
         "id": incident.id, "folio": incident.folio, "title": incident.title, "description": incident.description,
         "status": incident.status,
         "system_id": incident.system_id, "module_id": incident.module_id, "reported_type": incident.reported_type,
+        "module_name": await _nombre_modulo(db, incident.module_id),
         "severity_reported_id": incident.severity_reported_id, "severity_validated_id": incident.severity_validated_id,
         "requester_name": incident.requester_name, "requester_phone": incident.requester_phone,
         "requester_puesto": incident.requester_puesto, "requester_area": incident.requester_area,
@@ -2030,3 +2031,12 @@ async def cambiar_severidad(incident_id: str, body: CambioSeveridadPayload, db: 
     return {"success": True, "severidad": a,
             "sla_response_limit": incident.sla_response_limit.isoformat() if incident.sla_response_limit else None,
             "sla_resolution_limit": incident.sla_resolution_limit.isoformat() if incident.sla_resolution_limit else None}
+
+
+
+async def _nombre_modulo(db, module_id):
+    """Nombre del modulo del catalogo (ticket_modules) para el detalle del ticket."""
+    if not module_id:
+        return None
+    from sqlalchemy import text as _texto
+    return (await db.execute(_texto("select name from ticket_modules where id = :i"), {"i": module_id})).scalar_one_or_none()
