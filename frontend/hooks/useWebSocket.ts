@@ -64,8 +64,9 @@ function connect() {
   socket.onclose = (e) => {
     isConnecting = false
     socket = null
-    if (e.code === 4001 || e.code === 4002) return
-    reconnectTimer = setTimeout(connect, 5000)
+    if (e.code === 4002) return
+    // 4001: la sesion vencio; se reintenta con la sesion vigente en lugar de rendirse
+    reconnectTimer = setTimeout(connect, e.code === 4001 ? 30000 : 5000)
   }
 
   socket.onerror = () => { socket?.close() }
@@ -91,5 +92,9 @@ export function useWSEvent(event: string, handler: WSEventHandler) {
 export function useWebSocket() {
   useEffect(() => {
     connect()
+    // Al volver a la pestana, reconecta de inmediato si estaba desconectada
+    const alVolver = () => connect()
+    window.addEventListener('focus', alVolver)
+    return () => window.removeEventListener('focus', alVolver)
   }, [])
 }
