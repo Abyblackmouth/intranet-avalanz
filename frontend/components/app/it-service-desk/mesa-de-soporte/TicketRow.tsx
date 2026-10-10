@@ -1,15 +1,15 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Eye, UserPlus, Clock, CheckCircle2 } from 'lucide-react'
 
 // Prioridad de CDC (definida por el PM al priorizar). Letra P para no
 // confundirse con las S1-S4 de severidad de Incidente.
 export const PRIO_CODE: Record<string, string> = { alta: 'P1', media: 'P2', baja: 'P3' }
 export const PRIO_CLASS: Record<string, string> = {
-  alta: 'bg-red-500/[0.12] text-red-700',
-  media: 'bg-amber-500/[0.14] text-amber-700',
-  baja: 'bg-sky-500/[0.14] text-sky-700',
+  alta: 'bg-[#fde9e9] text-red-700',
+  media: 'bg-[#fef1dd] text-amber-700',
+  baja: 'bg-[#ddf2fc] text-sky-700',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -21,22 +21,22 @@ const STATUS_LABEL: Record<string, string> = {
   en_firma: 'En firma',
 }
 export const STATUS_CLASS: Record<string, string> = {
-  en_backlog: 'bg-slate-500/[0.12] text-slate-600',
-  asignado: 'bg-blue-500/[0.12] text-blue-700',
+  en_backlog: 'bg-[#eceef1] text-slate-600',
+  asignado: 'bg-[#e7f0fe] text-blue-700',
   en_atencion: 'bg-[#1a4fa0]/[0.10] text-[#1a4fa0]',
-  escalado: 'bg-red-500/[0.12] text-red-700',
-  resuelto: 'bg-emerald-500/[0.14] text-emerald-700',
-  cerrado: 'bg-slate-500/[0.14] text-slate-600',
-  registrado: 'bg-slate-500/[0.12] text-slate-600',
-  en_revision: 'bg-blue-500/[0.12] text-blue-700',
-  aprobado: 'bg-emerald-500/[0.12] text-emerald-700',
-  rechazado: 'bg-red-500/[0.12] text-red-700',
-  priorizado: 'bg-indigo-500/[0.12] text-indigo-700',
-  en_desarrollo: 'bg-amber-500/[0.14] text-amber-700',
-  en_pruebas: 'bg-orange-500/[0.12] text-orange-700',
+  escalado: 'bg-[#fde9e9] text-red-700',
+  resuelto: 'bg-[#def5ed] text-emerald-700',
+  cerrado: 'bg-[#e9ecef] text-slate-600',
+  registrado: 'bg-[#eceef1] text-slate-600',
+  en_revision: 'bg-[#e7f0fe] text-blue-700',
+  aprobado: 'bg-[#e2f7f0] text-emerald-700',
+  rechazado: 'bg-[#fde9e9] text-red-700',
+  priorizado: 'bg-[#ecedfd] text-indigo-700',
+  en_desarrollo: 'bg-[#fef1dd] text-amber-700',
+  en_pruebas: 'bg-[#feeee3] text-orange-700',
   terminado: 'bg-teal-600/[0.14] text-teal-800',
   cancelado: 'bg-slate-600/[0.14] text-slate-700',
-  en_firma: 'bg-pink-500/[0.12] text-pink-700',
+  en_firma: 'bg-[#fde9f3] text-pink-700',
 }
 const STATUS_DOT: Record<string, string> = {
   en_backlog: 'bg-slate-400',
@@ -57,14 +57,63 @@ const STATUS_DOT: Record<string, string> = {
   en_firma: 'bg-pink-500',
 }
 const SEV_CLASS: Record<string, string> = {
-  S1: 'bg-red-500/[0.10] text-red-700 border border-red-500/25',
-  S2: 'bg-orange-500/[0.12] text-orange-700 border border-orange-500/25',
-  S3: 'bg-amber-500/[0.12] text-amber-700 border border-amber-500/25',
-  S4: 'bg-emerald-500/[0.12] text-emerald-700 border border-emerald-500/25',
+  S1: 'bg-[#fdecec] text-red-700 border border-red-500/25',
+  S2: 'bg-[#feeee3] text-orange-700 border border-orange-500/25',
+  S3: 'bg-[#fef3e2] text-amber-700 border border-amber-500/25',
+  S4: 'bg-[#e2f7f0] text-emerald-700 border border-emerald-500/25',
 }
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// Celda del titulo: identica a la de siempre (mismas clases, sin envolver el
+// texto). Si el puntero se queda QUIETO 2 segundos y el titulo esta cortado,
+// muestra el titulo completo en una tarjeta. Solo una tarjeta abierta a la vez.
+let cerrarTarjetaAbierta: (() => void) | null = null
+
+function TituloCelda({ texto }: { texto: string }) {
+  const ref = useRef<HTMLTableCellElement>(null)
+  const espera = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [visible, setVisible] = useState(false)
+  const cerrar = () => {
+    if (espera.current) { clearTimeout(espera.current); espera.current = null }
+    setVisible(false); setPos(null)
+    if (cerrarTarjetaAbierta === cerrar) cerrarTarjetaAbierta = null
+  }
+  const contar = () => {
+    if (pos) return
+    if (espera.current) clearTimeout(espera.current)
+    espera.current = setTimeout(() => {
+      espera.current = null
+      const el = ref.current
+      if (!el || el.scrollWidth <= el.clientWidth) return   // cabe completo: no hace falta
+      cerrarTarjetaAbierta?.()
+      cerrarTarjetaAbierta = cerrar
+      const r = el.getBoundingClientRect()
+      setPos({ x: r.left + 8, y: r.bottom + 4 })
+      requestAnimationFrame(() => setVisible(true))
+    }, 2000)
+  }
+  useEffect(() => () => { if (espera.current) clearTimeout(espera.current) }, [])
+  useEffect(() => {
+    if (!pos) return
+    window.addEventListener('scroll', cerrar, true)
+    return () => window.removeEventListener('scroll', cerrar, true)
+  }, [pos])
+  return (
+    <td ref={ref} onMouseMove={contar} onMouseLeave={cerrar}
+      className="px-4 max-[1440px]:px-2.5 py-2 font-medium text-slate-800 max-w-xs truncate max-[1440px]:max-w-55">
+      {texto}
+      {pos && (
+        <span role="tooltip" style={{ left: pos.x, top: pos.y }}
+          className={`fixed z-50 max-w-105 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] leading-snug text-slate-800 whitespace-normal pointer-events-none shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)] transition-opacity duration-150 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+          {texto}
+        </span>
+      )}
+    </td>
+  )
 }
 
 function SlaReloj({ tipo, letra, inicio, limite, cumplido }: {
@@ -125,7 +174,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
   return (
     <tr
       onClick={() => onView(t.id)}
-      className="hover:bg-slate-50 transition-colors duration-[3000ms] cursor-pointer"
+      className="transition-colors duration-[3000ms] cursor-pointer [&>td]:transition-colors [&>td]:duration-75 [&:hover>td]:bg-[#eff3f8] [&:hover>td:first-child]:shadow-[inset_3px_0_0_#1a4fa0]"
       style={isNew ? { backgroundColor: '#fef9c3' } : undefined}
     >
       <td className="px-4 max-[1440px]:px-2.5 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">
@@ -134,7 +183,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
           {t.folio}
         </span>
       </td>
-      <td className="px-4 max-[1440px]:px-2.5 py-2 font-medium text-slate-800 max-w-xs truncate max-[1440px]:max-w-55">{t.title}</td>
+      <TituloCelda texto={t.title} />
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">{t.requester_company_name}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">{sysName}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-center">
