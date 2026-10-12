@@ -250,10 +250,23 @@ async def revoke_module_access(
     db: AsyncSession = Depends(get_db),
     payload=Depends(validator.require_roles(["super_admin", "admin_empresa"])),
 ):
+    # La pantalla puede mandar el UUID del modulo o su nombre corto (slug, por
+    # ejemplo it-service-desk); con el slug se buscaba como UUID y tronaba con 500.
+    import uuid as _uuid
+    from fastapi import HTTPException as _HTTPException
+    from sqlalchemy import text as _text
+    module_id = str(body.module_id)
+    try:
+        _uuid.UUID(module_id)
+    except ValueError:
+        encontrado = (await db.execute(_text("select id from modules where slug = :s"), {"s": module_id})).scalar_one_or_none()
+        if not encontrado:
+            raise _HTTPException(status_code=404, detail="Modulo no encontrado")
+        module_id = str(encontrado)
     await user_service.revoke_module_access(
         db=db,
         user_id=user_id,
-        module_id=body.module_id,
+        module_id=module_id,
         requested_by=payload,
     )
     return BaseResponse(success=True, message="Acceso al modulo revocado exitosamente")
