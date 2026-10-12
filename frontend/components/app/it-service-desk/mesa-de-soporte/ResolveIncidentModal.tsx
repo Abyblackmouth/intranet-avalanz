@@ -77,7 +77,7 @@ export default function ResolveIncidentModal({ incidentId, folio, onClose, onRes
           <label className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-emerald-400 transition mb-3">
             <Paperclip size={14} />
             {files.length > 0 ? `${files.length} archivo(s) seleccionado(s)` : 'Adjuntar evidencia (opcional)'}
-            <input type="file" multiple accept="image/*" className="hidden" onChange={e => setFiles(Array.from(e.target.files ?? []))} />
+            <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={e => setFiles(Array.from(e.target.files ?? []))} />
           </label>
 
           {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
