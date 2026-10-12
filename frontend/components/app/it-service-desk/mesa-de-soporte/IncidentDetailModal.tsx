@@ -2,11 +2,11 @@
 
 import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import AccResumenSolicitud from '@/components/app/it-service-desk/mesa-de-soporte/AccResumenSolicitud'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback , useRef} from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { getIncidentDetail, getSystems, getSeverities, resolveIncident, marcarRevisado, cambiarSeveridad } from '@/services/itServiceDeskService'
 import { getSignedUrl } from '@/services/uploadService'
-import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip, Printer, Eye } from 'lucide-react'
+import { X, Phone, Briefcase, Building2, UserCog, ImageOff, CheckCircle2, Paperclip, Printer, Eye, FileText } from 'lucide-react'
 import { imprimirTicket } from './imprimirTicket'
 import AssignIncidentModal from './AssignIncidentModal'
 
@@ -93,10 +93,51 @@ function PersonAvatar({ name, photoObjectKey }: { name: string; photoObjectKey: 
   )
 }
 
+// Icono oficial de Office (guardado en public/iconos-archivo) segun la extension
+const ICONOS_ARCHIVO: Record<string, string> = { csv: '/iconos-archivo/csv.svg', docx: '/iconos-archivo/docx.svg', genericfile: '/iconos-archivo/genericfile.svg', pdf: '/iconos-archivo/pdf.svg', pptx: '/iconos-archivo/pptx.svg', txt: '/iconos-archivo/txt.svg', xlsx: '/iconos-archivo/xlsx.svg' }
+const ICONO_POR_EXT: Record<string, string> = { doc: 'docx', docx: 'docx', xls: 'xlsx', xlsx: 'xlsx', ppt: 'pptx', pptx: 'pptx', pdf: 'pdf', csv: 'csv', txt: 'txt' }
+const nombreDeArchivo = (key: string) => (key.split('/').pop() || 'archivo').replace(/^[0-9a-f]{6,}_/i, '')
+const extDe = (nombre: string) => (nombre.split('.').pop() || '').toLowerCase()
+
+function IconoArchivo({ nombre }: { nombre: string }) {
+  const clave = ICONO_POR_EXT[extDe(nombre)] || 'genericfile'
+  const src = ICONOS_ARCHIVO[clave] || ICONOS_ARCHIVO.genericfile
+  return src
+    ? <img src={src} alt="" className="w-10 h-10" />
+    : <FileText size={34} className="text-slate-400" />
+}
+
+// Primera pagina de un PDF, dibujada con pdf.js; si no se puede, avisa para mostrar el icono
+function PdfMiniatura({ url, onFallo }: { url: string; onFallo: () => void }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    let cancelado = false
+    ;(async () => {
+      try {
+        const pdfjs: any = await import('pdfjs-dist')
+        if (!pdfjs.GlobalWorkerOptions.workerSrc) pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+        const doc = await pdfjs.getDocument({ url }).promise
+        const pagina = await doc.getPage(1)
+        const vp = pagina.getViewport({ scale: 192 / pagina.getViewport({ scale: 1 }).width })
+        const cv = ref.current
+        if (!cv || cancelado) return
+        cv.width = vp.width; cv.height = vp.height
+        await pagina.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise
+      } catch { if (!cancelado) onFallo() }
+    })()
+    return () => { cancelado = true }
+  }, [url])
+  return <canvas ref={ref} className="w-full bg-white group-hover:scale-105 transition duration-200" />
+}
+
 function AttachmentThumb({ a, index, label }: { a: Attachment; index: number; label: string }) {
   const [url, setUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [pdfFallo, setPdfFallo] = useState(false)
+  const nombre = nombreDeArchivo(a.object_key)
+  const mime = (a.mime_type || '').toLowerCase()
+  const tipo = mime.startsWith('image/') ? 'imagen' : (mime === 'application/pdf' || extDe(nombre) === 'pdf') ? 'pdf' : 'archivo'
 
   useEffect(() => {
     getSignedUrl(a.object_key, a.bucket)
@@ -105,6 +146,12 @@ function AttachmentThumb({ a, index, label }: { a: Attachment; index: number; la
       .finally(() => setLoading(false))
   }, [a.object_key, a.bucket])
 
+  const tarjetaArchivo = (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-1 px-1.5 pb-4 bg-white">
+      <IconoArchivo nombre={nombre} />
+      <span className="w-full text-[10px] leading-tight text-slate-600 text-center truncate" title={nombre}>{nombre}</span>
+    </div>
+  )
   const inner = (
     <>
       {loading ? (
@@ -115,9 +162,11 @@ function AttachmentThumb({ a, index, label }: { a: Attachment; index: number; la
         <div className="w-full h-full flex items-center justify-center text-slate-300">
           <ImageOff size={20} />
         </div>
-      ) : (
-        <img src={url} alt={label} className="w-full h-full object-cover group-hover:scale-105 transition duration-200" />
-      )}
+      ) : tipo === 'imagen' ? (
+        <img src={url} alt={label} onError={() => setFailed(true)} className="w-full h-full object-cover group-hover:scale-105 transition duration-200" />
+      ) : tipo === 'pdf' && !pdfFallo ? (
+        <PdfMiniatura url={url} onFallo={() => setPdfFallo(true)} />
+      ) : tarjetaArchivo}
       <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] text-center py-0.5">
         {label} {index + 1}
       </div>
@@ -125,7 +174,7 @@ function AttachmentThumb({ a, index, label }: { a: Attachment; index: number; la
   )
 
   return (
-    <a href={url ?? undefined} target="_blank" rel="noopener noreferrer" className="group relative w-24 h-24 rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#1a4fa0] transition shrink-0 bg-slate-100">
+    <a href={url ?? undefined} target="_blank" rel="noopener noreferrer" title={nombre} className="group relative w-24 h-24 rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#1a4fa0] transition shrink-0 bg-slate-100">
       {inner}
     </a>
   )
@@ -422,7 +471,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                         <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-emerald-400 transition">
                           <Paperclip size={14} />
                           {resolveFiles.length > 0 ? `${resolveFiles.length} archivo(s) seleccionado(s)` : 'Adjuntar evidencia de resolución (opcional)'}
-                          <input type="file" multiple accept="image/*" className="hidden" onChange={e => setResolveFiles(Array.from(e.target.files ?? []))} />
+                          <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={e => setResolveFiles(Array.from(e.target.files ?? []))} />
                         </label>
                         {resolveError && <p className="text-xs text-red-600">{resolveError}</p>}
                         <div className="flex gap-2">
