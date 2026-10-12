@@ -4,7 +4,7 @@ import { useState, useEffect, createContext, useContext, type ReactNode, type CS
 import dynamic from 'next/dynamic'
 import { useAuthStore } from '@/store/authStore'
 import { getDashboardDirectivo } from '@/services/itServiceDeskService'
-import { Lock, Moon, Sun } from 'lucide-react'
+import { Lock, Moon, Sun, Info } from 'lucide-react'
 import { IBM_Plex_Sans } from 'next/font/google'
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
@@ -44,7 +44,7 @@ const SOMBRA: Record<'claro' | 'oscuro', string> = {
 
 type Tono = 'ok' | 'warn' | 'bad'
 interface Veredicto { tono: Tono; titulo: string; detalle: string; decidir: string }
-interface Kpi { label: string; valor: string; delta: string; tono: 'good' | 'bad' | 'flat' }
+interface Kpi { label: string; valor: string; delta: string; tono: 'good' | 'bad' | 'flat'; ayuda?: string }
 type D = any
 
 const TABS = [
@@ -93,10 +93,11 @@ function KpiStrip({ kpis }: { kpis: Kpi[] }) {
   return (
     <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
       {kpis.map(k => (
-        <div key={k.label} className={`${PANEL} px-3.5 py-3`}>
-          <div className={`text-[13px] ${INK2}`}>{k.label}</div>
+        <div key={k.label} className={`${PANEL} px-3.5 py-3 relative group`}>
+          <div className={`flex items-center gap-1 text-[13px] ${INK2}`}>{k.label}{k.ayuda && <Info size={13} className="opacity-60" aria-label={k.ayuda} />}</div>
           <div className={`text-[26px] font-semibold leading-[1.2] my-0.5 tabular-nums ${INK}`}>{k.valor}</div>
           <div className="text-[12px] font-medium" style={{ color: color[k.tono] }}>{k.delta}</div>
+          {k.ayuda && <div role="tooltip" className="pointer-events-none absolute left-2 right-2 top-full mt-1.5 z-30 rounded-lg px-3 py-2 text-[12px] leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)]" style={{ background: c.panel, color: c.ink, border: `1px solid ${c.line}` }}>{k.ayuda}</div>}
         </div>
       ))}
     </div>
@@ -144,6 +145,56 @@ function useEje() {
     cat: (data: string[], extra: any = {}) => ({ type: 'category', data, axisLine: { lineStyle: { color: c.grid } }, axisTick: { show: false }, axisLabel: { color: c.ink2 }, ...extra }),
     val: (extra: any = {}) => ({ type: 'value', minInterval: 1, splitLine: { lineStyle: { color: c.grid } }, axisLabel: { color: c.ink3 }, ...extra }),
   }
+}
+
+// Recuadro del SLA del periodo: avance contra cumplimiento y el desglose que
+// explica la diferencia (resueltos a tiempo, abiertos en tiempo, resueltos tarde
+// y abiertos vencidos).
+function SlaPanel({ s }: { s: D }) {
+  const c = usePaleta()
+  if (!s || !s.con_sla) return null
+  const total = s.con_sla
+  const segs = [
+    { n: s.a_tiempo, color: c.green, txt: 'resueltos a tiempo' },
+    { n: s.abierto_en_tiempo, color: c.heatV[0], txt: 'abiertos en tiempo' },
+    { n: s.tarde, color: c.amber, txt: 'resueltos tarde' },
+    { n: s.abierto_vencido, color: c.red, txt: 'abiertos vencidos' },
+  ]
+  const delta = (d: any) => d?.delta ? (
+    <div className="text-[12px] font-medium mt-0.5" style={{ color: d.tono === 'good' ? c.green : d.tono === 'bad' ? c.red : c.ink3 }}>{d.delta}</div>
+  ) : null
+  const tarjeta = (titulo: string, valor: any, frase: string, d: any) => (
+    <div className="rounded-lg px-3.5 py-3" style={{ background: c.bg }}>
+      <div className={`text-[13px] ${INK2}`}>{titulo}</div>
+      <div className={`text-[26px] font-semibold leading-tight tabular-nums ${INK}`}>{valor == null ? '—' : `${valor}%`}</div>
+      <div className={`text-[12.5px] ${INK2}`}>{frase}</div>
+      {delta(d)}
+    </div>
+  )
+  return (
+    <div className={`${PANEL} p-4 mb-4`}>
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 mb-4">
+        {tarjeta('Avance', s.avance, `${s.resueltos_de_creados} de ${s.creados} que entraron ya están resueltos`, s.avance_delta)}
+        {tarjeta('Cumplimiento de SLA', s.cumplimiento, `${s.en_tiempo} de ${total} con SLA van en tiempo`, s.cumplimiento_delta)}
+      </div>
+      <div className={`text-[13px] mb-1.5 ${INK2}`}>Los {total} tickets con SLA del periodo</div>
+      <div className="flex h-5.5 rounded-md overflow-hidden" style={{ background: c.grid }}>
+        {segs.map(g => g.n > 0 && <div key={g.txt} title={`${g.n} ${g.txt}`} style={{ width: `${(g.n * 100) / total}%`, background: g.color }} />)}
+      </div>
+      <div className="grid gap-x-4 gap-y-1.5 mt-2.5 text-[13px]" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+        {segs.map(g => (
+          <div key={g.txt} className={`flex items-center gap-1.5 ${INK}`}>
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: g.color }} />
+            <b className="tabular-nums font-semibold">{g.n}</b> {g.txt}
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-[12.5px] font-medium mt-2.5 pt-2 border-t border-[var(--grid)]">
+        <span style={{ color: c.green }}>En tiempo: {s.en_tiempo}</span>
+        <span style={{ color: c.red }}>Fuera de tiempo: {s.fuera}</span>
+      </div>
+    </div>
+  )
 }
 
 // ── 1. Resumen ─────────────────────────────────────────────────────────────
@@ -271,6 +322,7 @@ function Resumen({ d }: { d: D }) {
       </div>
 
       <KpiStrip kpis={d.kpis} />
+      <SlaPanel s={d.sla} />
 
       <Card className="mb-4" title={`Creados, resueltos y abiertos acumulados por ${f.unidad === 'dia' ? 'día' : 'semana'}`}
         q="Si la línea roja va por encima de la verde, el trabajo se acumula. Haz clic en un concepto de la leyenda para ocultarlo o mostrarlo.">

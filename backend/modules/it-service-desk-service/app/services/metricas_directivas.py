@@ -216,19 +216,36 @@ def _resumen(incidents, creados, creados_prev, start, end, prev_start, corte, no
     reab = _pct(sum(1 for i in creados if (i.reopen_count or 0) > 0), len(creados))
     reab_prev = _pct(sum(1 for i in creados_prev if (i.reopen_count or 0) > 0), len(creados_prev))
     n, n_prev = len(creados), len(creados_prev)
+    # Desglose del SLA del periodo: explica por que el cumplimiento es menor que el avance
+    des = {"a_tiempo": 0, "tarde": 0, "abierto_en_tiempo": 0, "abierto_vencido": 0}
+    for i in creados:
+        lim = i.sla_resolution_limit
+        if not lim:
+            continue
+        c = _cierre(i)
+        if c:
+            des["a_tiempo" if c <= lim else "tarde"] += 1
+        else:
+            des["abierto_en_tiempo" if now <= lim else "abierto_vencido"] += 1
+    resueltos_de_creados = sum(1 for i in creados if _cierre(i))
+    avance = _pct(resueltos_de_creados, n)
+    avance_prev = _pct(sum(1 for i in creados_prev if _cierre(i)), n_prev)
+    sla = {"avance": avance, "resueltos_de_creados": resueltos_de_creados, "creados": n,
+           "avance_delta": _delta(avance, avance_prev, mas_es_malo=False, puntos=True),
+           "cumplimiento": cump["porcentaje"],
+           "cumplimiento_delta": _delta(cump["porcentaje"], cump_prev["porcentaje"], mas_es_malo=False, puntos=True),
+           "con_sla": sum(des.values()), "en_tiempo": des["a_tiempo"] + des["abierto_en_tiempo"],
+           "fuera": des["tarde"] + des["abierto_vencido"], **des}
 
     kpis = [
-        {"label": "Nuevos en el periodo", "valor": str(n), **_delta(n, n_prev, mas_es_malo=True)},
-        {"label": "Abiertos hoy", "valor": str(len(abiertos)),
+        {"label": "Nuevos en el periodo", "ayuda": "Tickets que entraron en el periodo seleccionado, de todos los tipos.", "valor": str(n), **_delta(n, n_prev, mas_es_malo=True)},
+        {"label": "Abiertos hoy", "ayuda": "Tickets que siguen abiertos en este momento, sin importar cuándo entraron.", "valor": str(len(abiertos)),
          **_delta(len(abiertos), abiertos_prev, mas_es_malo=True)},
-        {"label": "Resueltos en el periodo", "valor": str(len(cerrados)),
+        {"label": "Resueltos en el periodo", "ayuda": "Tickets que se resolvieron dentro del periodo seleccionado.", "valor": str(len(cerrados)),
          **_delta(len(cerrados), cerrados_prev, mas_es_malo=False)},
-        {"label": "Sin asignar (backlog)", "valor": str(backlog),
+        {"label": "Sin asignar (backlog)", "ayuda": "Tickets que todavía no tienen a nadie asignado.", "valor": str(backlog),
          "delta": "esperando asignación" if backlog else "ninguno sin asignar", "tono": "bad" if backlog else "good"},
-        {"label": "Cumplimiento de resolución",
-         "valor": (str(cump["porcentaje"]) + "%") if cump["porcentaje"] is not None else "—",
-         **_delta(cump["porcentaje"], cump_prev["porcentaje"], mas_es_malo=False, puntos=True)},
-        {"label": "Reabiertos", "valor": (str(reab) + "%") if reab is not None else "—",
+        {"label": "Reabiertos", "ayuda": "Porcentaje de los tickets del periodo que se reabrieron después de resolverse.", "valor": (str(reab) + "%") if reab is not None else "—",
          **_delta(reab, reab_prev, mas_es_malo=True, puntos=True)},
     ]
 
@@ -390,7 +407,7 @@ def _resumen(incidents, creados, creados_prev, start, end, prev_start, corte, no
                        + (("; " + _t(len(abiertos), "abierto sigue", "abiertos siguen") + " en tiempo.") if abiertos else "."),
             "decidir": "Mantener la operación. " + capacidad["conclusion"],
         }
-    return {"veredicto": veredicto, "kpis": kpis, "ingesta": ingesta, "flujo": flujo, "capacidad": capacidad,
+    return {"veredicto": veredicto, "kpis": kpis, "sla": sla, "ingesta": ingesta, "flujo": flujo, "capacidad": capacidad,
             "edad": [{"rango": k, "tickets": v} for k, v in edad.items()], "severidad": severidad,
             "resueltos": resueltos_lista}
 
