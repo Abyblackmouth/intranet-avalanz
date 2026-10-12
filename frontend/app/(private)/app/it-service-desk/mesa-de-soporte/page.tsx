@@ -542,7 +542,7 @@ export default function MesaDeSoportePage() {
                 <th className="whitespace-nowrap px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-500/10">
+            <tbody className="divide-y divide-slate-200">
               {loading ? (
                 <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-sm">Cargando...</td></tr>
               ) : filtered.length === 0 ? (
