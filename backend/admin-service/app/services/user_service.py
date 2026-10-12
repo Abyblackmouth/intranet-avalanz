@@ -270,9 +270,16 @@ async def assign_module_access(db, user_id, module_id, role_id, requested_by=Non
         if not result.scalar_one_or_none():
             raise NotFoundException("Rol operativo")
     result = await db.execute(select(UserModuleAccess).where(UserModuleAccess.user_id == user_id, UserModuleAccess.module_id == module_id))
-    if result.scalar_one_or_none():
+    existente = result.scalar_one_or_none()
+    if existente and existente.is_active:
         raise AlreadyExistsException("Acceso al modulo")
-    db.add(UserModuleAccess(user_id=user_id, module_id=module_id, role_id=role_id))
+    if existente:
+        # Quitar un acceso solo lo desactiva; al volver a darlo de alta se
+        # reactiva con el rol nuevo en lugar de responder "ya existe".
+        existente.is_active = True
+        existente.role_id = role_id
+    else:
+        db.add(UserModuleAccess(user_id=user_id, module_id=module_id, role_id=role_id))
     await db.commit()
 
 
