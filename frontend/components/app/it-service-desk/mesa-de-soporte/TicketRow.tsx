@@ -174,7 +174,7 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
   return (
     <tr
       onClick={() => onView(t.id)}
-      className="transition-colors duration-[3000ms] cursor-pointer [&>td]:transition-colors [&>td]:duration-75 [&:hover>td]:bg-[#e6ecf6] [&:hover>td:first-child]:shadow-[inset_3px_0_0_#1a4fa0]"
+      className="transition-colors duration-[3000ms] cursor-pointer [&>td]:transition-colors [&>td]:duration-75 [&:hover>td]:bg-[#dae4f3] [&:hover>td:first-child]:shadow-[inset_3px_0_0_#1a4fa0]"
       style={isNew ? { backgroundColor: '#fef9c3' } : undefined}
     >
       <td className="px-4 max-[1440px]:px-2.5 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">
