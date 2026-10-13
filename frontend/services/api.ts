@@ -39,6 +39,47 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = []
 }
 
+// ── Renovacion anticipada del token ─────────────────────────────────────────
+// Se renueva un minuto ANTES de que venza, en lugar de esperar al 401. Asi no se llenan
+// los registros de 401 normales y lo que quede en ellos es un error de verdad.
+// La renovacion al recibir un 401 (abajo) se queda como respaldo.
+const venceEn = (token?: string): number => {
+  try {
+    const carga = token!.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(carga)).exp * 1000
+  } catch { return 0 }
+}
+export const tokenPorVencer = (token?: string, margenMs = 60_000) => !!token && venceEn(token) - Date.now() < margenMs
+
+let renovacionEnCurso: Promise<string | null> | null = null
+export const asegurarToken = async (): Promise<string | null> => {
+  const actual = Cookies.get('access_token')
+  if (!actual || !tokenPorVencer(actual)) return actual ?? null
+  const refreshToken = Cookies.get('refresh_token')
+  if (!refreshToken) return actual
+  if (!renovacionEnCurso) {
+    // Una sola renovacion a la vez: las peticiones que salen juntas la comparten
+    renovacionEnCurso = axios.post(`${BASE_URL}/api/v1/auth/refresh`, { refresh_token: refreshToken })
+      .then(({ data }) => {
+        const nuevo = data?.data?.access_token as string
+        if (!nuevo) return null
+        Cookies.set('access_token', nuevo, { secure: false, sameSite: 'lax' })
+        api.defaults.headers.common.Authorization = `Bearer ${nuevo}`
+        return nuevo
+      })
+      .catch(() => null)
+      .finally(() => { setTimeout(() => { renovacionEnCurso = null }, 0) })
+  }
+  return (await renovacionEnCurso) ?? actual
+}
+
+api.interceptors.request.use(async (config) => {
+  if (config.url?.includes('/auth/')) return config
+  const token = await asegurarToken()
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
