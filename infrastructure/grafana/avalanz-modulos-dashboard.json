@@ -171,7 +171,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "refId": "A",
-          "expr": "100 * sum(rate(http_requests_total{job=\"it-service-desk-service\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"it-service-desk-service\"}[5m])), 1e-9)",
+          "expr": "100 * (sum(rate(http_requests_total{job=\"it-service-desk-service\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total{job=\"it-service-desk-service\"}[5m])), 1e-9)",
           "instant": true
         }
       ],
@@ -751,7 +751,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "refId": "A",
-          "expr": "100 * sum(rate(http_requests_total{job=\"legal-service\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"legal-service\"}[5m])), 1e-9)",
+          "expr": "100 * (sum(rate(http_requests_total{job=\"legal-service\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total{job=\"legal-service\"}[5m])), 1e-9)",
           "instant": true
         }
       ],
