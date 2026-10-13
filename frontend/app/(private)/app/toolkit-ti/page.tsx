@@ -8,7 +8,6 @@ export default function ToolkitTiPage() {
       <div className="p-5 bg-blue-50 rounded-2xl mb-6">
         <Construction size={40} className="text-[#1a4fa0]" />
       </div>
-      <h1 className="text-2xl font-bold text-slate-800 mb-2">Toolkit Ti</h1>
       <p className="text-slate-400 text-sm max-w-sm">
         Selecciona un submódulo del menú lateral para comenzar.
       </p>
