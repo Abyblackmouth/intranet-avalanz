@@ -11,7 +11,7 @@ import { useAuthStore } from '@/store/authStore'
 
 interface Comentario {
   id: string; autor: string; autor_id: string; rol: 'ti' | 'solicitante'; texto: string
-  interna: boolean; pide_respuesta: boolean; adjuntos: any[]; creado: string
+  interna: boolean; pide_respuesta: boolean; adjuntos: any[]; creado: string; autor_foto?: string | null
 }
 const TZ = 'America/Monterrey'
 const MAX_MB = 50
@@ -31,8 +31,9 @@ function hace(iso: string) {
 }
 const completa = (iso: string) => new Date(iso).toLocaleString('es-MX', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' })
 
-export default function ComentariosTicket({ incidentId, renderAdjunto }: {
+export default function ComentariosTicket({ incidentId, renderAdjunto, renderAvatar }: {
   incidentId: string; renderAdjunto: (a: any, i: number) => ReactNode
+  renderAvatar?: (nombre: string, foto: string | null) => ReactNode
 }) {
   const miId = useAuthStore((s: any) => s.user?.user_id)
   const [lista, setLista] = useState<Comentario[]>([])
@@ -115,7 +116,9 @@ export default function ComentariosTicket({ incidentId, renderAdjunto }: {
           const mio = String(c.autor_id) === String(miId)
           return (
             <div key={c.id} className={`flex items-end gap-2 ${mio ? 'flex-row-reverse' : ''}`}>
-              <span className={`w-7 h-7 shrink-0 grid place-items-center rounded-full text-[10.5px] font-bold ${c.rol === 'ti' ? 'bg-[#1a4fa0] text-white' : 'bg-slate-200 text-slate-700'}`}>{iniciales(c.autor)}</span>
+              {renderAvatar ? renderAvatar(c.autor, c.autor_foto ?? null) : (
+                <span className={`w-7 h-7 shrink-0 grid place-items-center rounded-full text-[10.5px] font-bold ${c.rol === 'ti' ? 'bg-[#1a4fa0] text-white' : 'bg-slate-200 text-slate-700'}`}>{iniciales(c.autor)}</span>
+              )}
               <div className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 border ${
                 c.interna ? 'bg-amber-50 border-amber-200' : mio ? 'bg-[#eef4fc] border-[#d3e2f5]' : 'bg-white border-slate-200'
               } ${mio ? 'rounded-br-md' : 'rounded-bl-md'}`}>
