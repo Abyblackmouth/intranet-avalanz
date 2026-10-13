@@ -111,7 +111,7 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
   const participantes = Array.from(new Map(lista.map(c => [String(c.autor_id), c])).values()).slice(0, 3)
 
   return (
-    <section aria-label="Conversación" className="h-full min-h-0 flex flex-col bg-white rounded-[18px] border border-[#dbe2ec] overflow-hidden">
+    <section aria-label="Conversación" className="h-full min-h-0 flex flex-col bg-white rounded-[18px] border border-[#c5d0de] overflow-hidden">
       {/* Encabezado */}
       <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-[#dbe2ec]">
         {participantes.length > 0 && renderAvatar && (

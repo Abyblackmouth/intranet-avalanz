@@ -275,7 +275,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const resolutionEvidence = detail?.attachments.filter(a => a.attachment_type === 'evidencia_resolucion') ?? []
 
   // Tarjeta base del panel en tres columnas (mismo trazo que la maqueta aprobada)
-  const CARD = 'bg-white rounded-[18px] border border-[#dbe2ec] p-4 xl:p-5'
+  const CARD = 'bg-white rounded-[18px] border border-[#c5d0de] p-4 xl:p-5'
   const TITULO = "text-[14px] font-bold text-[#0f2440]"
   const finalizado = !!detail && ['resuelto', 'cerrado', 'terminado', 'rechazado', 'cancelado'].includes(detail.status)
 
