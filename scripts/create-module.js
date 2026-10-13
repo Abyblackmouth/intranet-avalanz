@@ -97,7 +97,6 @@ export default function ${toPascal(slug)}Page() {
       <div className="p-5 bg-blue-50 rounded-2xl mb-6">
         <Construction size={40} className="text-[#1a4fa0]" />
       </div>
-      <h1 className="text-2xl font-bold text-slate-800 mb-2">${toTitle(slug)}</h1>
       <p className="text-slate-400 text-sm max-w-sm">
         Selecciona un submódulo del menú lateral para comenzar.
       </p>
@@ -108,19 +107,16 @@ export default function ${toPascal(slug)}Page() {
 
 const submodulePageTsx = (moduleSlug, subSlug) => `'use client'
 
-import PageWrapper from '@/components/layout/PageWrapper'
-
+// La ruta (Inicio / Modulo / Pagina) vive en el navbar: la pagina no lleva titulo ni subtitulo.
 export default function ${toPascal(subSlug)}Page() {
   return (
-    <PageWrapper
-      title="${toTitle(subSlug)}"
-      description="Módulo ${toTitle(moduleSlug)} — ${toTitle(subSlug)}"
-      actions={null}
-    >
-      <div className="flex items-center justify-center py-32 text-slate-400 text-sm">
-        Contenido de ${toTitle(subSlug)} en construcción
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-auto px-6 max-[1440px]:px-4 pt-3 pb-6 max-[1440px]:pb-4 min-h-0">
+        <div className="flex items-center justify-center py-32 text-slate-400 text-sm">
+          Contenido de ${toTitle(subSlug)} en construcción
+        </div>
       </div>
-    </PageWrapper>
+    </div>
   )
 }
 `
