@@ -1,5 +1,7 @@
 'use client'
 
+import ComentariosTicket from './ComentariosTicket'
+
 import { usePegarImagenes } from '@/hooks/usePegarImagenes'
 import AccResumenSolicitud from '@/components/app/it-service-desk/mesa-de-soporte/AccResumenSolicitud'
 import { useState, useEffect, useCallback , useRef} from 'react'
@@ -504,6 +506,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
 
               {/* Columna derecha: SLA y bitacora -- mismo alto que la columna izquierda completa */}
               <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-5 h-full flex flex-col">
+                <ComentariosTicket incidentId={detail.id} renderAdjunto={(a: any, i: number) => <AttachmentThumb key={a.object_key} a={a} index={i} label="Adjunto" />} />
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-500">SLA y bitácora</p>
                   <div className="flex items-center gap-1.5">

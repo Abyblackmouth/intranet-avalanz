@@ -12,6 +12,8 @@ from app.routes.actualizaciones.comunicados import admin_router as comunicados_a
 router.include_router(comunicados_admin_router)   # antes que actualizaciones, para que ninguna ruta suya lo tape
 router.include_router(comunicados_router)
 router.include_router(actualizaciones_router)
+from app.routes.mesa_de_soporte.comentarios import router as comentarios_router
+router.include_router(comentarios_router)
 router.include_router(control_cambios_router)
 router.include_router(ajustes_router)
 
