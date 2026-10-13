@@ -98,6 +98,16 @@ async def ejecutar(slug: str, params: str = Form("{}"), files: List[UploadFile] 
     return {"data": {"id": str(ejecucion_id), "estado": "en_proceso"}}
 
 
+@router.get("/actividad")
+async def actividad(limite: int = 8, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """Ultimas ejecuciones de todos los plugins, para el panel lateral."""
+    exigir_ver(user)
+    fichas = descubrir()
+    filas = (await db.execute(select(PluginEjecucion).order_by(PluginEjecucion.iniciado_at.desc())
+                              .limit(min(limite, 30)))).scalars().all()
+    return {"data": [{**_ejec(e), "nombre": fichas.get(e.slug, {}).get("nombre", e.slug)} for e in filas]}
+
+
 @router.get("/{slug}/ejecuciones")
 async def historial(slug: str, limite: int = 10, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     exigir_ver(user)

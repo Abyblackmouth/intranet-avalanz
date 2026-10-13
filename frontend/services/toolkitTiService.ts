@@ -8,3 +8,4 @@ export const ejecutarPlugin = (slug: string, data: FormData) =>
   api.post(`${BASE}/plugins/${slug}/ejecutar`, data, { headers: { 'Content-Type': 'multipart/form-data' } })
 export const getEjecuciones = (slug: string) => api.get(`${BASE}/plugins/${slug}/ejecuciones`)
 export const getEjecucion = (id: string) => api.get(`${BASE}/plugins/ejecuciones/${id}`)
+export const getActividad = () => api.get(`${BASE}/plugins/actividad`)

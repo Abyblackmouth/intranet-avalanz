@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Play, Download, Loader2, Search, Upload, X, RotateCcw } from 'lucide-react'
-import { getPlugins, cambiarPlugin, ejecutarPlugin, getEjecucion, getEjecuciones } from '@/services/toolkitTiService'
+import { ChevronDown, Play, Download, Loader2, Search, Upload, X, RotateCcw, Activity, Puzzle } from 'lucide-react'
+import { getPlugins, cambiarPlugin, ejecutarPlugin, getEjecucion, getEjecuciones, getActividad } from '@/services/toolkitTiService'
 import { getSignedUrl } from '@/services/uploadService'
 
 // Plugins de Toolkit TI al estilo Swagger: cada plugin es un bloque teñido del color de
@@ -26,8 +26,8 @@ const ESTILO: Record<Tipo, { bloque: string; badge: string; txt: string }> = {
 }
 const fecha = (iso: string) => new Date(iso).toLocaleString('es-MX', { timeZone: TZ, day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' })
 const peso = (b: number) => b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`
-const BTN = 'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed'
-const ICONO = 'inline-grid place-items-center w-7 h-7 rounded-md text-slate-500 hover:bg-white hover:text-[#1a4fa0] transition'
+const BTN = 'inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[13px] font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed'
+const ICONO = 'inline-grid place-items-center w-8 h-8 rounded-md text-slate-500 hover:bg-white hover:text-[#1a4fa0] transition'
 
 async function descargar(a: { object_key: string; bucket: string }) {
   const r = await getSignedUrl(a.object_key, a.bucket)
@@ -39,8 +39,8 @@ function Interruptor({ on, disabled, onChange, etiqueta }: { on: boolean; disabl
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={etiqueta} disabled={disabled}
       onClick={e => { e.stopPropagation(); onChange(!on) }}
-      className={`relative w-8 h-4.5 shrink-0 rounded-full transition disabled:opacity-50 ${on ? 'bg-emerald-600' : 'bg-slate-300'}`}>
-      <span className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 rounded-full bg-white transition ${on ? 'translate-x-3.5' : ''}`} />
+      className={`relative w-9 h-5 shrink-0 rounded-full transition disabled:opacity-50 ${on ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition ${on ? 'translate-x-4' : ''}`} />
     </button>
   )
 }
@@ -97,12 +97,12 @@ function Bloque({ p, puedeOperar, onCambio }: { p: Plugin; puedeOperar: boolean;
     <div className={`rounded-md border mb-2 overflow-hidden ${p.activo ? est.bloque : 'border-slate-300 bg-slate-100 grayscale opacity-75'}`}>
       <div role="button" tabIndex={0} aria-expanded={abierto}
         onClick={() => setAbierto(a => !a)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAbierto(a => !a) } }}
-        className="flex items-center gap-2.5 px-2 py-1.5 cursor-pointer">
-        <span className={`w-21 shrink-0 text-center rounded-[3px] py-1 text-[11px] font-bold font-mono text-white ${est.badge}`}>{est.txt}</span>
-        <span className="font-mono text-[13px] font-semibold text-slate-800 shrink-0">{p.slug}</span>
-        <span className="text-[13px] text-slate-600 truncate flex-1 min-w-0">{p.nombre}</span>
+        className="flex items-center gap-3 px-2.5 py-2 cursor-pointer">
+        <span className={`w-24 shrink-0 text-center rounded-[3px] py-1.5 text-[12px] font-bold font-mono text-white ${est.badge}`}>{est.txt}</span>
+        <span className="font-mono text-[14px] font-semibold text-slate-800 shrink-0">{p.slug}</span>
+        <span className="text-[14px] text-slate-600 truncate flex-1 min-w-0">{p.nombre}</span>
         {p.ultima && (
-          <span className="hidden md:inline-flex items-center gap-1.5 text-[11.5px] text-slate-500 shrink-0">
+          <span className="hidden md:inline-flex items-center gap-1.5 text-[12.5px] text-slate-500 shrink-0">
             <span className={`w-1.5 h-1.5 rounded-full ${p.ultima.estado === 'ok' ? 'bg-emerald-600' : p.ultima.estado === 'error' ? 'bg-red-600' : 'bg-amber-500'}`} />
             {fecha(p.ultima.iniciado_at)}
           </span>
@@ -113,8 +113,8 @@ function Bloque({ p, puedeOperar, onCambio }: { p: Plugin; puedeOperar: boolean;
       </div>
 
       {abierto && (
-        <div className="border-t border-inherit px-3.5 py-3">
-          <p className="text-[13px] text-slate-600 mb-3">{p.descripcion}</p>
+        <div className="border-t border-inherit px-4 py-3.5">
+          <p className="text-[14px] text-slate-600 mb-3">{p.descripcion}</p>
           {p.tipo !== 'manual' && (
             <p className="text-[12px] text-slate-500 mb-3">
               {p.tipo === 'programado' ? 'Plugin programado' : 'Plugin que se dispara por correo'}: por ahora se ejecuta a mano desde aquí.
@@ -123,19 +123,19 @@ function Bloque({ p, puedeOperar, onCambio }: { p: Plugin; puedeOperar: boolean;
 
           {p.parametros.length > 0 && (
             <div className="rounded-md border border-slate-200 bg-white overflow-hidden mb-3">
-              <div className="grid grid-cols-[minmax(0,180px)_90px_1fr] gap-3 px-3 py-1.5 text-[11px] font-semibold text-slate-400 border-b border-slate-200 bg-slate-50">
+              <div className="grid grid-cols-[minmax(0,200px)_100px_1fr] gap-3 px-3 py-2 text-[12px] font-semibold text-slate-400 border-b border-slate-200 bg-slate-50">
                 <span>Parámetro</span><span>Tipo</span><span>Valor</span>
               </div>
               {p.parametros.map(x => (
-                <div key={x.nombre} className="grid grid-cols-[minmax(0,180px)_90px_1fr] gap-3 items-center px-3 py-1.5 border-b border-slate-100 last:border-0">
+                <div key={x.nombre} className="grid grid-cols-[minmax(0,200px)_100px_1fr] gap-3 items-center px-3 py-2 border-b border-slate-100 last:border-0">
                   <div className="min-w-0">
-                    <p className="font-mono text-[12.5px] font-semibold text-slate-800 truncate">{x.nombre}{x.requerido && <span className="text-red-600 ml-1">*</span>}</p>
-                    {x.ayuda && <p className="text-[11px] text-slate-400 truncate" title={x.ayuda}>{x.ayuda}</p>}
+                    <p className="font-mono text-[13.5px] font-semibold text-slate-800 truncate">{x.nombre}{x.requerido && <span className="text-red-600 ml-1">*</span>}</p>
+                    {x.ayuda && <p className="text-[12px] text-slate-400 truncate" title={x.ayuda}>{x.ayuda}</p>}
                   </div>
-                  <span className="font-mono text-[11.5px] text-slate-400">{x.tipo === 'archivo' ? (x.extensiones ?? []).join(' ') || 'archivo' : x.tipo}</span>
+                  <span className="font-mono text-[12.5px] text-slate-400">{x.tipo === 'archivo' ? (x.extensiones ?? []).join(' ') || 'archivo' : x.tipo}</span>
                   <div className="min-w-0">
                     {x.tipo === 'archivo' ? (
-                      <label className={`flex items-center gap-1.5 h-7 px-2 rounded-md border text-[12px] cursor-pointer truncate ${archivos[x.nombre] ? 'border-[#1a4fa0]/40 bg-[#eaf1fb] text-slate-800' : 'border-dashed border-slate-300 text-slate-400 hover:border-[#1a4fa0]'}`}
+                      <label className={`flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-[13px] cursor-pointer truncate ${archivos[x.nombre] ? 'border-[#1a4fa0]/40 bg-[#eaf1fb] text-slate-800' : 'border-dashed border-slate-300 text-slate-400 hover:border-[#1a4fa0]'}`}
                         onDragOver={e => e.preventDefault()}
                         onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setArchivos(a => ({ ...a, [x.nombre]: f })) }}>
                         <Upload size={13} className="shrink-0" />
@@ -146,14 +146,14 @@ function Bloque({ p, puedeOperar, onCambio }: { p: Plugin; puedeOperar: boolean;
                       <Interruptor on={!!valores[x.nombre]} disabled={false} etiqueta={x.nombre} onChange={v => setValores(s => ({ ...s, [x.nombre]: v }))} />
                     ) : x.tipo === 'opcion' ? (
                       <select value={valores[x.nombre] ?? ''} onChange={e => setValores(s => ({ ...s, [x.nombre]: e.target.value }))}
-                        className="h-7 w-full max-w-64 px-2 rounded-md border border-slate-300 text-[12.5px] bg-white outline-none focus:border-[#1a4fa0]">
+                        className="h-8 w-full max-w-72 px-2.5 rounded-md border border-slate-300 text-[13px] bg-white outline-none focus:border-[#1a4fa0]">
                         <option value="">Elegir…</option>
                         {(x.opciones ?? []).map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     ) : (
                       <input type={x.tipo === 'numero' ? 'number' : x.tipo === 'fecha' ? 'date' : x.tipo === 'mes' ? 'month' : 'text'}
                         value={valores[x.nombre] ?? ''} onChange={e => setValores(s => ({ ...s, [x.nombre]: x.tipo === 'numero' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value }))}
-                        className="h-7 w-full max-w-64 px-2 rounded-md border border-slate-300 text-[12.5px] bg-white outline-none focus:border-[#1a4fa0]" />
+                        className="h-8 w-full max-w-72 px-2.5 rounded-md border border-slate-300 text-[13px] bg-white outline-none focus:border-[#1a4fa0]" />
                     )}
                   </div>
                 </div>
@@ -178,7 +178,7 @@ function Bloque({ p, puedeOperar, onCambio }: { p: Plugin; puedeOperar: boolean;
                 {actual.duracion_ms != null && <span>{(actual.duracion_ms / 1000).toFixed(1)} s</span>}
                 {actual.error && <span className="text-red-600 truncate">{actual.error}</span>}
               </div>
-              <pre className="m-0 px-3 py-2 bg-[#0f2440] text-[#cfe0f5] text-[11.5px] leading-relaxed font-mono max-h-44 overflow-auto whitespace-pre-wrap">{actual.log || '› Preparando…'}</pre>
+              <pre className="m-0 px-3 py-2 bg-[#0f2440] text-[#cfe0f5] text-[12.5px] leading-relaxed font-mono max-h-56 overflow-auto whitespace-pre-wrap">{actual.log || '› Preparando…'}</pre>
               {actual.archivos_salida?.map(a => (
                 <div key={a.object_key} className="flex items-center gap-2 px-3 py-1.5 border-t border-slate-100 text-[12.5px]">
                   <span className="font-mono truncate flex-1 text-slate-700">{a.nombre}</span>
@@ -192,7 +192,7 @@ function Bloque({ p, puedeOperar, onCambio }: { p: Plugin; puedeOperar: boolean;
           {historial.length > 0 && (
             <div className="mt-3">
               <p className="text-[11.5px] font-semibold text-slate-500 mb-1">Historial</p>
-              <div className="rounded-md border border-slate-200 bg-white overflow-hidden text-[12px]">
+              <div className="rounded-md border border-slate-200 bg-white overflow-hidden text-[13px]">
                 {historial.map(h => (
                   <div key={h.id} className="flex items-center gap-3 px-3 py-1 border-b border-slate-100 last:border-0">
                     <span className="text-slate-500 w-28 shrink-0">{fecha(h.iniciado_at)}</span>
@@ -212,6 +212,54 @@ function Bloque({ p, puedeOperar, onCambio }: { p: Plugin; puedeOperar: boolean;
   )
 }
 
+// Panel lateral: resumen, actividad reciente de todos los plugins y como agregar uno
+function Panel({ plugins, recarga }: { plugins: Plugin[]; recarga: number }) {
+  const [actividad, setActividad] = useState<(Ejecucion & { slug: string; nombre: string })[]>([])
+  useEffect(() => { getActividad().then(r => setActividad(r.data?.data ?? [])).catch(() => {}) }, [recarga])
+  const activos = plugins.filter(p => p.activo).length
+  const conError = plugins.filter(p => p.ultima?.estado === 'error').length
+  const CARD = 'rounded-lg border border-[#c5d0de] bg-white'
+  return (
+    <aside className="flex flex-col gap-4">
+      <div className={`${CARD} grid grid-cols-3 divide-x divide-slate-200`}>
+        {[['Plugins', plugins.length], ['Activos', activos], ['Con error', conError]].map(([t, n]) => (
+          <div key={t as string} className="px-3 py-3 text-center">
+            <p className={`text-[22px] font-bold leading-none ${t === 'Con error' && Number(n) > 0 ? 'text-red-600' : 'text-slate-800'}`}>{n}</p>
+            <p className="text-[12px] text-slate-500 mt-1">{t}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className={CARD}>
+        <p className="flex items-center gap-1.5 px-3.5 pt-3 pb-2 text-[13.5px] font-bold text-slate-700"><Activity size={15} className="text-[#1a4fa0]" /> Actividad reciente</p>
+        {actividad.length === 0 ? (
+          <p className="px-3.5 pb-3.5 text-[13px] text-slate-400">Aquí aparecen las ejecuciones de todos los plugins.</p>
+        ) : actividad.map(a => (
+          <div key={a.id} className="flex items-center gap-2.5 px-3.5 py-2 border-t border-slate-100">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${a.estado === 'ok' ? 'bg-emerald-600' : a.estado === 'error' ? 'bg-red-600' : 'bg-amber-500'}`} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-slate-700 truncate">{a.nombre}</p>
+              <p className="text-[11.5px] text-slate-400 truncate">{fecha(a.iniciado_at)} · {a.iniciado_por ?? 'Programado'}</p>
+            </div>
+            {a.archivos_salida?.[0] && <button type="button" onClick={() => descargar(a.archivos_salida[0])} title="Descargar resultado" aria-label={`Descargar resultado de ${a.nombre}`} className={ICONO}><Download size={14} /></button>}
+          </div>
+        ))}
+      </div>
+
+      {plugins.length < 4 && (
+        <div className={`${CARD} px-3.5 py-3`}>
+          <p className="flex items-center gap-1.5 text-[13.5px] font-bold text-slate-700 mb-2"><Puzzle size={15} className="text-[#1a4fa0]" /> Agregar un plugin</p>
+          <ol className="m-0 pl-4 text-[13px] text-slate-600 space-y-1.5 list-decimal">
+            <li>Copia <span className="font-mono text-[12px]">app/plugins/_plantilla.py</span> en <span className="font-mono text-[12px]">toolkit-ti-service</span> con un nombre corto.</li>
+            <li>Llena su ficha (nombre, tipo y parámetros) y la función <span className="font-mono text-[12px]">ejecutar</span>.</li>
+            <li>Haz commit y reconstruye el servicio: aparece aquí solo.</li>
+          </ol>
+        </div>
+      )}
+    </aside>
+  )
+}
+
 export default function PluginsLista() {
   const [plugins, setPlugins] = useState<Plugin[]>([])
   const [puedeOperar, setPuedeOperar] = useState(false)
@@ -219,11 +267,12 @@ export default function PluginsLista() {
   const [cargando, setCargando] = useState(true)
   const [q, setQ] = useState('')
   const [tipo, setTipo] = useState<'todos' | Tipo>('todos')
+  const [recarga, setRecarga] = useState(0)
 
   const cargar = useCallback(() => {
     getPlugins().then(r => {
       const d = r.data?.data ?? {}
-      setPlugins(d.plugins ?? []); setPuedeOperar(!!d.puede_operar); setConError(d.con_error ?? {})
+      setPlugins(d.plugins ?? []); setPuedeOperar(!!d.puede_operar); setConError(d.con_error ?? {}); setRecarga(n => n + 1)
     }).catch(() => {}).finally(() => setCargando(false))
   }, [])
   useEffect(() => { cargar() }, [cargar])
@@ -236,18 +285,19 @@ export default function PluginsLista() {
   }, [plugins, q, tipo])
 
   return (
-    <div className="max-w-6xl">
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+    <div className="min-w-0">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="relative flex-1 min-w-56">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar plugin" aria-label="Buscar plugin"
-            className="w-full h-8 pl-8 pr-7 rounded-md border border-slate-300 bg-white text-[13px] outline-none focus:border-[#1a4fa0]" />
+            className="w-full h-9 pl-8 pr-7 rounded-md border border-slate-300 bg-white text-[14px] outline-none focus:border-[#1a4fa0]" />
           {q && <button type="button" onClick={() => setQ('')} aria-label="Limpiar búsqueda" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={13} /></button>}
         </div>
-        <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-[12px] font-semibold">
+        <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-[13px] font-semibold">
           {(['todos', 'manual', 'programado', 'correo'] as const).map(t => (
             <button key={t} type="button" aria-pressed={tipo === t} onClick={() => setTipo(t)}
-              className={`h-6.5 px-2.5 rounded capitalize ${tipo === t ? 'bg-[#0f2440] text-white' : 'text-slate-500 hover:text-slate-800'}`}>{t === 'todos' ? 'Todos' : t}</button>
+              className={`h-7.5 px-3 rounded capitalize ${tipo === t ? 'bg-[#0f2440] text-white' : 'text-slate-500 hover:text-slate-800'}`}>{t === 'todos' ? 'Todos' : t}</button>
           ))}
         </div>
       </div>
@@ -269,10 +319,12 @@ export default function PluginsLista() {
         <p className="text-center text-[13px] text-slate-400 py-10">Ningún plugin coincide con la búsqueda.</p>
       ) : Object.entries(grupos).map(([g, lista]) => (
         <section key={g} className="mb-4">
-          <h2 className="text-[12.5px] font-bold text-slate-600 mb-1.5">{g} <span className="font-normal text-slate-400">· {lista.length}</span></h2>
+          <h2 className="text-[13.5px] font-bold text-slate-600 mb-2">{g} <span className="font-normal text-slate-400">· {lista.length}</span></h2>
           {lista.map(p => <Bloque key={p.slug} p={p} puedeOperar={puedeOperar} onCambio={cargar} />)}
         </section>
       ))}
+    </div>
+    <Panel plugins={plugins} recarga={recarga} />
     </div>
   )
 }
