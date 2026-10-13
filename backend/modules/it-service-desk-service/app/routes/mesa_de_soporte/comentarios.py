@@ -4,6 +4,7 @@ internas (solo TI).
 Las notas internas se filtran aqui, en el backend: quien levanto el ticket
 nunca las recibe (ni en la API, ni en correos, ni en la bitacora). Los
 comentarios no pausan el SLA."""
+import os
 import uuid
 from typing import List
 
@@ -158,6 +159,9 @@ async def _avisar(inc, c: IncidentComment) -> None:
                     "subject": titulo,
                     "message": f"{c.author_name} escribió en el ticket #{inc.folio} · {inc.title}:",
                     "alert_type": "warning" if c.pide_respuesta else "info",
+                    # Boton que abre la intranet directo en este ticket
+                    "action_url": f"{os.getenv('FRONTEND_URL', 'https://intranet.avalanz.com').rstrip('/')}/app/it-service-desk/mesa-de-soporte?ticket={inc.id}",
+                    "action_label": "Ver y responder",
                     "fields": [
                         {"label": "Comentario", "value": c.body or "(sin texto)", "mono": False},
                         {"label": "Adjuntos", "value": str(len(c.attachments or [])), "mono": False},
