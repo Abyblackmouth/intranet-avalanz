@@ -261,6 +261,22 @@ export default function MesaDeSoportePage() {
   const [showCreateACC, setShowCreateACC] = useState(false)
   const [assigningTicket, setAssigningTicket] = useState<{ id: string; folio: string } | null>(null)
   const [viewingTicketId, setViewingTicketId] = useState<string | null>(null)
+  // Liga directa (por ejemplo, del boton "Ver y responder" del correo): ?ticket=<id>
+  // deja el ticket a la vista en la tabla y abre su detalle
+  const [ticketDeLiga, setTicketDeLiga] = useState<string | null>(null)
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('ticket')
+    if (t) setTicketDeLiga(t)
+  }, [])
+  useEffect(() => {
+    if (!ticketDeLiga || incidents.length === 0) return
+    const t: any = incidents.find((x: any) => String(x.id) === ticketDeLiga)
+    if (t) {
+      setActiveTypes([]); setActiveSevs([]); setStatusFilter(''); setSearch(t.folio); setPage(1)
+      setViewingTicketId(t.id)
+    }
+    setTicketDeLiga(null)
+  }, [ticketDeLiga, incidents])
   const [viewingCdcId, setViewingCdcId] = useState<string | null>(null)
   const [cdcBoardKey, setCdcBoardKey] = useState(0)
   const [cdcClasif, setCdcClasif] = useState<'todos' | 'proyecto' | 'cambio'>('todos')
