@@ -5,6 +5,7 @@ Las notas internas se filtran aqui, en el backend: quien levanto el ticket
 nunca las recibe (ni en la API, ni en correos, ni en la bitacora). Los
 comentarios no pausan el SLA."""
 import os
+import re
 import uuid
 from typing import List
 
@@ -106,7 +107,7 @@ async def comentar(
         datos = await f.read()
         if len(datos) > MAX_BYTES:
             raise HTTPException(status_code=422, detail=f"{nombre} pesa más de 50 MB")
-        key = f"it-service-desk/comentarios/{inc.folio}/{uuid.uuid4().hex[:8]}_{nombre}"
+        key = f"it-service-desk/comentarios/{inc.folio}/{uuid.uuid4().hex[:8]}_{re.sub(r'[^A-Za-z0-9._-]', '_', nombre)}"
         _almacen.guardar(datos, key, f.content_type or "application/octet-stream")
         adjuntos.append({"object_key": key, "bucket": BUCKET, "mime_type": f.content_type or "",
                          "nombre": nombre, "size_bytes": len(datos)})
