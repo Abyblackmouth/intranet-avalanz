@@ -38,6 +38,7 @@ export default function ComentariosTicket({ incidentId, renderAdjunto }: {
   const [lista, setLista] = useState<Comentario[]>([])
   const [puedeInterna, setPuedeInterna] = useState(false)
   const [esperando, setEsperando] = useState<{ desde: string; por: string } | null>(null)
+  const [cerrada, setCerrada] = useState(false)
   const [texto, setTexto] = useState('')
   const [interna, setInterna] = useState(false)
   const [pide, setPide] = useState(false)
@@ -52,7 +53,7 @@ export default function ComentariosTicket({ incidentId, renderAdjunto }: {
   const cargar = useCallback(() => {
     getComentarios(incidentId).then(r => {
       const d = r.data?.data ?? r.data ?? {}
-      setLista(d.comentarios ?? []); setPuedeInterna(!!d.puede_nota_interna); setEsperando(d.esperando ?? null)
+      setLista(d.comentarios ?? []); setPuedeInterna(!!d.puede_nota_interna); setEsperando(d.esperando ?? null); setCerrada(!!d.cerrada)
     }).catch(() => {})
   }, [incidentId])
   useEffect(() => { cargar() }, [cargar])
@@ -132,6 +133,12 @@ export default function ComentariosTicket({ incidentId, renderAdjunto }: {
         })}
       </div>
 
+      {cerrada ? (
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12.5px] text-slate-500">
+          <Lock size={13} className="shrink-0" /> La conversación está cerrada porque el ticket ya se cerró.
+        </div>
+      ) : (
+      <>
       {/* Escribir */}
       <div
         onDragOver={e => { e.preventDefault(); setArrastrando(true) }}
@@ -195,6 +202,8 @@ export default function ComentariosTicket({ incidentId, renderAdjunto }: {
       </div>
       {error && <p role="alert" className="mt-1.5 text-[12.5px] text-red-600">{error}</p>}
       <p className="mt-1.5 text-[11px] text-slate-400">Ctrl + Enter para enviar · hasta {MAX_MB} MB por archivo</p>
+      </>
+      )}
     </div>
   )
 }

@@ -20,6 +20,12 @@ router = APIRouter(prefix="/incidencias", tags=["Comentarios"])
 EXT_PERMITIDAS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt"}
 MAX_BYTES = 50 * 1024 * 1024
 BUCKET = getattr(_almacen, "BUCKET", "dirdoc")
+# Con el ticket en estos estatus la conversacion queda de solo lectura
+CERRADOS = {"cerrado", "cancelado", "rechazado", "terminado"}
+
+
+def _cerrado(inc) -> bool:
+    return str(getattr(inc.status, "value", inc.status)) in CERRADOS
 
 
 async def _acceso(incident_id: str, db: AsyncSession, user: dict):
@@ -60,7 +66,7 @@ async def listar(incident_id: str, db: AsyncSession = Depends(_m.get_db), user: 
     publicos = [c for c in filas if not c.is_internal]
     if publicos and publicos[-1].author_rol == "ti" and publicos[-1].pide_respuesta:
         esperando = {"desde": publicos[-1].created_at.isoformat(), "por": inc.requester_name}
-    return {"data": {"comentarios": [_json(c) for c in filas], "puede_nota_interna": es_ti, "esperando": esperando}}
+    return {"data": {"comentarios": [_json(c) for c in filas], "puede_nota_interna": es_ti, "esperando": None if _cerrado(inc) else esperando, "cerrada": _cerrado(inc)}}
 
 
 @router.post("/{incident_id}/comentarios")
@@ -74,6 +80,8 @@ async def comentar(
     user: dict = Depends(_m.get_current_user),
 ):
     inc, es_ti = await _acceso(incident_id, db, user)
+    if _cerrado(inc):
+        raise HTTPException(status_code=409, detail="El ticket ya está cerrado; la conversación es de solo lectura.")
     texto = (texto or "").strip()
     files = [f for f in (files or []) if f and f.filename]
     if not texto and not files:
