@@ -18,7 +18,8 @@ export function useNotifications() {
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await getNotifications({ per_page: 20 })
-      setNotifications(res.data?.data?.data ?? [])
+      // notify-service manda el identificador como notification_id; la pantalla usa id
+      setNotifications((res.data?.data?.data ?? []).map((n: any) => ({ ...n, id: n.id ?? n.notification_id })))
     } catch {}
   }, [setNotifications])
 
@@ -30,6 +31,7 @@ export function useNotifications() {
   }, [setUnreadCount])
 
   const handleMarkAsRead = useCallback(async (id: string) => {
+    if (!id) return
     markReadLocal(id)
     try { await markAsRead(id) } catch {}
   }, [markReadLocal])

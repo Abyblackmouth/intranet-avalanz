@@ -85,6 +85,14 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
+    // Demasiadas peticiones: se reintenta una vez tras una pausa corta (el usuario no lo nota)
+    if (error.response?.status === 429 && originalRequest && !(originalRequest as any)._reintento429) {
+      (originalRequest as any)._reintento429 = true
+      const espera = Number(error.response.headers?.['retry-after']) * 1000 || 800
+      await new Promise(r => setTimeout(r, Math.min(espera, 3000)))
+      return api(originalRequest)
+    }
+
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
