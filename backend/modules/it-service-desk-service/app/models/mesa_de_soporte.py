@@ -480,3 +480,21 @@ class Comunicado(Base):
     creado_por_nombre = _sa_com.Column(_sa_com.String(200), nullable=True)
     created_at = _sa_com.Column(_sa_com.DateTime(timezone=True), nullable=False, server_default=_sa_com.func.now())
     updated_at = _sa_com.Column(_sa_com.DateTime(timezone=True), nullable=False, server_default=_sa_com.func.now())
+
+
+# ------------------------------------------------------------------
+# Conversacion del ticket: comentarios publicos y notas internas de TI
+# ------------------------------------------------------------------
+class IncidentComment(Base):
+    __tablename__ = "incident_comments"
+
+    id = _sa_com.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    incident_id = _sa_com.Column(UUID(as_uuid=True), _sa_com.ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = _sa_com.Column(UUID(as_uuid=True), nullable=True)
+    author_name = _sa_com.Column(_sa_com.String(200), nullable=False)
+    author_rol = _sa_com.Column(_sa_com.String(20), nullable=False)          # ti | solicitante
+    body = _sa_com.Column(_sa_com.Text, nullable=False, default="")
+    is_internal = _sa_com.Column(_sa_com.Boolean, nullable=False, default=False)
+    pide_respuesta = _sa_com.Column(_sa_com.Boolean, nullable=False, default=False)
+    attachments = _sa_com.Column(JSONB, nullable=False, default=list)
+    created_at = _sa_com.Column(_sa_com.DateTime(timezone=True), nullable=False, server_default=_sa_com.func.now())

@@ -243,3 +243,9 @@ export const editarComunicado = (id: string, data: Record<string, any>) =>
   api.patch(`/api/v1/it-service-desk/actualizaciones/comunicados/${id}`, data)
 export const borrarComunicado = (id: string) => api.delete(`/api/v1/it-service-desk/actualizaciones/comunicados/${id}`)
 export const getComunicadosActivos = () => api.get('/api/v1/it-service-desk/comunicados/activos')
+
+// ── Conversacion del ticket ────────────────────────────────────────────────
+export const getComentarios = (incidentId: string) =>
+  api.get(`/api/v1/it-service-desk/incidencias/${incidentId}/comentarios`)
+export const enviarComentario = (incidentId: string, data: FormData) =>
+  api.post(`/api/v1/it-service-desk/incidencias/${incidentId}/comentarios`, data, { headers: { 'Content-Type': 'multipart/form-data' } })
