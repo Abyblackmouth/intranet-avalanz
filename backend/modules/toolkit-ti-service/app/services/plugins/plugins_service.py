@@ -3,6 +3,7 @@ memoria, para que un plugin colgado o con error no afecte al servicio. Las entra
 resultados se guardan en el almacenamiento (MinIO) y el registro queda en la base."""
 import asyncio
 import json
+import re
 import os
 import resource
 import shutil
@@ -23,6 +24,11 @@ from app.models import PluginEjecucion
 BUCKET = "dirdoc"
 MEMORIA_MAX = 1024 * 1024 * 1024        # 1 GB por ejecucion
 LOG_MAX = 60_000                        # caracteres del registro que se guardan
+
+
+def _seguro(nombre: str) -> str:
+    """Nombre apto para el almacenamiento: caracteres como ( ) o acentos rompen la firma de la liga de descarga."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", nombre)
 
 
 def _s3():
@@ -83,11 +89,11 @@ async def correr(ejecucion_id, slug: str, trabajo: Path, tiempo_maximo: int) -> 
             error = f"Se detuvo: paso de su tiempo maximo ({tiempo_maximo} s)"
         prefijo = f"toolkit-ti/plugins/{slug}/{ejecucion_id}"
         for ruta in sorted((trabajo / "entrada").glob("*")):
-            entradas.append(await asyncio.to_thread(_subir, ruta, f"{prefijo}/entrada/{ruta.name}"))
+            entradas.append(await asyncio.to_thread(_subir, ruta, f"{prefijo}/entrada/{_seguro(ruta.name)}"))
         if estado == "ok":
             for ruta in sorted((trabajo / "salida").glob("*")):
                 if ruta.is_file():
-                    salidas.append(await asyncio.to_thread(_subir, ruta, f"{prefijo}/salida/{ruta.name}"))
+                    salidas.append(await asyncio.to_thread(_subir, ruta, f"{prefijo}/salida/{_seguro(ruta.name)}"))
     except Exception as e:
         error = f"No se pudo ejecutar: {type(e).__name__}: {e}"
     finally:
