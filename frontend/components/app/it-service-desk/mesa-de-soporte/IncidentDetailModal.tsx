@@ -58,6 +58,9 @@ const ACTION_LABEL: Record<string, string> = {
   reasignacion_manual: 'Reasignado',
   redirigido_no_corresponde: 'Redirigido (no correspondía)',
   ticket_resuelto_via_token: 'Resuelto (vía enlace de correo)',
+  comentario: 'Comentario en la conversación',
+  cambio_severidad: 'Cambio de severidad',
+  ticket_resuelto: 'Resuelto',
 }
 
 const AVATAR_COLORS = ['bg-[#1a4fa0]', 'bg-violet-500', 'bg-teal-500', 'bg-orange-400', 'bg-rose-500', 'bg-emerald-500']
@@ -271,13 +274,18 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
   const reportEvidence = detail?.attachments.filter(a => a.attachment_type === 'evidencia_reporte') ?? []
   const resolutionEvidence = detail?.attachments.filter(a => a.attachment_type === 'evidencia_resolucion') ?? []
 
+  // Tarjeta base del panel en tres columnas (mismo trazo que la maqueta aprobada)
+  const CARD = 'bg-white rounded-[18px] border border-[#dbe2ec] p-4 xl:p-5'
+  const TITULO = "text-[14px] font-bold text-[#0f2440]"
+  const finalizado = !!detail && ['resuelto', 'cerrado', 'terminado', 'rechazado', 'cancelado'].includes(detail.status)
+
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />
 
-      <div className="fixed right-0 top-0 h-full z-50 w-full flex flex-col bg-white shadow-2xl" style={{ maxWidth: '58vw' }}>
+      <div className="fixed right-0 top-0 h-full z-50 w-full flex flex-col bg-[#eef2f7] shadow-2xl" style={{ maxWidth: 'min(1480px, 97vw)' }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-300 shrink-0 bg-white">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#dbe2ec] shrink-0 bg-white">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <p className="text-sm text-slate-400"><span className="text-slate-500">Folio número:</span> <span className="font-mono">{detail?.folio ?? '...'}</span></p>
@@ -345,8 +353,8 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
           </div>
         </div>
 
-        {/* Contenido */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 bg-white">
+        {/* Contenido: tres columnas (ticket | SLA y bitacora | conversacion) */}
+        <div className="flex-1 min-h-0 overflow-y-auto xl:overflow-hidden px-4 py-4 xl:px-5">
           {loading ? (
             <div className="flex items-center justify-center h-40">
               <div className="w-6 h-6 border-2 border-[#1a4fa0] border-t-transparent rounded-full animate-spin" />
@@ -354,17 +362,17 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
           ) : error || !detail ? (
             <div className="text-center py-12 text-red-500 text-sm">{error ?? 'No se pudo cargar el ticket'}</div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-              {/* Columna izquierda: Datos generales + Asignacion/Resolucion */}
-              <div className="flex flex-col gap-5">
-                {/* Datos generales */}
-                <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-5">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">Datos generales</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_380px] gap-4 xl:h-full xl:min-h-0">
 
-                  <div className="flex items-center gap-4 mb-4">
+              {/* 1. El ticket: quien lo reporta, quien lo atiende y la resolucion */}
+              <div className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+                {/* Quien lo reporta */}
+                <section className={CARD}>
+                  <h3 className={`${TITULO} mb-3`}>Quién lo reporta</h3>
+                  <div className="flex items-center gap-3.5">
                     <PersonAvatar name={detail.requester_name} photoObjectKey={detail.requester_photo_object_key} />
                     <div className="min-w-0">
-                      <p className="font-semibold text-slate-800 truncate">{detail.requester_name}</p>
+                      <p className="font-bold text-[15px] text-[#0f2440] truncate">{detail.requester_name}</p>
                       <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
                         {detail.requester_puesto && <span className="flex items-center gap-1"><Briefcase size={12} />{detail.requester_puesto}</span>}
                         {detail.requester_phone && <span className="flex items-center gap-1"><Phone size={12} />{detail.requester_phone}</span>}
@@ -373,191 +381,204 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-3 text-sm mb-3 border-t border-slate-100 pt-3">
-                    <div><p className="text-[10px] text-slate-400 uppercase">Sistema</p><p className="font-medium text-slate-800">{systemName(detail.system_id)}</p></div>
-                    <div className="min-w-0"><p className="text-[10px] text-slate-400 uppercase">Módulo</p><p className="font-medium text-slate-800 truncate" title={(detail as any).module_name ?? ""}>{(detail as any).module_name ?? '—'}</p></div>
-                    <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.reported_type ?? '—'}</p></div>
-                    <div><p className="text-[10px] text-slate-400 uppercase">Creado</p><p className="font-medium text-slate-800">{fmt(detail.created_at)}</p></div>
-                  </div>
-                  {((detail as any).ticket_type === 'solicitud_acceso' || detail.folio?.startsWith('ACC-'))
-                    ? <AccResumenSolicitud incidentId={detail.id} fallback={detail.description} estado={detail.status} asignadoId={detail.assigned_to_user_id}
-                        onCambio={() => getIncidentDetail(detail.id).then(r => setDetail(r.data)).catch(() => {})} />
-                    : <p className="text-sm text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-3">{detail.description}</p>}
+                  <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mt-4 pt-3 border-t border-[#dbe2ec]">
+                    <div><dt className="text-[11.5px] text-slate-400">Sistema</dt><dd className="font-semibold text-slate-800">{systemName(detail.system_id)}</dd></div>
+                    <div className="min-w-0"><dt className="text-[11.5px] text-slate-400">Módulo</dt><dd className="font-semibold text-slate-800 truncate" title={(detail as any).module_name ?? ''}>{(detail as any).module_name ?? '—'}</dd></div>
+                    <div><dt className="text-[11.5px] text-slate-400">Tipo</dt><dd className="font-semibold text-slate-800 capitalize">{detail.reported_type ?? '—'}</dd></div>
+                    <div><dt className="text-[11.5px] text-slate-400">Creado</dt><dd className="font-semibold text-slate-800">{fmt(detail.created_at)}</dd></div>
+                  </dl>
 
+                  {!esAccesoTicket && (
+                    <p className="mt-3 text-sm text-slate-600 leading-relaxed border border-[#dbe2ec] bg-[#fafbfd] rounded-xl px-3 py-2.5 whitespace-pre-wrap">{detail.description}</p>
+                  )}
                   {reportEvidence.length > 0 && (
                     <div className="flex gap-2 mt-3 flex-wrap">
                       {reportEvidence.map((a, i) => <AttachmentThumb key={a.id} a={a} index={i} label="Evidencia" />)}
                     </div>
                   )}
-                </div>
+                </section>
 
-                {/* Asignacion y resolucion */}
-                <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-5 flex-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Asignación y resolución</p>
+                {/* Quien lo atiende y la resolucion */}
+                <section className={CARD}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={TITULO}>Quién lo atiende</h3>
                     {canAssign && (
-                      <button
-                        onClick={() => setShowAssignModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-[#1a4fa0] hover:bg-[#153f82] shadow-sm transition"
-                      >
-                        <UserCog size={16} />
-                        {detail.assigned_to_user_id ? 'Reasignar' : 'Asignar'}
+                      <button onClick={() => setShowAssignModal(true)}
+                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold text-white bg-[#1a4fa0] hover:bg-[#153f82] transition">
+                        <UserCog size={16} /> {detail.assigned_to_user_id ? 'Reasignar' : 'Asignar'}
                       </button>
                     )}
                   </div>
 
                   {detail.assigned_to_user_id ? (
                     <>
-                      <div className="flex items-center gap-4 mb-4">
+                      <div className="flex items-center gap-3.5">
                         <PersonAvatar name={detail.assigned_to_name ?? '?'} photoObjectKey={detail.assigned_to_photo_object_key} />
                         <div className="min-w-0">
-                          <p className="font-semibold text-slate-800 truncate">{detail.assigned_to_name ?? 'Sin nombre'}</p>
+                          <p className="font-bold text-[15px] text-[#0f2440] truncate">{detail.assigned_to_name ?? 'Sin nombre'}</p>
                           <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
                             {detail.assigned_to_puesto && <span className="flex items-center gap-1"><Briefcase size={12} />{detail.assigned_to_puesto}</span>}
                             {detail.assigned_to_phone && <span className="flex items-center gap-1"><Phone size={12} />{detail.assigned_to_phone}</span>}
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm border-t border-slate-100 pt-3">
-                        <div><p className="text-[10px] text-slate-400 uppercase">Equipo</p><p className="font-medium text-slate-800">{detail.assigned_team}</p></div>
-                        <div><p className="text-[10px] text-slate-400 uppercase">Fecha de asignación</p><p className="font-medium text-slate-800">{fmt(detail.assigned_at)}</p></div>
-                      </div>
+                      <dl className="grid grid-cols-2 gap-3 text-sm mt-4 pt-3 border-t border-[#dbe2ec]">
+                        <div><dt className="text-[11.5px] text-slate-400">Equipo</dt><dd className="font-semibold text-slate-800">{detail.assigned_team}</dd></div>
+                        <div><dt className="text-[11.5px] text-slate-400">Fecha de asignación</dt><dd className="font-semibold text-slate-800">{fmt(detail.assigned_at)}</dd></div>
+                      </dl>
                     </>
                   ) : (
-                    <p className="text-slate-400 italic mb-3">Aún sin asignar</p>
+                    <p className="text-slate-400 italic text-sm">Aún sin asignar</p>
                   )}
 
-                  <div className="border-t border-slate-100 mt-4 pt-4">
-                    <p className="text-[10px] text-slate-400 uppercase mb-2">Resolución</p>
-                    {detail.resolved_at ? (
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div><p className="text-[10px] text-slate-400 uppercase">Resuelto</p><p className="font-medium text-slate-800">{fmt(detail.resolved_at)}</p></div>
-                        <div><p className="text-[10px] text-slate-400 uppercase">Tipo</p><p className="font-medium text-slate-800 capitalize">{detail.resolution_type?.replace('_', ' ')}</p></div>
-                        {detail.rca_text && (
-                          <div className="col-span-2">
-                            <p className="text-[10px] text-slate-400 uppercase mb-1">Notas de resolución</p>
-                            <p className="text-sm text-slate-700 whitespace-pre-wrap border border-slate-300 rounded-lg px-3 py-2">{detail.rca_text}</p>
+                  {!esAccesoTicket && (
+                    <div className="mt-4 pt-3 border-t border-[#dbe2ec]">
+                      <h3 className={`${TITULO} mb-2`}>
+                        Resolución {!detail.resolved_at && <span className="ml-1 text-[12px] font-medium text-slate-400">{finalizado ? '' : 'pendiente'}</span>}
+                      </h3>
+                      {detail.resolved_at ? (
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div><p className="text-[11.5px] text-slate-400">Resuelto</p><p className="font-semibold text-slate-800">{fmt(detail.resolved_at)}</p></div>
+                          <div><p className="text-[11.5px] text-slate-400">Tipo</p><p className="font-semibold text-slate-800 capitalize">{detail.resolution_type?.replace('_', ' ')}</p></div>
+                          {detail.rca_text && (
+                            <div className="col-span-2">
+                              <p className="text-[11.5px] text-slate-400 mb-1">Notas de resolución</p>
+                              <p className="text-sm text-slate-700 whitespace-pre-wrap border border-[#dbe2ec] rounded-xl px-3 py-2">{detail.rca_text}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : canResolve && !showResolveForm ? (
+                        <button onClick={() => setShowResolveForm(true)}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition">
+                          <CheckCircle2 size={16} /> Marcar como resuelto
+                        </button>
+                      ) : canResolve && showResolveForm ? (
+                        <div className="border border-[#dbe2ec] rounded-xl p-4 space-y-3">
+                          <div>
+                            <label className="block text-[11.5px] font-semibold text-slate-500 mb-1">Tipo de resolución</label>
+                            <select value={resolutionType} onChange={e => setResolutionType(e.target.value)}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500">
+                              <option value="causa_raiz">Causa raíz</option>
+                              <option value="workaround">Workaround</option>
+                            </select>
                           </div>
-                        )}
-                      </div>
-                    ) : canResolve && !esAccesoTicket && !showResolveForm ? (
-                      <button
-                        onClick={() => setShowResolveForm(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition"
-                      >
-                        <CheckCircle2 size={16} />
-                        Marcar como resuelto
-                      </button>
-                    ) : canResolve && !esAccesoTicket && showResolveForm ? (
-                      <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Tipo de resolución</label>
-                          <select
-                            value={resolutionType}
-                            onChange={e => setResolutionType(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500"
-                          >
-                            <option value="causa_raiz">Causa raíz</option>
-                            <option value="workaround">Workaround</option>
-                          </select>
+                          <div>
+                            <label className="block text-[11.5px] font-semibold text-slate-500 mb-1">Notas (opcional)</label>
+                            <textarea value={rcaText} onChange={e => setRcaText(e.target.value)} rows={3}
+                              placeholder="Describe brevemente la solución aplicada · Puedes pegar capturas aquí con Ctrl + V"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500 resize-none" />
+                          </div>
+                          <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-emerald-400 transition">
+                            <Paperclip size={14} />
+                            {resolveFiles.length > 0 ? `${resolveFiles.length} archivo(s) seleccionado(s)` : 'Adjuntar evidencia de resolución (opcional)'}
+                            <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={e => setResolveFiles(Array.from(e.target.files ?? []))} />
+                          </label>
+                          {resolveError && <p className="text-xs text-red-600">{resolveError}</p>}
+                          <div className="flex gap-2">
+                            <button onClick={() => setShowResolveForm(false)}
+                              className="flex-1 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition">Cancelar</button>
+                            <button onClick={handleResolve} disabled={submittingResolve}
+                              className="flex-1 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition">
+                              {submittingResolve ? 'Guardando...' : 'Confirmar resolución'}
+                            </button>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Notas (opcional)</label>
-                          <textarea
-                            value={rcaText}
-                            onChange={e => setRcaText(e.target.value)}
-                            rows={3}
-                            placeholder="Describe brevemente la solución aplicada · Puedes pegar capturas aquí con Ctrl + V"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500 resize-none"
-                          />
+                      ) : (
+                        <p className="text-slate-400 text-sm">Cuando se resuelva, aquí aparecen la nota y las evidencias de la solución.</p>
+                      )}
+                      {resolutionEvidence.length > 0 && (
+                        <div className="flex gap-2 mt-3 flex-wrap">
+                          {resolutionEvidence.map((a, i) => <AttachmentThumb key={a.id} a={a} index={i} label="Resolución" />)}
                         </div>
-                        <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 cursor-pointer hover:border-emerald-400 transition">
-                          <Paperclip size={14} />
-                          {resolveFiles.length > 0 ? `${resolveFiles.length} archivo(s) seleccionado(s)` : 'Adjuntar evidencia de resolución (opcional)'}
-                          <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={e => setResolveFiles(Array.from(e.target.files ?? []))} />
-                        </label>
-                        {resolveError && <p className="text-xs text-red-600">{resolveError}</p>}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setShowResolveForm(false)}
-                            className="flex-1 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            onClick={handleResolve}
-                            disabled={submittingResolve}
-                            className="flex-1 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition"
-                          >
-                            {submittingResolve ? 'Guardando...' : 'Confirmar resolución'}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-slate-400 italic text-sm">Aún no se ha resuelto</p>
-                    )}
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                {/* Solicitud de acceso: el detalle y la contrasena quedan abajo */}
+                {esAccesoTicket && (
+                  <section className={CARD}>
+                    <h3 className={`${TITULO} mb-3`}>Detalle de la solicitud</h3>
+                    <AccResumenSolicitud incidentId={detail.id} fallback={detail.description} estado={detail.status} asignadoId={detail.assigned_to_user_id}
+                      onCambio={() => getIncidentDetail(detail.id).then(r => setDetail(r.data)).catch(() => {})} />
                     {resolutionEvidence.length > 0 && (
                       <div className="flex gap-2 mt-3 flex-wrap">
-                        {resolutionEvidence.map((a, i) => <AttachmentThumb key={a.id} a={a} index={i} label="Resolución" />)}
+                        {resolutionEvidence.map((a, i) => <AttachmentThumb key={a.id} a={a} index={i} label="Firmado" />)}
                       </div>
                     )}
-                  </div>
-                </div>
+                  </section>
+                )}
               </div>
 
-              {/* Columna derecha: SLA y bitacora -- mismo alto que la columna izquierda completa */}
-              <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-5 h-full flex flex-col">
-                <ComentariosTicket incidentId={detail.id} renderAdjunto={(a: any, i: number) => <AttachmentThumb key={a.object_key} a={a} index={i} label="Adjunto" />}
-                  renderAvatar={(nombre: string, foto: string | null) => <PersonAvatar name={nombre} photoObjectKey={foto} small />} />
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">SLA y bitácora</p>
-                  <div className="flex items-center gap-1.5">
-                  {(revisadoAt ?? (detail as any).first_response_at) ? (
-                    <span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200" title="Primera respuesta registrada">
-                      <CheckCircle2 size={14} /> Revisado · {new Date(revisadoAt ?? (detail as any).first_response_at).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  ) : !['resuelto', 'cerrado', 'terminado', 'rechazado', 'cancelado'].includes(detail.status) && (
-                    <button type="button" disabled={marcandoRevisado}
-                      onClick={async () => {
-                        setMarcandoRevisado(true)
-                        try { const r = await marcarRevisado(detail.id); setRevisadoAt(r.data?.first_response_at ?? new Date().toISOString()) }
-                        catch (e: any) { alert(e?.response?.data?.detail ?? 'No se pudo marcar como revisado') }
-                        finally { setMarcandoRevisado(false) }
-                      }}
-                      className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white bg-[#1a4fa0] hover:bg-[#153f82] disabled:opacity-60 transition">
-                      <Eye size={14} /> {marcandoRevisado ? 'Marcando…' : 'Marcar como revisado'}
-                    </button>
-                  )}
-                  <button type="button" onClick={() => imprimirTicket(detail)} title="Imprimir ticket" aria-label="Imprimir ticket"
-                    className="w-8 h-8 -my-1 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-[#1a4fa0] transition">
-                    <Printer size={16} />
-                  </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="border-2 border-amber-300 rounded-xl p-3">
-                    <p className="text-[10px] font-bold uppercase text-amber-700">Respuesta</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{fmt(detail.sla_response_limit)}</p>
-                  </div>
-                  <div className="border-2 border-amber-300 rounded-xl p-3">
-                    <p className="text-[10px] font-bold uppercase text-amber-700">Resolución</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{fmt(detail.sla_resolution_limit)}</p>
-                  </div>
-                </div>
-                {detail.is_sla_breached && <p className="text-xs text-red-600 font-medium mb-3">⚠ SLA incumplido</p>}
-
-                <div className="relative pl-5 flex-1">
-                  <div className="absolute left-[5px] top-1 bottom-1 w-px bg-slate-200" />
-                  {detail.activity_log.map((ev, i) => (
-                    <div key={i} className="relative pb-3 last:pb-0">
-                      <div className="absolute -left-5 top-0.5 w-3 h-3 rounded-full bg-white border-2 border-[#1a4fa0]" />
-                      <p className="text-[10px] font-mono text-slate-400">{fmt(ev.performed_at)}</p>
-                      <p className="text-sm font-semibold text-slate-800">{ACTION_LABEL[ev.action] ?? ev.action}</p>
-                      <p className="text-xs text-slate-500">{ev.performed_by_name} · {ev.performed_by_role}</p>
+              {/* 2. SLA y bitacora */}
+              <div className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+                <section className={CARD}>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <h3 className={TITULO}>SLA</h3>
+                    <div className="flex items-center gap-1.5">
+                      {(revisadoAt ?? (detail as any).first_response_at) ? (
+                        <span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200" title="Primera respuesta registrada">
+                          <CheckCircle2 size={14} /> Revisado · {new Date(revisadoAt ?? (detail as any).first_response_at).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      ) : !finalizado && (
+                        <button type="button" disabled={marcandoRevisado}
+                          onClick={async () => {
+                            setMarcandoRevisado(true)
+                            try { const r = await marcarRevisado(detail.id); setRevisadoAt(r.data?.first_response_at ?? new Date().toISOString()) }
+                            catch (e: any) { alert(e?.response?.data?.detail ?? 'No se pudo marcar como revisado') }
+                            finally { setMarcandoRevisado(false) }
+                          }}
+                          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[12px] font-semibold text-white bg-[#1a4fa0] hover:bg-[#153f82] disabled:opacity-60 transition">
+                          <Eye size={14} /> {marcandoRevisado ? 'Marcando…' : 'Marcar como revisado'}
+                        </button>
+                      )}
+                      <button type="button" onClick={() => imprimirTicket(detail)} title="Imprimir ticket" aria-label="Imprimir ticket"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-[#1a4fa0] transition">
+                        <Printer size={16} />
+                      </button>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {[
+                      { t: 'Respuesta', lim: detail.sla_response_limit, hecho: (revisadoAt ?? (detail as any).first_response_at) },
+                      { t: 'Resolución', lim: detail.sla_resolution_limit, hecho: detail.resolved_at ?? detail.closed_at },
+                    ].map(r => {
+                      const tarde = !!r.lim && (r.hecho ? new Date(r.hecho) > new Date(r.lim) : Date.now() > new Date(r.lim).getTime())
+                      const estilo = r.hecho && !tarde ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : tarde ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50/60 text-amber-700'
+                      const estado = r.hecho ? (tarde ? 'cumplida tarde' : 'cumplida') : (tarde ? 'vencida' : 'en tiempo')
+                      return (
+                        <div key={r.t} className={`rounded-2xl border px-3 py-2.5 ${estilo}`}>
+                          <p className="text-[11.5px] font-semibold">{r.t} · {estado}</p>
+                          <p className="text-[14px] font-bold text-[#0f2440] mt-0.5">{fmt(r.lim)}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {detail.is_sla_breached && <p className="text-xs text-red-600 font-medium mt-2">SLA incumplido</p>}
+                </section>
+
+                <section className={`${CARD} flex-1`}>
+                  <h3 className={`${TITULO} mb-3`}>Bitácora</h3>
+                  <ol className="relative pl-6">
+                    <span className="absolute left-[5px] top-1.5 bottom-1.5 w-0.5 bg-[#dbe2ec]" aria-hidden="true" />
+                    {detail.activity_log.map((ev, i) => (
+                      <li key={i} className="relative pb-3.5 last:pb-0">
+                        <span className={`absolute -left-6 top-1 w-3 h-3 rounded-full border-2 border-[#1a4fa0] ${i === 0 ? 'bg-[#1a4fa0]' : 'bg-white'}`} aria-hidden="true" />
+                        <time className="text-[11.5px] text-slate-400">{fmt(ev.performed_at)}</time>
+                        <p className="text-[13.5px] font-semibold text-slate-800">{ACTION_LABEL[ev.action] ?? ev.action}</p>
+                        <p className="text-xs text-slate-500">{ev.performed_by_name} · {ev.performed_by_role}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              </div>
+
+              {/* 3. Conversacion: de alto completo, estilo mensajeria */}
+              <div className="lg:col-span-2 xl:col-span-1 h-[620px] xl:h-auto xl:min-h-0">
+                <ComentariosTicket incidentId={detail.id}
+                  renderAdjunto={(a: any, i: number) => <AttachmentThumb key={a.object_key} a={a} index={i} label="Adjunto" />}
+                  renderAvatar={(nombre: string, foto: string | null) => <PersonAvatar name={nombre} photoObjectKey={foto} small />} />
               </div>
             </div>
           )}
