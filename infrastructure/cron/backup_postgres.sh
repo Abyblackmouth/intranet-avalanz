@@ -23,7 +23,7 @@ DATABASES=$(psql -h "$DB_HOST" -U "$DB_USER" -d postgres -tA -c \
 # Si la consulta falla se usa la lista conocida y se avisa en el reporte
 SUMMARY_INICIAL=""
 if [ -z "$DATABASES" ]; then
-    DATABASES="avalanz_auth avalanz_admin avalanz_notify avalanz_it_service_desk avalanz_legal"
+    DATABASES="avalanz_auth avalanz_admin avalanz_notify avalanz_it_service_desk avalanz_legal avalanz_toolkit_ti"
     SUMMARY_INICIAL="[AVISO] No se pudo consultar la lista de bases, se uso la lista conocida\n"
 fi
 TOTAL_OK=0
