@@ -83,3 +83,6 @@ infrastructure/nginx/ssl/
 
 # Security — never commit
 security/
+
+# Etiquetas de descarga de Windows
+*:Zone.Identifier
