@@ -283,7 +283,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
     <>
       <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />
 
-      <div className="fixed right-0 top-0 h-full z-50 w-full flex flex-col bg-[#eef2f7] shadow-2xl" style={{ maxWidth: 'min(1480px, 97vw)' }}>
+      <div className="fixed right-0 top-0 h-full z-50 w-full flex flex-col bg-[#eef2f7] shadow-2xl" style={{ maxWidth: 'min(1560px, 98vw)' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#dbe2ec] shrink-0 bg-white">
           <div className="min-w-0">
@@ -362,7 +362,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
           ) : error || !detail ? (
             <div className="text-center py-12 text-red-500 text-sm">{error ?? 'No se pudo cargar el ticket'}</div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_380px] gap-4 xl:h-full xl:min-h-0">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_420px] gap-4 xl:h-full xl:min-h-0">
 
               {/* 1. El ticket: quien lo reporta, quien lo atiende y la resolucion */}
               <div className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
