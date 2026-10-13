@@ -66,7 +66,14 @@ async def listar(incident_id: str, db: AsyncSession = Depends(_m.get_db), user: 
     publicos = [c for c in filas if not c.is_internal]
     if publicos and publicos[-1].author_rol == "ti" and publicos[-1].pide_respuesta:
         esperando = {"desde": publicos[-1].created_at.isoformat(), "por": inc.requester_name}
-    return {"data": {"comentarios": [_json(c) for c in filas], "puede_nota_interna": es_ti, "esperando": None if _cerrado(inc) else esperando, "cerrada": _cerrado(inc)}}
+    fotos = {}
+    for aid in {str(c.author_id) for c in filas if c.author_id}:
+        try:
+            fotos[aid] = (await _m._get_requester_profile(aid)).get("photo_object_key")
+        except Exception:
+            fotos[aid] = None
+    comentarios = [{**_json(c), "autor_foto": fotos.get(str(c.author_id))} for c in filas]
+    return {"data": {"comentarios": comentarios, "puede_nota_interna": es_ti, "esperando": None if _cerrado(inc) else esperando, "cerrada": _cerrado(inc)}}
 
 
 @router.post("/{incident_id}/comentarios")

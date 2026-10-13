@@ -74,7 +74,8 @@ function fmt(iso: string | null) {
   return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function PersonAvatar({ name, photoObjectKey }: { name: string; photoObjectKey: string | null }) {
+function PersonAvatar({ name, photoObjectKey, small = false }: { name: string; photoObjectKey: string | null; small?: boolean }) {
+  const tam = small ? 'w-7 h-7 rounded-full text-[10.5px]' : 'w-14 h-14 rounded-xl text-lg'
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -86,10 +87,10 @@ function PersonAvatar({ name, photoObjectKey }: { name: string; photoObjectKey: 
   }, [photoObjectKey])
 
   if (photoObjectKey && photoUrl && !failed) {
-    return <img src={photoUrl} alt={name} onError={() => setFailed(true)} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+    return <img src={photoUrl} alt={name} onError={() => setFailed(true)} className={`${tam} object-cover shrink-0`} />
   }
   return (
-    <div className={`w-14 h-14 rounded-xl ${avatarColor(name)} text-white flex items-center justify-center font-bold text-lg shrink-0`}>
+    <div className={`${tam} ${avatarColor(name)} text-white flex items-center justify-center font-bold shrink-0`}>
       {initialsOf(name)}
     </div>
   )
@@ -506,7 +507,8 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
 
               {/* Columna derecha: SLA y bitacora -- mismo alto que la columna izquierda completa */}
               <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-5 h-full flex flex-col">
-                <ComentariosTicket incidentId={detail.id} renderAdjunto={(a: any, i: number) => <AttachmentThumb key={a.object_key} a={a} index={i} label="Adjunto" />} />
+                <ComentariosTicket incidentId={detail.id} renderAdjunto={(a: any, i: number) => <AttachmentThumb key={a.object_key} a={a} index={i} label="Adjunto" />}
+                  renderAvatar={(nombre: string, foto: string | null) => <PersonAvatar name={nombre} photoObjectKey={foto} small />} />
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-500">SLA y bitácora</p>
                   <div className="flex items-center gap-1.5">
