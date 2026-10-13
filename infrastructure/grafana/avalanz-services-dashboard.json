@@ -11,12 +11,949 @@
   "liveNow": false,
   "panels": [
     {
+      "type": "row",
+      "title": "Módulos",
       "collapsed": false,
+      "panels": [],
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 0
+      },
+      "id": 105
+    },
+    {
+      "type": "stat",
+      "title": "IT Service Desk",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "links": [
+        {
+          "title": "Ver IT Service Desk",
+          "url": "/d/avalanz-modulos"
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"it-service-desk-service\"}",
+          "legendFormat": "Estado",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_requests_total{job=\"it-service-desk-service\"}[5m])) or vector(0)",
+          "legendFormat": "Peticiones",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "100 * (sum(rate(http_requests_total{job=\"it-service-desk-service\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total{job=\"it-service-desk-service\"}[5m])), 1e-9)",
+          "legendFormat": "Errores",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "D",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"it-service-desk-service\"}[5m])))",
+          "legendFormat": "p95",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Caído",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "Arriba",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "D"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 106
+    },
+    {
+      "type": "stat",
+      "title": "Legal",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "links": [
+        {
+          "title": "Ver Legal",
+          "url": "/d/avalanz-modulos"
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"legal-service\"}",
+          "legendFormat": "Estado",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_requests_total{job=\"legal-service\"}[5m])) or vector(0)",
+          "legendFormat": "Peticiones",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "100 * (sum(rate(http_requests_total{job=\"legal-service\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total{job=\"legal-service\"}[5m])), 1e-9)",
+          "legendFormat": "Errores",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "D",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"legal-service\"}[5m])))",
+          "legendFormat": "p95",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Caído",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "Arriba",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "D"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 107
+    },
+    {
+      "type": "stat",
+      "title": "Asistente",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "links": [
+        {
+          "title": "Ver Asistente",
+          "url": "/d/avalanz-modulos"
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"assistant-service\"}",
+          "legendFormat": "Estado",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_requests_total{job=\"assistant-service\"}[5m])) or vector(0)",
+          "legendFormat": "Peticiones",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "100 * (sum(rate(http_requests_total{job=\"assistant-service\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total{job=\"assistant-service\"}[5m])), 1e-9)",
+          "legendFormat": "Errores",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "D",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"assistant-service\"}[5m])))",
+          "legendFormat": "p95",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Caído",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "Arriba",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "D"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 108
+    },
+    {
+      "type": "stat",
+      "title": "Toolkit TI",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "links": [
+        {
+          "title": "Ver Toolkit TI",
+          "url": "/d/avalanz-modulos"
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"toolkit-ti-service\"}",
+          "legendFormat": "Estado",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_requests_total{job=\"toolkit-ti-service\"}[5m])) or vector(0)",
+          "legendFormat": "Peticiones",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "100 * (sum(rate(http_requests_total{job=\"toolkit-ti-service\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total{job=\"toolkit-ti-service\"}[5m])), 1e-9)",
+          "legendFormat": "Errores",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "refId": "D",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"toolkit-ti-service\"}[5m])))",
+          "legendFormat": "p95",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Caído",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "Arriba",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "D"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 109
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
       },
       "id": 100,
       "title": "Resumen General",
@@ -50,7 +987,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 1
+        "y": 7
       },
       "id": 1,
       "options": {
@@ -116,7 +1053,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 1
+        "y": 7
       },
       "id": 2,
       "options": {
@@ -182,7 +1119,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 1
+        "y": 7
       },
       "id": 3,
       "options": {
@@ -240,7 +1177,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 1
+        "y": 7
       },
       "id": 4,
       "options": {
@@ -265,7 +1202,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "count(up{job=~\"auth-service|admin-service|notify-service|upload-service|websocket-service|email-service\"} == 1)",
+          "expr": "count(up{job=~\".+-service\"} == 1)",
           "legendFormat": "servicios",
           "refId": "A"
         }
@@ -277,7 +1214,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 11
       },
       "id": 101,
       "title": "Trafico HTTP",
@@ -305,7 +1242,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 12
       },
       "id": 10,
       "options": {
@@ -388,7 +1325,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 12
       },
       "id": 11,
       "options": {
@@ -433,7 +1370,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 20
       },
       "id": 102,
       "title": "Latencia",
@@ -461,7 +1398,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 21
       },
       "id": 20,
       "options": {
@@ -528,7 +1465,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 21
       },
       "id": 21,
       "options": {
@@ -563,7 +1500,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 29
       },
       "id": 103,
       "title": "Recursos del Sistema",
@@ -591,7 +1528,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 30
       },
       "id": 30,
       "options": {
@@ -688,7 +1625,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 30
       },
       "id": 31,
       "options": {
@@ -769,10 +1706,10 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 38
       },
       "id": 104,
-      "title": "Infraestructura \u2014 PostgreSQL, Redis, Nginx",
+      "title": "Infraestructura — PostgreSQL, Redis, Nginx",
       "type": "row"
     },
     {
@@ -812,7 +1749,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 33
+        "y": 39
       },
       "id": 40,
       "options": {
@@ -829,7 +1766,7 @@
         },
         "textMode": "auto"
       },
-      "title": "PostgreSQL \u2014 Conexiones activas",
+      "title": "PostgreSQL — Conexiones activas",
       "type": "stat",
       "targets": [
         {
@@ -878,7 +1815,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 33
+        "y": 39
       },
       "id": 41,
       "options": {
@@ -895,7 +1832,7 @@
         },
         "textMode": "auto"
       },
-      "title": "Redis \u2014 Memoria usada",
+      "title": "Redis — Memoria usada",
       "type": "stat",
       "targets": [
         {
@@ -944,7 +1881,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 33
+        "y": 39
       },
       "id": 42,
       "options": {
@@ -961,7 +1898,7 @@
         },
         "textMode": "auto"
       },
-      "title": "Nginx \u2014 Conexiones activas",
+      "title": "Nginx — Conexiones activas",
       "type": "stat",
       "targets": [
         {
@@ -1010,7 +1947,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 33
+        "y": 39
       },
       "id": 43,
       "options": {
@@ -1027,7 +1964,7 @@
         },
         "textMode": "auto"
       },
-      "title": "Redis \u2014 Clientes conectados",
+      "title": "Redis — Clientes conectados",
       "type": "stat",
       "targets": [
         {
@@ -1063,7 +2000,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 37
+        "y": 43
       },
       "id": 44,
       "options": {
@@ -1079,7 +2016,7 @@
           "mode": "multi"
         }
       },
-      "title": "PostgreSQL \u2014 Conexiones en el tiempo",
+      "title": "PostgreSQL — Conexiones en el tiempo",
       "type": "timeseries",
       "targets": [
         {
@@ -1124,7 +2061,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 37
+        "y": 43
       },
       "id": 45,
       "options": {
@@ -1140,7 +2077,7 @@
           "mode": "multi"
         }
       },
-      "title": "Redis \u2014 Memoria en el tiempo",
+      "title": "Redis — Memoria en el tiempo",
       "type": "timeseries",
       "targets": [
         {
@@ -1158,7 +2095,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "redis_memory_max_bytes{job=\"redis\"}",
-          "legendFormat": "l\u00edmite m\u00e1ximo",
+          "legendFormat": "límite máximo",
           "refId": "B"
         }
       ]
@@ -1185,7 +2122,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 51
       },
       "id": 46,
       "options": {
@@ -1201,7 +2138,7 @@
           "mode": "multi"
         }
       },
-      "title": "Nginx \u2014 Peticiones por segundo",
+      "title": "Nginx — Peticiones por segundo",
       "type": "timeseries",
       "targets": [
         {
@@ -1237,7 +2174,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 45
+        "y": 51
       },
       "id": 47,
       "options": {
@@ -1253,7 +2190,7 @@
           "mode": "multi"
         }
       },
-      "title": "Nginx \u2014 Estado de conexiones",
+      "title": "Nginx — Estado de conexiones",
       "type": "timeseries",
       "targets": [
         {
@@ -1311,7 +2248,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Intranet Avalanz \u2014 Servicios",
+  "title": "Intranet Avalanz — Servicios",
   "uid": "avalanz-services",
   "version": 2
 }

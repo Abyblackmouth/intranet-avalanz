@@ -96,6 +96,14 @@ scrape_configs:
     scrape_interval: 15s
 
   # PostgreSQL — via postgres-exporter (puerto 9187)
+
+  - job_name: "toolkit-ti-service"
+    static_configs:
+      - targets: ["avalanz-toolkit-ti:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+
+  # PostgreSQL — via postgres-exporter (puerto 9187)
   - job_name: "postgres"
     static_configs:
       - targets: ["postgres-exporter:9187"]

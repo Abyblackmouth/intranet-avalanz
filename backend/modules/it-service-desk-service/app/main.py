@@ -12,7 +12,12 @@ logger = logging.getLogger("avalanz")
 app = FastAPI(title="It Service Desk Service", version="1.0.0")
 
 # Metricas para Prometheus: expone GET /metrics (solo red interna de Docker)
-Instrumentator().instrument(app).expose(app)
+from prometheus_fastapi_instrumentator import metrics as _metricas
+# Cubetas finas: con las de fabrica (la mas chica de 100 ms) el p95 siempre salia ~100 ms.
+# /metrics y /health no son peticiones de usuarios: no se cuentan.
+Instrumentator(excluded_handlers=["/metrics", "/health"]).add(
+    _metricas.default(latency_lowr_buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10))
+).instrument(app).expose(app)
 
 app.include_router(main_router, prefix="/api/v1/it-service-desk")
 
