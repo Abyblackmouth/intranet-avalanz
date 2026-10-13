@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { asegurarToken, tokenPorVencer } from '@/services/api'
 
 type WSEventHandler = (data: any) => void
 
@@ -12,6 +13,7 @@ interface WSEvent {
 
 const handlers: Map<string, Set<WSEventHandler>> = new Map()
 let socket: WebSocket | null = null
+let renovandoWs = false
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let isConnecting = false
 
@@ -32,6 +34,11 @@ function connect() {
   if (isConnecting || socket?.readyState === WebSocket.OPEN) return
   const token = getToken()
   if (!token) return
+  // Si el token esta por vencer, se renueva antes de conectar (evita el rechazo y el 403 en /ws)
+  if (tokenPorVencer(token)) {
+    if (!renovandoWs) { renovandoWs = true; asegurarToken().finally(() => { renovandoWs = false; connect() }) }
+    return
+  }
   const wsUrl = process.env.NEXT_PUBLIC_WS_URL
   if (!wsUrl) return
 
