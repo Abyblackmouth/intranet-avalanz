@@ -123,7 +123,7 @@ async def comentar(
         ))
     await db.commit()
     await db.refresh(c)
-    await _avisar(inc, c)
+    await _avisar(inc, c, db)
     try:
         await _m._broadcast_ticket_update(inc)
     except Exception:
@@ -131,42 +131,61 @@ async def comentar(
     return {"data": _json(c)}
 
 
-async def _avisar(inc, c: IncidentComment) -> None:
-    """Avisa a la otra parte: campana (en tiempo real) y, si es publico, correo."""
+async def _avisar(inc, c: IncidentComment, db: AsyncSession) -> None:
+    """Avisa a quien sigue la conversacion (campana en tiempo real y, si es publico, correo).
+
+    Siguen la conversacion: el asignado actual y todos los de TI que hayan escrito en
+    ella (por ejemplo, el Incident Manager sin tener el ticket). El solicitante recibe
+    los comentarios publicos de TI. Nadie recibe aviso de su propio mensaje."""
     from app.assignment import _notify_inapp
     datos = {"incident_id": str(inc.id), "folio": inc.folio}
     resumen = (c.body or f"Adjuntó {len(c.attachments or [])} archivo(s)")[:160]
+    autor = str(c.author_id)
+    liga = f"{os.getenv('FRONTEND_URL', 'https://intranet.avalanz.com').rstrip('/')}/app/it-service-desk/mesa-de-soporte?ticket={inc.id}"
+
+    async def correo(destino: str, titulo: str):
+        perfil = await _m._get_requester_profile(destino)
+        if not perfil.get("email"):
+            return
+        async with httpx.AsyncClient(timeout=5.0) as cli:
+            await cli.post("http://email-service:8000/api/v1/email/system-notification", json={
+                "to_email": perfil["email"], "full_name": perfil.get("full_name") or "",
+                "subject": titulo,
+                "message": f"{c.author_name} escribió en el ticket #{inc.folio} · {inc.title}:",
+                "alert_type": "warning" if c.pide_respuesta else "info",
+                "action_url": liga, "action_label": "Ver y responder",
+                "fields": [
+                    {"label": "Comentario", "value": c.body or "(sin texto)", "mono": False},
+                    {"label": "Adjuntos", "value": str(len(c.attachments or [])), "mono": False},
+                    {"label": "Folio", "value": inc.folio, "mono": True},
+                ],
+            })
+
     try:
+        # TI que sigue la conversacion: el asignado y quien de TI haya escrito en ella
+        ti = (await db.execute(select(IncidentComment.author_id).where(
+            IncidentComment.incident_id == inc.id, IncidentComment.author_rol == "ti").distinct())).scalars().all()
+        seguidores_ti = {str(x) for x in ti if x}
+        if inc.assigned_to_user_id:
+            seguidores_ti.add(str(inc.assigned_to_user_id))
+        seguidores_ti.discard(autor)
+        solicitante = str(inc.requester_id) if inc.requester_id else None
+        seguidores_ti.discard(solicitante)
+
         if c.is_internal:
-            if inc.assigned_to_user_id and str(inc.assigned_to_user_id) != str(c.author_id):
-                await _notify_inapp(str(inc.assigned_to_user_id), f"Nota interna en #{inc.folio}",
-                                    f"{c.author_name}: {resumen}", "info", datos)
+            for d in seguidores_ti:
+                await _notify_inapp(d, f"Nota interna en #{inc.folio}", f"{c.author_name}: {resumen}", "info", datos)
             return
-        if c.author_rol == "ti":
-            destino = inc.requester_id
+
+        avisados = set()
+        if c.author_rol == "ti" and solicitante and solicitante != autor:
             titulo = f"{'Te piden información' if c.pide_respuesta else 'Nuevo comentario'} en tu ticket #{inc.folio}"
-        else:
-            destino = inc.assigned_to_user_id
-            titulo = f"{c.author_name} comentó el ticket #{inc.folio}"
-        if not destino or str(destino) == str(c.author_id):
-            return
-        await _notify_inapp(str(destino), titulo, resumen, "warning" if c.pide_respuesta else "info", datos)
-        perfil = await _m._get_requester_profile(str(destino))
-        if perfil.get("email"):
-            async with httpx.AsyncClient(timeout=5.0) as cli:
-                await cli.post("http://email-service:8000/api/v1/email/system-notification", json={
-                    "to_email": perfil["email"], "full_name": perfil.get("full_name") or "",
-                    "subject": titulo,
-                    "message": f"{c.author_name} escribió en el ticket #{inc.folio} · {inc.title}:",
-                    "alert_type": "warning" if c.pide_respuesta else "info",
-                    # Boton que abre la intranet directo en este ticket
-                    "action_url": f"{os.getenv('FRONTEND_URL', 'https://intranet.avalanz.com').rstrip('/')}/app/it-service-desk/mesa-de-soporte?ticket={inc.id}",
-                    "action_label": "Ver y responder",
-                    "fields": [
-                        {"label": "Comentario", "value": c.body or "(sin texto)", "mono": False},
-                        {"label": "Adjuntos", "value": str(len(c.attachments or [])), "mono": False},
-                        {"label": "Folio", "value": inc.folio, "mono": True},
-                    ],
-                })
+            await _notify_inapp(solicitante, titulo, resumen, "warning" if c.pide_respuesta else "info", datos)
+            await correo(solicitante, titulo)
+            avisados.add(solicitante)
+        titulo_ti = f"{c.author_name} comentó el ticket #{inc.folio}"
+        for d in seguidores_ti - avisados:
+            await _notify_inapp(d, titulo_ti, resumen, "info", datos)
+            await correo(d, titulo_ti)
     except Exception:
         pass   # el comentario ya se guardo; si el aviso falla no se pierde nada
