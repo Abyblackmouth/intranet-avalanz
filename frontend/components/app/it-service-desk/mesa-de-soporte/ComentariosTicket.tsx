@@ -17,7 +17,7 @@ interface Comentario {
 const TZ = 'America/Monterrey'
 const MAX_MB = 50
 const PREGUNTAS = [
-  { icono: Camera, txt: 'Captura del error', pregunta: '¿Me compartes una captura de pantalla del error?' },
+  { icono: Camera, txt: 'Captura', pregunta: '¿Me compartes una captura de pantalla del error?' },
   { icono: CalendarClock, txt: 'Fecha y hora', pregunta: '¿En qué fecha y hora ocurrió?' },
   { icono: ListOrdered, txt: 'Pasos', pregunta: '¿Me describes los pasos que seguiste para que vuelva a pasar?' },
   { icono: CircleHelp, txt: '¿Ya quedó?', pregunta: '¿Me confirmas si ya quedó resuelto de tu lado?' },
@@ -78,6 +78,7 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
   useEffect(() => {
     const t = caja.current; if (!t) return
     t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'
+    t.style.overflowY = t.scrollHeight > 120 ? 'auto' : 'hidden'   // sin barra mientras crece
   }, [texto])
 
   const agregarArchivos = (nuevos: File[]) => {
@@ -215,7 +216,7 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
             </div>
           )}
           {puedeInterna && !interna && (
-            <div className="flex gap-1.5 overflow-x-auto pb-1.5 [scrollbar-width:none]">
+            <div className="flex flex-wrap gap-1.5 pb-1.5">
               {PREGUNTAS.map(p => (
                 <button key={p.txt} type="button" onClick={() => preguntar(p.pregunta)}
                   className="shrink-0 inline-flex items-center gap-1 rounded-full border border-[#dbe2ec] px-2.5 py-1 text-[11.5px] text-slate-600 hover:border-[#1a4fa0] hover:text-[#1a4fa0] transition">
