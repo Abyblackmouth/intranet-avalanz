@@ -247,6 +247,14 @@ def _lamina_resumen(d, op) -> str:
 </section>'''
 
 
+def _colgroup(etiquetas: List[str], primera: int) -> str:
+    """Ancho de cada columna proporcional a su palabra mas larga, para que los encabezados
+    solo se partan entre palabras y nunca a la mitad de una."""
+    pesos = [primera] + [max(4, max((len(w) for w in str(x).split()), default=4)) + 2 for x in etiquetas]
+    total = sum(pesos)
+    return "<colgroup>" + "".join(f'<col style="width:{p / total * 100:.2f}%">' for p in pesos) + "</colgroup>"
+
+
 def _trozos(lista, n):
     return [lista[i:i + n] for i in range(0, len(lista), n)] or [[]]
 
@@ -276,7 +284,7 @@ def _lamina_compacto(d, op) -> List[str]:
         sigue = " (continúa)" if p < len(paginas) - 1 else ""
         salida.append(f'''<section class="slide">
   <h2 class="s-titulo">Detalle por empresa y módulo{sigue}</h2>
-  <table class="ancha"><thead><tr><th>Empresa</th>{cab}<th>Total</th><th>Abiertos</th><th>Vencidos</th></tr></thead><tbody>{cuerpo}</tbody></table>
+  <table class="ancha">{_colgroup(cols + ["Total", "Abiertos", "Vencidos"], 17)}<thead><tr><th>Empresa</th>{cab}<th>Total</th><th>Abiertos</th><th>Vencidos</th></tr></thead><tbody>{cuerpo}</tbody></table>
   <span class="pie">Accesos = Control de accesos + Permisos de acceso · TOTVS por módulo; los otros sistemas en una columna · Resaltados: los 3 con más tickets</span>
 </section>''')
     return salida
@@ -302,7 +310,7 @@ def _lamina_detallado(d, op) -> List[str]:
         sigue = " (continúa)" if p < len(paginas) - 1 else ""
         salida.append(f'''<section class="slide">
   <h2 class="s-titulo">Detalle por sistema y módulo{sigue}</h2>
-  <table class="ancha"><thead><tr><th>Sistema / módulo</th>{cab}<th>Total</th><th>Abiertos</th><th>Vencidos</th></tr></thead><tbody>{cuerpo}</tbody></table>
+  <table class="ancha">{_colgroup(emps + ["Total", "Abiertos", "Vencidos"], 22)}<thead><tr><th>Sistema / módulo</th>{cab}<th>Total</th><th>Abiertos</th><th>Vencidos</th></tr></thead><tbody>{cuerpo}</tbody></table>
   <span class="pie">Todos los módulos, sin agrupar · Vencidos: abiertos que ya pasaron su SLA de resolución</span>
 </section>''')
     return salida
@@ -340,7 +348,7 @@ body{{font-family:Inter,"Segoe UI","Noto Sans","DejaVu Sans",Arial,sans-serif;co
 .kpi.alerta b{{color:var(--alerta)}}
 .cols{{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;flex:1;min-height:0}} .cols.sin-lateral{{grid-template-columns:1fr}}
 table{{width:100%;border-collapse:collapse;font-size:14.5px}} table.ancha{{font-size:13px;table-layout:fixed}}
-table.ancha th{{white-space:normal;word-break:break-word;line-height:1.15;font-size:12px}} table.ancha th:first-child{{width:150px}}
+table.ancha th{{white-space:normal;word-break:normal;overflow-wrap:normal;line-height:1.15;font-size:11.5px;padding:6px 3px}}
 th{{background:var(--th);color:var(--th-ink);font-weight:600;padding:7px 6px;border:1px solid var(--line);text-align:center}}
 th:first-child,td:first-child{{text-align:left}}
 td{{padding:6px;border:1px solid var(--line);text-align:center;background:var(--card)}}
