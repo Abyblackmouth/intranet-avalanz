@@ -15,17 +15,17 @@ import UserAuditReport from '@/components/admin/users/UserAuditReport'
 
 const StatusBadge = ({ user }: { user: UserRow }) => {
   if (user.is_locked) return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">
+    <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-200">
       <span className="w-1.5 h-1.5 rounded-full bg-red-500" />Bloqueado
     </span>
   )
   if (!user.is_active) return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+    <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
       <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />Inactivo
     </span>
   )
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-600 border border-green-200">
+    <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[11px] font-medium bg-green-50 text-green-600 border border-green-200">
       <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Activo
     </span>
   )
@@ -41,7 +41,7 @@ const RoleBadge = ({ roles }: { roles: string[] }) => {
   return (
     <div className="flex flex-wrap gap-1">
       {roles.slice(0, 2).map((role) => (
-        <span key={role} className={`inline-flex px-2 py-0.5 rounded-md text-xs font-semibold border ${roleColors[role] || roleColors.default}`}>
+        <span key={role} className={`inline-flex px-1.5 py-px rounded text-[10.5px] font-semibold border whitespace-nowrap ${roleColors[role] || roleColors.default}`}>
           {role.replace(/_/g, ' ').toUpperCase()}
         </span>
       ))}
@@ -52,9 +52,9 @@ const RoleBadge = ({ roles }: { roles: string[] }) => {
 
 const TwoFABadge = ({ configured }: { configured: boolean }) =>
   configured ? (
-    <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium"><ShieldCheck size={13} /> Activo</span>
+    <span className="inline-flex items-center gap-1 text-[11.5px] text-green-600 font-medium"><ShieldCheck size={12} /> Activo</span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-xs text-slate-400"><ShieldOff size={13} /> Inactivo</span>
+    <span className="inline-flex items-center gap-1 text-[11.5px] text-slate-400"><ShieldOff size={12} /> Inactivo</span>
   )
 
 const formatRelative = (dateStr: string | null) => {
@@ -83,8 +83,8 @@ const Avatar = ({ name }: { name: string }) => {
   const colorIndex = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % avatarColors.length
   const color = avatarColors[colorIndex]
   return (
-    <div className={`w-8 h-8 rounded-lg ${color} flex items-center justify-center shrink-0`}>
-      <span className="text-white text-xs font-bold">{initials}</span>
+    <div className={`size-6 rounded-md ${color} flex items-center justify-center shrink-0`}>
+      <span className="text-white text-[9.5px] font-bold">{initials}</span>
     </div>
   )
 }
@@ -306,7 +306,7 @@ const ActionMenu = ({
 
   return (
     <>
-      <button ref={btnRef} onClick={openMenu} disabled={anyLoading} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+      <button ref={btnRef} onClick={openMenu} disabled={anyLoading} className="w-8 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
         {anyLoading ? <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <MoreHorizontal size={20} />}
       </button>
 
@@ -347,6 +347,9 @@ const MenuItem = ({ icon, label, onClick, danger = false }: { icon: React.ReactN
   </button>
 )
 
+export type ColUsuario = 'nombre' | 'email' | 'matricula' | 'puesto' | 'departamento' | 'empresa' | 'rol' | 'twofa' | 'estado' | 'conexion'
+export interface OrdenUsuarios { col: ColUsuario; dir: 'asc' | 'desc' }
+
 interface UserTableProps {
   users: UserRow[]
   isLoading: boolean
@@ -355,13 +358,31 @@ interface UserTableProps {
   perPage: number
   total: number
   onPageChange: (page: number) => void
+  onPerPageChange: (n: number) => void
+  orden: OrdenUsuarios | null
+  onOrden: (o: OrdenUsuarios | null) => void
 }
 
-export default function UserTable({ users, isLoading, onRefresh, page, perPage, total, onPageChange }: UserTableProps) {
-  const totalPages = Math.ceil(total / perPage)
+const COLUMNAS: { col: ColUsuario | null; titulo: string; clase?: string }[] = [
+  { col: 'nombre', titulo: 'Usuario' },
+  { col: 'email', titulo: 'Correo' },
+  { col: 'matricula', titulo: 'Matrícula' },
+  { col: 'puesto', titulo: 'Puesto' },
+  { col: 'departamento', titulo: 'Departamento' },
+  { col: 'empresa', titulo: 'Empresa' },
+  { col: 'rol', titulo: 'Rol' },
+  { col: 'twofa', titulo: '2FA' },
+  { col: null, titulo: '', clase: 'w-8' },
+  { col: 'estado', titulo: 'Estado' },
+  { col: 'conexion', titulo: 'Última conexión' },
+  { col: null, titulo: '', clase: 'w-10' },
+]
+const TD = 'px-2 py-0.5 text-[12.5px] text-slate-700 whitespace-nowrap'
+
+export default function UserTable({ users, isLoading, onRefresh, page, perPage, total, onPageChange, onPerPageChange, orden, onOrden }: UserTableProps) {
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
   const [detailUserId, setDetailUserId] = useState<string | null>(null)
   const [detailInitialTab, setDetailInitialTab] = useState<string>("info")
-  const [documentsUserId, setDocumentsUserId] = useState<string | null>(null)
   const [editUserId, setEditUserId] = useState<string | null>(null)
   const [resetUser, setResetUser] = useState<UserRow | null>(null)
   const [loadingReset, setLoadingReset] = useState(false)
@@ -369,104 +390,99 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
   const handleReset = async (password: string) => {
     if (!resetUser) return
     setLoadingReset(true)
-    try {
-      await resetUserPassword(resetUser.user_id, password)
-      setResetUser(null)
-      onRefresh()
-    } catch (e) {
-      console.error('Reset error', e)
-    } finally {
-      setLoadingReset(false)
-    }
+    try { await resetUserPassword(resetUser.user_id, password); setResetUser(null); onRefresh() }
+    catch (e) { console.error('Reset error', e) } finally { setLoadingReset(false) }
   }
-
-  if (isLoading) return (
-    <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-      <div className="w-8 h-8 border-2 border-[#1a4fa0] border-t-transparent rounded-full animate-spin mx-auto" />
-      <p className="text-slate-400 text-sm mt-3">Cargando usuarios...</p>
-    </div>
-  )
-
-  if (!users.length) return (
-    <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-      <p className="text-slate-400 text-sm">No se encontraron usuarios</p>
-    </div>
-  )
+  const ordenar = (col: ColUsuario) => onOrden(orden?.col !== col ? { col, dir: 'asc' } : orden.dir === 'asc' ? { col, dir: 'desc' } : null)
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: "629px", display: "flex", flexDirection: "column" }}>
-        <div style={{ flex: 1 }}>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-200">
-              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Usuario</th>
-              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Empresa</th>
-              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Rol</th>
-              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">2FA</th>
-              <th className="px-4 py-3 w-10"></th>
-              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Estado</th>
-              <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5">Ultima conexion</th>
-              <th className="px-4 py-3 w-10" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {users.map((user) => (
-              <tr key={user.user_id} className="hover:bg-slate-50/60 transition">
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={user.full_name} />
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-medium text-slate-900 leading-tight">{user.full_name}</p>
-                        {user.is_protected && <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">Protegido</span>}
-                      </div>
-                      <p className="text-xs leading-tight" style={{ color: "#6b7280" }}>{user.email}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-2.5"><p className="text-sm text-slate-700">{user.company_name || '—'}</p></td>
-                <td className="px-4 py-2.5"><RoleBadge roles={user.roles} /></td>
-                <td className="px-4 py-2.5"><TwoFABadge configured={user.is_2fa_configured} /></td>
-                <td className="px-4 py-3 text-center">
-                  {user.is_locked
-                    ? <Lock size={18} className="text-red-500 mx-auto" />
-                    : <Unlock size={18} className="text-green-500 mx-auto" />
-                  }
-                </td>
-                <td className="px-4 py-2.5"><StatusBadge user={user} /></td>
-                <td className="px-4 py-2.5"><p className="text-xs text-slate-500">{formatRelative(user.last_login_at)}</p></td>
-                <td className="px-4 py-2.5">
-                  <ActionMenu
-                    user={user}
-                    onRefresh={onRefresh}
-                    onViewDetail={() => setDetailUserId(user.user_id)}
-                    onEdit={() => setEditUserId(user.user_id)}
-                    onResetPassword={() => setResetUser(user)}
-                    onViewDocuments={() => { setDetailUserId(user.user_id); setDetailInitialTab("documents") }}
-                  />
-                </td>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full border-separate border-spacing-0">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                {COLUMNAS.map((c, i) => (
+                  <th key={i} className={`border-b border-slate-200 bg-slate-50 px-2 py-1.5 text-left text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap ${c.clase ?? ''}`}>
+                    {c.col ? (
+                      <button type="button" onClick={() => ordenar(c.col!)} className="inline-flex items-center gap-1 uppercase hover:text-slate-800">
+                        {c.titulo}
+                        <span className={`text-[9px] ${orden?.col === c.col ? 'text-[#1a4fa0]' : 'text-slate-300'}`}>{orden?.col === c.col ? (orden.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+                      </button>
+                    ) : c.titulo}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={COLUMNAS.length} className="py-12 text-center">
+                  <div className="mx-auto size-7 animate-spin rounded-full border-2 border-[#1a4fa0] border-t-transparent" />
+                  <p className="mt-2 text-sm text-slate-400">Cargando usuarios…</p>
+                </td></tr>
+              ) : !users.length ? (
+                <tr><td colSpan={COLUMNAS.length} className="py-12 text-center text-sm text-slate-400">No se encontraron usuarios</td></tr>
+              ) : users.map((user) => (
+                <tr key={user.user_id} className="group hover:bg-[#1a4fa0]/5 [&>td]:border-b [&>td]:border-slate-100">
+                  <td className={TD}>
+                    <div className="flex items-center gap-2">
+                      <Avatar name={user.full_name} />
+                      <span className="max-w-64 truncate font-medium text-slate-900" title={user.full_name}>{user.full_name}</span>
+                      {user.is_protected && <span className="rounded bg-slate-100 px-1 text-[10.5px] font-medium text-slate-500">Protegido</span>}
+                    </div>
+                  </td>
+                  <td className={`${TD} text-slate-500`}><span className="block max-w-64 truncate" title={user.email}>{user.email}</span></td>
+                  <td className={`${TD} tabular-nums text-slate-500`}>{user.matricula || '—'}</td>
+                  <td className={TD}><span className="block max-w-48 truncate" title={user.puesto || ''}>{user.puesto || '—'}</span></td>
+                  <td className={TD}><span className="block max-w-40 truncate" title={user.departamento || ''}>{user.departamento || '—'}</span></td>
+                  <td className={TD}>{user.company_name || '—'}</td>
+                  <td className={TD}><RoleBadge roles={user.roles} /></td>
+                  <td className={TD}><TwoFABadge configured={user.is_2fa_configured} /></td>
+                  <td className="px-2 py-0.5 text-center">
+                    {user.is_locked
+                      ? <Lock size={18} className="text-red-500 mx-auto" />
+                      : <Unlock size={18} className="text-green-500 mx-auto" />
+                    }
+                  </td>
+                  <td className={TD}><StatusBadge user={user} /></td>
+                  <td className={`${TD} text-[12px] text-slate-500`}>{formatRelative(user.last_login_at)}</td>
+                  <td className="px-1 py-0.5">
+                    <ActionMenu
+                      user={user}
+                      onRefresh={onRefresh}
+                      onViewDetail={() => setDetailUserId(user.user_id)}
+                      onEdit={() => setEditUserId(user.user_id)}
+                      onResetPassword={() => setResetUser(user)}
+                      onViewDocuments={() => { setDetailUserId(user.user_id); setDetailInitialTab("documents") }}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-            <p className="text-xs text-slate-400">Mostrando {(page - 1) * perPage + 1} a {Math.min(page * perPage, total)} de {total} usuarios</p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => onPageChange(page - 1)} disabled={page === 1} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"><ChevronLeft size={15} /></button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1).map((p, idx, arr) => (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-3 py-1.5">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span>{total ? `${(page - 1) * perPage + 1}–${Math.min(page * perPage, total)} de ${total}` : '0 usuarios'}</span>
+            <select value={perPage} onChange={e => onPerPageChange(Number(e.target.value))} aria-label="Usuarios por página"
+              className="h-6 rounded-md border border-slate-300 bg-white px-1 text-xs text-slate-600 outline-none focus:border-[#1a4fa0]">
+              {[25, 50, 100].map(n => <option key={n} value={n}>{n} por página</option>)}
+            </select>
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => onPageChange(page - 1)} disabled={page === 1} aria-label="Anterior" className="grid size-7 place-items-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40"><ChevronLeft size={14} /></button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1).map((p, idx, arr) => (
                 <React.Fragment key={p}>
-                  {idx > 0 && arr[idx - 1] !== p - 1 && <span className="text-slate-300 text-xs px-1">...</span>}
-                  <button onClick={() => onPageChange(p)} className={`w-8 h-8 rounded-lg text-sm transition ${p === page ? 'bg-[#1a4fa0] text-white font-medium' : 'text-slate-600 hover:bg-slate-100'}`}>{p}</button>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-1 text-xs text-slate-300">…</span>}
+                  <button onClick={() => onPageChange(p)} className={`size-7 rounded-md text-xs ${p === page ? 'bg-[#1a4fa0] font-semibold text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{p}</button>
                 </React.Fragment>
               ))}
-              <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"><ChevronRight size={15} /></button>
+              <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages} aria-label="Siguiente" className="grid size-7 place-items-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40"><ChevronRight size={14} /></button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {detailUserId && <UserDetail userId={detailUserId} initialTab={detailInitialTab} onClose={() => { setDetailUserId(null); setDetailInitialTab("info") }} onRefresh={onRefresh} />}
