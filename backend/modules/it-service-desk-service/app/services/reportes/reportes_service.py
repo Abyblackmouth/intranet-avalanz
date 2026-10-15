@@ -298,7 +298,14 @@ def _lamina_detallado(d, op) -> List[str]:
         filas += [("mod", m) for m in s["modulos"]]
     cab = "".join(f"<th>{e(x)}</th>" for x in emps)
     salida = []
-    paginas = _trozos(filas, FILAS_POR_LAMINA)
+    # Paginas sin encabezados huerfanos: un sistema nunca queda solo al final de una lamina
+    paginas, actual = [], []
+    for fila in filas:
+        lleno = len(actual) >= FILAS_POR_LAMINA or (fila[0] == "sis" and len(actual) >= FILAS_POR_LAMINA - 1)
+        if lleno and actual:
+            paginas.append(actual); actual = []
+        actual.append(fila)
+    paginas.append(actual)
     for p, trozo in enumerate(paginas):
         cuerpo = ""
         for tipo, x in trozo:
