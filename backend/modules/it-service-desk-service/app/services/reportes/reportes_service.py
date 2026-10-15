@@ -253,11 +253,18 @@ def _trozos(lista, n):
 
 def _lamina_compacto(d, op) -> List[str]:
     c = d["compacto"]
-    cols, tot = c["columnas"], c["totales"]
+    cols, tot = list(c["columnas"]), list(c["totales"])
+    filas_src = c["filas"]
+    # Mas de 12 columnas no caben en la lamina: las 11 mayores van solas y el resto se suma en "Otros"
+    if len(cols) > 12:
+        resto = list(range(11, len(cols)))
+        cols = cols[:11] + ["Otros"]
+        tot = tot[:11] + [sum(tot[j] for j in resto)]
+        filas_src = [{**f, "celdas": f["celdas"][:11] + [sum(f["celdas"][j] for j in resto)]} for f in c["filas"]]
     top = sorted(tot, reverse=True)[:3]
     corte = top[-1] if top else 1
     cab = "".join(f'<th class="{"top" if t >= corte and t > 0 else ""}">{e(col)}</th>' for col, t in zip(cols, tot))
-    paginas = _trozos(c["filas"], FILAS_POR_LAMINA)
+    paginas = _trozos(filas_src, FILAS_POR_LAMINA)
     salida = []
     for p, filas in enumerate(paginas):
         cuerpo = "".join(
@@ -332,7 +339,8 @@ body{{font-family:Inter,"Segoe UI","Noto Sans","DejaVu Sans",Arial,sans-serif;co
 .kpi b{{display:block;font-size:30px;line-height:1.15}} .kpi small{{color:var(--muted2);font-size:14px}}
 .kpi.alerta b{{color:var(--alerta)}}
 .cols{{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;flex:1;min-height:0}} .cols.sin-lateral{{grid-template-columns:1fr}}
-table{{width:100%;border-collapse:collapse;font-size:14.5px}} table.ancha{{font-size:13.5px}}
+table{{width:100%;border-collapse:collapse;font-size:14.5px}} table.ancha{{font-size:13px;table-layout:fixed}}
+table.ancha th{{white-space:normal;word-break:break-word;line-height:1.15;font-size:12px}} table.ancha th:first-child{{width:150px}}
 th{{background:var(--th);color:var(--th-ink);font-weight:600;padding:7px 6px;border:1px solid var(--line);text-align:center}}
 th:first-child,td:first-child{{text-align:left}}
 td{{padding:6px;border:1px solid var(--line);text-align:center;background:var(--card)}}
