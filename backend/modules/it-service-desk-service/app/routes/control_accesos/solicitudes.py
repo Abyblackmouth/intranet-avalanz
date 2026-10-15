@@ -212,7 +212,7 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
         requester_name=perfil.get("full_name", ""), requester_phone=perfil.get("phone"),
         requester_puesto=perfil.get("puesto"), requester_area=perfil.get("departamento"),
         requester_company_name=perfil.get("company_name", ""),
-        system_id=f.system_id, module_id=await _modulo_control_accesos(db, f.system_id), reported_type="accesos",
+        system_id=f.system_id, module_id=await _modulo_control_accesos(db, f.system_id), reported_type="tecnico",
         description=_descripcion(datos, config, movimiento, f.nombre),
         severity_reported_id=f.severity_id, severity_validated_id=f.severity_id,
         assigned_to_user_id=f.admin_user_id if con_encargado else None,
