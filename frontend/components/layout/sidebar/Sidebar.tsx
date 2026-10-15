@@ -128,10 +128,17 @@ export default function Sidebar() {
         </button>
       )}
 
-      {/* Encabezado: logo y nombre en un renglon */}
-      <div className={`flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200 ${montado && recogido ? 'justify-center' : 'px-4'}`}>
-        <img src="/logo_200.png" alt="Avalanz" className="size-7 shrink-0 object-contain" />
-        {!(montado && recogido) && <span className={`truncate text-[15px] font-bold text-slate-800 ${jakarta.className}`}>Intranet Avalanz</span>}
+      {/* Encabezado: el logo es el protagonista (grande y centrado, con el nombre y la version) */}
+      <div className={`flex flex-col items-center shrink-0 border-b border-slate-200 ${montado && recogido ? 'mx-2 pt-4 pb-3' : 'mx-3 pt-5 pb-4 max-[1440px]:pt-3 max-[1440px]:pb-2'}`}>
+        {montado && recogido ? (
+          <img src="/logo_200.png" alt="Avalanz" className="size-9 object-contain" />
+        ) : (
+          <>
+            <img src="/logo_200.png" alt="Avalanz" className="size-20 max-[1440px]:size-12 object-contain" />
+            <p className={`mt-2 whitespace-nowrap text-lg max-[1440px]:text-base font-semibold text-slate-800 ${jakarta.className}`}>Intranet Avalanz</p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-widest text-slate-400 max-[1440px]:hidden">v1.0.0</p>
+          </>
+        )}
       </div>
 
       {/* Buscador del menu */}

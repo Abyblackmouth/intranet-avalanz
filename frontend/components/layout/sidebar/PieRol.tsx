@@ -35,7 +35,6 @@ export default function PieRol({ user, recogido }: { user: any; recogido: boolea
           {lineas.map(l => (
             <span key={l} className={`max-w-full truncate rounded-full border px-2 py-px text-[11px] font-semibold ${color(l)} ${jakarta.className}`}>{l}</span>
           ))}
-          <span className="w-full text-center text-[10px] tracking-wider text-slate-400">v1.0.0</span>
         </div>
       )}
     </div>
