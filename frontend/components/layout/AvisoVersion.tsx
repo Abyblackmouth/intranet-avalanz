@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 
-// Avisa cuando se desplego una version nueva de la intranet. Si la pestana esta en segundo
-// plano, se actualiza sola; si esta visible, muestra una barrita con el boton Actualizar.
+// Avisa cuando se desplego una version nueva de la intranet. Nunca recarga sola (se perderia
+// lo que el usuario este escribiendo): muestra una barrita con Actualizar y Mas tarde (30 min).
 const CADA = 5 * 60 * 1000
+const POSPONER = 30 * 60 * 1000
 const valida = (v: string) => /^[\w-]{6,64}$/.test(v)
 
 export default function AvisoVersion() {
   const base = useRef<string | null>(null)
+  const pospuesto = useRef(0)
   const [nueva, setNueva] = useState(false)
 
   useEffect(() => {
@@ -20,10 +22,7 @@ export default function AvisoVersion() {
         const v = (await r.text()).trim()
         if (!valida(v)) return
         if (base.current === null) { base.current = v; return }
-        if (v !== base.current) {
-          if (document.visibilityState === 'hidden') window.location.reload()
-          else setNueva(true)
-        }
+        if (v !== base.current && Date.now() >= pospuesto.current) setNueva(true)
       } catch { /* sin red: se revisa en la siguiente vuelta */ }
     }
     revisar()
@@ -40,6 +39,10 @@ export default function AvisoVersion() {
       <button type="button" onClick={() => window.location.reload()}
         className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-[#0f2440] hover:bg-slate-100">
         <RefreshCw size={13} /> Actualizar
+      </button>
+      <button type="button" onClick={() => { pospuesto.current = Date.now() + POSPONER; setNueva(false) }}
+        className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white">
+        Más tarde
       </button>
     </div>
   )
