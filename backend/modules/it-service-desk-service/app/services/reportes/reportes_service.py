@@ -176,7 +176,15 @@ def titulo_periodo(desde: date, hasta: date) -> str:
 # ───────────────────────── Laminas (HTML 16:9) ─────────────────────────
 TEMAS = {
     # Verus: los colores y la barra con el logotipo salen de la presentacion de Verus
-    "verus":     {"nombre": "Verus", "pri": "#065744", "bg": "#ffffff", "ink": "#1e2a36", "muted": "#7c7c7c", "muted2": "#5b6570", "card": "#faf9f5", "line": "#c3c1bd", "th": "#e2e0dc", "th_ink": "#1e2a36", "alerta": "#b4501f", "bar": "#7f9e86", "bar_alto": "#3f4a40", "barra": True},
+    "verus":     {"nombre": "Verus", "pri": "#065744", "bg": "#ffffff", "ink": "#1e2a36", "muted": "#5b6570", "muted2": "#5b6570",
+                  "card": "#fbfaf7", "line": "#c3c1bd", "th": "#e2e0dc", "th_ink": "#1e2a36", "alerta": "#b4501f",
+                  "bar": "#9fd9bf", "bar_alto": "#065744", "barra": True,
+                  "titulo": "#065744", "linea_titulo": "linear-gradient(90deg,#6cf08f,#0a8c6d 60%,#065744)", "estatus": "#0a8c6d",
+                  "head_bg": "#065744", "head_ink": "#ffffff", "celda": "#ffffff", "total_bg": "#e6f2ec", "total_ink": "#065744",
+                  "top_bg": "#0fcb9e", "top_ink": "#05372b", "grupo_bg": "#e6f2ec", "grupo_ink": "#065744",
+                  "kpi_num": "#065744", "hero_bg": "#065744", "hero_ink": "#ffffff", "hero_sub": "#bfe6d6",
+                  "hal_bg": "#eef7f2", "hal_line": "#cde6d9", "acc_bg": "#fdf1ea", "acc_line": "#f3d2bf",
+                  "fuente": "Helvetica,Arial,'Liberation Sans',sans-serif"},
     "intranet":  {"nombre": "Azul intranet", "pri": "#1a4fa0", "bg": "#ffffff", "ink": "#0f2440", "muted": "#64748b", "muted2": "#64748b", "card": "#f8fafc", "line": "#d5dde8", "th": "#e7edf5", "th_ink": "#0f2440", "alerta": "#c2410c", "bar": "#8fb0dc", "bar_alto": "#1a4fa0"},
     "sobrio":    {"nombre": "Sobrio", "pri": "#334155", "bg": "#ffffff", "ink": "#111827", "muted": "#6b7280", "muted2": "#6b7280", "card": "#f9fafb", "line": "#e5e7eb", "th": "#f1f5f9", "th_ink": "#111827", "alerta": "#b91c1c", "bar": "#cbd5e1", "bar_alto": "#334155"},
     "ejecutivo": {"nombre": "Ejecutivo oscuro", "pri": "#d4a64a", "bg": "#0f1b2d", "ink": "#e7edf5", "muted": "#9fb0c7", "muted2": "#8a9bb3", "card": "#16263d", "line": "#26395a", "th": "#1d3150", "th_ink": "#e7edf5", "alerta": "#f59e5b", "bar": "#3c5a85", "bar_alto": "#d4a64a"},
@@ -324,6 +332,24 @@ def _lamina_detallado(d, op) -> List[str]:
     return salida
 
 
+def _completar(t: Dict[str, Any]) -> Dict[str, Any]:
+    """Valores por defecto de cada parte de la lamina, a partir de los colores base del tema."""
+    base = {"titulo": t["muted"], "linea_titulo": t["pri"], "estatus": t["pri"], "head_bg": t["th"], "head_ink": t["th_ink"],
+            "celda": t["card"], "total_bg": t["th"], "total_ink": t["ink"], "top_bg": t["pri"], "top_ink": "#ffffff",
+            "grupo_bg": t["th"], "grupo_ink": t["ink"], "kpi_num": t["ink"], "hero_bg": t["card"], "hero_ink": t["ink"],
+            "hero_sub": t["muted2"], "hal_bg": t["card"], "hal_line": t["line"], "acc_bg": t["card"], "acc_line": t["line"],
+            "fuente": "Inter,'Segoe UI','Noto Sans','DejaVu Sans',Arial,sans-serif"}
+    return {**base, **t}
+
+
+def _incrustado(nombre: str) -> str:
+    import os
+    try:
+        return open(os.path.join(os.path.dirname(__file__), nombre)).read().strip()
+    except OSError:
+        return ""
+
+
 def _barra_verus() -> str:
     """Barra degradada con el logotipo VERUS (tomada de la presentacion de Verus)."""
     import os
@@ -337,10 +363,16 @@ def _barra_verus() -> str:
 def armar_html(d: Dict[str, Any], op: Dict[str, Any]) -> str:
     tema = op.get("tema") or "verus"
     tema = "verus" if tema == "avalanz" else tema          # el tema "Avalanz verde" ahora se llama Verus
-    t = dict(TEMAS.get(tema, TEMAS["verus"]))
+    t = _completar(dict(TEMAS.get(tema, TEMAS["verus"])))
     barra = _barra_verus() if t.pop("barra", False) else ""
+    mont = _incrustado("montserrat600.b64")
     acento = (op.get("acento") or "").strip()
     if len(acento) == 7 and acento.startswith("#") and all(ch in "0123456789abcdefABCDEF" for ch in acento[1:]):
+        if t.get("titulo") == t["pri"]: t["titulo"] = acento
+        for k in ("head_bg", "hero_bg", "kpi_num", "total_ink", "grupo_ink", "bar_alto"):
+            if t.get(k) == t["pri"]: t[k] = acento
+        if t.get("linea_titulo") == t["pri"] or "linear-gradient" in t.get("linea_titulo", ""):
+            t["linea_titulo"] = acento if "linear-gradient" not in t.get("linea_titulo", "") or acento.lower() == "#065744" else f"linear-gradient(90deg,{acento}55,{acento})"
         t["pri"] = acento
     laminas = [l for l in (op.get("laminas") or list(LAMINAS)) if l in LAMINAS]
     partes = []
@@ -351,35 +383,37 @@ def armar_html(d: Dict[str, Any], op: Dict[str, Any]) -> str:
             partes += _lamina_compacto(d, op)
         elif l == "detallado":
             partes += _lamina_detallado(d, op)
+    font_css = ("@font-face{font-family:Montserrat;font-weight:600;font-style:normal;src:url(data:font/woff2;base64," + mont + ") format('woff2')}") if mont else ""
     v = ";".join(f"--{k.replace('_', '-')}:{val}" for k, val in t.items() if k != "nombre")
     css_barra = (f".slide{{padding-bottom:84px}} .slide::after{{content:'';position:absolute;left:53px;top:648px;width:1155px;height:46px;"
                  f"background:url(data:image/png;base64,{barra}) center/100% 100% no-repeat}} .pie{{bottom:78px}}") if barra else ""
     return f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{e(op.get("titulo") or "Mesa de Ayuda")} | {e(d["periodo"]["titulo"])}</title>
 <style>
 :root{{{v}}}
+{font_css}
 @page{{size:1280px 720px;margin:0}}
 *{{box-sizing:border-box}}
 html,body{{margin:0;background:#9aa4b2}}
-body{{font-family:Inter,"Segoe UI","Noto Sans","DejaVu Sans",Arial,sans-serif;color:var(--ink)}}
+body{{font-family:var(--fuente);color:var(--ink)}}
 .slide{{width:1280px;height:720px;background:var(--bg);color:var(--ink);padding:28px 40px 34px;position:relative;overflow:hidden;display:flex;flex-direction:column;margin:0 auto 24px;page-break-after:always;break-after:page}}
 @media print{{html,body{{background:none}}.slide{{margin:0}}}}
-.s-titulo{{font:800 34px Montserrat,Inter,"Noto Sans",Arial,sans-serif;color:var(--muted);margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--pri);width:78%}}
-.s-estatus{{text-align:center;font-weight:700;font-size:21px;color:var(--pri);margin:0 0 14px}}
+.s-titulo{{font:600 34px Montserrat,Inter,Arial,sans-serif;color:var(--titulo);margin:0 0 14px;padding-bottom:9px;width:78%;position:relative}}.s-titulo::after{{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:2px;background:var(--linea-titulo)}}
+.s-estatus{{text-align:center;font-weight:700;font-size:21px;color:var(--estatus);margin:0 0 14px}}
 .kpis{{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:16px}}
 .kpi{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px}}
-.kpi b{{display:block;font-size:30px;line-height:1.15}} .kpi small{{color:var(--muted2);font-size:14px}}
-.kpi.alerta b{{color:var(--alerta)}}
+.kpi b{{display:block;font-size:30px;line-height:1.15;color:var(--kpi-num)}} .kpi small{{color:var(--muted2);font-size:14px}}.kpi:first-child{{background:var(--hero-bg);border-color:var(--hero-bg)}} .kpi:first-child b{{color:var(--hero-ink)}} .kpi:first-child small{{color:var(--hero-sub)}}
+.kpi.alerta b{{color:var(--alerta)}} .kpi:first-child.alerta b{{color:#ffd2bd}}
 .cols{{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;flex:1;min-height:0}} .cols.sin-lateral{{grid-template-columns:1fr}}
 table{{width:100%;border-collapse:collapse;font-size:14.5px}} table.ancha{{font-size:13px;table-layout:fixed}}
 table.ancha th{{white-space:normal;word-break:normal;overflow-wrap:normal;line-height:1.15;font-size:11.5px;padding:6px 3px}}
-th{{background:var(--th);color:var(--th-ink);font-weight:600;padding:7px 6px;border:1px solid var(--line);text-align:center}}
+th{{background:var(--head-bg);color:var(--head-ink);font-weight:600;padding:7px 6px;border:1px solid var(--line);text-align:center}}
 th:first-child,td:first-child{{text-align:left}}
-td{{padding:6px;border:1px solid var(--line);text-align:center;background:var(--card)}}
-tr.total td{{font-weight:700;background:var(--th)}} tr.grupo td{{font-weight:700;background:var(--th);text-align:left}}
-table.ancha td{{padding:9px 6px}} td.sangria{{padding-left:22px}} th.top{{background:var(--pri);color:#fff}}
+td{{padding:6px;border:1px solid var(--line);text-align:center;background:var(--celda)}}
+tr.total td{{font-weight:700;background:var(--total-bg);color:var(--total-ink)}} tr.grupo td{{font-weight:700;background:var(--grupo-bg);color:var(--grupo-ink);text-align:left}}
+table.ancha td{{padding:9px 6px}} td.sangria{{padding-left:22px}} th.top{{background:var(--top-bg);color:var(--top-ink)}}
 .naranja{{color:var(--alerta);font-weight:600}} .cero{{color:var(--muted2);font-weight:400}}
-.caja{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:15px}}
-.caja h3{{margin:0 0 6px;font-size:18px;color:var(--pri)}} .caja.acc h3{{color:var(--alerta)}}
+.caja{{background:var(--hal-bg);border:1px solid var(--hal-line);border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:15px}}
+.caja h3{{margin:0 0 6px;font-size:18px;color:var(--pri)}} .caja.acc{{background:var(--acc-bg);border-color:var(--acc-line)}} .caja.acc h3{{color:var(--alerta)}}
 .caja ul{{margin:0;padding-left:18px}} .caja li{{margin-bottom:4px}}
 .mini{{font-size:13px;font-weight:700;margin:12px 0 4px}}
 .barras{{display:flex;align-items:flex-end;gap:2%;height:120px;padding:0 3%;border-bottom:1px solid var(--line)}}

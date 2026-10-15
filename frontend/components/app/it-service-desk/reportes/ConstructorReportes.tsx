@@ -10,7 +10,7 @@ import { getReporteDatos, getReporteHtml, descargarReportePdf } from '@/services
 type Lamina = { id: 'resumen' | 'compacto' | 'detallado'; nombre: string; on: boolean }
 const TZ = 'America/Monterrey'
 const TEMAS = [
-  { id: 'verus', nombre: 'Verus', colores: ['#065744', '#ffffff', '#b4501f', '#7f9e86'] },
+  { id: 'verus', nombre: 'Verus', colores: ['#065744', '#0fcb9e', '#b4501f', '#fbfaf7'] },
   { id: 'intranet', nombre: 'Azul intranet', colores: ['#1a4fa0', '#ffffff', '#c2410c', '#8fb0dc'] },
   { id: 'sobrio', nombre: 'Sobrio', colores: ['#334155', '#ffffff', '#b91c1c', '#cbd5e1'] },
   { id: 'ejecutivo', nombre: 'Ejecutivo oscuro', colores: ['#d4a64a', '#0f1b2d', '#f59e5b', '#3c5a85'] },
