@@ -1573,14 +1573,14 @@ async def export_incidents_excel(
         requester_profile = await perfil(i.requester_id)
         assignee_profile = await perfil(i.assigned_to_user_id)
 
-        es_final = i.status in ("resuelto", "cerrado")
+        es_final = i.status in ("resuelto", "cerrado", "terminado", "rechazado", "cancelado")
         vencido = bool(i.sla_resolution_limit and not es_final and i.sla_resolution_limit < now)
         cumplio_final = bool(i.resolved_at and i.sla_resolution_limit and i.resolved_at <= i.sla_resolution_limit)
 
         dias_transcurridos = ((i.resolved_at or now) - i.created_at).days
         dias_vencido = (now - i.sla_resolution_limit).days if vencido and i.sla_resolution_limit else 0
 
-        equipo = "Backlog" if i.status == "en_backlog" else (
+        equipo = "Backlog" if i.status == "en_backlog" else "Tecnico" if getattr(i, "ticket_type", "") == "solicitud_acceso" else (
             "Funcional" if i.assigned_team == "especialista-funcional" else
             "Tecnico" if i.assigned_team == "especialista-tecnico" else (i.assigned_team or "")
         )
@@ -1682,7 +1682,9 @@ async def export_incidents_excel(
 
 STATUS_LABEL_ES = {
     "en_backlog": "En backlog", "asignado": "Asignado", "en_atencion": "En atención",
-    "escalado": "Escalado", "resuelto": "Resuelto", "cerrado": "Cerrado",
+    "escalado": "Escalado", "resuelto": "Terminado", "cerrado": "Cerrado",
+    "en_revision": "En revisión", "en_firma": "En firma", "terminado": "Terminado",
+    "rechazado": "Rechazado", "cancelado": "Cancelado",
 }
 
 
