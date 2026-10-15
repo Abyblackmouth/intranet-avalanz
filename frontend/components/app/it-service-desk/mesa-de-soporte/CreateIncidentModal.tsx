@@ -37,7 +37,9 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
 
   const handleSave = async () => {
     if (!title.trim() || !systemId || !severityId || !description.trim() || !reportedType || (modules.length > 0 && !moduleId)) {
-      return setError('La descripción corta, el sistema, la severidad y la descripción son obligatorios')
+      const faltan = [!title.trim() && 'descripción corta', !systemId && 'sistema', modules.length > 0 && !moduleId && 'módulo',
+        !reportedType && 'tipo', !severityId && 'severidad', !description.trim() && 'descripción'].filter(Boolean)
+      return setError(`Falta: ${faltan.join(', ')}`)
     }
     setSaving(true)
     setError(null)
@@ -124,7 +126,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
               disabled={!systemId || modules.length === 0}
               className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50 disabled:opacity-50"
             >
-              <option value="">General</option>
+              <option value="">Elegir…</option>
               {modules.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
             {systemId && modules.length === 0 && <p className="mt-1 text-[11.5px] text-amber-700">Este sistema no tiene módulos en el catálogo. Pide a TI que los agregue.</p>}
