@@ -249,3 +249,11 @@ export const getComentarios = (incidentId: string) =>
   api.get(`/api/v1/it-service-desk/incidencias/${incidentId}/comentarios`)
 export const enviarComentario = (incidentId: string, data: FormData) =>
   api.post(`/api/v1/it-service-desk/incidencias/${incidentId}/comentarios`, data, { headers: { 'Content-Type': 'multipart/form-data' } })
+
+// ── Reportes para presentacion ───────────────────────────────────────────────
+export const getReporteDatos = (params: { desde: string; hasta: string; empresa?: string }) =>
+  api.get('/api/v1/it-service-desk/reportes/presentacion/datos', { params })
+export const getReporteHtml = (data: Record<string, unknown>) =>
+  api.post('/api/v1/it-service-desk/reportes/presentacion/html', data, { responseType: 'text' })
+export const descargarReportePdf = (data: Record<string, unknown>) =>
+  api.post('/api/v1/it-service-desk/reportes/presentacion/pdf', data, { responseType: 'blob' })

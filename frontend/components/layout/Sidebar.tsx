@@ -22,6 +22,8 @@ const SOLO_SUPER_ADMIN = new Set(['it-service-desk/ajustes'])
 // Submodulos restringidos a ciertos roles ("modulo/submodulo": roles que lo ven).
 // Super admin ve todo siempre y nunca se configura aqui: la restriccion aplica hacia abajo.
 const SUBMODULO_ROLES: Record<string, string[]> = {
+  // Reportes para presentacion: solo administradores, Incident Manager y Project Manager (super admin siempre)
+  'it-service-desk/reportes': ['admin_empresa', 'it-service-desk:incident-manager', 'it-service-desk:project-manager'],
   'it-service-desk/actualizaciones': ['it-service-desk:incident-manager'],
 }
 
