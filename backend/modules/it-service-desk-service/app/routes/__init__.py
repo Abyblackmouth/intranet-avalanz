@@ -1,3 +1,4 @@
+from app.routes.reportes.reportes import router as reportes_router
 from app.routes.ajustes.ajustes import router as ajustes_router
 from fastapi import APIRouter
 from app.routes.it_service_desk import router as it_service_desk_router
@@ -24,3 +25,4 @@ router.include_router(acc_config_router)
 # Control de accesos: formulario del solicitante
 from app.routes.control_accesos.solicitudes import router as acc_solicitudes_router
 router.include_router(acc_solicitudes_router)
+router.include_router(reportes_router)
