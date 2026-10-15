@@ -1,7 +1,7 @@
 'use client'
 import React from 'react'
 
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   MoreHorizontal, Eye, Pencil, Lock, Unlock, KeyRound, FileDown,
   LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight, X, FileText,
@@ -12,6 +12,7 @@ import { UserRow } from '@/types/user.types'
 import UserDetail from '@/components/admin/users/UserDetail'
 import UserEditForm from '@/components/admin/users/UserEditForm'
 import UserAuditReport from '@/components/admin/users/UserAuditReport'
+import TablaPantalla, { type Columna } from '@/components/ui/TablaPantalla'
 
 const StatusBadge = ({ user }: { user: UserRow }) => {
   if (user.is_locked) return (
@@ -347,70 +348,15 @@ const MenuItem = ({ icon, label, onClick, danger = false }: { icon: React.ReactN
   </button>
 )
 
-export type ColUsuario = 'nombre' | 'email' | 'matricula' | 'puesto' | 'departamento' | 'empresa' | 'rol' | 'twofa' | 'estado' | 'conexion'
-export interface OrdenUsuarios { col: ColUsuario; dir: 'asc' | 'desc' }
-
 interface UserTableProps {
   users: UserRow[]
   isLoading: boolean
   onRefresh: () => void
-  page: number
-  perPage: number
-  total: number
-  onPageChange: (page: number) => void
-  onPerPageChange: (n: number) => void
-  orden: OrdenUsuarios | null
-  onOrden: (o: OrdenUsuarios | null) => void
-  /** Avisa cuantas filas caben en el espacio visible (para "Ajustar a pantalla"). */
-  onCapacidad?: (filas: number) => void
-  /** 0 = ajustar a pantalla */
-  modoPagina: number
+  /** Si cambia (busqueda o filtros), la tabla vuelve a la pagina 1 */
+  reinicio?: unknown
 }
 
-const COLUMNAS: { col: ColUsuario | null; titulo: string; clase?: string }[] = [
-  { col: 'nombre', titulo: 'Usuario' },
-  { col: 'email', titulo: 'Correo' },
-  { col: 'matricula', titulo: 'Matrícula' },
-  { col: 'puesto', titulo: 'Puesto' },
-  { col: 'departamento', titulo: 'Departamento' },
-  { col: 'empresa', titulo: 'Empresa' },
-  { col: 'rol', titulo: 'Rol' },
-  { col: 'twofa', titulo: '2FA' },
-  { col: null, titulo: '', clase: 'w-8' },
-  { col: 'estado', titulo: 'Estado' },
-  { col: 'conexion', titulo: 'Última conexión' },
-  { col: null, titulo: '', clase: 'w-10' },
-]
-const TD = 'px-2 py-1 text-xs text-slate-700 whitespace-nowrap'
-
-export default function UserTable({ users, isLoading, onRefresh, page, perPage, total, onPageChange, onPerPageChange, orden, onOrden, onCapacidad, modoPagina }: UserTableProps) {
-  const zona = useRef<HTMLDivElement>(null)
-  const pie = useRef<HTMLDivElement>(null)
-  const [alto, setAlto] = useState<number | null>(null)
-  // La tabla ocupa desde donde empieza hasta el fondo de la ventana (menos la paginacion), y con ese
-  // alto se calcula cuantas filas caben. Se mide contra la ventana, no contra la tabla, para que el
-  // alto no dependa de las filas que se muestran.
-  useLayoutEffect(() => {
-    const el = zona.current
-    if (!el) return
-    const medir = () => {
-      const libre = window.innerHeight - el.getBoundingClientRect().top - (pie.current?.offsetHeight ?? 38) - 18
-      const disponible = Math.max(220, Math.floor(libre))
-      setAlto(disponible)
-      if (onCapacidad) {
-        const cab = el.querySelector('thead')?.getBoundingClientRect().height ?? 30
-        const fila = el.querySelector('tbody tr[data-fila]')?.getBoundingClientRect().height ?? 33
-        const barra = el.scrollWidth > el.clientWidth ? 14 : 0
-        onCapacidad(Math.max(5, Math.floor((disponible - cab - barra - 2) / Math.max(20, fila))))
-      }
-    }
-    medir()
-    window.addEventListener('resize', medir)
-    const ro = new ResizeObserver(medir)
-    ro.observe(document.body)
-    return () => { window.removeEventListener('resize', medir); ro.disconnect() }
-  }, [onCapacidad, users.length > 0])
-  const totalPages = Math.max(1, Math.ceil(total / perPage))
+export default function UserTable({ users, isLoading, onRefresh, reinicio }: UserTableProps) {
   const [detailUserId, setDetailUserId] = useState<string | null>(null)
   const [detailInitialTab, setDetailInitialTab] = useState<string>("info")
   const [editUserId, setEditUserId] = useState<string | null>(null)
@@ -423,99 +369,42 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
     try { await resetUserPassword(resetUser.user_id, password); setResetUser(null); onRefresh() }
     catch (e) { console.error('Reset error', e) } finally { setLoadingReset(false) }
   }
-  const ordenar = (col: ColUsuario) => onOrden(orden?.col !== col ? { col, dir: 'asc' } : orden.dir === 'asc' ? { col, dir: 'desc' } : null)
+
+  const columnas: Columna<UserRow>[] = [
+    { id: 'nombre', titulo: 'Usuario', orden: u => u.full_name, celda: u => (
+      <div className="flex items-center gap-2">
+        <Avatar name={u.full_name} />
+        <span className="font-semibold text-slate-800">{u.full_name}</span>
+        {u.is_protected && <span className="rounded bg-slate-100 px-1 text-[10.5px] font-medium text-slate-500">Protegido</span>}
+      </div>
+    ) },
+    { id: 'correo', titulo: 'Correo', orden: u => u.email, celda: u => <span className="block max-w-60 truncate text-slate-500" title={u.email}>{u.email}</span> },
+    { id: 'matricula', titulo: 'Matrícula', orden: u => u.matricula, celda: u => <span className="tabular-nums text-slate-500">{u.matricula || '—'}</span> },
+    { id: 'puesto', titulo: 'Puesto', orden: u => u.puesto, celda: u => <span className="block max-w-48 truncate" title={u.puesto || ''}>{u.puesto || '—'}</span> },
+    { id: 'departamento', titulo: 'Departamento', orden: u => u.departamento, celda: u => <span className="block max-w-40 truncate" title={u.departamento || ''}>{u.departamento || '—'}</span> },
+    { id: 'empresa', titulo: 'Empresa', orden: u => u.company_name, celda: u => u.company_name || '—' },
+    { id: 'rol', titulo: 'Rol', orden: u => (u.roles || []).join(','), celda: u => <RoleBadge roles={u.roles} /> },
+    { id: 'twofa', titulo: '2FA', orden: u => (u.is_2fa_configured ? 1 : 0), celda: u => <TwoFABadge configured={u.is_2fa_configured} /> },
+    { id: 'candado', titulo: '', clase: 'w-8 text-center', celda: u => (u.is_locked
+      ? <Lock size={18} className="text-red-500 mx-auto" />
+      : <Unlock size={18} className="text-green-500 mx-auto" />) },
+    { id: 'estado', titulo: 'Estado', orden: u => (u.is_locked ? 'Bloqueado' : u.is_active ? 'Activo' : 'Inactivo'), celda: u => <StatusBadge user={u} /> },
+    { id: 'conexion', titulo: 'Última conexión', orden: u => (u.last_login_at ? new Date(u.last_login_at).getTime() : 0), celda: u => <span className="text-slate-500">{formatRelative(u.last_login_at)}</span> },
+    { id: 'acciones', titulo: '', clase: 'w-10 px-1', celda: u => (
+      <ActionMenu
+        user={u}
+        onRefresh={onRefresh}
+        onViewDetail={() => setDetailUserId(u.user_id)}
+        onEdit={() => setEditUserId(u.user_id)}
+        onResetPassword={() => setResetUser(u)}
+        onViewDocuments={() => { setDetailUserId(u.user_id); setDetailInitialTab("documents") }}
+      />
+    ) },
+  ]
 
   return (
     <>
-      <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div ref={zona} style={alto ? { height: alto } : undefined} className="overflow-auto">
-          <table className="w-full border-separate border-spacing-0">
-            <thead className="sticky top-0 z-10">
-              <tr>
-                {COLUMNAS.map((c, i) => (
-                  <th key={i} className={`border-b border-slate-200 bg-slate-50 px-2 py-1.5 text-left text-[10.5px] font-semibold uppercase tracking-wider text-slate-500 whitespace-nowrap ${c.clase ?? ''}`}>
-                    {c.col ? (
-                      <button type="button" onClick={() => ordenar(c.col!)} className="inline-flex items-center gap-1 uppercase hover:text-slate-800">
-                        {c.titulo}
-                        <span className={`text-[9px] ${orden?.col === c.col ? 'text-[#1a4fa0]' : 'text-slate-300'}`}>{orden?.col === c.col ? (orden.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
-                      </button>
-                    ) : c.titulo}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={COLUMNAS.length} className="py-12 text-center">
-                  <div className="mx-auto size-7 animate-spin rounded-full border-2 border-[#1a4fa0] border-t-transparent" />
-                  <p className="mt-2 text-sm text-slate-400">Cargando usuarios…</p>
-                </td></tr>
-              ) : !users.length ? (
-                <tr><td colSpan={COLUMNAS.length} className="py-12 text-center text-sm text-slate-400">No se encontraron usuarios</td></tr>
-              ) : users.map((user) => (
-                <tr key={user.user_id} data-fila className="group hover:bg-[#1a4fa0]/5 [&>td]:border-b [&>td]:border-slate-100">
-                  <td className={TD}>
-                    <div className="flex items-center gap-2">
-                      <Avatar name={user.full_name} />
-                      <span className="font-semibold text-slate-800">{user.full_name}</span>
-                      {user.is_protected && <span className="rounded bg-slate-100 px-1 text-[10.5px] font-medium text-slate-500">Protegido</span>}
-                    </div>
-                  </td>
-                  <td className={`${TD} text-slate-500`}><span className="block max-w-60 truncate" title={user.email}>{user.email}</span></td>
-                  <td className={`${TD} tabular-nums text-slate-500`}>{user.matricula || '—'}</td>
-                  <td className={TD}><span className="block max-w-48 truncate" title={user.puesto || ''}>{user.puesto || '—'}</span></td>
-                  <td className={TD}><span className="block max-w-40 truncate" title={user.departamento || ''}>{user.departamento || '—'}</span></td>
-                  <td className={TD}>{user.company_name || '—'}</td>
-                  <td className={TD}><RoleBadge roles={user.roles} /></td>
-                  <td className={TD}><TwoFABadge configured={user.is_2fa_configured} /></td>
-                  <td className="px-2 py-1 text-center">
-                    {user.is_locked
-                      ? <Lock size={18} className="text-red-500 mx-auto" />
-                      : <Unlock size={18} className="text-green-500 mx-auto" />
-                    }
-                  </td>
-                  <td className={TD}><StatusBadge user={user} /></td>
-                  <td className={`${TD} text-slate-500`}>{formatRelative(user.last_login_at)}</td>
-                  <td className="px-1 py-1">
-                    <ActionMenu
-                      user={user}
-                      onRefresh={onRefresh}
-                      onViewDetail={() => setDetailUserId(user.user_id)}
-                      onEdit={() => setEditUserId(user.user_id)}
-                      onResetPassword={() => setResetUser(user)}
-                      onViewDocuments={() => { setDetailUserId(user.user_id); setDetailInitialTab("documents") }}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div ref={pie} className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-3 py-1.5">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span>{total ? `${(page - 1) * perPage + 1}–${Math.min(page * perPage, total)} de ${total}` : '0 usuarios'}</span>
-            <select value={modoPagina} onChange={e => onPerPageChange(Number(e.target.value))} aria-label="Usuarios por página"
-              className="h-6 rounded-md border border-slate-300 bg-white px-1 text-xs text-slate-600 outline-none focus:border-[#1a4fa0]">
-              <option value={0}>Ajustar a pantalla</option>
-              {[25, 50, 100].map(n => <option key={n} value={n}>{n} por página</option>)}
-            </select>
-          </div>
-          {totalPages > 1 && (
-            <div className="flex items-center gap-0.5">
-              <button onClick={() => onPageChange(page - 1)} disabled={page === 1} aria-label="Anterior" className="grid size-7 place-items-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40"><ChevronLeft size={14} /></button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1).map((p, idx, arr) => (
-                <React.Fragment key={p}>
-                  {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-1 text-xs text-slate-300">…</span>}
-                  <button onClick={() => onPageChange(p)} className={`size-7 rounded-md text-xs ${p === page ? 'bg-[#1a4fa0] font-semibold text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{p}</button>
-                </React.Fragment>
-              ))}
-              <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages} aria-label="Siguiente" className="grid size-7 place-items-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40"><ChevronRight size={14} /></button>
-            </div>
-          )}
-        </div>
-      </div>
-
+      <TablaPantalla filas={users} columnas={columnas} clave={u => u.user_id} cargando={isLoading} unidad="usuarios" reinicio={reinicio} />
       {detailUserId && <UserDetail userId={detailUserId} initialTab={detailInitialTab} onClose={() => { setDetailUserId(null); setDetailInitialTab("info") }} onRefresh={onRefresh} />}
       {editUserId && <UserEditForm userId={editUserId} onClose={() => setEditUserId(null)} onSuccess={onRefresh} />}
       {resetUser && <ResetPasswordModal user={resetUser} onConfirm={handleReset} onClose={() => setResetUser(null)} isLoading={loadingReset} />}
