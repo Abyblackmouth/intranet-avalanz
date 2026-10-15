@@ -1,234 +1,145 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, SlidersHorizontal, FileSpreadsheet } from 'lucide-react'
-import PageWrapper from '@/components/layout/PageWrapper'
-import UserTable from '@/components/admin/users/UserTable'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download, Plus, Search, Upload, X } from 'lucide-react'
+import UserTable, { type OrdenUsuarios } from '@/components/admin/users/UserTable'
 import UserForm from '@/components/admin/users/UserForm'
+import FiltroUsuarios, { cumpleFiltro, estadoDe, etiquetaRol, type FiltroUsuario } from '@/components/admin/users/FiltroUsuarios'
 import { useAuthStore } from '@/store/authStore'
 import { UserRow } from '@/types/user.types'
 import api from '@/services/api'
 
+// Usuarios: se cargan todos de una vez (son pocos) y la busqueda, el filtro dinamico,
+// el orden y la paginacion se resuelven en la pantalla, al instante.
+// La ruta (Inicio / Administracion / Usuarios) vive en el navbar: sin titulo ni subtitulo.
+
+const normal = (s?: string | null) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
 export default function UsersPage() {
   const { isSuperAdmin } = useAuthStore()
-
   const [mounted, setMounted] = useState(false)
   const [showForm, setShowForm] = useState(false)
-  const [users, setUsers] = useState<UserRow[]>([])
-  const [total, setTotal] = useState(0)
+  const [todos, setTodos] = useState<UserRow[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [buscar, setBuscar] = useState('')
+  const [filtros, setFiltros] = useState<FiltroUsuario[]>([])
+  const [orden, setOrden] = useState<OrdenUsuarios | null>(null)
   const [page, setPage] = useState(1)
-  const [perPage] = useState(10)
-  const [isLoading, setIsLoading] = useState(false)
-  const [refreshTick, setRefreshTick] = useState(0)
-
-  const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [filterCompany, setFilterCompany] = useState<string>('all')
-  const [companies, setCompanies] = useState<{ company_id: string; nombre_comercial: string }[]>([])
+  const [modoPagina, setModoPagina] = useState(0)          // 0 = ajustar a pantalla
+  const [capacidad, setCapacidad] = useState(20)
+  const perPage = modoPagina || capacidad
+  const [exportando, setExportando] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
 
-  const fetchUsers = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true)
+  const cargar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setIsLoading(true)
     try {
-      const params: Record<string, string | number> = { page, per_page: perPage }
-      if (search) params.search = search
-      if (filterStatus === 'active') { params.is_active = 'true'; params.is_locked = 'false' }
-      if (filterStatus === 'inactive') params.is_active = 'false'
-      if (filterStatus === 'locked') params.is_locked = 'true'
-      if (filterCompany !== 'all') params.company_id = filterCompany
-
-      const res = await api.get('/api/v1/users/', { params })
-      setUsers(res.data.data.data || [])
-      setTotal(res.data.data.meta?.total || 0)
-    } catch {
-      setUsers([])
-    } finally {
-      setIsLoading(false)
-    }
-  }, [page, perPage, search, filterStatus, filterCompany])
-
-  const fetchCompanies = useCallback(async () => {
-    try {
-      const res = await api.get('/api/v1/companies/', { params: { per_page: 100, is_active: true } })
-      setCompanies(res.data.data.data || [])
-    } catch {
-      setCompanies([])
-    }
-  }, [])
-
-  useEffect(() => { fetchCompanies() }, [fetchCompanies])
-
-  const [isExporting, setIsExporting] = useState(false)
-
-  const handleExportExcel = async () => {
-    setIsExporting(true)
-    try {
-      let allUsers: UserRow[] = []
-      let currentPage = 1
-      let hasMore = true
-      while (hasMore) {
-        const res = await api.get('/api/v1/users/', { params: { page: currentPage, per_page: 100 } })
-        const data = res.data.data.data || []
-        allUsers = [...allUsers, ...data]
-        const meta = res.data.data.meta
-        hasMore = currentPage * 100 < (meta?.total || 0)
-        currentPage++
+      let lista: UserRow[] = [], pagina = 1, total = Infinity
+      while ((pagina - 1) * 100 < total && pagina <= 50) {
+        const res = await api.get('/api/v1/users/', { params: { page: pagina, per_page: 100 } })
+        lista = [...lista, ...(res.data.data.data || [])]
+        total = res.data.data.meta?.total ?? lista.length
+        pagina++
       }
+      setTodos(lista)
+    } catch { setTodos([]) } finally { setIsLoading(false) }
+  }, [])
+  useEffect(() => { cargar() }, [cargar])
 
-      const XLSX = await import('xlsx')
-      const rows = allUsers.filter(u => !u.is_protected).map(u => ({
-        'Matricula': u.matricula || '—',
-        'Nombre': u.full_name,
-        'Email': u.email,
-        'Puesto': u.puesto || '—',
-        'Departamento': u.departamento || '—',
-        'Empresa': u.company_name,
-        'Roles': u.roles?.join(' | ') || '—',
-        'Estado': u.is_locked ? 'Bloqueado' : u.is_active ? 'Activo' : 'Inactivo',
-        '2FA': u.is_2fa_configured ? 'Configurado' : 'Sin configurar',
-        'Ultimo acceso': u.last_login_at ? new Date(u.last_login_at).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'Nunca',
-        'Fecha creacion': new Date(u.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-      }))
-
-      const ws = XLSX.utils.json_to_sheet(rows)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Usuarios')
-
-      ws['!cols'] = [
-        { wch: 12 }, { wch: 30 }, { wch: 35 }, { wch: 20 }, { wch: 20 },
-        { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 15 },
-      ]
-
-      const fecha = new Date().toISOString().split('T')[0]
-      XLSX.writeFile(wb, `concentrado_usuarios_${fecha}.xlsx`)
-    } catch (err) {
-      console.error('Export error:', err)
-    } finally {
-      setIsExporting(false)
-    }
-  }
-
-  useEffect(() => { fetchUsers() }, [page, search, filterStatus, filterCompany, refreshTick])
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value)
-    setPage(1)
-  }
-
-  const handleRefresh = () => {
-    setRefreshTick(t => t + 1)
-    fetchUsers(true)
-  }
-
-  return (
-    <>
-      <PageWrapper
-        title="Usuarios"
-        description="Gestiona los usuarios de la plataforma"
-        actions={
-          mounted && isSuperAdmin() ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleExportExcel}
-                disabled={isExporting}
-                className="flex items-center gap-2 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
-              >
-                <FileSpreadsheet size={16} />
-                {isExporting ? 'Generando...' : 'Exportar Excel'}
-              </button>
-              <Link href="/admin/users/alta-masiva" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#1a4fa0] border border-[#1a4fa0]/40 rounded-lg hover:bg-blue-50 transition">Alta masiva</Link>
-              <button
-                onClick={() => setShowForm(true)}
-                className="flex items-center gap-2 bg-[#1a4fa0] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-              >
-                <Plus size={16} />
-                Nuevo usuario
-              </button>
-            </div>
-          ) : undefined
+  // Busqueda + filtro dinamico + orden
+  const filtrados = useMemo(() => {
+    const q = normal(buscar.trim())
+    let lista = todos.filter(u => cumpleFiltro(u, filtros) && (!q ||
+      [u.full_name, u.email, u.matricula, u.puesto, u.departamento, (u as any).phone].some(v => normal(v).includes(q))))
+    if (orden) {
+      const valor = (u: UserRow): string | number => {
+        switch (orden.col) {
+          case 'nombre': return normal(u.full_name)
+          case 'email': return normal(u.email)
+          case 'matricula': return normal(u.matricula)
+          case 'puesto': return normal(u.puesto)
+          case 'departamento': return normal(u.departamento)
+          case 'empresa': return normal(u.company_name)
+          case 'rol': return normal((u.roles || []).map(etiquetaRol).join(','))
+          case 'twofa': return u.is_2fa_configured ? 1 : 0
+          case 'estado': return estadoDe(u)
+          case 'conexion': return u.last_login_at ? new Date(u.last_login_at).getTime() : 0
         }
-      >
-        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
-          <div className="flex flex-wrap items-end gap-3">
+      }
+      const s = orden.dir === 'asc' ? 1 : -1
+      lista = [...lista].sort((a, b) => { const x = valor(a), y = valor(b); return x < y ? -s : x > y ? s : 0 })
+    }
+    return lista
+  }, [todos, buscar, filtros, orden])
 
-            <div className="flex-1 min-w-48">
-              <label className="block text-xs font-medium text-slate-500 mb-1">Buscar</label>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="search"
-                  placeholder="Nombre, correo o matrícula..."
-                  autoComplete="new-password"
-                  value={search}
-                  onChange={handleSearch}
-                  className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 bg-white outline-none hover:border-slate-300 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/10 transition-all duration-150"
-                />
-              </div>
-            </div>
+  useEffect(() => { setPage(1) }, [buscar, filtros, orden, modoPagina])
+  // Si al cambiar el tamano de la pantalla la pagina actual ya no existe, regresa a la ultima
+  useEffect(() => { const ult = Math.max(1, Math.ceil(filtrados.length / perPage)); if (page > ult) setPage(ult) }, [perPage, filtrados.length, page])
+  const pagina = filtrados.slice((page - 1) * perPage, page * perPage)
 
-            <div className="min-w-36">
-              <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
-              <select
-                value={filterStatus}
-                onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">Todos</option>
-                <option value="active">Activos</option>
-                <option value="inactive">Inactivos</option>
-                <option value="locked">Bloqueados</option>
-              </select>
-            </div>
+  // Excel de lo que esta filtrado
+  const exportar = async () => {
+    setExportando(true)
+    try {
+      const XLSX = await import('xlsx')
+      const filas = filtrados.filter(u => !u.is_protected).map(u => ({
+        'Matrícula': u.matricula || '', 'Nombre': u.full_name, 'Correo': u.email, 'Teléfono': (u as any).phone || '',
+        'Puesto': u.puesto || '', 'Departamento': u.departamento || '', 'Empresa': u.company_name || '',
+        'Roles': (u.roles || []).map(etiquetaRol).join(' | '), 'Estado': estadoDe(u),
+        '2FA': u.is_2fa_configured ? 'Configurado' : 'Sin configurar',
+        'Último acceso': u.last_login_at ? new Date(u.last_login_at).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'Nunca',
+        'Fecha de alta': new Date(u.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      }))
+      const hoja = XLSX.utils.json_to_sheet(filas)
+      hoja['!cols'] = Object.keys(filas[0] ?? { Nombre: '' }).map(k => ({ wch: Math.min(40, Math.max(k.length + 2, ...filas.map(f => String((f as any)[k] ?? '').length + 1))) }))
+      hoja['!autofilter'] = { ref: hoja['!ref'] ?? 'A1' }
+      const libro = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(libro, hoja, 'Usuarios')
+      XLSX.writeFile(libro, `usuarios_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } finally { setExportando(false) }
+  }
 
-            {mounted && isSuperAdmin() && (
-              <div className="min-w-44">
-                <label className="block text-xs font-medium text-slate-500 mb-1">Empresa</label>
-                <select
-                  value={filterCompany}
-                  onChange={(e) => { setFilterCompany(e.target.value); setPage(1) }}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">Todas</option>
-                  {companies.map((c) => (
-                    <option key={c.company_id} value={c.company_id}>{c.nombre_comercial}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <button
-              onClick={() => { setSearch(''); setFilterStatus('all'); setFilterCompany('all'); setPage(1) }}
-              className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition"
-            >
-              <SlidersHorizontal size={14} />
-              Limpiar
+  const admin = mounted && isSuperAdmin()
+  return (
+    <div className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-4 max-[1440px]:px-4 max-[1440px]:pb-3">
+      {/* Barra: buscador, filtro dinamico, contador y acciones, en un renglon */}
+      <div className="mb-2.5 flex shrink-0 flex-wrap items-center gap-2">
+        <label className="flex h-9.5 w-64 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 focus-within:border-[#1a4fa0] focus-within:ring-2 focus-within:ring-[#1a4fa0]/20 max-[1440px]:w-52">
+          <Search size={13} className="shrink-0 text-slate-400" />
+          <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Nombre, correo, matrícula…" aria-label="Buscar usuario"
+            autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-800 outline-none placeholder:text-slate-400" />
+          {buscar && <button type="button" onClick={() => setBuscar('')} aria-label="Limpiar búsqueda" className="text-slate-400 hover:text-slate-600"><X size={13} /></button>}
+        </label>
+        <FiltroUsuarios usuarios={todos} valor={filtros} onChange={setFiltros} />
+        <span className="shrink-0 text-xs tabular-nums text-slate-500">
+          {filtrados.length === todos.length ? `${todos.length} usuarios` : `${filtrados.length} de ${todos.length}`}
+        </span>
+        {admin && (
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <button type="button" onClick={exportar} disabled={exportando || !filtrados.length}
+              title={`Descargar a Excel los ${filtrados.length} usuarios filtrados`}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-50 whitespace-nowrap">
+              {exportando ? <span className="size-3.5 animate-spin rounded-full border-2 border-[#1a4fa0] border-t-transparent" /> : <Download size={15} />} Descargar
+            </button>
+            <Link href="/admin/users/alta-masiva"
+              className="inline-flex h-9.5 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+              <Upload size={14} /> Alta masiva
+            </Link>
+            <button type="button" onClick={() => setShowForm(true)}
+              className="inline-flex h-9.5 items-center gap-1.5 rounded-xl bg-[#1a4fa0] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#173f82]">
+              <Plus size={15} /> Nuevo usuario
             </button>
           </div>
+        )}
+      </div>
 
-          <p className="text-xs text-slate-400 mt-3">
-            Mostrando {users.length} de {total} usuarios
-          </p>
-        </div>
+      <UserTable users={pagina} isLoading={isLoading} onRefresh={() => cargar(true)}
+        page={page} perPage={perPage} total={filtrados.length} onPageChange={setPage} onPerPageChange={setModoPagina}
+        orden={orden} onOrden={setOrden} onCapacidad={setCapacidad} modoPagina={modoPagina} />
 
-        <UserTable
-          users={users}
-          isLoading={isLoading}
-          onRefresh={handleRefresh}
-          page={page}
-          perPage={perPage}
-          total={total}
-          onPageChange={setPage}
-        />
-      </PageWrapper>
-
-      {showForm && (
-        <UserForm
-          onClose={() => setShowForm(false)}
-          onSuccess={() => { fetchUsers(); setShowForm(false) }}
-        />
-      )}
-    </>
+      {showForm && <UserForm onClose={() => setShowForm(false)} onSuccess={() => { cargar(true); setShowForm(false) }} />}
+    </div>
   )
 }
