@@ -27,11 +27,12 @@ get_current_user = _validator.get_current_user()
 GOTENBERG = "http://avalanz-gotenberg:3000/forms/chromium/convert/html"
 
 
+REPORTES_ROLES = {"super_admin", "admin_empresa", "it-service-desk:incident-manager", "it-service-desk:project-manager"}
+
+
 def _permiso(user: dict) -> None:
-    """Mismo permiso que el Dashboard directivo."""
-    from app.routes.mesa_de_soporte.mesa_de_soporte import DASHBOARD_FULL_ACCESS_ROLES
-    roles = set(user.get("roles") or [])
-    if not (roles & DASHBOARD_FULL_ACCESS_ROLES or "super_admin" in roles):
+    """Solo super admin, Admin Empresa, Incident Manager y Project Manager."""
+    if not set(user.get("roles") or []) & REPORTES_ROLES:
         raise HTTPException(status_code=403, detail="No tienes acceso a los reportes")
 
 
