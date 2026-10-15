@@ -385,19 +385,30 @@ const TD = 'px-2 py-1 text-xs text-slate-700 whitespace-nowrap'
 
 export default function UserTable({ users, isLoading, onRefresh, page, perPage, total, onPageChange, onPerPageChange, orden, onOrden, onCapacidad, modoPagina }: UserTableProps) {
   const zona = useRef<HTMLDivElement>(null)
-  // Cuantas filas caben sin scroll: alto disponible menos el encabezado, entre el alto real de una fila
+  const pie = useRef<HTMLDivElement>(null)
+  const [alto, setAlto] = useState<number | null>(null)
+  // La tabla ocupa desde donde empieza hasta el fondo de la ventana (menos la paginacion), y con ese
+  // alto se calcula cuantas filas caben. Se mide contra la ventana, no contra la tabla, para que el
+  // alto no dependa de las filas que se muestran.
   useLayoutEffect(() => {
     const el = zona.current
-    if (!el || !onCapacidad) return
+    if (!el) return
     const medir = () => {
-      const cab = el.querySelector('thead')?.getBoundingClientRect().height ?? 30
-      const fila = el.querySelector('tbody tr[data-fila]')?.getBoundingClientRect().height ?? 31
-      onCapacidad(Math.max(5, Math.floor((el.clientHeight - cab - 2) / Math.max(20, fila))))
+      const libre = window.innerHeight - el.getBoundingClientRect().top - (pie.current?.offsetHeight ?? 38) - 18
+      const disponible = Math.max(220, Math.floor(libre))
+      setAlto(disponible)
+      if (onCapacidad) {
+        const cab = el.querySelector('thead')?.getBoundingClientRect().height ?? 30
+        const fila = el.querySelector('tbody tr[data-fila]')?.getBoundingClientRect().height ?? 33
+        const barra = el.scrollWidth > el.clientWidth ? 14 : 0
+        onCapacidad(Math.max(5, Math.floor((disponible - cab - barra - 2) / Math.max(20, fila))))
+      }
     }
     medir()
+    window.addEventListener('resize', medir)
     const ro = new ResizeObserver(medir)
-    ro.observe(el)
-    return () => ro.disconnect()
+    ro.observe(document.body)
+    return () => { window.removeEventListener('resize', medir); ro.disconnect() }
   }, [onCapacidad, users.length > 0])
   const totalPages = Math.max(1, Math.ceil(total / perPage))
   const [detailUserId, setDetailUserId] = useState<string | null>(null)
@@ -416,8 +427,8 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div ref={zona} className="min-h-0 flex-1 overflow-auto">
+      <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div ref={zona} style={alto ? { height: alto } : undefined} className="overflow-auto">
           <table className="w-full border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr>
@@ -481,7 +492,7 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
           </table>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-3 py-1.5">
+        <div ref={pie} className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-3 py-1.5">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <span>{total ? `${(page - 1) * perPage + 1}–${Math.min(page * perPage, total)} de ${total}` : '0 usuarios'}</span>
             <select value={modoPagina} onChange={e => onPerPageChange(Number(e.target.value))} aria-label="Usuarios por página"
