@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Cookies from 'js-cookie'
 import { useAuthStore } from '@/store/authStore'
 import { getMe } from '@/services/authService'
+import AvisoVersion from '@/components/layout/AvisoVersion'
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click']
@@ -24,6 +25,22 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       window.removeEventListener('popstate', handlePopState)
     }
   }, [])
+
+  // Roles y modulos al dia: se vuelven a pedir cada 10 min y al regresar a la pestana
+  // (la renovacion del token ya toma los roles actuales del usuario)
+  useEffect(() => {
+    const actualizar = async () => {
+      if (!Cookies.get('access_token')) return
+      try {
+        const res = await getMe()
+        if (res.success && res.data && !(res.data as any).is_temp_password) setUser(res.data)
+      } catch { /* silencioso: se reintenta en la siguiente vuelta */ }
+    }
+    const alVolver = () => { if (document.visibilityState === 'visible') actualizar() }
+    const cada = setInterval(actualizar, 10 * 60 * 1000)
+    document.addEventListener('visibilitychange', alVolver)
+    return () => { clearInterval(cada); document.removeEventListener('visibilitychange', alVolver) }
+  }, [setUser])
 
   useEffect(() => {
     const validate = async () => {
@@ -71,7 +88,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [])
 
-  return <>{children}</>
+  return <><>{children}<AvisoVersion /></></>
 }
 
 export default AuthProvider
