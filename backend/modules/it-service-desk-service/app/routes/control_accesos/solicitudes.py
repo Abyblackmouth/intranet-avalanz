@@ -212,7 +212,7 @@ async def enviar_solicitud(formato_id: str, datos: dict = Body(...), db: AsyncSe
         requester_name=perfil.get("full_name", ""), requester_phone=perfil.get("phone"),
         requester_puesto=perfil.get("puesto"), requester_area=perfil.get("departamento"),
         requester_company_name=perfil.get("company_name", ""),
-        system_id=f.system_id, module_id=None, reported_type=None,
+        system_id=f.system_id, module_id=await _modulo_control_accesos(db, f.system_id), reported_type=None,
         description=_descripcion(datos, config, movimiento, f.nombre),
         severity_reported_id=f.severity_id, severity_validated_id=f.severity_id,
         assigned_to_user_id=f.admin_user_id if con_encargado else None,
@@ -876,3 +876,21 @@ async def guardar_contrasena_temporal(incident_id: str, body: ContrasenaPayload,
     _bitacora(db, inc, _uid(user), user, "contrasena_guardada", {"para": "correo final"})
     await db.commit()
     return {"success": True, "tiene_contrasena": True}
+
+
+
+async def _modulo_control_accesos(db, system_id):
+    """Modulo "Control de accesos" del sistema del formato. Si el sistema no lo tiene en el
+    catalogo, se crea la primera vez, para que toda solicitud de acceso lleve su modulo."""
+    if not system_id:
+        return None
+    from sqlalchemy import text as _texto
+    existente = (await db.execute(_texto(
+        "select id from ticket_modules where system_id = :s and lower(name) = 'control de accesos' limit 1"),
+        {"s": system_id})).scalar_one_or_none()
+    if existente:
+        return existente
+    return (await db.execute(_texto(
+        "insert into ticket_modules (id, system_id, name, is_active, created_at, updated_at) "
+        "values (gen_random_uuid(), :s, 'Control de accesos', true, now(), now()) returning id"),
+        {"s": system_id})).scalar_one()
