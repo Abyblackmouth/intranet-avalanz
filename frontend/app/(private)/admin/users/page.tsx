@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileSpreadsheet, Plus, Search, Upload, X } from 'lucide-react'
+import { Download, Plus, Search, Upload, X } from 'lucide-react'
 import UserTable, { type OrdenUsuarios } from '@/components/admin/users/UserTable'
 import UserForm from '@/components/admin/users/UserForm'
 import FiltroUsuarios, { cumpleFiltro, estadoDe, etiquetaRol, type FiltroUsuario } from '@/components/admin/users/FiltroUsuarios'
@@ -26,7 +26,9 @@ export default function UsersPage() {
   const [filtros, setFiltros] = useState<FiltroUsuario[]>([])
   const [orden, setOrden] = useState<OrdenUsuarios | null>(null)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(50)
+  const [modoPagina, setModoPagina] = useState(0)          // 0 = ajustar a pantalla
+  const [capacidad, setCapacidad] = useState(20)
+  const perPage = modoPagina || capacidad
   const [exportando, setExportando] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
@@ -72,7 +74,9 @@ export default function UsersPage() {
     return lista
   }, [todos, buscar, filtros, orden])
 
-  useEffect(() => { setPage(1) }, [buscar, filtros, orden, perPage])
+  useEffect(() => { setPage(1) }, [buscar, filtros, orden, modoPagina])
+  // Si al cambiar el tamano de la pantalla la pagina actual ya no existe, regresa a la ultima
+  useEffect(() => { const ult = Math.max(1, Math.ceil(filtrados.length / perPage)); if (page > ult) setPage(ult) }, [perPage, filtrados.length, page])
   const pagina = filtrados.slice((page - 1) * perPage, page * perPage)
 
   // Excel de lo que esta filtrado
@@ -101,8 +105,8 @@ export default function UsersPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-4 max-[1440px]:px-4 max-[1440px]:pb-3">
       {/* Barra: buscador, filtro dinamico, contador y acciones, en un renglon */}
-      <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
-        <label className="flex h-8 w-64 items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 focus-within:border-[#1a4fa0] focus-within:ring-2 focus-within:ring-[#1a4fa0]/20 max-[1440px]:w-52">
+      <div className="mb-2.5 flex shrink-0 flex-wrap items-center gap-2">
+        <label className="flex h-9.5 w-64 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 focus-within:border-[#1a4fa0] focus-within:ring-2 focus-within:ring-[#1a4fa0]/20 max-[1440px]:w-52">
           <Search size={13} className="shrink-0 text-slate-400" />
           <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Nombre, correo, matrícula…" aria-label="Buscar usuario"
             autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-800 outline-none placeholder:text-slate-400" />
@@ -115,16 +119,16 @@ export default function UsersPage() {
         {admin && (
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <button type="button" onClick={exportar} disabled={exportando || !filtrados.length}
-              title="Exportar a Excel lo que está filtrado" aria-label="Exportar a Excel"
-              className="grid size-8 place-items-center rounded-lg border border-slate-300 bg-white text-emerald-700 hover:border-emerald-600 hover:bg-emerald-50 disabled:opacity-40">
-              {exportando ? <span className="size-3.5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" /> : <FileSpreadsheet size={15} />}
+              title={`Descargar a Excel los ${filtrados.length} usuarios filtrados`}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-50 whitespace-nowrap">
+              {exportando ? <span className="size-3.5 animate-spin rounded-full border-2 border-[#1a4fa0] border-t-transparent" /> : <Download size={15} />} Descargar
             </button>
             <Link href="/admin/users/alta-masiva"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+              className="inline-flex h-9.5 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
               <Upload size={14} /> Alta masiva
             </Link>
             <button type="button" onClick={() => setShowForm(true)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#1a4fa0] px-3 text-[13px] font-semibold text-white shadow-sm hover:bg-[#173f82]">
+              className="inline-flex h-9.5 items-center gap-1.5 rounded-xl bg-[#1a4fa0] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#173f82]">
               <Plus size={15} /> Nuevo usuario
             </button>
           </div>
@@ -132,8 +136,8 @@ export default function UsersPage() {
       </div>
 
       <UserTable users={pagina} isLoading={isLoading} onRefresh={() => cargar(true)}
-        page={page} perPage={perPage} total={filtrados.length} onPageChange={setPage} onPerPageChange={setPerPage}
-        orden={orden} onOrden={setOrden} />
+        page={page} perPage={perPage} total={filtrados.length} onPageChange={setPage} onPerPageChange={setModoPagina}
+        orden={orden} onOrden={setOrden} onCapacidad={setCapacidad} modoPagina={modoPagina} />
 
       {showForm && <UserForm onClose={() => setShowForm(false)} onSuccess={() => { cargar(true); setShowForm(false) }} />}
     </div>

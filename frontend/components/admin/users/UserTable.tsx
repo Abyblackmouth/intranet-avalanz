@@ -1,7 +1,7 @@
 'use client'
 import React from 'react'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import {
   MoreHorizontal, Eye, Pencil, Lock, Unlock, KeyRound, FileDown,
   LogOut, Trash2, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight, X, FileText,
@@ -361,6 +361,10 @@ interface UserTableProps {
   onPerPageChange: (n: number) => void
   orden: OrdenUsuarios | null
   onOrden: (o: OrdenUsuarios | null) => void
+  /** Avisa cuantas filas caben en el espacio visible (para "Ajustar a pantalla"). */
+  onCapacidad?: (filas: number) => void
+  /** 0 = ajustar a pantalla */
+  modoPagina: number
 }
 
 const COLUMNAS: { col: ColUsuario | null; titulo: string; clase?: string }[] = [
@@ -377,9 +381,24 @@ const COLUMNAS: { col: ColUsuario | null; titulo: string; clase?: string }[] = [
   { col: 'conexion', titulo: 'Última conexión' },
   { col: null, titulo: '', clase: 'w-10' },
 ]
-const TD = 'px-2 py-0.5 text-[12.5px] text-slate-700 whitespace-nowrap'
+const TD = 'px-2 py-1 text-xs text-slate-700 whitespace-nowrap'
 
-export default function UserTable({ users, isLoading, onRefresh, page, perPage, total, onPageChange, onPerPageChange, orden, onOrden }: UserTableProps) {
+export default function UserTable({ users, isLoading, onRefresh, page, perPage, total, onPageChange, onPerPageChange, orden, onOrden, onCapacidad, modoPagina }: UserTableProps) {
+  const zona = useRef<HTMLDivElement>(null)
+  // Cuantas filas caben sin scroll: alto disponible menos el encabezado, entre el alto real de una fila
+  useLayoutEffect(() => {
+    const el = zona.current
+    if (!el || !onCapacidad) return
+    const medir = () => {
+      const cab = el.querySelector('thead')?.getBoundingClientRect().height ?? 30
+      const fila = el.querySelector('tbody tr[data-fila]')?.getBoundingClientRect().height ?? 31
+      onCapacidad(Math.max(5, Math.floor((el.clientHeight - cab - 2) / Math.max(20, fila))))
+    }
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [onCapacidad, users.length > 0])
   const totalPages = Math.max(1, Math.ceil(total / perPage))
   const [detailUserId, setDetailUserId] = useState<string | null>(null)
   const [detailInitialTab, setDetailInitialTab] = useState<string>("info")
@@ -398,7 +417,7 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div ref={zona} className="min-h-0 flex-1 overflow-auto">
           <table className="w-full border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr>
@@ -423,30 +442,30 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
               ) : !users.length ? (
                 <tr><td colSpan={COLUMNAS.length} className="py-12 text-center text-sm text-slate-400">No se encontraron usuarios</td></tr>
               ) : users.map((user) => (
-                <tr key={user.user_id} className="group hover:bg-[#1a4fa0]/5 [&>td]:border-b [&>td]:border-slate-100">
+                <tr key={user.user_id} data-fila className="group hover:bg-[#1a4fa0]/5 [&>td]:border-b [&>td]:border-slate-100">
                   <td className={TD}>
                     <div className="flex items-center gap-2">
                       <Avatar name={user.full_name} />
-                      <span className="max-w-64 truncate font-medium text-slate-900" title={user.full_name}>{user.full_name}</span>
+                      <span className="font-semibold text-slate-800">{user.full_name}</span>
                       {user.is_protected && <span className="rounded bg-slate-100 px-1 text-[10.5px] font-medium text-slate-500">Protegido</span>}
                     </div>
                   </td>
-                  <td className={`${TD} text-slate-500`}><span className="block max-w-64 truncate" title={user.email}>{user.email}</span></td>
+                  <td className={`${TD} text-slate-500`}><span className="block max-w-60 truncate" title={user.email}>{user.email}</span></td>
                   <td className={`${TD} tabular-nums text-slate-500`}>{user.matricula || '—'}</td>
                   <td className={TD}><span className="block max-w-48 truncate" title={user.puesto || ''}>{user.puesto || '—'}</span></td>
                   <td className={TD}><span className="block max-w-40 truncate" title={user.departamento || ''}>{user.departamento || '—'}</span></td>
                   <td className={TD}>{user.company_name || '—'}</td>
                   <td className={TD}><RoleBadge roles={user.roles} /></td>
                   <td className={TD}><TwoFABadge configured={user.is_2fa_configured} /></td>
-                  <td className="px-2 py-0.5 text-center">
+                  <td className="px-2 py-1 text-center">
                     {user.is_locked
                       ? <Lock size={18} className="text-red-500 mx-auto" />
                       : <Unlock size={18} className="text-green-500 mx-auto" />
                     }
                   </td>
                   <td className={TD}><StatusBadge user={user} /></td>
-                  <td className={`${TD} text-[12px] text-slate-500`}>{formatRelative(user.last_login_at)}</td>
-                  <td className="px-1 py-0.5">
+                  <td className={`${TD} text-slate-500`}>{formatRelative(user.last_login_at)}</td>
+                  <td className="px-1 py-1">
                     <ActionMenu
                       user={user}
                       onRefresh={onRefresh}
@@ -465,8 +484,9 @@ export default function UserTable({ users, isLoading, onRefresh, page, perPage, 
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-3 py-1.5">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <span>{total ? `${(page - 1) * perPage + 1}–${Math.min(page * perPage, total)} de ${total}` : '0 usuarios'}</span>
-            <select value={perPage} onChange={e => onPerPageChange(Number(e.target.value))} aria-label="Usuarios por página"
+            <select value={modoPagina} onChange={e => onPerPageChange(Number(e.target.value))} aria-label="Usuarios por página"
               className="h-6 rounded-md border border-slate-300 bg-white px-1 text-xs text-slate-600 outline-none focus:border-[#1a4fa0]">
+              <option value={0}>Ajustar a pantalla</option>
               {[25, 50, 100].map(n => <option key={n} value={n}>{n} por página</option>)}
             </select>
           </div>

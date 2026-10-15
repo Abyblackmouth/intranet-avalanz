@@ -89,7 +89,7 @@ export default function FiltroUsuarios({ usuarios, valor, onChange }: {
   return (
     <div ref={caja} className="relative min-w-56 flex-1">
       <div onClick={() => { setAbierto(true); entrada.current?.focus() }}
-        className={`flex h-8 items-center gap-1.5 rounded-lg border bg-white pl-2.5 pr-1.5 text-[13px] cursor-text transition ${abierto ? 'border-[#1a4fa0] ring-2 ring-[#1a4fa0]/20' : 'border-slate-300'}`}>
+        className={`flex h-9.5 items-center gap-1.5 rounded-xl border bg-white pl-3 pr-2 text-sm cursor-text transition ${abierto ? 'border-[#1a4fa0] ring-2 ring-[#1a4fa0]/20' : 'border-slate-300'}`}>
         <Filter size={13} className="shrink-0 text-slate-400" />
         {visibles.map((f, i) => (
           <span key={f.campo + f.valor} className="inline-flex max-w-44 shrink-0 items-center gap-1 rounded-md bg-[#eef4fc] py-0.5 pl-2 pr-1 text-[11.5px] font-medium text-[#1a4fa0]">
