@@ -12,7 +12,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import config
@@ -69,9 +69,16 @@ async def _datos(db, desde: date, hasta: date, empresa: Optional[str]):
     if empresa:
         q = q.where(Incident.requester_company_name == empresa)
     tickets = (await db.execute(q)).scalars().all()
+    # Para "abiertos al cierre de cada dia": tambien los creados antes del periodo que seguian abiertos
+    qh = select(Incident).where(Incident.created_at < fin, Incident.ticket_type.in_(("incidente", "solicitud_acceso")),
+                                or_(~Incident.status.in_(tuple(R.FINALES)),
+                                    func.coalesce(Incident.resolved_at, Incident.closed_at, Incident.updated_at) >= ini))
+    if empresa:
+        qh = qh.where(Incident.requester_company_name == empresa)
+    historico = (await db.execute(qh)).scalars().all()
     sistemas = {str(a): b for a, b in (await db.execute(text("select id, name from ticket_systems"))).all()}
     modulos = {str(a): b for a, b in (await db.execute(text("select id, name from ticket_modules"))).all()}
-    return R.calcular(tickets, sistemas, modulos, await _severidades(db), desde, hasta)
+    return R.calcular(tickets, sistemas, modulos, await _severidades(db), desde, hasta, historico=historico)
 
 
 def _nombre_archivo(d, op: Opciones, ext: str) -> str:

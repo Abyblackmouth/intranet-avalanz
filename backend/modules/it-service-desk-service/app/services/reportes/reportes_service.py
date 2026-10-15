@@ -14,12 +14,14 @@ from zoneinfo import ZoneInfo
 TZ = ZoneInfo("America/Monterrey")
 FINALES = {"resuelto", "cerrado", "terminado", "rechazado", "cancelado"}
 ACCESOS = {"control de accesos", "permisos de acceso"}
-FAMILIAS = {"CORP": "Corporativo", "DYCE": "Dyce", "SPPE": "Sppel", "AVAL": "Avalanz", "CNCI": "CNCI",
-            "TODI": "Todito", "VNTA": "Vanta Media", "ZIGN": "Zignia", "PROM": "Promotora"}
+# La familia sale de la clave del folio. AVAL y PROM son claves viejas, de antes de que esas empresas
+# tuvieran familia: AVALANZ hoy esta en Corporativo y Promotora de Eventos en Zignia.
+FAMILIAS = {"CORP": "Corporativo", "DYCE": "Dyce", "SPPE": "Sppel", "CNCI": "CNCI", "TODI": "Todito",
+            "VNTA": "Vanta Media", "ZIGN": "Zignia", "AVAL": "Corporativo", "PROM": "Zignia"}
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 MESES_LARGO = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
                "septiembre", "octubre", "noviembre", "diciembre"]
-UNIDADES_SOLAS = 4          # las 4 familias con mas tickets van solas; el resto en "Otros"
+UNIDADES_SOLAS = 99         # cada familia en su fila (sin "Otros"); AVAL cuenta en Corporativo
 
 
 # ───────────────────────── Reglas por ticket ─────────────────────────
@@ -81,7 +83,7 @@ def rango(desde: date, hasta: date):
 
 
 def calcular(tickets, sistemas: Dict[str, str], modulos: Dict[str, str], severidades: Dict[str, str],
-             desde: date, hasta: date, now: Optional[datetime] = None) -> Dict[str, Any]:
+             desde: date, hasta: date, now: Optional[datetime] = None, historico=None) -> Dict[str, Any]:
     now = now or datetime.now(timezone.utc)
     n = len(tickets)
     resueltos = [i for i in tickets if _cierre(i)]
@@ -105,14 +107,17 @@ def calcular(tickets, sistemas: Dict[str, str], modulos: Dict[str, str], severid
                 "s1": sum(1 for i in lista if es_s1(i)), "sla_resp": _sla_respuesta(lista), "sla_resol": _sla_resolucion(lista, now)}
     unidades = [fila_unidad(f, l) for f, l in grupos]
 
-    # Tickets por dia (dias habiles del rango, mas cualquier dia con tickets)
-    por_dia = defaultdict(int)
-    for i in tickets:
-        por_dia[i.created_at.astimezone(TZ).date()] += 1
+    # Tickets abiertos al cierre de cada dia habil (backlog): cuenta tambien los que venian
+    # de antes del periodo y seguian abiertos, no solo los creados en el rango
+    base = historico if historico is not None else tickets
     dias, d = [], desde
     while d <= hasta:
-        if d.weekday() < 5 or por_dia.get(d):
-            dias.append({"fecha": d.isoformat(), "etiqueta": f"{d.day} {MESES[d.month - 1]}", "tickets": por_dia.get(d, 0)})
+        if d.weekday() < 5:
+            fin_dia = datetime.combine(d + timedelta(days=1), time.min, TZ)
+            if fin_dia > now:
+                fin_dia = now
+            abiertos_dia = sum(1 for i in base if i.created_at < fin_dia and not ((_cierre(i) or fin_dia) < fin_dia))
+            dias.append({"fecha": d.isoformat(), "etiqueta": f"{d.day} {MESES[d.month - 1]}", "tickets": abiertos_dia})
         d += timedelta(days=1)
 
     # Compacto: empresa x columna (TOTVS por modulo, Accesos junto, otros sistemas en una columna)
@@ -247,7 +252,7 @@ def _lamina_resumen(d, op) -> str:
     <div>
       <table><thead><tr><th>Unidad</th><th>Tickets</th><th>Resueltos</th><th>Abiertos</th><th>Vencidos</th><th>S1</th><th>SLA resp.</th><th>SLA resol.</th></tr></thead>
       <tbody>{tabla}</tbody></table>
-      <p class="mini">Tickets creados por día</p>
+      <p class="mini">Tickets abiertos al cierre de cada día</p>
       <div class="barras">{barras}</div><div class="ejes">{ejes}</div>
     </div>
     {f'<div>{lateral}</div>' if lateral else ''}
@@ -293,7 +298,7 @@ def _lamina_compacto(d, op) -> List[str]:
         sigue = " (continúa)" if p < len(paginas) - 1 else ""
         salida.append(f'''<section class="slide">
   <h2 class="s-titulo">Detalle por empresa y módulo{sigue}</h2>
-  <table class="ancha">{_colgroup(cols + ["Total", "Abiertos", "Vencidos"], 17)}<thead><tr><th>Empresa</th>{cab}<th>Total</th><th>Abiertos</th><th>Vencidos</th></tr></thead><tbody>{cuerpo}</tbody></table>
+  <table class="ancha">{_colgroup(cols + ["Total", "Abiertos", "Vencidos"], max(17, round(max((len(w) for f in filas_src for w in f["empresa"].split()), default=10) * 1.35) + 2))}<thead><tr><th>Empresa</th>{cab}<th>Total</th><th>Abiertos</th><th>Vencidos</th></tr></thead><tbody>{cuerpo}</tbody></table>
   <span class="pie">Accesos = Control de accesos + Permisos de acceso · TOTVS por módulo; los otros sistemas en una columna · Resaltados: los 3 con más tickets</span>
 </section>''')
     return salida
