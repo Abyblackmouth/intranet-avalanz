@@ -175,13 +175,14 @@ def titulo_periodo(desde: date, hasta: date) -> str:
 
 # ───────────────────────── Laminas (HTML 16:9) ─────────────────────────
 TEMAS = {
-    "avalanz":   {"nombre": "Avalanz verde", "pri": "#0a5c46", "bg": "#ffffff", "ink": "#1f2937", "muted": "#7c7c7c", "muted2": "#6b7280", "card": "#faf9f5", "line": "#d9d6cc", "th": "#e4e2dc", "th_ink": "#374151", "alerta": "#b4532a", "bar": "#7f9e86", "bar_alto": "#3f4a40"},
+    # Verus: los colores y la barra con el logotipo salen de la presentacion de Verus
+    "verus":     {"nombre": "Verus", "pri": "#065744", "bg": "#ffffff", "ink": "#1e2a36", "muted": "#7c7c7c", "muted2": "#5b6570", "card": "#faf9f5", "line": "#c3c1bd", "th": "#e2e0dc", "th_ink": "#1e2a36", "alerta": "#b4501f", "bar": "#7f9e86", "bar_alto": "#3f4a40", "barra": True},
     "intranet":  {"nombre": "Azul intranet", "pri": "#1a4fa0", "bg": "#ffffff", "ink": "#0f2440", "muted": "#64748b", "muted2": "#64748b", "card": "#f8fafc", "line": "#d5dde8", "th": "#e7edf5", "th_ink": "#0f2440", "alerta": "#c2410c", "bar": "#8fb0dc", "bar_alto": "#1a4fa0"},
     "sobrio":    {"nombre": "Sobrio", "pri": "#334155", "bg": "#ffffff", "ink": "#111827", "muted": "#6b7280", "muted2": "#6b7280", "card": "#f9fafb", "line": "#e5e7eb", "th": "#f1f5f9", "th_ink": "#111827", "alerta": "#b91c1c", "bar": "#cbd5e1", "bar_alto": "#334155"},
     "ejecutivo": {"nombre": "Ejecutivo oscuro", "pri": "#d4a64a", "bg": "#0f1b2d", "ink": "#e7edf5", "muted": "#9fb0c7", "muted2": "#8a9bb3", "card": "#16263d", "line": "#26395a", "th": "#1d3150", "th_ink": "#e7edf5", "alerta": "#f59e5b", "bar": "#3c5a85", "bar_alto": "#d4a64a"},
 }
 LAMINAS = ("resumen", "compacto", "detallado")
-FILAS_POR_LAMINA = 15
+FILAS_POR_LAMINA = 13
 e = lambda t: html.escape(str(t if t is not None else ""))
 
 
@@ -195,9 +196,9 @@ def _porc(v, umbral=60):
     return f'<span class="{"naranja" if v < umbral else ""}">{v}%</span>'
 
 
-def _item(t: str) -> str:
+def _item(t: str, negrita: bool = True) -> str:
     t = e(t)
-    if ":" in t[:40]:
+    if negrita and ":" in t[:40]:
         a, b = t.split(":", 1)
         return f"<li><b>{a}:</b>{b}</li>"
     return f"<li>{t}</li>"
@@ -228,7 +229,7 @@ def _lamina_resumen(d, op) -> str:
     if hal:
         lateral += f'<div class="caja"><h3>Hallazgos</h3><ul>{"".join(_item(h) for h in hal)}</ul></div>'
     if acc:
-        lateral += f'<div class="caja acc"><h3>Acciones</h3><ul>{"".join(_item(a) for a in acc)}</ul></div>'
+        lateral += f'<div class="caja acc"><h3>Acciones</h3><ul>{"".join(_item(a, False) for a in acc)}</ul></div>'
     otros = f'¹ Otros: {", ".join(e(o) for o in d["otros"])} · ' if d["otros"] else ""
     return f'''<section class="slide">
   <h2 class="s-titulo">{e(op.get("titulo") or "Mesa de Ayuda")} | {e(d["periodo"]["titulo"])}</h2>
@@ -323,8 +324,21 @@ def _lamina_detallado(d, op) -> List[str]:
     return salida
 
 
+def _barra_verus() -> str:
+    """Barra degradada con el logotipo VERUS (tomada de la presentacion de Verus)."""
+    import os
+    ruta = os.path.join(os.path.dirname(__file__), "barra_verus.b64")
+    try:
+        return open(ruta).read().strip()
+    except OSError:
+        return ""
+
+
 def armar_html(d: Dict[str, Any], op: Dict[str, Any]) -> str:
-    t = dict(TEMAS.get(op.get("tema") or "avalanz", TEMAS["avalanz"]))
+    tema = op.get("tema") or "verus"
+    tema = "verus" if tema == "avalanz" else tema          # el tema "Avalanz verde" ahora se llama Verus
+    t = dict(TEMAS.get(tema, TEMAS["verus"]))
+    barra = _barra_verus() if t.pop("barra", False) else ""
     acento = (op.get("acento") or "").strip()
     if len(acento) == 7 and acento.startswith("#") and all(ch in "0123456789abcdefABCDEF" for ch in acento[1:]):
         t["pri"] = acento
@@ -338,6 +352,8 @@ def armar_html(d: Dict[str, Any], op: Dict[str, Any]) -> str:
         elif l == "detallado":
             partes += _lamina_detallado(d, op)
     v = ";".join(f"--{k.replace('_', '-')}:{val}" for k, val in t.items() if k != "nombre")
+    css_barra = (f".slide{{padding-bottom:84px}} .slide::after{{content:'';position:absolute;left:53px;top:648px;width:1155px;height:46px;"
+                 f"background:url(data:image/png;base64,{barra}) center/100% 100% no-repeat}} .pie{{bottom:78px}}") if barra else ""
     return f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{e(op.get("titulo") or "Mesa de Ayuda")} | {e(d["periodo"]["titulo"])}</title>
 <style>
 :root{{{v}}}
@@ -371,4 +387,5 @@ table.ancha td{{padding:9px 6px}} td.sangria{{padding-left:22px}} th.top{{backgr
 .barras i{{width:66%;background:var(--bar);border-radius:2px 2px 0 0}} .barras .alto i{{background:var(--bar-alto)}}
 .ejes{{display:flex;gap:2%;padding:4px 3% 0;font-size:11px;color:var(--muted2)}} .ejes span{{flex:1;text-align:center}}
 .pie{{position:absolute;left:40px;bottom:12px;font-size:11px;color:var(--muted2)}}
+{css_barra}
 </style></head><body>{"".join(partes) or '<section class="slide"><h2 class="s-titulo">Sin láminas seleccionadas</h2></section>'}</body></html>'''

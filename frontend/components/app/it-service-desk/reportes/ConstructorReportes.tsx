@@ -10,7 +10,7 @@ import { getReporteDatos, getReporteHtml, descargarReportePdf } from '@/services
 type Lamina = { id: 'resumen' | 'compacto' | 'detallado'; nombre: string; on: boolean }
 const TZ = 'America/Monterrey'
 const TEMAS = [
-  { id: 'avalanz', nombre: 'Avalanz verde', colores: ['#0a5c46', '#ffffff', '#b4532a', '#7f9e86'] },
+  { id: 'verus', nombre: 'Verus', colores: ['#065744', '#ffffff', '#b4501f', '#7f9e86'] },
   { id: 'intranet', nombre: 'Azul intranet', colores: ['#1a4fa0', '#ffffff', '#c2410c', '#8fb0dc'] },
   { id: 'sobrio', nombre: 'Sobrio', colores: ['#334155', '#ffffff', '#b91c1c', '#cbd5e1'] },
   { id: 'ejecutivo', nombre: 'Ejecutivo oscuro', colores: ['#d4a64a', '#0f1b2d', '#f59e5b', '#3c5a85'] },
@@ -37,8 +37,8 @@ export default function ConstructorReportes() {
   const [[desde, hasta], setRango] = useState<[string, string]>(() => rangoAtajo('mes'))
   const [empresa, setEmpresa] = useState('')
   const [empresas, setEmpresas] = useState<string[]>([])
-  const [tema, setTema] = useState('avalanz')
-  const [acento, setAcento] = useState('#0a5c46')
+  const [tema, setTema] = useState('verus')
+  const [acento, setAcento] = useState('#065744')
   const [laminas, setLaminas] = useState<Lamina[]>([
     { id: 'resumen', nombre: 'Resumen e indicadores', on: true },
     { id: 'compacto', nombre: 'Detalle por empresa y módulo', on: true },
