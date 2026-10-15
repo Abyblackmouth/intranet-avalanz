@@ -67,12 +67,12 @@ export default function ComunicadosConfig() {
               placeholder="Ej. Hay una ventana de actualización en TOTVS 25 en curso. No es necesario reportarlo con un ticket."
               className={`${campo} normal-case tracking-normal font-normal resize-y`} />
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <label className="grid gap-1 text-[12px] font-semibold text-slate-600 uppercase tracking-wide">Inicio
-              <input type="datetime-local" value={form.inicio} onChange={e => setForm({ ...form, inicio: e.target.value })} className={`${campo} normal-case tracking-normal font-normal`} />
+              <input type="datetime-local" value={form.inicio} onChange={e => setForm({ ...form, inicio: e.target.value })} className={`${campo} w-full min-w-0 normal-case tracking-normal font-normal`} />
             </label>
             <label className="grid gap-1 text-[12px] font-semibold text-slate-600 uppercase tracking-wide">Fin
-              <input type="datetime-local" value={form.fin} min={form.inicio || undefined} onChange={e => setForm({ ...form, fin: e.target.value })} className={`${campo} normal-case tracking-normal font-normal`} />
+              <input type="datetime-local" value={form.fin} min={form.inicio || undefined} onChange={e => setForm({ ...form, fin: e.target.value })} className={`${campo} w-full min-w-0 normal-case tracking-normal font-normal`} />
             </label>
           </div>
           {form.inicio && form.fin && form.fin <= form.inicio && <p className="text-[12.5px] text-red-600">El fin debe ser después del inicio.</p>}
