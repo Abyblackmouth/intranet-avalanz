@@ -867,6 +867,18 @@ async def create_incident(
     # "asistente" por la red interna; Nginx borra este encabezado en las
     # peticiones del navegador, asi que no se puede falsificar desde fuera
     origen = "asistente" if (x_ticket_origin or "").strip().lower() == "asistente" else "manual"
+    # Campos obligatorios de los tickets creados desde el formulario (los del Asistente siguen su propio flujo)
+    if origen == "manual":
+        if not (title or "").strip() or not (description or "").strip():
+            raise HTTPException(status_code=422, detail="El título y la descripción son obligatorios")
+        if not (reported_type or "").strip():
+            raise HTTPException(status_code=422, detail="Elige el tipo del ticket")
+        if not module_id:
+            from sqlalchemy import text as _texto
+            hay = (await db.execute(_texto("select count(*) from ticket_modules where system_id = :s and is_active"),
+                                    {"s": system_id})).scalar()
+            if hay:
+                raise HTTPException(status_code=422, detail="Elige el módulo del sistema")
     from app.services.empresa_usuario import empresa_de
     company_id = await empresa_de(user.get("user_id")) or ((user.get("companies") or [None])[0])
     if not company_id:

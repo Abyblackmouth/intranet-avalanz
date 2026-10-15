@@ -15,7 +15,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
   const [title, setTitle] = useState('')
   const [systemId, setSystemId] = useState('')
   const [moduleId, setModuleId] = useState('')
-  const [reportedType, setReportedType] = useState('funcional')
+  const [reportedType, setReportedType] = useState('')
   const [severityId, setSeverityId] = useState('')
   const [description, setDescription] = useState('')
   const [files, setFiles] = useState<File[]>([])
@@ -36,7 +36,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
   }, [systemId])
 
   const handleSave = async () => {
-    if (!title.trim() || !systemId || !severityId || !description.trim()) {
+    if (!title.trim() || !systemId || !severityId || !description.trim() || !reportedType || (modules.length > 0 && !moduleId)) {
       return setError('La descripción corta, el sistema, la severidad y la descripción son obligatorios')
     }
     setSaving(true)
@@ -96,7 +96,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
 
-        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Descripción corta del ticket</label>
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Descripción corta del ticket<span className="text-red-500 ml-0.5">*</span></label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -106,7 +106,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
 
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Sistema</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Sistema<span className="text-red-500 ml-0.5">*</span></label>
             <select
               value={systemId}
               onChange={(e) => { setSystemId(e.target.value); setModuleId('') }}
@@ -117,7 +117,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Módulo (opcional)</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Módulo<span className="text-red-500 ml-0.5">*</span></label>
             <select
               value={moduleId}
               onChange={(e) => setModuleId(e.target.value)}
@@ -127,23 +127,25 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
               <option value="">General</option>
               {modules.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
+            {systemId && modules.length === 0 && <p className="mt-1 text-[11.5px] text-amber-700">Este sistema no tiene módulos en el catálogo. Pide a TI que los agregue.</p>}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Tipo</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Tipo<span className="text-red-500 ml-0.5">*</span></label>
             <select
               value={reportedType}
               onChange={(e) => setReportedType(e.target.value)}
               className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#1a4fa0]/50"
             >
+              <option value="">Elegir…</option>
               <option value="funcional">Funcional</option>
               <option value="tecnico">Técnico</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Severidad</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Severidad<span className="text-red-500 ml-0.5">*</span></label>
             <select
               value={severityId}
               onChange={(e) => setSeverityId(e.target.value)}
@@ -155,7 +157,7 @@ export default function CreateIncidentModal({ onClose, onCreated, onBack }: { on
           </div>
         </div>
 
-        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Descripción</label>
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Descripción<span className="text-red-500 ml-0.5">*</span></label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
