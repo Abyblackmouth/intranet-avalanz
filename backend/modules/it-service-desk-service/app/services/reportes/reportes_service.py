@@ -170,6 +170,20 @@ def calcular(tickets, sistemas: Dict[str, str], modulos: Dict[str, str], severid
     }
 
 
+TIPOS = (("incidente", "Incidentes"), ("solicitud_acceso", "Solicitudes de acceso"), ("control_cambio", "Controles de cambio"))
+
+
+def por_tipo(todos, now: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    """Tickets del periodo por tipo (todos los tipos, incluidos los Controles de Cambio)."""
+    now = now or datetime.now(timezone.utc)
+    filas = []
+    for clave, nombre in TIPOS:
+        lista = [i for i in todos if (getattr(i, "ticket_type", "") or "") == clave]
+        filas.append({"tipo": clave, "nombre": nombre, "tickets": len(lista), "resueltos": sum(1 for i in lista if _cierre(i)),
+                      "abiertos": sum(1 for i in lista if not _final(i)), "vencidos": sum(1 for i in lista if _vencido_abierto(i, now))})
+    return filas
+
+
 def titulo_periodo(desde: date, hasta: date) -> str:
     if desde.year == hasta.year and desde.month == hasta.month:
         return f"{desde.day} al {hasta.day} {MESES_LARGO[desde.month - 1]} {desde.year}"
@@ -194,7 +208,7 @@ TEMAS = {
     "sobrio":    {"nombre": "Sobrio", "pri": "#334155", "bg": "#ffffff", "ink": "#111827", "muted": "#6b7280", "muted2": "#6b7280", "card": "#f9fafb", "line": "#e5e7eb", "th": "#f1f5f9", "th_ink": "#111827", "alerta": "#b91c1c", "bar": "#cbd5e1", "bar_alto": "#334155"},
     "ejecutivo": {"nombre": "Ejecutivo oscuro", "pri": "#d4a64a", "bg": "#0f1b2d", "ink": "#e7edf5", "muted": "#9fb0c7", "muted2": "#8a9bb3", "card": "#16263d", "line": "#26395a", "th": "#1d3150", "th_ink": "#e7edf5", "alerta": "#f59e5b", "bar": "#3c5a85", "bar_alto": "#d4a64a"},
 }
-LAMINAS = ("resumen", "compacto", "detallado")
+LAMINAS = ("resumen", "compacto", "tipos", "detallado")
 FILAS_POR_LAMINA = 13
 e = lambda t: html.escape(str(t if t is not None else ""))
 
@@ -304,6 +318,30 @@ def _lamina_compacto(d, op) -> List[str]:
     return salida
 
 
+def _lamina_tipos(d, op) -> str:
+    filas = d.get("por_tipo") or []
+    medidos = [f for f in filas if f["tipo"] != "control_cambio"]
+    cdc = next((f for f in filas if f["tipo"] == "control_cambio"), None)
+    fila = lambda f, cls="": (f'<tr class="{cls}"><td>{e(f["nombre"])}</td><td>{f["tickets"]}</td><td>{f["resueltos"]}</td>'
+                              f'<td>{f["abiertos"]}</td><td class="{"naranja" if f["vencidos"] else ""}">{_num(f["vencidos"])}</td></tr>')
+    tot = {"nombre": "Total del reporte", **{k: sum(f[k] for f in medidos) for k in ("tickets", "resueltos", "abiertos", "vencidos")}}
+    cuerpo = "".join(fila(f) for f in medidos) + fila(tot, "total")
+    if cdc:
+        cuerpo += (f'<tr class="aparte"><td>{e(cdc["nombre"])}¹</td><td>{cdc["tickets"]}</td><td>{cdc["resueltos"]}</td>'
+                   f'<td>{cdc["abiertos"]}</td><td>{_num(cdc["vencidos"])}</td></tr>')
+    nota = ('<div class="caja nota"><h3>¹ Controles de cambio</h3><p>Se muestran solo como referencia: <b>no se incluyen en los indicadores de este reporte</b>, '
+            'porque siguen su propio flujo (solicitud, dictamen, priorización, desarrollo, pruebas y liberación) y se miden por etapas, '
+            'no con el SLA de respuesta y resolución de la Mesa de Ayuda.</p></div>') if cdc and cdc["tickets"] else ""
+    return f'''<section class="slide">
+  <h2 class="s-titulo">Tickets por tipo</h2>
+  <div class="cols" style="grid-template-columns:1.25fr 1fr;align-items:start">
+    <table class="tipos"><thead><tr><th>Tipo</th><th>Tickets</th><th>Resueltos</th><th>Abiertos</th><th>Vencidos</th></tr></thead><tbody>{cuerpo}</tbody></table>
+    <div>{nota}</div>
+  </div>
+  <span class="pie">Periodo: {e(d["periodo"]["titulo"])} · Los indicadores de las demás láminas cuentan incidentes y solicitudes de acceso</span>
+</section>'''
+
+
 def _lamina_detallado(d, op) -> List[str]:
     emps = d["detallado"]["empresas"]
     filas = []
@@ -386,6 +424,8 @@ def armar_html(d: Dict[str, Any], op: Dict[str, Any]) -> str:
             partes.append(_lamina_resumen(d, op))
         elif l == "compacto":
             partes += _lamina_compacto(d, op)
+        elif l == "tipos":
+            partes.append(_lamina_tipos(d, op))
         elif l == "detallado":
             partes += _lamina_detallado(d, op)
     font_css = ("@font-face{font-family:Montserrat;font-weight:600;font-style:normal;src:url(data:font/woff2;base64," + mont + ") format('woff2')}") if mont else ""
@@ -421,6 +461,8 @@ table.ancha td{{padding:9px 6px}} td.sangria{{padding-left:22px}} th.top{{backgr
 .caja h3{{margin:0 0 6px;font-size:18px;color:var(--pri)}} .caja.acc{{background:var(--acc-bg);border-color:var(--acc-line)}} .caja.acc h3{{color:var(--alerta)}}
 .caja ul{{margin:0;padding-left:18px}} .caja li{{margin-bottom:4px}}
 .mini{{font-size:13px;font-weight:700;margin:12px 0 4px}}
+table.tipos{{font-size:17px}} table.tipos td,table.tipos th{{padding:12px 10px}} tr.aparte td{{color:var(--muted2);font-style:italic;background:var(--bg);border-top:2px dashed var(--line)}}
+.caja.nota p{{margin:0;line-height:1.5}}
 .barras{{display:flex;align-items:flex-end;gap:2%;height:120px;padding:0 3%;border-bottom:1px solid var(--line)}}
 .barras div{{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:12px;font-weight:700}}
 .barras i{{width:66%;background:var(--bar);border-radius:2px 2px 0 0}} .barras .alto i{{background:var(--bar-alto)}}

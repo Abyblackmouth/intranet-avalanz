@@ -73,12 +73,18 @@ async def _datos(db, desde: date, hasta: date, empresa: Optional[str]):
     qh = select(Incident).where(Incident.created_at < fin, Incident.ticket_type.in_(("incidente", "solicitud_acceso")),
                                 or_(~Incident.status.in_(tuple(R.FINALES)),
                                     func.coalesce(Incident.resolved_at, Incident.closed_at, Incident.updated_at) >= ini))
+    # Todos los tipos del periodo (incluidos los Controles de Cambio), solo para la lamina "Tickets por tipo"
+    qt = select(Incident).where(Incident.created_at >= ini, Incident.created_at < fin)
     if empresa:
         qh = qh.where(Incident.requester_company_name == empresa)
+        qt = qt.where(Incident.requester_company_name == empresa)
     historico = (await db.execute(qh)).scalars().all()
+    todos = (await db.execute(qt)).scalars().all()
     sistemas = {str(a): b for a, b in (await db.execute(text("select id, name from ticket_systems"))).all()}
     modulos = {str(a): b for a, b in (await db.execute(text("select id, name from ticket_modules"))).all()}
-    return R.calcular(tickets, sistemas, modulos, await _severidades(db), desde, hasta, historico=historico)
+    d = R.calcular(tickets, sistemas, modulos, await _severidades(db), desde, hasta, historico=historico)
+    d["por_tipo"] = R.por_tipo(todos)
+    return d
 
 
 def _nombre_archivo(d, op: Opciones, ext: str) -> str:
