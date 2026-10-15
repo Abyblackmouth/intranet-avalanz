@@ -7,7 +7,7 @@ import { getReporteDatos, getReporteHtml, descargarReportePdf } from '@/services
 // Arma tu presentacion: el servidor arma las laminas (HTML 16:9) con los datos y estas
 // elecciones; la vista previa y el PDF son el mismo HTML, asi que lo que ves es lo que bajas.
 
-type Lamina = { id: 'resumen' | 'compacto' | 'detallado'; nombre: string; on: boolean }
+type Lamina = { id: 'resumen' | 'compacto' | 'tipos' | 'detallado'; nombre: string; on: boolean }
 const TZ = 'America/Monterrey'
 const TEMAS = [
   { id: 'verus', nombre: 'Verus', colores: ['#065744', '#0fcb9e', '#b4501f', '#fbfaf7'] },
@@ -42,6 +42,7 @@ export default function ConstructorReportes() {
   const [laminas, setLaminas] = useState<Lamina[]>([
     { id: 'resumen', nombre: 'Resumen e indicadores', on: true },
     { id: 'compacto', nombre: 'Detalle por empresa y módulo', on: true },
+    { id: 'tipos', nombre: 'Tickets por tipo', on: true },
     { id: 'detallado', nombre: 'Detalle por sistema y módulo', on: false },
   ])
   const [titulo, setTitulo] = useState('Mesa de Ayuda')
