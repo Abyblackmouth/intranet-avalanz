@@ -41,7 +41,7 @@ async def _usuario(user: dict) -> dict:
 async def _ajustes_firma(db: AsyncSession) -> tuple[str, bool]:
     ajustes = dict((await db.execute(text("SELECT key, value FROM incidencias_settings WHERE key LIKE 'acc.%'"))).all())
     metodo = ajustes.get("acc.metodo_firma", "manual")
-    return metodo, metodo == "docusign" and ajustes.get("acc.docusign_ambiente", "pruebas") == "pruebas"
+    return metodo, metodo == "docusign" and ajustes.get("acc.docusign_ambiente", "pruebas") == "pruebas" and str(ajustes.get("acc.marca_agua_prueba", "true")).lower() not in ("false", "0", "no", "off")
 
 
 async def _formato_activo(db: AsyncSession, formato_id: str) -> AccFormato:
