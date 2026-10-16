@@ -300,7 +300,7 @@ def _lamina_resumen(d, op) -> str:
         # La grafica va debajo de la tabla (en su columna) y usa el alto que queda ahi
         alto_tabla = 30 + 29 * (len(d["unidades"]) + 1)
         con_barra = (op.get("tema") or "verus") in ("verus", "avalanz")
-        libre = 720 - (86 if con_barra else 38) - 28 - 58 - (36 if est else 0) - 92 - alto_tabla - 30 - 24 - 6
+        libre = 720 - (86 if con_barra else 38) - 28 - 58 - (36 if est else 0) - 92 - alto_tabla - 30 - 24 - 20   # 20: aire entre la leyenda y la nota al pie
         grafica = f'<p class="mini">Entradas, salidas y abiertos al cierre de cada día</p>{_grafica_flujo(dias, libre, 760 if (hal or acc) else 1200)}'
     lateral = ""
     if hal:
