@@ -89,7 +89,7 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
   }, [incidentId])
   useEffect(() => { cargar() }, [cargar])
   useEffect(() => {
-    api.get(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/mencionables`).then(r => setMencionables(r.data?.data ?? [])).catch(() => setMencionables([]))
+    api.get(`/api/v1/it-service-desk/incidencias/${incidentId}/mencionables`).then(r => setMencionables(r.data?.data ?? [])).catch(() => setMencionables([]))
   }, [incidentId, lista.length])
 
   const opcionesM = busquedaM === null ? [] : mencionables
