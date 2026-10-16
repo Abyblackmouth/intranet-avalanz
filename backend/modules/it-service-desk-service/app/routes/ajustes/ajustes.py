@@ -4,6 +4,7 @@ Los valores viven en incidencias_settings (clave/valor en texto), que ya leen
 los modulos con _get_setting. Este catalogo define cada ajuste: su grupo, su
 explicacion, su tipo y sus valores validos. La pantalla se dibuja a partir de
 el, asi que un ajuste nuevo es una entrada mas aqui."""
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -31,6 +32,9 @@ AJUSTES = [
     {"key": "cdc.permitir_documento_propio", "grupo": "Control de Cambios", "label": "Permitir documento propio en el Arranque",
      "descripcion": "Si está activo, el Project Manager puede subir su propio documento (por ejemplo, su propia acta) en lugar de llenar el formato del sistema.",
      "tipo": "bool", "default": "false"},
+    {"key": "mesa.menciones_excluidos", "grupo": "Mesa de Soporte", "label": "Excluir de las menciones",
+     "descripcion": "Incident Managers que no aparecen al escribir @ en la conversación (por ejemplo, directores o dueños con acceso temporal). Si ya participan en la conversación de un ticket, ahí sí se les puede mencionar.",
+     "tipo": "usuarios", "default": "[]", "fuente": "incident-managers"},
 ]
 POR_KEY = {a["key"]: a for a in AJUSTES}
 
@@ -61,6 +65,21 @@ def _normalizar(ajuste: dict, valor) -> str:
         if str(valor) not in validos:
             raise HTTPException(status_code=422, detail=f"Opción no válida. Opciones: {', '.join(validos)}")
         return str(valor)
+    if tipo == "usuarios":
+        lista = valor
+        if isinstance(valor, str):
+            try:
+                lista = json.loads(valor or "[]")
+            except ValueError:
+                raise HTTPException(status_code=422, detail="La lista de personas no es válida")
+        if not isinstance(lista, list) or len(lista) > 100:
+            raise HTTPException(status_code=422, detail="La lista de personas no es válida")
+        limpia = {}
+        for x in lista:
+            pid = str(x.get("id") if isinstance(x, dict) else x).strip()
+            if pid:
+                limpia[pid] = {"id": pid, "nombre": str(x.get("nombre", "")) if isinstance(x, dict) else ""}
+        return json.dumps(sorted(limpia.values(), key=lambda p: p["nombre"]), ensure_ascii=False)
     raise HTTPException(status_code=500, detail="Tipo de ajuste desconocido")
 
 
@@ -74,6 +93,17 @@ async def listar_ajustes(db: AsyncSession = Depends(get_db), user: dict = Depend
     _solo_super_admin(user)
     actuales = await _valores(db)
     return [{**a, "valor": actuales.get(a["key"], a["default"])} for a in AJUSTES]
+
+
+@router.get("/opciones/{fuente}")
+async def opciones_ajuste(fuente: str, user: dict = Depends(get_current_user)):
+    """Opciones para los ajustes de tipo "usuarios"."""
+    _solo_super_admin(user)
+    if fuente != "incident-managers":
+        raise HTTPException(status_code=404, detail="Fuente no encontrada")
+    from app.routes.mesa_de_soporte.comentarios import _incident_managers
+    ims = await _incident_managers()
+    return sorted(({"id": k, "nombre": v["nombre"], "bloqueado": v["bloqueado"]} for k, v in ims.items()), key=lambda x: x["nombre"])
 
 
 @router.get("/historial")

@@ -90,7 +90,18 @@ async def _mencionables(inc, db: AsyncSession, user: dict, es_ti: bool) -> dict:
         if aid:
             gente.setdefault(str(aid), {"nombre": nom or "Usuario", "rol": "participante"})
     if IM_ROL in roles or "super_admin" in roles:
+        # Excluidos en Ajustes (por ejemplo, directores con acceso temporal): no se ofrecen,
+        # salvo que ya participen en la conversacion (entonces ya estan en "gente")
+        from sqlalchemy import text as _text
+        import json as _json_mod
+        try:
+            crudo = (await db.execute(_text("SELECT value FROM incidencias_settings WHERE key = 'mesa.menciones_excluidos'"))).scalar()
+            excluidos = {str(p.get("id")) for p in _json_mod.loads(crudo or "[]")}
+        except Exception:
+            excluidos = set()
         for iid, d in (await _incident_managers()).items():
+            if iid in excluidos:
+                continue
             if iid not in gente:
                 gente[iid] = {"nombre": d["nombre"], "rol": "incident-manager", "bloqueado": d["bloqueado"]}
     gente.pop(uid, None)
