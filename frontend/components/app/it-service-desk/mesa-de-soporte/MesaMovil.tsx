@@ -121,7 +121,7 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
             const on = tipos.length === 1 && tipos[0] === k
             return (
               <button key={k} type="button" aria-pressed={on} onClick={() => { onTipos(on ? [] : [k]); setMostrar(30) }}
-                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-semibold ${on ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'}`}>
+                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold ${on ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'}`}>
                 {nombre}<span className={`text-xs ${on ? 'text-slate-300' : 'text-slate-500'}`}>{porTipo[k] ?? 0}</span>
               </button>
             )
@@ -129,7 +129,7 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
         </div>
       </div>
 
-      <div className="flex gap-3.5 bg-slate-50 px-4 py-2 text-[13px] text-slate-500 max-[380px]:px-3">
+      <div className="flex gap-3.5 bg-slate-50 px-4 py-2 text-xs text-slate-500 max-[380px]:px-3">
         <span><b className="font-semibold text-slate-900">{abiertos}</b> abiertos</span>
         <span><b className="font-semibold text-red-700">{vencidos}</b> vencidos</span>
         {cuantosNuevos > 0 && <span><b className="font-semibold text-slate-900">{cuantosNuevos}</b> nuevos</span>}
@@ -155,13 +155,13 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
                 {nuevos.has(t.id) && <span className="absolute top-3 bottom-3 left-0 w-0.75 rounded-r bg-[#1a4fa0]" />}
                 <button type="button" onClick={() => onAbrir(t.id)}
                   className="grid w-full grid-cols-[1fr_auto] gap-x-2.5 gap-y-1 px-4 py-3 text-left active:bg-slate-50 max-[380px]:px-3">
-                  <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs font-semibold text-slate-500">
+                  <span className="flex min-w-0 items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-500">
                     {t.folio}
                     {sev && <span className={`rounded border px-1.5 font-sans text-[11px] font-bold ${CLASE_SEV[sev] ?? CLASE_SEV.S4}`}>{sev}</span>}
                   </span>
-                  <span className={`self-start rounded-full px-2.5 py-0.5 text-xs font-semibold ${claseEstatus(t.status)}`}>{estatusDe(t)}</span>
-                  <span className="col-span-2 line-clamp-2 text-[15px] leading-snug font-semibold text-slate-900">{t.title}</span>
-                  <span className="col-span-2 flex min-w-0 items-center gap-2 text-[13px] text-slate-500">
+                  <span className={`self-start rounded-full px-2 py-0.5 text-[11px] font-semibold ${claseEstatus(t.status)}`}>{estatusDe(t)}</span>
+                  <span className="col-span-2 line-clamp-2 text-sm leading-snug font-semibold text-slate-900">{t.title}</span>
+                  <span className="col-span-2 flex min-w-0 items-center gap-2 text-xs text-slate-500">
                     <span className="flex min-w-0 flex-1 items-center gap-1.5">
                       <span className="grid size-5 shrink-0 place-items-center rounded-full bg-blue-50 text-[9px] font-bold text-[#1a4fa0]">{iniciales(t.assigned_to_name)}</span>
                       <span className="truncate">{t.assigned_to_name ?? <i className="text-slate-400">Sin asignar</i>}</span>
@@ -185,7 +185,7 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
 
       {/* Nuevo ticket: circulo con +, al alcance del pulgar */}
       <button type="button" onClick={onNuevo} aria-label="Nuevo ticket"
-        className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom,0px)+20px)] z-30 grid size-14 place-items-center rounded-full bg-[#1a4fa0] text-white shadow-lg shadow-[#1a4fa0]/40 active:scale-95">
+        className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom,0px)+80px)] z-30 grid size-14 place-items-center rounded-full bg-[#1a4fa0] text-white shadow-lg shadow-[#1a4fa0]/40 active:scale-95">
         <Plus size={26} strokeWidth={2.4} />
       </button>
 
