@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, Plus, Search, Upload, X } from 'lucide-react'
-import UserTable, { type OrdenUsuarios } from '@/components/admin/users/UserTable'
+import UserTable from '@/components/admin/users/UserTable'
 import UserForm from '@/components/admin/users/UserForm'
 import FiltroUsuarios, { cumpleFiltro, estadoDe, etiquetaRol, type FiltroUsuario } from '@/components/admin/users/FiltroUsuarios'
 import { useAuthStore } from '@/store/authStore'
@@ -11,7 +11,7 @@ import { UserRow } from '@/types/user.types'
 import api from '@/services/api'
 
 // Usuarios: se cargan todos de una vez (son pocos) y la busqueda, el filtro dinamico,
-// el orden y la paginacion se resuelven en la pantalla, al instante.
+// el orden y la paginacion (TablaPantalla) se resuelven en la pantalla, al instante.
 // La ruta (Inicio / Administracion / Usuarios) vive en el navbar: sin titulo ni subtitulo.
 
 const normal = (s?: string | null) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -24,11 +24,6 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [buscar, setBuscar] = useState('')
   const [filtros, setFiltros] = useState<FiltroUsuario[]>([])
-  const [orden, setOrden] = useState<OrdenUsuarios | null>(null)
-  const [page, setPage] = useState(1)
-  const [modoPagina, setModoPagina] = useState(0)          // 0 = ajustar a pantalla
-  const [capacidad, setCapacidad] = useState(20)
-  const perPage = modoPagina || capacidad
   const [exportando, setExportando] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
@@ -48,36 +43,12 @@ export default function UsersPage() {
   }, [])
   useEffect(() => { cargar() }, [cargar])
 
-  // Busqueda + filtro dinamico + orden
+  // Busqueda + filtro dinamico (el orden y la paginacion los resuelve la tabla)
   const filtrados = useMemo(() => {
     const q = normal(buscar.trim())
-    let lista = todos.filter(u => cumpleFiltro(u, filtros) && (!q ||
+    return todos.filter(u => cumpleFiltro(u, filtros) && (!q ||
       [u.full_name, u.email, u.matricula, u.puesto, u.departamento, (u as any).phone].some(v => normal(v).includes(q))))
-    if (orden) {
-      const valor = (u: UserRow): string | number => {
-        switch (orden.col) {
-          case 'nombre': return normal(u.full_name)
-          case 'email': return normal(u.email)
-          case 'matricula': return normal(u.matricula)
-          case 'puesto': return normal(u.puesto)
-          case 'departamento': return normal(u.departamento)
-          case 'empresa': return normal(u.company_name)
-          case 'rol': return normal((u.roles || []).map(etiquetaRol).join(','))
-          case 'twofa': return u.is_2fa_configured ? 1 : 0
-          case 'estado': return estadoDe(u)
-          case 'conexion': return u.last_login_at ? new Date(u.last_login_at).getTime() : 0
-        }
-      }
-      const s = orden.dir === 'asc' ? 1 : -1
-      lista = [...lista].sort((a, b) => { const x = valor(a), y = valor(b); return x < y ? -s : x > y ? s : 0 })
-    }
-    return lista
-  }, [todos, buscar, filtros, orden])
-
-  useEffect(() => { setPage(1) }, [buscar, filtros, orden, modoPagina])
-  // Si al cambiar el tamano de la pantalla la pagina actual ya no existe, regresa a la ultima
-  useEffect(() => { const ult = Math.max(1, Math.ceil(filtrados.length / perPage)); if (page > ult) setPage(ult) }, [perPage, filtrados.length, page])
-  const pagina = filtrados.slice((page - 1) * perPage, page * perPage)
+  }, [todos, buscar, filtros])
 
   // Excel de lo que esta filtrado
   const exportar = async () => {
@@ -135,9 +106,7 @@ export default function UsersPage() {
         )}
       </div>
 
-      <UserTable users={pagina} isLoading={isLoading} onRefresh={() => cargar(true)}
-        page={page} perPage={perPage} total={filtrados.length} onPageChange={setPage} onPerPageChange={setModoPagina}
-        orden={orden} onOrden={setOrden} onCapacidad={setCapacidad} modoPagina={modoPagina} />
+      <UserTable users={filtrados} isLoading={isLoading} onRefresh={() => cargar(true)} reinicio={`${buscar}|${filtros.map(f => f.campo + f.valor).join(',')}`} />
 
       {showForm && <UserForm onClose={() => setShowForm(false)} onSuccess={() => { cargar(true); setShowForm(false) }} />}
     </div>
