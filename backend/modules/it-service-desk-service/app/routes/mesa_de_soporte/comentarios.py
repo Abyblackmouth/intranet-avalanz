@@ -74,9 +74,15 @@ async def _mencionables(inc, db: AsyncSession, user: dict, es_ti: bool) -> dict:
     roles = set(user.get("roles") or [])
     gente: dict = {}
     if inc.requester_id:
-        gente[str(inc.requester_id)] = {"nombre": inc.requester_name or "Solicitante", "rol": "participante"}
+        gente[str(inc.requester_id)] = {"nombre": getattr(inc, "requester_name", None) or "Solicitante", "rol": "participante"}
     if inc.assigned_to_user_id:
-        gente[str(inc.assigned_to_user_id)] = {"nombre": inc.assigned_to_name or "Asignado", "rol": "participante"}
+        nombre_asig = getattr(inc, "assigned_to_name", None)
+        if not nombre_asig:   # el ticket no guarda el nombre del asignado: se toma de su perfil
+            try:
+                nombre_asig = (await _m._get_requester_profile(str(inc.assigned_to_user_id))).get("full_name")
+            except Exception:
+                nombre_asig = None
+        gente[str(inc.assigned_to_user_id)] = {"nombre": nombre_asig or "Asignado", "rol": "participante"}
     q = select(IncidentComment.author_id, IncidentComment.author_name).where(IncidentComment.incident_id == inc.id)
     if not es_ti:
         q = q.where(IncidentComment.is_internal == False)  # noqa: E712
