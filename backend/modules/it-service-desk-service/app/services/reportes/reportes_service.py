@@ -112,12 +112,15 @@ def calcular(tickets, sistemas: Dict[str, str], modulos: Dict[str, str], severid
     base = historico if historico is not None else tickets
     dias, d = [], desde
     while d <= hasta:
-        if d.weekday() < 5:
-            fin_dia = datetime.combine(d + timedelta(days=1), time.min, TZ)
-            if fin_dia > now:
-                fin_dia = now
+        ini_dia = datetime.combine(d, time.min, TZ)
+        fin_dia = min(datetime.combine(d + timedelta(days=1), time.min, TZ), now)
+        entraron = sum(1 for i in tickets if ini_dia <= i.created_at < fin_dia)
+        resueltos_dia = sum(1 for i in base if (c := _cierre(i)) and ini_dia <= c < fin_dia)
+        # Dias habiles siempre; fines de semana solo si hubo movimiento
+        if d.weekday() < 5 or entraron or resueltos_dia:
             abiertos_dia = sum(1 for i in base if i.created_at < fin_dia and not ((_cierre(i) or fin_dia) < fin_dia))
-            dias.append({"fecha": d.isoformat(), "etiqueta": f"{d.day} {MESES[d.month - 1]}", "tickets": abiertos_dia})
+            dias.append({"fecha": d.isoformat(), "etiqueta": f"{d.day} {MESES[d.month - 1]}", "tickets": abiertos_dia,
+                         "entraron": entraron, "resueltos": resueltos_dia})
         d += timedelta(days=1)
 
     # Compacto: empresa x columna (TOTVS por modulo, Accesos junto, otros sistemas en una columna)
@@ -231,6 +234,45 @@ def _item(t: str, negrita: bool = True) -> str:
     return f"<li>{t}</li>"
 
 
+def _grafica_flujo(dias, alto_max: int = 168, ancho: int = 760) -> str:
+    """Entraron y se resolvieron (dos barras por dia) y abiertos al cierre (linea, eje derecho)."""
+    if not dias:
+        return ""
+    W, H, L, R, T, B = ancho, max(110, int(alto_max)), 30, 34, 22, 24   # ancho de su columna; el alto, segun el espacio libre
+    n = len(dias); paso = (W - L - R) / n
+    max_b = max([1] + [x["entraron"] for x in dias] + [x["resueltos"] for x in dias])
+    max_l = max([1] + [x["tickets"] for x in dias])
+    def tope(v):
+        for m in (5, 10, 20, 25, 40, 50, 60, 80, 100, 150, 200, 300, 500, 1000):
+            if v <= m: return m
+        return v
+    mb, ml = tope(max_b), tope(max_l)
+    alto = H - T - B
+    yb = lambda v: T + alto - v / mb * alto
+    yl = lambda v: T + alto - v / ml * alto
+    cx = lambda i: L + paso * i + paso / 2
+    w = min(22, paso * 0.3)
+    s = []
+    for k in range(5):
+        v = mb * k / 4; y = yb(v)
+        s.append(f'<line x1="{L}" x2="{W-R}" y1="{y:.1f}" y2="{y:.1f}" stroke="var(--line)" stroke-opacity=".5"/>'
+                 f'<text x="{L-6}" y="{y+3.5:.1f}" text-anchor="end" class="g-eje">{v:g}</text>'
+                 f'<text x="{W-R+6}" y="{yl(ml*k/4)+3.5:.1f}" class="g-eje" fill="var(--pri)">{ml*k/4:g}</text>')
+    for i, x in enumerate(dias):
+        for j, (v, cls) in enumerate(((x["entraron"], "g-entra"), (x["resueltos"], "g-sale"))):
+            xx = cx(i) - w - 1 + j * (w + 2)
+            s.append(f'<rect x="{xx:.1f}" y="{yb(v):.1f}" width="{w:.1f}" height="{H-B-yb(v):.1f}" rx="1.5" class="{cls}"/>')
+        s.append(f'<text x="{cx(i):.1f}" y="{H-B+14}" text-anchor="middle" class="g-eje">{e(x["etiqueta"])}</text>')
+    pts = " ".join(f"{cx(i):.1f},{yl(x['tickets']):.1f}" for i, x in enumerate(dias))
+    s.append(f'<polyline points="{pts}" fill="none" stroke="var(--pri)" stroke-width="2.5" stroke-linejoin="round"/>')
+    for i, x in enumerate(dias):
+        s.append(f'<circle cx="{cx(i):.1f}" cy="{yl(x["tickets"]):.1f}" r="3.5" fill="var(--pri)"/>'
+                 f'<text x="{cx(i):.1f}" y="{yl(x["tickets"])-7:.1f}" text-anchor="middle" class="g-num">{x["tickets"]}</text>')
+    ley = ('<div class="g-ley"><span><i class="g-entra"></i>Entraron en el día</span><span><i class="g-sale"></i>Se resolvieron en el día</span>'
+           '<span><i class="g-linea"></i>Abiertos al cierre (eje derecho)</span></div>')
+    return f'<svg class="g-flujo" viewBox="0 0 {W} {H}" preserveAspectRatio="xMidYMid meet">{"".join(s)}</svg>{ley}'
+
+
 def _lamina_resumen(d, op) -> str:
     k = d["kpis"]
     est = (op.get("estatus") or "").strip()
@@ -252,6 +294,14 @@ def _lamina_resumen(d, op) -> str:
     umbral_alto = dos[-1] if dos and dos[-1] > 0 else mx + 1
     barras = "".join(f'<div class="{"alto" if x["tickets"] >= umbral_alto else ""}"><span>{x["tickets"] or ""}</span><i style="height:{max(2, round(x["tickets"] / mx * 100))}%"></i></div>' for x in dias)
     ejes = "".join(f"<span>{e(x['etiqueta'])}</span>" for x in dias)
+    if (op.get("grafica") or "flujo") == "abiertos":
+        grafica = f'<p class="mini">Tickets abiertos al cierre de cada día</p><div class="barras">{barras}</div><div class="ejes">{ejes}</div>'
+    else:
+        # La grafica va debajo de la tabla (en su columna) y usa el alto que queda ahi
+        alto_tabla = 30 + 29 * (len(d["unidades"]) + 1)
+        con_barra = (op.get("tema") or "verus") in ("verus", "avalanz")
+        libre = 720 - (86 if con_barra else 38) - 28 - 58 - (36 if est else 0) - 92 - alto_tabla - 30 - 24 - 6
+        grafica = f'<p class="mini">Entradas, salidas y abiertos al cierre de cada día</p>{_grafica_flujo(dias, libre, 760 if (hal or acc) else 1200)}'
     lateral = ""
     if hal:
         lateral += f'<div class="caja"><h3>Hallazgos</h3><ul>{"".join(_item(h) for h in hal)}</ul></div>'
@@ -266,8 +316,7 @@ def _lamina_resumen(d, op) -> str:
     <div>
       <table><thead><tr><th>Unidad</th><th>Tickets</th><th>Resueltos</th><th>Abiertos</th><th>Vencidos</th><th>S1</th><th>SLA resp.</th><th>SLA resol.</th></tr></thead>
       <tbody>{tabla}</tbody></table>
-      <p class="mini">Tickets abiertos al cierre de cada día</p>
-      <div class="barras">{barras}</div><div class="ejes">{ejes}</div>
+      {grafica}
     </div>
     {f'<div>{lateral}</div>' if lateral else ''}
   </div>
@@ -448,7 +497,7 @@ body{{font-family:var(--fuente);color:var(--ink)}}
 .kpi{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px}}
 .kpi b{{display:block;font-size:30px;line-height:1.15;color:var(--kpi-num)}} .kpi small{{color:var(--muted2);font-size:14px}}.kpi:first-child{{background:var(--hero-bg);border-color:var(--hero-bg)}} .kpi:first-child b{{color:var(--hero-ink)}} .kpi:first-child small{{color:var(--hero-sub)}}
 .kpi.alerta b{{color:var(--alerta)}} .kpi:first-child.alerta b{{color:#ffd2bd}}
-.cols{{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;flex:1;min-height:0}} .cols.sin-lateral{{grid-template-columns:1fr}}
+.cols{{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;align-items:start}} .cols.sin-lateral{{grid-template-columns:1fr}}
 table{{width:100%;border-collapse:collapse;font-size:14.5px}} table.ancha{{font-size:13px;table-layout:fixed}}
 table.ancha th{{white-space:normal;word-break:normal;overflow-wrap:normal;line-height:1.15;font-size:11.5px;padding:6px 3px}}
 th{{background:var(--head-bg);color:var(--head-ink);font-weight:600;padding:7px 6px;border:1px solid var(--line);text-align:center}}
@@ -461,6 +510,10 @@ table.ancha td{{padding:9px 6px}} td.sangria{{padding-left:22px}} th.top{{backgr
 .caja h3{{margin:0 0 6px;font-size:18px;color:var(--pri)}} .caja.acc{{background:var(--acc-bg);border-color:var(--acc-line)}} .caja.acc h3{{color:var(--alerta)}}
 .caja ul{{margin:0;padding-left:18px}} .caja li{{margin-bottom:4px}}
 .mini{{font-size:13px;font-weight:700;margin:12px 0 4px}}
+.g-flujo{{width:100%;height:auto;display:block}} .g-eje{{font-size:10px;fill:var(--muted2)}} .g-num{{font-size:10.5px;font-weight:700;fill:var(--pri)}}
+.g-entra{{fill:var(--line);background:var(--line)}} .g-sale{{fill:var(--top-bg);background:var(--top-bg)}}
+.g-ley{{display:flex;gap:18px;font-size:11.5px;color:var(--muted2);margin-top:2px}} .g-ley span{{display:flex;align-items:center;gap:6px}}
+.g-ley i{{display:inline-block;width:12px;height:10px;border-radius:2px}} .g-ley i.g-linea{{width:16px;height:3px;background:var(--pri)}}
 table.tipos{{font-size:17px}} table.tipos td,table.tipos th{{padding:12px 10px}} tr.aparte td{{color:var(--muted2);font-style:italic;background:var(--bg);border-top:2px dashed var(--line)}}
 .caja.nota p{{margin:0;line-height:1.5}}
 .barras{{display:flex;align-items:flex-end;gap:2%;height:120px;padding:0 3%;border-bottom:1px solid var(--line)}}

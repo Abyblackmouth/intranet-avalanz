@@ -47,6 +47,7 @@ class Opciones(BaseModel):
     estatus: Optional[str] = Field(None, max_length=200)
     hallazgos: List[str] = Field(default_factory=list, max_length=8)
     acciones: List[str] = Field(default_factory=list, max_length=8)
+    grafica: str = Field("flujo", max_length=12)      # flujo (entradas, salidas y saldo) | abiertos (la anterior)
 
 
 async def _severidades(db) -> dict:
