@@ -64,13 +64,15 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
   const [orden, setOrden] = useState<{ id: string; dir: 1 | -1 } | null>(null)
   const ajuste = useRef(0)      // px de menos cuando la pagina tiene margenes que el calculo no ve
   const recorte = useRef(0)     // filas de menos cuando algunas filas son mas altas que la primera
-  const medirRef = useRef<() => void>(() => {})
+  const medirRef = useRef<(correccion?: boolean) => void>(() => {})
 
   // Alto: de donde empieza la tabla al fondo de la ventana, menos la paginacion
   useLayoutEffect(() => {
     const el = zona.current
     if (!el) return
-    const medir = () => {
+    // Cada medicion "en serio" empieza de cero; las correcciones finas solo valen hasta la siguiente
+    const medir = (correccion = false) => {
+      if (!correccion) { ajuste.current = 0; recorte.current = 0 }
       const disponible = Math.max(220, Math.floor(window.innerHeight - el.getBoundingClientRect().top - (pie.current?.offsetHeight ?? 38) - margenInferior - ajuste.current))
       setAlto(disponible)
       const cab = el.querySelector('thead')?.getBoundingClientRect().height ?? 30
@@ -80,10 +82,12 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
     }
     medirRef.current = medir
     medir()
-    window.addEventListener('resize', medir)
-    const ro = new ResizeObserver(medir)
-    ro.observe(document.body)
-    return () => { window.removeEventListener('resize', medir); ro.disconnect() }
+    const alCambiar = () => medir()
+    window.addEventListener('resize', alCambiar)
+    // La barra de filtros de arriba (cabecera) puede cambiar de alto cuando llegan los datos
+    const ro = new ResizeObserver(alCambiar)
+    if (el.previousElementSibling) ro.observe(el.previousElementSibling)
+    return () => { window.removeEventListener('resize', alCambiar); ro.disconnect() }
   }, [filas.length > 0, cargando, rellenoFila, letra, margenInferior])
 
   // Despues de dibujar: si quedo scroll (en la pagina o en la tabla), se corrige solo
@@ -93,8 +97,8 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
     let p: HTMLElement | null = el.parentElement
     while (p && p !== document.body && !/(auto|scroll)/.test(getComputedStyle(p).overflowY)) p = p.parentElement
     const sobra = p && p !== document.body ? p.scrollHeight - p.clientHeight : document.documentElement.scrollHeight - window.innerHeight
-    if (sobra > 1 && ajuste.current < 400) { ajuste.current += sobra; medirRef.current(); return }
-    if (modo === 0 && el.scrollHeight - el.clientHeight > 1 && recorte.current < 30) { recorte.current += 1; medirRef.current() }
+    if (sobra > 1 && ajuste.current < 400) { ajuste.current += sobra; medirRef.current(true); return }
+    if (modo === 0 && el.scrollHeight - el.clientHeight > 1 && recorte.current < 30) { recorte.current += 1; medirRef.current(true) }
   })
 
   const ordenadas = useMemo(() => {
