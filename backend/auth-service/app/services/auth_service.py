@@ -1,3 +1,5 @@
+from fastapi import HTTPException
+from datetime import timedelta
 import httpx
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
@@ -251,6 +253,17 @@ async def refresh_access_token(
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise UnauthorizedException("Usuario no disponible")
+
+    # Expiracion absoluta: pasadas JWT_ABSOLUTE_EXPIRE_HOURS desde que inicio la sesion ya no se renueva.
+    # Antes se renovaba con un acceso que nacia vencido y la app quedaba en un ciclo de rechazos.
+    if session.session_started_at + timedelta(hours=config.JWT_ABSOLUTE_EXPIRE_HOURS) <= now_utc():
+        await db.execute(
+            update(UserSession).where(UserSession.id == session.id).values(
+                is_revoked=True, revoked_at=now_utc(), revoked_reason="expiracion absoluta"
+            )
+        )
+        await db.commit()
+        raise HTTPException(status_code=401, detail="Tu sesión venció; inicia sesión de nuevo")
 
     # Actualizar ultima actividad
     await db.execute(
