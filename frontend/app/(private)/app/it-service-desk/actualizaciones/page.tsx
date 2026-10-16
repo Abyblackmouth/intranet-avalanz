@@ -112,7 +112,7 @@ export default function ActualizacionesPage() {
   const moduloNombre = (id: string | null) => (id ? modules.find(m => m.id === id)?.name : null)
 
   return (
-    <div className="flex-1 overflow-auto px-6 pt-3 pb-6 max-[1440px]:px-4 max-md:px-3 max-md:pb-4">
+    <div className="px-6 pt-3 pb-6 max-[1440px]:px-4 max-md:px-3 max-md:pb-4">
       <div className="flex items-center gap-1 border-b border-slate-200 mb-4 overflow-x-auto [scrollbar-width:none]">
         {[{ key: 'catalogo', label: 'Catálogo', icon: Server }, { key: 'accesos', label: 'Control de accesos', icon: KeyRound }, { key: 'sla', label: 'SLA', icon: Timer }, { key: 'comunicados', label: 'Comunicados', icon: Megaphone }].map(t => (
           <button key={t.key} type="button" onClick={() => setTab(t.key as any)}

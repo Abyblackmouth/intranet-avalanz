@@ -105,7 +105,7 @@ export default function AjustesPage() {
   }
 
   return (
-    <div className="flex-1 overflow-auto px-6 pt-3 pb-6 max-[1440px]:px-4 max-md:px-3 max-md:pb-4">
+    <div className="px-6 pt-3 pb-6 max-[1440px]:px-4 max-md:px-3 max-md:pb-4">
       {loading ? (
         <div className="py-16 flex justify-center"><div className="w-5 h-5 border-2 border-slate-300 border-t-[#1a4fa0] rounded-full animate-spin" /></div>
       ) : (

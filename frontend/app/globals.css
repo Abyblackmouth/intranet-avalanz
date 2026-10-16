@@ -92,3 +92,10 @@ body {
 @media (max-width: 767px) {
   input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
 }
+
+/* Telefono: la pagina completa no rebota (solo el contenido); asi Safari no mueve su barra
+   y la barra inferior conserva su alto (la pagina no rebota) */
+@media (max-width: 767px) {
+  html, body { height: 100%; overscroll-behavior: none; }
+  main { overscroll-behavior-y: contain; }
+}
