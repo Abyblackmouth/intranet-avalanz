@@ -14,8 +14,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 export interface Columna<T> {
   id: string
   titulo: ReactNode
-  /** Contenido de la celda */
-  celda: (fila: T) => ReactNode
+  /** Contenido de la celda (opcional si la pantalla usa renderFila) */
+  celda?: (fila: T) => ReactNode
   /** Valor para ordenar; sin el, la columna no se ordena */
   orden?: (fila: T) => string | number | null | undefined
   /** Clases de la celda y del encabezado (ancho, alineacion…) */
@@ -34,12 +34,27 @@ interface Props<T> {
   claseFila?: (fila: T) => string
   /** Si cambia, la tabla vuelve a la pagina 1 (por ejemplo, al buscar o filtrar) */
   reinicio?: unknown
+  /** Margen vertical de cada celda, en px (arriba y abajo). Aplica tambien a filas propias. */
+  rellenoFila?: number
+  /** Tamano de letra de las celdas, en px (las filas propias pueden fijar el suyo) */
+  letra?: number
+  /** Filas propias: la pantalla dibuja el <tr> completo (por ejemplo TicketRow) */
+  renderFila?: (fila: T) => ReactNode
+  /** Contenido arriba de la tabla, dentro de la misma tarjeta (buscador, filtros…) */
+  cabecera?: ReactNode
+  /** Clases de la tarjeta (por defecto: borde gris y esquinas redondeadas) */
+  claseContenedor?: string
+  /** Clases extra del pie de paginacion */
+  clasePie?: string
+  /** Espacio que deja abajo, en px (el margen inferior de la pagina) */
+  margenInferior?: number
 }
 
 const normal = (v: unknown) => typeof v === 'string' ? v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : v
 const TAMANOS = [25, 50, 100]
 
-export default function TablaPantalla<T>({ filas, columnas, clave, cargando = false, unidad = 'registros', vacio, claseFila, reinicio }: Props<T>) {
+export default function TablaPantalla<T>({ filas, columnas, clave, cargando = false, unidad = 'registros', vacio, claseFila, reinicio,
+  rellenoFila = 4, letra = 12, renderFila, cabecera, claseContenedor, clasePie, margenInferior = 18 }: Props<T>) {
   const zona = useRef<HTMLDivElement>(null)
   const pie = useRef<HTMLDivElement>(null)
   const [alto, setAlto] = useState<number | null>(null)
@@ -53,10 +68,10 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
     const el = zona.current
     if (!el) return
     const medir = () => {
-      const disponible = Math.max(220, Math.floor(window.innerHeight - el.getBoundingClientRect().top - (pie.current?.offsetHeight ?? 38) - 18))
+      const disponible = Math.max(220, Math.floor(window.innerHeight - el.getBoundingClientRect().top - (pie.current?.offsetHeight ?? 38) - margenInferior))
       setAlto(disponible)
       const cab = el.querySelector('thead')?.getBoundingClientRect().height ?? 30
-      const fila = el.querySelector('tbody tr[data-fila]')?.getBoundingClientRect().height ?? 33
+      const fila = el.querySelector('tbody > tr:not([data-vacio])')?.getBoundingClientRect().height ?? 33
       const barra = el.scrollWidth > el.clientWidth ? 14 : 0
       setCapacidad(Math.max(5, Math.floor((disponible - cab - barra - 2) / Math.max(20, fila))))
     }
@@ -65,7 +80,7 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
     const ro = new ResizeObserver(medir)
     ro.observe(document.body)
     return () => { window.removeEventListener('resize', medir); ro.disconnect() }
-  }, [filas.length > 0, cargando])
+  }, [filas.length > 0, cargando, rellenoFila, letra, margenInferior])
 
   const ordenadas = useMemo(() => {
     const col = orden && columnas.find(c => c.id === orden.id)
@@ -84,7 +99,8 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
   const ordenar = (id: string) => setOrden(o => (o?.id !== id ? { id, dir: 1 } : o.dir === 1 ? { id, dir: -1 } : null))
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className={claseContenedor ?? 'flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white'}>
+      {cabecera}
       <div ref={zona} style={alto ? { height: alto } : undefined} className="overflow-auto">
         <table className="w-full border-separate border-spacing-0">
           <thead className="sticky top-0 z-10">
@@ -101,18 +117,19 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody style={{ ['--relleno' as string]: `${rellenoFila}px`, fontSize: `${letra}px` } as React.CSSProperties}
+            className="[&>tr>td]:py-(--relleno)!">
             {cargando ? (
-              <tr><td colSpan={columnas.length} className="py-12 text-center">
+              <tr data-vacio><td colSpan={columnas.length} className="py-12! text-center">
                 <div className="mx-auto size-7 animate-spin rounded-full border-2 border-[#1a4fa0] border-t-transparent" />
                 <p className="mt-2 text-sm text-slate-400">Cargando {unidad}…</p>
               </td></tr>
             ) : !visibles.length ? (
-              <tr><td colSpan={columnas.length} className="py-12 text-center text-sm text-slate-400">{vacio ?? `No se encontraron ${unidad}`}</td></tr>
-            ) : visibles.map(f => (
+              <tr data-vacio><td colSpan={columnas.length} className="py-12! text-center text-sm text-slate-400">{vacio ?? `No se encontraron ${unidad}`}</td></tr>
+            ) : visibles.map(f => renderFila ? <React.Fragment key={clave(f)}>{renderFila(f)}</React.Fragment> : (
               <tr key={clave(f)} data-fila className={`group hover:bg-[#1a4fa0]/5 [&>td]:border-b [&>td]:border-slate-100 ${claseFila?.(f) ?? ''}`}>
                 {columnas.map(c => (
-                  <td key={c.id} className={`px-2 py-1 text-xs text-slate-700 whitespace-nowrap ${c.clase ?? ''}`}>{c.celda(f)}</td>
+                  <td key={c.id} className={`px-2 text-slate-700 whitespace-nowrap ${c.clase ?? ''}`}>{c.celda?.(f)}</td>
                 ))}
               </tr>
             ))}
@@ -120,7 +137,7 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
         </table>
       </div>
 
-      <div ref={pie} className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-3 py-1.5">
+      <div ref={pie} className={`flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 px-3 py-1.5 ${clasePie ?? ''}`}>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span>{total ? `${(pagina - 1) * porPagina + 1}–${Math.min(pagina * porPagina, total)} de ${total} ${unidad}` : `0 ${unidad}`}</span>
           <select value={modo} onChange={e => setModo(Number(e.target.value))} aria-label={`${unidad} por página`}

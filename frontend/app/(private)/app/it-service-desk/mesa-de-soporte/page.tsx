@@ -15,6 +15,7 @@ import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soport
 import KanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/KanbanBoard'
 import { LayoutGrid, List } from 'lucide-react'
 import TicketRow from '@/components/app/it-service-desk/mesa-de-soporte/TicketRow'
+import TablaPantalla, { type Columna } from '@/components/ui/TablaPantalla'
 import NewTicketTypeModal from '@/components/app/it-service-desk/mesa-de-soporte/NewTicketTypeModal'
 import CreateControlCambioModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateControlCambioModal'
 import CreateSolicitudAccesoModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateSolicitudAccesoModal'
@@ -272,7 +273,7 @@ export default function MesaDeSoportePage() {
     if (!ticketDeLiga || incidents.length === 0) return
     const t: any = incidents.find((x: any) => String(x.id) === ticketDeLiga)
     if (t) {
-      setActiveTypes([]); setActiveSevs([]); setStatusFilter(''); setSearch(t.folio); setPage(1)
+      setActiveTypes([]); setActiveSevs([]); setStatusFilter(''); setSearch(t.folio)
       setViewingTicketId(t.id)
     }
     setTicketDeLiga(null)
@@ -283,8 +284,6 @@ export default function MesaDeSoportePage() {
   const [cdcPrio, setCdcPrio] = useState<'todas' | 'P1' | 'P2' | 'P3'>('todas')
   const [cdcVista, setCdcVista] = useState<'etapas' | 'fases'>('fases')
   const [viewMode, setViewMode] = useState<'tabla' | 'tablero' | 'proyectos'>('tabla')
-  const [page, setPage] = useState(1)
-  const PER_PAGE = 13
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -318,8 +317,21 @@ export default function MesaDeSoportePage() {
     return matchSearch && matchStatus && matchSev && matchTipo && cumpleFiltroMaestro(t, maestro)
   })
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  // Columnas de la tabla (el orden por columna, la paginacion y el alto los resuelve TablaPantalla)
+  const nombreSistema = (t: any) => (systems as any[]).find((x: any) => x.id === t.system_id)?.name ?? ''
+  const columnasMesa: Columna<any>[] = [
+    { id: 'folio', titulo: 'Folio', orden: t => t.folio },
+    { id: 'titulo', titulo: 'Título', orden: t => t.title },
+    { id: 'empresa', titulo: 'Empresa', orden: t => t.requester_company_name },
+    { id: 'sistema', titulo: 'Sistema', orden: nombreSistema },
+    { id: 'severidad', titulo: 'Severidad', orden: t => sevInfo(t.severity_validated_id ?? t.severity_reported_id)?.code ?? 'Z' },
+    { id: 'estatus', titulo: 'Estatus', orden: t => t.status },
+    { id: 'solicitante', titulo: 'Solicitante', orden: t => t.requester_name },
+    { id: 'asignado', titulo: 'Asignado a', orden: t => t.assigned_to_name ?? '' },
+    { id: 'creado', titulo: 'Creado', orden: t => (t.created_at ? new Date(t.created_at).getTime() : 0) },
+    { id: 'sla', titulo: 'SLA', clase: 'text-center', orden: t => (t.sla_resolution_limit ? new Date(t.sla_resolution_limit).getTime() : Number.MAX_SAFE_INTEGER) },
+    { id: 'acciones', titulo: 'Acciones', clase: 'text-right' },
+  ]
 
   return (
     // Sin encabezado: su espacio se usa para los tableros. Es el mismo
@@ -464,147 +476,107 @@ export default function MesaDeSoportePage() {
       )}
 
       {viewMode === 'tabla' && (
-      <div className="bg-white rounded-2xl border border-slate-400 shadow-xl overflow-hidden relative flex flex-col flex-1 min-h-0">
+      <TablaPantalla
+        filas={filtered}
+        columnas={columnasMesa}
+        clave={(t: any) => t.id}
+        cargando={loading}
+        unidad="tickets"
+        vacio="Sin tickets que coincidan"
+        reinicio={`${search}|${statusFilter}|${activeSevs.join()}|${activeTypes.join()}|${JSON.stringify(maestro)}`}
+        rellenoFila={6}
+        margenInferior={28}
+        claseContenedor="bg-white rounded-2xl border border-slate-400 shadow-xl overflow-hidden relative flex flex-col"
+        clasePie="bg-slate-50 pr-20"
+        cabecera={
                 <div className="p-4 border-b border-slate-200 bg-slate-50/80 pt-5">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-            <div className="relative flex-1 min-w-50">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                placeholder="Buscar por folio o título..."
-                className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/20"
-              />
-            </div>
-            <FiltroMaestro tickets={incidents} sistemas={systems as any} modulos={modulos} valor={maestro} onChange={v => { setMaestro(v); setPage(1) }} />
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-              className="px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#1a4fa0]"
-            >
-              <option value="">Todos los estatus</option>
-              {tiposVisibles.length === 1
-                ? ESTATUS_POR_TIPO[tiposVisibles[0]].estatus.map(([k, v]) => (
-                    <option key={k} value={`${tiposVisibles[0]}:${k}`}>{v} ({conteoEstatus(tiposVisibles[0], k)})</option>
-                  ))
-                : tiposVisibles.map(tp => (
-                    <optgroup key={tp} label={ESTATUS_POR_TIPO[tp].label}>
-                      {ESTATUS_POR_TIPO[tp].estatus.map(([k, v]) => (
-                        <option key={k} value={`${tp}:${k}`}>{v} ({conteoEstatus(tp, k)})</option>
-                      ))}
-                    </optgroup>
-                  ))}
-            </select>
-            <button type="button" disabled={!filtered.length}
-              title={`Descargar a Excel los ${filtered.length} tickets filtrados`}
-              onClick={() => descargarTicketsExcel(filtered, {
-                sistemas: systems as any, modulos,
-                severidad: (t: any) => sevInfo(t.severity_validated_id ?? t.severity_reported_id)?.code ?? '',
-                estatus: (t: any) => (ESTATUS_POR_TIPO as any)[tipoDe(t)]?.estatus.find((e: any) => e[0] === t.status)?.[1] ?? t.status,
-              })}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-50 whitespace-nowrap">
-              <IconoDescarga size={15} /> Descargar
-            </button>
-          </div>
-          <div className="flex items-center flex-wrap gap-2 mt-3">
-            <span className="text-[11px] font-medium text-slate-500 mr-1">Severidad:</span>
-            {['S1', 'S2', 'S3', 'S4'].map(code => (
-              <button
-                key={code}
-                onClick={() => { setActiveSevs(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]); setPage(1) }}
-                className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition ${
-                  activeSevs.includes(code)
-                    ? 'bg-slate-800 text-white border-slate-800'
-                    : 'bg-white text-slate-700 border-slate-300'
-                }`}
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+              <div className="relative flex-1 min-w-50">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value) }}
+                  placeholder="Buscar por folio o título..."
+                  className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/20"
+                />
+              </div>
+              <FiltroMaestro tickets={incidents} sistemas={systems as any} modulos={modulos} valor={maestro} onChange={v => { setMaestro(v) }} />
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value) }}
+                className="px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white outline-none focus:border-[#1a4fa0]"
               >
-                {code}
-              </button>
-            ))}
-            <span className="w-px h-4 bg-slate-300 mx-2" aria-hidden="true" />
-            <span className="text-[11px] font-medium text-slate-500 mr-1">Tipo:</span>
-            {[['incidente', 'Incidentes'], ['solicitud_acceso', 'Solicitudes de acceso'], ['control_cambio', 'Control de cambios']].map(([key, label]) => (
-              <button
-                key={key}
-                aria-pressed={activeTypes.includes(key)}
-                onClick={() => { setActiveTypes(prev => prev.includes(key) ? prev.filter(c => c !== key) : [...prev, key]); setPage(1) }}
-                className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition ${
-                  activeTypes.includes(key)
-                    ? 'bg-slate-800 text-white border-slate-800'
-                    : 'bg-white text-slate-700 border-slate-300'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-            <span className="text-[11px] text-slate-400 font-mono ml-auto">{filtered.length} de {incidents.length} tickets</span>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto overflow-y-auto" style={{ flex: 1 }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-100 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-600 border-b border-slate-300">
-                <th className="whitespace-nowrap px-4 py-3">Folio</th>
-                <th className="whitespace-nowrap px-4 py-3">Título</th>
-                <th className="whitespace-nowrap px-4 py-3">Empresa</th>
-                <th className="whitespace-nowrap px-4 py-3">Sistema</th>
-                <th className="whitespace-nowrap px-4 py-3">Severidad</th>
-                <th className="whitespace-nowrap px-4 py-3">Estatus</th>
-                <th className="whitespace-nowrap px-4 py-3">Solicitante</th>
-                <th className="whitespace-nowrap px-4 py-3">Asignado a</th>
-                <th className="whitespace-nowrap px-4 py-3">Creado</th>
-                <th className="whitespace-nowrap px-4 py-3 text-center">SLA</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {loading ? (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-sm">Cargando...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400 text-sm">Sin tickets que coincidan</td></tr>
-              ) : (
-                paginated.map(t => (
-                  <TicketRow
-                    key={t.id}
-                    ticket={t}
-                    systems={systems}
-                    severities={severities}
-                    canAssign={canAssign}
-                    onAssign={setAssigningTicket}
-                    onView={setViewingTicketId}
-                    isNew={newTicketIds.has(t.id)}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* pr-20: deja libre la esquina inferior derecha para la esfera del asistente */}
-        <div className="flex items-center justify-between pl-4 pr-20 py-3 border-t border-slate-300 bg-slate-50 shrink-0">
-            <p className="text-xs text-slate-500">
-              Mostrando {(page - 1) * PER_PAGE + 1}-{Math.min(page * PER_PAGE, filtered.length)} de {filtered.length}
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition"
-              >
-                Anterior
-              </button>
-              <span className="text-xs text-slate-500 px-2">Página {page} de {totalPages}</span>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition"
-              >
-                Siguiente
+                <option value="">Todos los estatus</option>
+                {tiposVisibles.length === 1
+                  ? ESTATUS_POR_TIPO[tiposVisibles[0]].estatus.map(([k, v]) => (
+                      <option key={k} value={`${tiposVisibles[0]}:${k}`}>{v} ({conteoEstatus(tiposVisibles[0], k)})</option>
+                    ))
+                  : tiposVisibles.map(tp => (
+                      <optgroup key={tp} label={ESTATUS_POR_TIPO[tp].label}>
+                        {ESTATUS_POR_TIPO[tp].estatus.map(([k, v]) => (
+                          <option key={k} value={`${tp}:${k}`}>{v} ({conteoEstatus(tp, k)})</option>
+                        ))}
+                      </optgroup>
+                    ))}
+              </select>
+              <button type="button" disabled={!filtered.length}
+                title={`Descargar a Excel los ${filtered.length} tickets filtrados`}
+                onClick={() => descargarTicketsExcel(filtered, {
+                  sistemas: systems as any, modulos,
+                  severidad: (t: any) => sevInfo(t.severity_validated_id ?? t.severity_reported_id)?.code ?? '',
+                  estatus: (t: any) => (ESTATUS_POR_TIPO as any)[tipoDe(t)]?.estatus.find((e: any) => e[0] === t.status)?.[1] ?? t.status,
+                })}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-50 whitespace-nowrap">
+                <IconoDescarga size={15} /> Descargar
               </button>
             </div>
+            <div className="flex items-center flex-wrap gap-2 mt-3">
+              <span className="text-[11px] font-medium text-slate-500 mr-1">Severidad:</span>
+              {['S1', 'S2', 'S3', 'S4'].map(code => (
+                <button
+                  key={code}
+                  onClick={() => { setActiveSevs(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]) }}
+                  className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition ${
+                    activeSevs.includes(code)
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white text-slate-700 border-slate-300'
+                  }`}
+                >
+                  {code}
+                </button>
+              ))}
+              <span className="w-px h-4 bg-slate-300 mx-2" aria-hidden="true" />
+              <span className="text-[11px] font-medium text-slate-500 mr-1">Tipo:</span>
+              {[['incidente', 'Incidentes'], ['solicitud_acceso', 'Solicitudes de acceso'], ['control_cambio', 'Control de cambios']].map(([key, label]) => (
+                <button
+                  key={key}
+                  aria-pressed={activeTypes.includes(key)}
+                  onClick={() => { setActiveTypes(prev => prev.includes(key) ? prev.filter(c => c !== key) : [...prev, key]) }}
+                  className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition ${
+                    activeTypes.includes(key)
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white text-slate-700 border-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              <span className="text-[11px] text-slate-400 font-mono ml-auto">{filtered.length} de {incidents.length} tickets</span>
+            </div>
           </div>
-      </div>
+        }
+        renderFila={(t: any) => (
+          <TicketRow
+            ticket={t}
+            systems={systems}
+            severities={severities}
+            canAssign={canAssign}
+            onAssign={setAssigningTicket}
+            onView={setViewingTicketId}
+            isNew={newTicketIds.has(t.id)}
+          />
+        )}
+      />
       )}
       </div>
 
@@ -654,7 +626,7 @@ export default function MesaDeSoportePage() {
 
       {viewingTicketId && (() => {
         // CDC abre su propio detalle por etapas; Incidente conserva el suyo
-        const t: any = paginated.find((x: any) => x.id === viewingTicketId)
+        const t: any = filtered.find((x: any) => x.id === viewingTicketId) ?? (incidents as any[]).find((x: any) => x.id === viewingTicketId)
         const isCdc = t?.ticket_type === 'control_cambio' || t?.folio?.startsWith('CDC-')
         return isCdc ? (
           <CdcDetailModal
