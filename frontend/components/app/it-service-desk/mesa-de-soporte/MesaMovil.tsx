@@ -101,9 +101,9 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
   return (
     <div className="-mx-4 -mt-3 -mb-4 min-h-full bg-white md:hidden">
       {/* Arriba: busqueda, filtros y tipos (fijos al hacer scroll) */}
-      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white px-4 pt-3 pb-2.5 max-[380px]:px-3">
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white px-4 pt-2 pb-2 max-[380px]:px-3">
         <div className="flex gap-2">
-          <label className="flex h-11 flex-1 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
+          <label className="flex h-10 flex-1 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
             <Search size={18} className="shrink-0" />
             <input value={busqueda} onChange={e => { onBusqueda(e.target.value); setMostrar(30) }} placeholder="Folio o título"
               aria-label="Buscar ticket" autoComplete="off" enterKeyHint="search"
@@ -111,17 +111,17 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
             {busqueda && <button type="button" onClick={() => onBusqueda('')} aria-label="Borrar búsqueda" className="grid size-8 place-items-center rounded-lg"><X size={16} /></button>}
           </label>
           <button type="button" onClick={() => setHoja(true)} aria-label="Filtros"
-            className="relative grid size-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-800 active:bg-slate-50">
+            className="relative grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-800 active:bg-slate-50">
             <SlidersHorizontal size={20} />
             {activos > 0 && <span className="absolute -top-1.5 -right-1.5 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-[#1a4fa0] px-1 text-[10.5px] font-bold text-white">{activos}</span>}
           </button>
         </div>
-        <div className="-mx-4 mt-2.5 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] max-[380px]:-mx-3 max-[380px]:px-3">
+        <div className="-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] max-[380px]:-mx-3 max-[380px]:px-3">
           {TIPOS.map(([k, nombre]) => {
             const on = tipos.length === 1 && tipos[0] === k
             return (
               <button key={k} type="button" aria-pressed={on} onClick={() => { onTipos(on ? [] : [k]); setMostrar(30) }}
-                className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold ${on ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'}`}>
+                className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold ${on ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'}`}>
                 {nombre}<span className={`text-xs ${on ? 'text-slate-300' : 'text-slate-500'}`}>{porTipo[k] ?? 0}</span>
               </button>
             )
@@ -129,7 +129,7 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
         </div>
       </div>
 
-      <div className="flex gap-3.5 bg-slate-50 px-4 py-2 text-xs text-slate-500 max-[380px]:px-3">
+      <div className="flex gap-3.5 bg-slate-50 px-4 py-1.5 text-xs text-slate-500 max-[380px]:px-3">
         <span><b className="font-semibold text-slate-900">{abiertos}</b> abiertos</span>
         <span><b className="font-semibold text-red-700">{vencidos}</b> vencidos</span>
         {cuantosNuevos > 0 && <span><b className="font-semibold text-slate-900">{cuantosNuevos}</b> nuevos</span>}
