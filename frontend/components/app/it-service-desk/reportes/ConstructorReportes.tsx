@@ -46,6 +46,7 @@ export default function ConstructorReportes() {
     { id: 'detallado', nombre: 'Detalle por sistema y módulo', on: false },
   ])
   const [titulo, setTitulo] = useState('Mesa de Ayuda')
+  const [grafica, setGrafica] = useState('flujo')
   const [estatus, setEstatus] = useState('')
   const [hallazgos, setHallazgos] = useState('')
   const [acciones, setAcciones] = useState('')
@@ -57,12 +58,12 @@ export default function ConstructorReportes() {
   const caja = useRef<HTMLDivElement>(null)
 
   const opciones = useMemo(() => ({
-    desde, hasta, empresa: empresa || null, tema, acento, titulo: titulo.trim() || 'Mesa de Ayuda',
+    desde, hasta, empresa: empresa || null, tema, acento, grafica, titulo: titulo.trim() || 'Mesa de Ayuda',
     laminas: laminas.filter(l => l.on).map(l => l.id),
     estatus: estatus.trim() || null,
     hallazgos: hallazgos.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8),
     acciones: acciones.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8),
-  }), [desde, hasta, empresa, tema, acento, titulo, laminas, estatus, hallazgos, acciones])
+  }), [desde, hasta, empresa, tema, acento, grafica, titulo, laminas, estatus, hallazgos, acciones])
 
   // Empresas del periodo (para el selector)
   useEffect(() => {
@@ -177,6 +178,14 @@ export default function ConstructorReportes() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className={LABEL} htmlFor="rep-grafica">Gráfica del resumen</label>
+            <select id="rep-grafica" value={grafica} onChange={e => setGrafica(e.target.value)} className={CAMPO}>
+              <option value="flujo">Entradas, salidas y saldo</option>
+              <option value="abiertos">Solo abiertos al cierre (anterior)</option>
+            </select>
           </div>
 
           <div>
