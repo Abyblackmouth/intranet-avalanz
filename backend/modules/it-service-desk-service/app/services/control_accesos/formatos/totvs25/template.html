@@ -12,7 +12,14 @@
   /* ── Hoja A4 ─────────────────────────────────────── */
   .hoja { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 11.3mm 12mm 8.5mm; position: relative;
           display: flex; flex-direction: column; font-size: 8.3pt; line-height: 1.3; overflow: hidden; }
-  @page { size: A4; margin: 0; }
+  @page { size: A4; margin: 11.3mm 12mm 8.5mm; }
+  /* En el PDF la hoja crece y pasa a las paginas que hagan falta: nada se recorta (las firmas y sus
+     anclas siempre llegan a DocuSign). Si todo cabe en una hoja, se ve igual que antes. */
+  @media print {
+    .hoja { width: auto; height: auto; min-height: 277mm; padding: 0; overflow: visible; }
+    tr, .firmas, .firma, .ti, .clausula, .pie { break-inside: avoid; }
+    thead { display: table-header-group; }
+  }
 
   /* Encabezado de una línea */
   .enc { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4mm; padding-bottom: 2mm; border-bottom: 2px solid var(--azul); }
