@@ -105,11 +105,12 @@ export default function AjustesPage() {
   }
 
   return (
-    <PageWrapper title="Ajustes" description="Configuración del IT Service Desk · solo super admin">
+    <div className="px-6 pt-3 pb-6 max-[1440px]:px-4 max-md:px-3 max-md:pb-4">
       {loading ? (
         <div className="py-16 flex justify-center"><div className="w-5 h-5 border-2 border-slate-300 border-t-[#1a4fa0] rounded-full animate-spin" /></div>
       ) : (
-        <div className="max-w-4xl grid gap-5">
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+          <div className="grid min-w-0 gap-5">
           {grupos.map(g => (
             <section key={g} className="bg-white border border-slate-200 rounded-2xl shadow-sm">
               <h2 className="px-5 py-3.5 border-b border-slate-100 font-[family-name:var(--font-jakarta)] text-[15px] font-bold text-slate-900">{g}</h2>
@@ -134,13 +135,15 @@ export default function AjustesPage() {
               </ul>
             </section>
           ))}
+          </div>
 
-          <section className="bg-white border border-slate-200 rounded-2xl shadow-sm">
+          {/* Historial: a la derecha en pantallas anchas, fijo al hacer scroll y con su propio desplazamiento */}
+          <section className="bg-white border border-slate-200 rounded-2xl shadow-sm xl:sticky xl:top-0 xl:flex xl:max-h-[calc(100dvh-7rem)] xl:flex-col">
             <h2 className="px-5 py-3.5 border-b border-slate-100 font-[family-name:var(--font-jakarta)] text-[15px] font-bold text-slate-900">Historial de cambios</h2>
             {historial.length === 0 ? (
               <p className="px-5 py-6 text-[13px] text-slate-400">Todavía no hay cambios registrados.</p>
             ) : (
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-slate-100 xl:min-h-0 xl:overflow-y-auto">
                 {historial.map((c, i) => (
                   <li key={i} className="px-5 py-2.5 text-[13px] flex flex-wrap items-baseline gap-x-2">
                     <span className="font-semibold text-slate-800">{c.label}</span>
@@ -153,6 +156,6 @@ export default function AjustesPage() {
           </section>
         </div>
       )}
-    </PageWrapper>
+    </div>
   )
 }

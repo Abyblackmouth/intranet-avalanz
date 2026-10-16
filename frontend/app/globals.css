@@ -87,3 +87,15 @@ body {
   display: flex; align-items: center; flex-shrink: 0;
 }
 .copy-btn:hover { color: #475569; background: #f1f5f9; }
+
+/* Telefono: campos de 16 px para que el iPhone no haga zoom al tocarlos (sin zoom del iPhone) */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
+}
+
+/* Telefono: la pagina completa no rebota (solo el contenido); asi Safari no mueve su barra
+   y la barra inferior conserva su alto (la pagina no rebota) */
+@media (max-width: 767px) {
+  html, body { height: 100%; overscroll-behavior: none; }
+  main { overscroll-behavior-y: contain; }
+}

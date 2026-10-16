@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Server, Plus, Pencil, Power, Search, KeyRound, Globe, Link2, Timer, Megaphone } from 'lucide-react'
-import PageWrapper from '@/components/layout/PageWrapper'
 import SlaConfig from '@/components/app/it-service-desk/actualizaciones/SlaConfig'
 import ComunicadosConfig from '@/components/app/it-service-desk/actualizaciones/ComunicadosConfig'
 import FirmaTI from '@/components/app/it-service-desk/actualizaciones/FirmaTI'
@@ -113,11 +112,11 @@ export default function ActualizacionesPage() {
   const moduloNombre = (id: string | null) => (id ? modules.find(m => m.id === id)?.name : null)
 
   return (
-    <PageWrapper title="Actualizaciones" description="Catálogo de sistemas, módulos y especialistas · formatos de Control de accesos" actions={null}>
-      <div className="flex items-center gap-1 border-b border-slate-200 mb-4">
+    <div className="px-6 pt-3 pb-6 max-[1440px]:px-4 max-md:px-3 max-md:pb-4">
+      <div className="flex items-center gap-1 border-b border-slate-200 mb-4 overflow-x-auto [scrollbar-width:none]">
         {[{ key: 'catalogo', label: 'Catálogo', icon: Server }, { key: 'accesos', label: 'Control de accesos', icon: KeyRound }, { key: 'sla', label: 'SLA', icon: Timer }, { key: 'comunicados', label: 'Comunicados', icon: Megaphone }].map(t => (
           <button key={t.key} type="button" onClick={() => setTab(t.key as any)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.key ? 'border-[#1a4fa0] text-[#1a4fa0]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors max-md:px-3 ${tab === t.key ? 'border-[#1a4fa0] text-[#1a4fa0]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             <t.icon size={15} /> {t.label}
           </button>
         ))}
@@ -130,7 +129,7 @@ export default function ActualizacionesPage() {
       {tab === 'catalogo' && (loading ? (
         <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Cargando…</div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[290px_minmax(0,1fr)] gap-4 lg:h-[calc(100vh-215px)] lg:min-h-120">
+        <div className="grid grid-cols-1 lg:grid-cols-[290px_minmax(0,1fr)] gap-4 lg:h-[calc(100dvh-160px)] lg:min-h-120">
           {/* ── Lista de sistemas ── */}
           <aside className="hidden lg:flex flex-col bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
             <div className="p-3 border-b border-slate-200 grid gap-2">
@@ -290,7 +289,7 @@ export default function ActualizacionesPage() {
         <SpecialistFormModal spec={editingSpec ?? undefined} systems={systems} modules={modules} defaultSystemId={sel && sel !== GENERAL ? sel : null}
           onClose={() => setShowSpecForm(false)} onSaved={() => { setShowSpecForm(false); fetchAll() }} />
       )}
-    </PageWrapper>
+    </div>
   )
 }
 
