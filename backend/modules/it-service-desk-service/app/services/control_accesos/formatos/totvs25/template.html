@@ -98,7 +98,7 @@
   .ti .firma .linea { height: 6.5mm; }
   .pie { margin-top: 1.8mm; padding-top: 1.5mm; border-top: 1px solid var(--linea); display: flex; justify-content: space-between; font-size: 6.6pt; color: var(--gris); }
 
-  /* Leyenda de prueba (DocuSign en ambiente de pruebas) */
+  /* Leyenda de copias sin firmar (vista previa y evidencia; nunca en lo que se firma) */
   .prueba { position: absolute; top: 118mm; left: 0; right: 0; text-align: center; transform: rotate(-24deg);
             font-size: 40pt; font-weight: 800; color: rgba(185, 28, 28, .13); letter-spacing: .06em; pointer-events: none; }
   .firma .linea, .ti .campo u { position: relative; }
@@ -108,7 +108,7 @@
 </head>
 <body>
 <main class="hoja" aria-label="Solicitud de {{ movimiento_titulo|lower }} de usuario {{ sistema_titulo }}">
-  {% if prueba %}<div class="prueba">DOCUMENTO DE PRUEBA · SIN VALIDEZ</div>{% endif %}
+  {% if prueba %}<div class="prueba">COPIA SIN FIRMAS · SIN VALIDEZ</div>{% endif %}
   <header class="enc">
     <div class="marca">
       {% if logo_src %}<img src="{{ logo_src }}" alt="Grupo Avalanz">{% else %}GRUPO AVALANZ{% endif %}

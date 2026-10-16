@@ -41,7 +41,8 @@ async def _usuario(user: dict) -> dict:
 async def _ajustes_firma(db: AsyncSession) -> tuple[str, bool]:
     ajustes = dict((await db.execute(text("SELECT key, value FROM incidencias_settings WHERE key LIKE 'acc.%'"))).all())
     metodo = ajustes.get("acc.metodo_firma", "manual")
-    return metodo, metodo == "docusign" and ajustes.get("acc.docusign_ambiente", "pruebas") == "pruebas" and str(ajustes.get("acc.marca_agua_prueba", "true")).lower() not in ("false", "0", "no", "off")
+    # La marca va en las copias para ver o descargar; nunca en lo que se firma
+    return metodo, str(ajustes.get("acc.marca_agua_prueba", "true")).lower() not in ("false", "0", "no", "off")
 
 
 async def _formato_activo(db: AsyncSession, formato_id: str) -> AccFormato:
@@ -436,7 +437,7 @@ async def aprobar_solicitud(incident_id: str, body: AprobarPayload, db: AsyncSes
 
     enviado = datetime.fromisoformat(snap["enviado_en"]) if snap.get("enviado_en") else datetime.now(timezone.utc)
     fecha = enviado.astimezone(ZoneInfo("America/Monterrey")).strftime("%d/%m/%Y")
-    ctx = contexto_solicitud(snap["config"], cap, usr, sol.movimiento, inc.folio, fecha, metodo, prueba,
+    ctx = contexto_solicitud(snap["config"], cap, usr, sol.movimiento, inc.folio, fecha, metodo, False,  # lo que se firma no lleva la marca
                              con_admin=con_admin, jefe_admin_nombre=body.jefe_admin_nombre.strip(), anclas=True)
     pdf = await html_a_pdf(renderizar(f.clave, ctx))
 
