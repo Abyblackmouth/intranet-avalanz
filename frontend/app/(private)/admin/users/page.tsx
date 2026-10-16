@@ -74,13 +74,13 @@ export default function UsersPage() {
 
   const admin = mounted && isSuperAdmin()
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-4 max-[1440px]:px-4 max-[1440px]:pb-3">
+    <div className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-4 max-[1440px]:px-4 max-[1440px]:pb-3 max-md:px-3 max-md:pt-2 max-md:pb-0">
       {/* Barra: buscador, filtro dinamico, contador y acciones, en un renglon */}
       <div className="mb-2.5 flex shrink-0 flex-wrap items-center gap-2">
-        <label className="flex h-9.5 w-64 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 focus-within:border-[#1a4fa0] focus-within:ring-2 focus-within:ring-[#1a4fa0]/20 max-[1440px]:w-52">
+        <label className="flex h-9.5 w-64 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 focus-within:border-[#1a4fa0] focus-within:ring-2 focus-within:ring-[#1a4fa0]/20 max-[1440px]:w-52 max-md:h-10 max-md:w-full">
           <Search size={13} className="shrink-0 text-slate-400" />
           <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Nombre, correo, matrícula…" aria-label="Buscar usuario"
-            autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-800 outline-none placeholder:text-slate-400" />
+            autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[13px] text-slate-800 outline-none placeholder:text-slate-400 max-md:text-base" />
           {buscar && <button type="button" onClick={() => setBuscar('')} aria-label="Limpiar búsqueda" className="text-slate-400 hover:text-slate-600"><X size={13} /></button>}
         </label>
         <FiltroUsuarios usuarios={todos} valor={filtros} onChange={setFiltros} />
@@ -88,7 +88,7 @@ export default function UsersPage() {
           {filtrados.length === todos.length ? `${todos.length} usuarios` : `${filtrados.length} de ${todos.length}`}
         </span>
         {admin && (
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:ml-0">
             <button type="button" onClick={exportar} disabled={exportando || !filtrados.length}
               title={`Descargar a Excel los ${filtrados.length} usuarios filtrados`}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-700 hover:border-[#1a4fa0] hover:text-[#1a4fa0] disabled:opacity-50 whitespace-nowrap">
@@ -99,8 +99,8 @@ export default function UsersPage() {
               <Upload size={14} /> Alta masiva
             </Link>
             <button type="button" onClick={() => setShowForm(true)}
-              className="inline-flex h-9.5 items-center gap-1.5 rounded-xl bg-[#1a4fa0] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#173f82]">
-              <Plus size={15} /> Nuevo usuario
+              aria-label="Nuevo usuario" className="inline-flex h-9.5 items-center gap-1.5 rounded-xl bg-[#1a4fa0] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#173f82] max-md:fixed max-md:right-4 max-md:bottom-[calc(env(safe-area-inset-bottom,0px)+80px)] max-md:z-30 max-md:size-14 max-md:justify-center max-md:rounded-full max-md:p-0 max-md:shadow-lg max-md:shadow-[#1a4fa0]/40">
+              <Plus size={15} className="max-md:size-6.5" /> <span className="max-md:hidden">Nuevo usuario</span>
             </button>
           </div>
         )}

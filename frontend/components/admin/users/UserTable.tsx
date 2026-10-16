@@ -362,6 +362,8 @@ export default function UserTable({ users, isLoading, onRefresh, reinicio }: Use
   const [editUserId, setEditUserId] = useState<string | null>(null)
   const [resetUser, setResetUser] = useState<UserRow | null>(null)
   const [loadingReset, setLoadingReset] = useState(false)
+  const [mostrar, setMostrar] = useState(30)   // telefono: de 30 en 30
+  useEffect(() => { setMostrar(30) }, [reinicio])
 
   const handleReset = async (password: string) => {
     if (!resetUser) return
@@ -404,7 +406,60 @@ export default function UserTable({ users, isLoading, onRefresh, reinicio }: Use
 
   return (
     <>
-      <TablaPantalla filas={users} columnas={columnas} clave={u => u.user_id} cargando={isLoading} unidad="usuarios" reinicio={reinicio} />
+      <div className="max-md:hidden">
+        <TablaPantalla filas={users} columnas={columnas} clave={u => u.user_id} cargando={isLoading} unidad="usuarios" reinicio={reinicio} />
+      </div>
+
+      {/* Telefono (menos de 768 px): cada usuario en un renglon; al tocarlo se abre su detalle */}
+      <div className="-mx-3 border-t border-slate-200 bg-white md:hidden">
+        {isLoading ? (
+          <div className="py-16 text-center"><div className="mx-auto size-7 animate-spin rounded-full border-2 border-[#1a4fa0] border-t-transparent" /></div>
+        ) : !users.length ? (
+          <p className="py-16 text-center text-sm text-slate-400">No se encontraron usuarios</p>
+        ) : (
+          <ul className="pb-24">
+            {users.slice(0, mostrar).map(u => (
+              <li key={u.user_id} className="flex items-start gap-2 border-b border-slate-100 py-2.5 pr-1 pl-3">
+                <button type="button" onClick={() => setDetailUserId(u.user_id)} className="flex min-w-0 flex-1 items-start gap-2.5 text-left active:opacity-70">
+                  <span className="mt-0.5"><Avatar name={u.full_name} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-sm font-semibold text-slate-900">{u.full_name}</span>
+                      {u.is_protected && <span className="shrink-0 rounded bg-slate-100 px-1 text-[10px] font-medium text-slate-500">Protegido</span>}
+                    </span>
+                    <span className="block truncate text-xs text-slate-500">{u.email}</span>
+                    <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                      {u.company_name && <span className="font-medium text-slate-600">{u.company_name}</span>}
+                      <RoleBadge roles={u.roles} />
+                    </span>
+                  </span>
+                </button>
+                <span className="flex shrink-0 flex-col items-end gap-1.5">
+                  <StatusBadge user={u} />
+                  <span className="flex items-center gap-1">
+                    {u.is_locked ? <Lock size={18} className="text-red-500" /> : <Unlock size={18} className="text-green-500" />}
+                    <ActionMenu
+                      user={u}
+                      onRefresh={onRefresh}
+                      onViewDetail={() => setDetailUserId(u.user_id)}
+                      onEdit={() => setEditUserId(u.user_id)}
+                      onResetPassword={() => setResetUser(u)}
+                      onViewDocuments={() => { setDetailUserId(u.user_id); setDetailInitialTab("documents") }}
+                    />
+                  </span>
+                </span>
+              </li>
+            ))}
+            {users.length > mostrar && (
+              <li className="p-4 text-center">
+                <button type="button" onClick={() => setMostrar(m => m + 30)} className="h-11 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 active:bg-slate-50">
+                  Ver {Math.min(30, users.length - mostrar)} más
+                </button>
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
       {detailUserId && <UserDetail userId={detailUserId} initialTab={detailInitialTab} onClose={() => { setDetailUserId(null); setDetailInitialTab("info") }} onRefresh={onRefresh} />}
       {editUserId && <UserEditForm userId={editUserId} onClose={() => setEditUserId(null)} onSuccess={onRefresh} />}
       {resetUser && <ResetPasswordModal user={resetUser} onConfirm={handleReset} onClose={() => setResetUser(null)} isLoading={loadingReset} />}
