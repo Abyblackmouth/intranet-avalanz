@@ -103,7 +103,8 @@ async def crear_sobre(pdf: bytes, folio: str, asunto: str, mensaje: str, firmant
     }
     async with httpx.AsyncClient(timeout=30.0) as cli:
         r = await cli.post(_url("/envelopes"), json=cuerpo, headers={"Authorization": f"Bearer {await token()}"})
-        r.raise_for_status()
+        if r.status_code >= 400:
+            raise RuntimeError(f"DocuSign respondio {r.status_code}: {r.text[:600]}")
         return r.json()["envelopeId"]
 
 
