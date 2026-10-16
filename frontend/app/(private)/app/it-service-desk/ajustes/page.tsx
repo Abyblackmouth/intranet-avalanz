@@ -1,23 +1,74 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Lock, Check } from 'lucide-react'
+import { Lock, Check, X } from 'lucide-react'
+import api from '@/services/api'
 import PageWrapper from '@/components/layout/PageWrapper'
 import { useAuthStore } from '@/store/authStore'
 import { getAjustes, getAjustesHistorial, updateAjuste } from '@/services/itServiceDeskService'
 
 interface Ajuste {
-  key: string; grupo: string; label: string; descripcion: string; tipo: 'bool' | 'int' | 'opcion'
-  default: string; valor: string; opciones?: [string, string][]; min?: number; max?: number
+  key: string; grupo: string; label: string; descripcion: string; tipo: 'bool' | 'int' | 'opcion' | 'usuarios'
+  default: string; valor: string; opciones?: [string, string][]; min?: number; max?: number; fuente?: string
 }
 interface Cambio { key: string; label: string; anterior: string | null; nuevo: string; usuario: string; fecha: string }
 
 const errMsg = (e: any, fb: string) => { const d = e?.response?.data?.detail; return typeof d === 'string' ? d : fb }
 const fmt = (iso: string) => new Date(iso).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
+interface Persona { id: string; nombre: string; bloqueado?: boolean }
+const leerLista = (v: string): Persona[] => { try { const l = JSON.parse(v || '[]'); return Array.isArray(l) ? l : [] } catch { return [] } }
+const sinAcentos = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/** Ajuste de tipo "lista de personas": chips que se quitan con la X y un buscador para agregar */
+function ControlUsuarios({ a, onSave }: { a: Ajuste; onSave: (valor: string) => Promise<boolean> }) {
+  const elegidos = leerLista(a.valor)
+  const [opciones, setOpciones] = useState<Persona[]>([])
+  const [q, setQ] = useState('')
+  const [abierto, setAbierto] = useState(false)
+  useEffect(() => {
+    if (a.fuente) api.get(`/api/v1/it-service-desk/ajustes/opciones/${a.fuente}`).then(r => setOpciones(r.data ?? [])).catch(() => setOpciones([]))
+  }, [a.fuente])
+  const ids = new Set(elegidos.map(p => p.id))
+  const sugerencias = opciones.filter(o => !ids.has(o.id) && sinAcentos(o.nombre).includes(sinAcentos(q))).slice(0, 8)
+  const guardar = (l: Persona[]) => onSave(JSON.stringify(l.map(p => ({ id: p.id, nombre: p.nombre }))))
+  return (
+    <div className="w-full max-w-md">
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {elegidos.length === 0 && <span className="text-[12px] text-slate-400">Nadie excluido</span>}
+        {elegidos.map(p => (
+          <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 py-0.5 pr-1 pl-2.5 text-[12.5px] font-medium text-slate-700">
+            {p.nombre}
+            <button type="button" aria-label={`Quitar a ${p.nombre}`} onClick={() => guardar(elegidos.filter(x => x.id !== p.id))}
+              className="grid size-5 place-items-center rounded-full text-slate-500 hover:bg-slate-200"><X size={12} /></button>
+          </span>
+        ))}
+      </div>
+      <div className="relative">
+        <input value={q} onChange={e => { setQ(e.target.value); setAbierto(true) }} onFocus={() => setAbierto(true)} onBlur={() => setTimeout(() => setAbierto(false), 150)}
+          placeholder="Buscar para agregar…" aria-label={`Agregar a ${a.label}`}
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/15" />
+        {abierto && sugerencias.length > 0 && (
+          <ul className="absolute inset-x-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+            {sugerencias.map(o => (
+              <li key={o.id}>
+                <button type="button" onMouseDown={e => { e.preventDefault(); setQ(''); guardar([...elegidos, o]) }}
+                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[13px] text-slate-700 hover:bg-blue-50">
+                  <span className="truncate">{o.nombre}</span>{o.bloqueado && <span className="text-[11px] text-slate-400">bloqueado</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Control({ a, onSave }: { a: Ajuste; onSave: (valor: string | number | boolean) => Promise<boolean> }) {
   const [num, setNum] = useState(a.valor)
   useEffect(() => { setNum(a.valor) }, [a.valor])
+  if (a.tipo === 'usuarios') return <ControlUsuarios a={a} onSave={v => onSave(v)} />
   if (a.tipo === 'bool') {
     const on = a.valor === 'true'
     return (
@@ -101,6 +152,7 @@ export default function AjustesPage() {
     if (v === null) return '—'
     if (a?.tipo === 'bool') return v === 'true' ? 'Activo' : 'Inactivo'
     if (a?.tipo === 'opcion') return a.opciones?.find(o => o[0] === v)?.[1] ?? v
+    if (a?.tipo === 'usuarios') { const l = leerLista(v); return l.length ? l.map(p => p.nombre).join(', ') : 'Nadie' }
     return v
   }
 
