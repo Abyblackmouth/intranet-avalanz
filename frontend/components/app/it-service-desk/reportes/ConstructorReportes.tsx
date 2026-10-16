@@ -30,7 +30,7 @@ function rangoAtajo(a: string): [string, string] {
 }
 const ATAJOS = [['semana', 'Esta semana'], ['mes', 'Este mes'], ['anterior', 'Mes anterior'], ['30', 'Últimos 30 días'], ['anio', 'Este año']]
 const LABEL = 'block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5'
-const CAMPO = 'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-[#1a4fa0] max-md:py-2 max-md:text-base'
+const CAMPO = 'w-full min-w-0 max-w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-[#1a4fa0] max-md:py-2 max-md:text-base'
 
 export default function ConstructorReportes() {
   const [atajo, setAtajo] = useState('mes')
@@ -127,7 +127,7 @@ export default function ConstructorReportes() {
         ))}
       </div>
       <aside className={`w-80 shrink-0 flex flex-col border-r border-slate-200 bg-white max-md:min-h-0 max-md:w-full max-md:flex-1 max-md:border-r-0 ${vistaMovil === 'vista' ? 'max-md:hidden' : ''}`}>
-        <div className="flex-1 overflow-auto px-4 py-4 space-y-5">
+        <div className="flex-1 overflow-auto px-4 py-4 space-y-5 max-md:overflow-x-hidden max-md:overscroll-x-none max-md:touch-pan-y">
           <div>
             <p className="flex items-center gap-2 text-base font-bold text-slate-800"><Presentation size={18} className="text-[#1a4fa0]" /> Arma tu presentación</p>
             <p className="text-xs text-slate-500 mt-0.5">La vista previa es exactamente lo que descargas.</p>
