@@ -326,7 +326,7 @@ export default function MesaDeSoportePage() {
     // Sin encabezado: su espacio se usa para los tableros. Es el mismo
     // contenedor que PageWrapper (que no se modifica), sin su cabecera.
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex-1 overflow-auto px-6 max-[1440px]:px-4 pt-3 pb-6 max-[1440px]:pb-4 min-h-0">
+      <div className="flex-1 overflow-auto px-6 max-[1440px]:px-4 pt-3 pb-6 max-[1440px]:pb-4 min-h-0 max-md:p-0">
       {/* En el telefono (menos de 768 px) la tabla se vuelve lista; en computadora no cambia nada */}
       <MesaMovil
         todos={incidents}

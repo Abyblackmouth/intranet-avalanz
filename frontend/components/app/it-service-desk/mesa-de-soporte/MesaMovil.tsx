@@ -99,9 +99,10 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
   const alternar = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v])
 
   return (
-    <div className="-mx-4 -mt-3 -mb-4 min-h-full bg-white md:hidden">
+    <div className="min-h-full bg-white md:hidden">
       {/* Arriba: busqueda, filtros y tipos (fijos al hacer scroll) */}
-      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white px-4 pt-2 pb-2 max-[380px]:px-3">
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white">
+      <div className="px-4 pt-2 pb-2 max-[380px]:px-3">
         <div className="flex gap-2">
           <label className="flex h-10 flex-1 items-center gap-2 rounded-xl bg-slate-100 px-3 text-slate-400">
             <Search size={18} className="shrink-0" />
@@ -128,13 +129,14 @@ export default function MesaMovil({ todos, filtrados, cargando, busqueda, onBusq
           })}
         </div>
       </div>
-
-      <div className="flex gap-3.5 bg-slate-50 px-4 py-1.5 text-xs text-slate-500 max-[380px]:px-3">
+      <div className="flex gap-3.5 border-t border-slate-100 bg-slate-50 px-4 py-1.5 text-xs text-slate-500 max-[380px]:px-3">
         <span><b className="font-semibold text-slate-900">{abiertos}</b> abiertos</span>
         <span><b className="font-semibold text-red-700">{vencidos}</b> vencidos</span>
         {cuantosNuevos > 0 && <span><b className="font-semibold text-slate-900">{cuantosNuevos}</b> nuevos</span>}
         <span className="ml-auto">{lista.length} {lista.length === 1 ? 'ticket' : 'tickets'}</span>
       </div>
+      </div>
+
 
       {/* Lista */}
       {cargando ? (
