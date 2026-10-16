@@ -285,21 +285,21 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
 
       <div className="fixed right-0 top-0 h-full z-50 w-full flex flex-col bg-[#eef2f7] shadow-2xl" style={{ maxWidth: 'min(1560px, 98vw)' }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#dbe2ec] shrink-0 bg-white">
-          <div className="min-w-0">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#dbe2ec] shrink-0 bg-white max-md:flex-wrap max-md:gap-x-2 max-md:gap-y-2 max-md:px-4 max-md:pt-[calc(env(safe-area-inset-top,0px)+12px)] max-md:pb-3">
+          <div className="min-w-0 max-md:flex-1">
             <div className="flex items-center gap-2">
-              <p className="text-sm text-slate-400"><span className="text-slate-500">Folio número:</span> <span className="font-mono">{detail?.folio ?? '...'}</span></p>
+              <p className="text-sm text-slate-400 whitespace-nowrap"><span className="text-slate-500 max-md:hidden">Folio número:</span> <span className="font-mono">{detail?.folio ?? '...'}</span></p>
               {detail && (
                 <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${STATUS_CLASS[detail.status] ?? ''}`}>
                   {STATUS_LABEL[detail.status] ?? detail.status}
                 </span>
               )}
             </div>
-            <h2 className="font-bold text-slate-900 text-2xl truncate mt-0.5">{detail?.title ?? 'Cargando...'}</h2>
+            <h2 className="font-bold text-slate-900 text-2xl truncate mt-0.5 max-md:line-clamp-2 max-md:whitespace-normal max-md:text-lg max-md:leading-snug">{detail?.title ?? 'Cargando...'}</h2>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             {sev && (
-              <span className={`px-4 py-2 rounded-xl border-2 text-base font-bold ${SEV_CLASS[sev.code] ?? 'bg-slate-50 text-slate-600 border-slate-300'}`}>
+              <span className={`px-4 py-2 rounded-xl border-2 text-base font-bold max-md:px-2.5 max-md:py-1 max-md:text-sm ${SEV_CLASS[sev.code] ?? 'bg-slate-50 text-slate-600 border-slate-300'}`}>
                 {sev.code} · {sev.name}
               </span>
             )}

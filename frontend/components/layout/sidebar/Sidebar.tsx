@@ -22,6 +22,7 @@ export default function Sidebar() {
   const prefs = usePreferencias()
   const [montado, setMontado] = useState(false)
   const [recogido, setRecogido] = useState(false)
+  const [movil, setMovil] = useState(false)   // cajon abierto en el telefono
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
   const [q, setQ] = useState('')
   const [flot, setFlot] = useState<{ mod: Modulo; top: number; left: number } | null>(null)
@@ -30,9 +31,15 @@ export default function Sidebar() {
 
   useEffect(() => {
     setMontado(true)
-    // En laptops de 13"-15" abre recogido (solo iconos) para dar espacio a las tablas
-    if (window.innerWidth <= 1440) setRecogido(true)
+    // En el telefono el menu es un cajon (siempre completo); en laptops de 13"-15" abre recogido
+    if (window.innerWidth >= 768 && window.innerWidth <= 1440) setRecogido(true)
+    const abrir = () => setMovil(true)
+    window.addEventListener('menu-movil:abrir', abrir)
+    return () => window.removeEventListener('menu-movil:abrir', abrir)
   }, [])
+
+  // En el telefono, al elegir una pantalla el cajon se cierra
+  useEffect(() => { setMovil(false) }, [pathname])
 
   // El modulo donde estas se abre solo
   useEffect(() => {
@@ -116,14 +123,21 @@ export default function Sidebar() {
   }
 
   return (
+    <>
+    {movil && <div className="fixed inset-0 z-40 bg-slate-900/40 md:hidden" onClick={() => setMovil(false)} aria-hidden="true" />}
     <aside suppressHydrationWarning
-      className={`relative flex flex-col h-screen bg-white border-r border-slate-200 transition-[width] duration-300 shrink-0 ${montado && recogido ? 'w-16' : 'w-56 max-[1440px]:w-52'}`}>
+      className={`relative flex flex-col h-screen bg-white border-r border-slate-200 transition-[width] duration-300 shrink-0 ${montado && recogido ? 'w-16' : 'w-56 max-[1440px]:w-52'} max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:h-dvh max-md:w-72 max-md:shadow-2xl max-md:transition-transform ${movil ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'}`}>
+
+      {movil && (
+        <button type="button" onClick={() => setMovil(false)} aria-label="Cerrar menú"
+          className="absolute top-2 right-2 z-30 grid size-11 place-items-center rounded-xl text-slate-500 md:hidden"><X size={22} /></button>
+      )}
 
       {/* Boton para recoger o abrir */}
       {montado && (
         <button onClick={() => { setRecogido(!recogido); setFlot(null) }}
           aria-label={recogido ? 'Abrir menú' : 'Recoger menú'} title={recogido ? 'Abrir menú' : 'Recoger menú'}
-          className="absolute -right-3 top-4 z-30 grid size-6 place-items-center rounded-full bg-[#1a4fa0] text-white shadow-md hover:bg-[#173f82] transition">
+          className="absolute -right-3 top-4 z-30 grid size-6 place-items-center rounded-full bg-[#1a4fa0] text-white shadow-md hover:bg-[#173f82] transition max-md:hidden">
           {recogido ? <ChevronRight size={13} strokeWidth={2.6} /> : <ChevronLeft size={13} strokeWidth={2.6} />}
         </button>
       )}
@@ -198,5 +212,6 @@ export default function Sidebar() {
           onEntrar={() => cierre.current && clearTimeout(cierre.current)} onSalir={cerrarFlot} />
       )}
     </aside>
+    </>
   )
 }

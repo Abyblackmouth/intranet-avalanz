@@ -9,6 +9,7 @@ import { getModulesCatalog, getIncidents, getSystems, getSeverities, getSpeciali
 import { Search, Eye, Plus, UserPlus, Clock, Download } from 'lucide-react'
 import CreateIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/CreateIncidentModal'
 import IncidentDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/IncidentDetailModal'
+import MesaMovil from '@/components/app/it-service-desk/mesa-de-soporte/MesaMovil'
 import CdcDetailModal from '@/components/app/it-service-desk/mesa-de-soporte/CdcDetailModal'
 import CdcKanbanBoard from '@/components/app/it-service-desk/mesa-de-soporte/CdcKanbanBoard'
 import AssignIncidentModal from '@/components/app/it-service-desk/mesa-de-soporte/AssignIncidentModal'
@@ -325,8 +326,26 @@ export default function MesaDeSoportePage() {
     // Sin encabezado: su espacio se usa para los tableros. Es el mismo
     // contenedor que PageWrapper (que no se modifica), sin su cabecera.
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex-1 overflow-auto px-6 max-[1440px]:px-4 pt-3 pb-6 max-[1440px]:pb-4 min-h-0">
-      <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-auto px-6 max-[1440px]:px-4 pt-3 pb-6 max-[1440px]:pb-4 min-h-0 max-md:p-0">
+      {/* En el telefono (menos de 768 px) la tabla se vuelve lista; en computadora no cambia nada */}
+      <MesaMovil
+        todos={incidents}
+        filtrados={filtered}
+        cargando={loading}
+        busqueda={search}
+        onBusqueda={(v: string) => { setSearch(v); setPage(1) }}
+        tipos={activeTypes}
+        onTipos={setActiveTypes}
+        sevs={activeSevs}
+        onSevs={setActiveSevs}
+        codigosSev={severities.map((s: any) => s.code).filter(Boolean)}
+        sevDe={(t: any) => sevInfo(t.severity_validated_id ?? t.severity_reported_id)?.code}
+        estatusDe={(t: any) => (ESTATUS_POR_TIPO as any)[tipoDe(t)]?.estatus.find((e: any) => e[0] === t.status)?.[1] ?? STATUS_LABEL[t.status] ?? t.status}
+        nuevos={newTicketIds}
+        onAbrir={setViewingTicketId}
+        onNuevo={() => setShowTypePicker(true)}
+      />
+      <div className="flex flex-col h-full max-md:hidden">
       {/* Barra superior de la Mesa de Soporte: vista a la izquierda; disponibilidad,
           exportación y nuevo ticket a la derecha. Mismos handlers de siempre. */}
       <div className="flex items-center gap-3 mb-2 shrink-0 flex-wrap">
@@ -654,7 +673,7 @@ export default function MesaDeSoportePage() {
 
       {viewingTicketId && (() => {
         // CDC abre su propio detalle por etapas; Incidente conserva el suyo
-        const t: any = paginated.find((x: any) => x.id === viewingTicketId)
+        const t: any = filtered.find((x: any) => x.id === viewingTicketId) ?? (incidents as any[]).find((x: any) => x.id === viewingTicketId)
         const isCdc = t?.ticket_type === 'control_cambio' || t?.folio?.startsWith('CDC-')
         return isCdc ? (
           <CdcDetailModal

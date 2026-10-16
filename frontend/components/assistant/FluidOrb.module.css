@@ -110,3 +110,10 @@
 @media (prefers-reduced-motion: reduce) {
   .blob, .blink .orb, .blink .halo { animation: none; }
 }
+
+/* recorte circular para Safari: sin esto, el difuminado de las manchas se ve como un cuadro en el iPhone */
+.orb {
+  isolation: isolate;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  mask-image: radial-gradient(circle, #000 99%, transparent 100%);
+}

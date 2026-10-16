@@ -65,12 +65,12 @@ export default function NewTicketTypeModal({ onClose, onSelect }: NewTicketTypeM
           <button onClick={onClose} className="absolute top-5 right-5 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 transition">
             <X size={18} />
           </button>
-          <div className="text-center mb-6">
+          <div className="text-center max-md:text-left mb-6">
             <h2 className="text-lg font-bold text-slate-900">¿En qué te podemos ayudar?</h2>
             <p className="text-xs text-slate-400 mt-1">Elige el tipo de ticket para continuar.</p>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 max-md:grid-cols-1 gap-3">
             {OPTIONS.map((opt, i) => {
               const Icon = opt.icon
               const shown = i < visibleCount
@@ -79,7 +79,7 @@ export default function NewTicketTypeModal({ onClose, onSelect }: NewTicketTypeM
                   key={opt.type}
                   onClick={() => opt.available && onSelect(opt.type)}
                   disabled={!opt.available}
-                  className={`flex flex-col items-center text-center gap-2.5 p-5 rounded-xl border transition-all duration-300 ease-out ${
+                  className={`flex flex-col items-center max-md:flex-row max-md:items-center max-md:gap-3 text-center max-md:text-left gap-2.5 p-5 rounded-xl border transition-all duration-300 ease-out ${
                     opt.available
                       ? 'border-slate-200 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 cursor-pointer'
                       : 'border-slate-100 opacity-60 cursor-not-allowed'

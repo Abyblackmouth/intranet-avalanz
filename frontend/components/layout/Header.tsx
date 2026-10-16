@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { ChevronDown, LogOut, User, Shield } from 'lucide-react'
+import { ChevronDown, LogOut, User, Shield, Menu } from 'lucide-react'
 import { Plus_Jakarta_Sans, Inter } from 'next/font/google'
 import { useAuthStore } from '@/store/authStore'
 import { useAvatarPhoto } from '@/hooks/useAvatarPhoto'
@@ -129,14 +129,18 @@ export default function Header() {
   }, [mounted, (user as any)?.user_id])
 
   return (
-    <header className={`h-14 bg-white border-b-2 border-[#cbd5e1] flex items-center justify-between gap-4 px-6 shrink-0 ${inter.className}`}>
+    <header className={`h-14 bg-white border-b-2 border-[#cbd5e1] flex items-center justify-between gap-4 px-6 shrink-0 max-md:gap-2 max-md:px-2 ${inter.className}`}>
+
+      {/* Telefono: abre el menu (cajon) */}
+      <button type="button" onClick={() => window.dispatchEvent(new Event('menu-movil:abrir'))} aria-label="Abrir menú"
+        className="grid size-11 shrink-0 place-items-center rounded-xl text-slate-700 md:hidden"><Menu size={22} /></button>
 
       {/* Izquierda: ruta de la pantalla actual */}
-      <nav aria-label="Ruta" className="flex items-center gap-2 min-w-0 text-[13px] text-[#94a3b8]">
-        <Link href="/" className="hover:text-[#475569] transition-colors shrink-0">Inicio</Link>
+      <nav aria-label="Ruta" className="flex items-center gap-2 min-w-0 text-[13px] text-[#94a3b8] max-md:mr-auto max-md:text-base">
+        <Link href="/" className="hover:text-[#475569] transition-colors shrink-0 max-md:hidden">Inicio</Link>
         {ruta.map((r, i) => (
-          <span key={i} className="flex items-center gap-2 min-w-0">
-            <span className="text-[#cbd5e1] shrink-0">/</span>
+          <span key={i} className={`flex items-center gap-2 min-w-0 ${i < ruta.length - 1 ? 'max-md:hidden' : ''}`}>
+            <span className="text-[#cbd5e1] shrink-0 max-md:hidden">/</span>
             {r.href ? (
               <Link href={r.href} className="hover:text-[#1a4fa0] transition-colors truncate text-[#475569]">{r.texto}</Link>
             ) : (
