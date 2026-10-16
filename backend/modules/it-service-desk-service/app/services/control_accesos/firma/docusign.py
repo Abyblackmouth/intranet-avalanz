@@ -135,3 +135,16 @@ async def descargar_firmado(envelope_id: str) -> bytes:
         r = await cli.get(_url(f"/envelopes/{envelope_id}/documents/combined"), headers={"Authorization": f"Bearer {await token()}"})
         r.raise_for_status()
         return r.content
+
+
+async def descargar_documento(envelope_id: str, cual: str = "combined", certificado: bool = False) -> bytes:
+    """Descarga de DocuSign, tal como la entrega (sellada por DocuSign; nunca se modifica).
+    cual="certificate": la linea de tiempo (certificado de terminacion).
+    cual="combined" con certificado=True: el formato firmado y el certificado en un solo PDF, unidos por DocuSign."""
+    params = {"certificate": "true" if certificado else "false"} if cual == "combined" else None
+    async with httpx.AsyncClient(timeout=90.0) as cli:
+        r = await cli.get(_url(f"/envelopes/{envelope_id}/documents/{cual}"), params=params,
+                          headers={"Authorization": f"Bearer {await token()}"})
+        if r.status_code >= 400:
+            raise RuntimeError(f"DocuSign respondio {r.status_code}: {r.text[:300]}")
+        return r.content

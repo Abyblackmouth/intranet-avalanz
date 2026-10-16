@@ -60,6 +60,27 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
     key = f"{perfil.get('company_slug') or 'general'}/control-de-accesos/{inc.folio}/FIRMADO_{inc.folio}_{sello.strftime('%Y%m%d_%H%M%S')}.pdf"
     _guardar_en_minio(pdf, key)
 
+    # La linea de tiempo (certificado) y la union firmado + certificado, generadas y selladas por DocuSign.
+    # Cada archivo se guarda por separado y sin modificar; la union es la que va al expediente.
+    import hashlib as _hl
+    carpeta = key.rsplit("/", 1)[0]
+    marca = sello.strftime('%Y%m%d_%H%M%S')
+    archivos = {"firmado": {"key": key, "sha256": _hl.sha256(pdf).hexdigest()}}
+    certificado = completo = None
+    key_cert = key_completo = None
+    try:
+        certificado = await ds.descargar_documento(envelope_id, "certificate")
+        completo = await ds.descargar_documento(envelope_id, "combined", certificado=True)
+        key_cert = f"{carpeta}/CERTIFICADO_{inc.folio}_{marca}.pdf"
+        key_completo = f"{carpeta}/COMPLETO_{inc.folio}_{marca}.pdf"
+        _guardar_en_minio(certificado, key_cert)
+        _guardar_en_minio(completo, key_completo)
+        archivos["certificado"] = {"key": key_cert, "sha256": _hl.sha256(certificado).hexdigest()}
+        archivos["completo"] = {"key": key_completo, "sha256": _hl.sha256(completo).hexdigest()}
+    except Exception as e:
+        log.warning("No se pudo descargar el certificado de DocuSign de %s (se puede recuperar despues): %s", inc.folio, e)
+        certificado = completo = None
+
     f_admin = None
     try:
         from app.models.mesa_de_soporte import AccFormato
@@ -68,6 +89,10 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
         pass
     db.add(IncidentAttachment(incident_id=inc.id, attachment_type="evidencia_resolucion", object_key=key, bucket=BUCKET,
                               mime_type="application/pdf", size_bytes=len(pdf), uploaded_by=f_admin or inc.requester_id))
+    if certificado is not None:
+        db.add(IncidentAttachment(incident_id=inc.id, attachment_type="evidencia_resolucion", object_key=key_cert, bucket=BUCKET,
+                                  mime_type="application/pdf", size_bytes=len(certificado), uploaded_by=f_admin or inc.requester_id))
+    sol.datos = {**(sol.datos or {}), "docusign_archivos": archivos}
     sol.estado_firma, sol.firmado_object_key, sol.usuario_asignado, sol.fecha_alta = "firmado", key, usuario or None, sello.date()
     from app.services.control_accesos import contrasena as _pw
     pw_final = _pw.leer(sol)
@@ -83,7 +108,8 @@ async def procesar_sobre(db, envelope_id: str, avisar, perfil_de, broadcast) -> 
             if hasattr(cuenta, campo):
                 setattr(cuenta, campo, usuario or None)
 
-    await registrar_en_expediente(db, sol, inc, pdf, key, usuario)
+    # Al expediente va la union (formato firmado + linea de tiempo, sellada por DocuSign); si no llego, el firmado
+    await registrar_en_expediente(db, sol, inc, completo or pdf, key_completo or key, usuario)
     inc.status, inc.resolved_at = "terminado", ahora
     db.add(IncidentActivityLog(incident_id=inc.id, action="firmada_por_todos", performed_by=f_admin or inc.requester_id,
                                performed_by_name="DocuSign", performed_by_role="sistema", performed_at=ahora,
