@@ -42,7 +42,7 @@ async def _ajustes_firma(db: AsyncSession) -> tuple[str, bool]:
     ajustes = dict((await db.execute(text("SELECT key, value FROM incidencias_settings WHERE key LIKE 'acc.%'"))).all())
     metodo = ajustes.get("acc.metodo_firma", "manual")
     # La marca va en las copias para ver o descargar; nunca en lo que se firma
-    return metodo, str(ajustes.get("acc.marca_agua_prueba", "true")).lower() not in ("false", "0", "no", "off")
+    return metodo, True   # las copias sin firmar siempre llevan la marca
 
 
 async def _formato_activo(db: AsyncSession, formato_id: str) -> AccFormato:
