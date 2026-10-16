@@ -312,6 +312,6 @@ async def vista_previa(formato_id: str, empresas: Optional[str] = Query(None, de
         config["empresas_elegidas"] = [e for e in empresas.split(",") if e]
     ajustes = dict((await db.execute(text("SELECT key, value FROM incidencias_settings WHERE key LIKE 'acc.%'"))).all())
     metodo = ajustes.get("acc.metodo_firma", "manual")
-    prueba = str(ajustes.get("acc.marca_agua_prueba", "true")).lower() not in ("false", "0", "no", "off")
+    prueba = True   # la vista previa es una copia sin firmar
     fecha = datetime.now(ZoneInfo("America/Monterrey")).strftime("%d/%m/%Y")
     return HTMLResponse(renderizar(config["formato"]["clave"], contexto_vista_previa(config, fecha, metodo, prueba)))
