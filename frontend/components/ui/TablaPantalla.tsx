@@ -62,25 +62,40 @@ export default function TablaPantalla<T>({ filas, columnas, clave, cargando = fa
   const [modo, setModo] = useState(0)                 // 0 = ajustar a pantalla
   const [pagina, setPagina] = useState(1)
   const [orden, setOrden] = useState<{ id: string; dir: 1 | -1 } | null>(null)
+  const ajuste = useRef(0)      // px de menos cuando la pagina tiene margenes que el calculo no ve
+  const recorte = useRef(0)     // filas de menos cuando algunas filas son mas altas que la primera
+  const medirRef = useRef<() => void>(() => {})
 
   // Alto: de donde empieza la tabla al fondo de la ventana, menos la paginacion
   useLayoutEffect(() => {
     const el = zona.current
     if (!el) return
     const medir = () => {
-      const disponible = Math.max(220, Math.floor(window.innerHeight - el.getBoundingClientRect().top - (pie.current?.offsetHeight ?? 38) - margenInferior))
+      const disponible = Math.max(220, Math.floor(window.innerHeight - el.getBoundingClientRect().top - (pie.current?.offsetHeight ?? 38) - margenInferior - ajuste.current))
       setAlto(disponible)
       const cab = el.querySelector('thead')?.getBoundingClientRect().height ?? 30
       const fila = el.querySelector('tbody > tr:not([data-vacio])')?.getBoundingClientRect().height ?? 33
       const barra = el.scrollWidth > el.clientWidth ? 14 : 0
-      setCapacidad(Math.max(5, Math.floor((disponible - cab - barra - 2) / Math.max(20, fila))))
+      setCapacidad(Math.max(5, Math.floor((disponible - cab - barra - 2) / Math.max(20, fila)) - recorte.current))
     }
+    medirRef.current = medir
     medir()
     window.addEventListener('resize', medir)
     const ro = new ResizeObserver(medir)
     ro.observe(document.body)
     return () => { window.removeEventListener('resize', medir); ro.disconnect() }
   }, [filas.length > 0, cargando, rellenoFila, letra, margenInferior])
+
+  // Despues de dibujar: si quedo scroll (en la pagina o en la tabla), se corrige solo
+  useLayoutEffect(() => {
+    const el = zona.current
+    if (!el || cargando || !alto) return
+    let p: HTMLElement | null = el.parentElement
+    while (p && p !== document.body && !/(auto|scroll)/.test(getComputedStyle(p).overflowY)) p = p.parentElement
+    const sobra = p && p !== document.body ? p.scrollHeight - p.clientHeight : document.documentElement.scrollHeight - window.innerHeight
+    if (sobra > 1 && ajuste.current < 400) { ajuste.current += sobra; medirRef.current(); return }
+    if (modo === 0 && el.scrollHeight - el.clientHeight > 1 && recorte.current < 30) { recorte.current += 1; medirRef.current() }
+  })
 
   const ordenadas = useMemo(() => {
     const col = orden && columnas.find(c => c.id === orden.id)
