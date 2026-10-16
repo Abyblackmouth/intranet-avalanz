@@ -76,10 +76,10 @@ function VerdictBox({ v }: { v: Veredicto }) {
   const c = usePaleta()
   const bar = { ok: c.green, warn: c.amber, bad: c.red }[v.tono]
   return (
-    <div className={`grid grid-cols-[6px_1fr] gap-x-4 py-4 pr-5 mb-4 overflow-hidden ${PANEL}`}>
+    <div className={`grid grid-cols-[6px_1fr] gap-x-4 py-4 pr-5 mb-4 overflow-hidden max-md:gap-x-3 max-md:py-3 max-md:pr-3 ${PANEL}`}>
       <div className="rounded-r-[3px]" style={{ backgroundColor: bar }} />
       <div>
-        <h2 className={`text-[19px] leading-[1.35] font-semibold max-w-[70ch] m-0 mb-1 ${INK}`}>{v.titulo}</h2>
+        <h2 className={`text-[19px] leading-[1.35] font-semibold max-w-[70ch] m-0 mb-1 max-md:text-[17px] ${INK}`}>{v.titulo}</h2>
         {v.detalle && <p className={`text-[14px] max-w-[80ch] m-0 ${INK2}`}>{v.detalle}</p>}
         {v.decidir && <p className="text-[14px] font-medium mt-2 mb-0" style={{ color: c.navy }}>Para decidir: {v.decidir}</p>}
       </div>
@@ -91,13 +91,13 @@ function KpiStrip({ kpis }: { kpis: Kpi[] }) {
   const c = usePaleta()
   const color = { good: c.green, bad: c.red, flat: c.ink3 }
   return (
-    <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+    <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
       {kpis.map(k => (
-        <div key={k.label} className={`${PANEL} px-3.5 py-3 relative group`}>
+        <div key={k.label} tabIndex={k.ayuda ? 0 : undefined} className={`${PANEL} px-3.5 py-3 relative group outline-none max-md:px-3`}>
           <div className={`flex items-center gap-1 text-[13px] ${INK2}`}>{k.label}{k.ayuda && <Info size={13} className="opacity-60" aria-label={k.ayuda} />}</div>
           <div className={`text-[26px] font-semibold leading-[1.2] my-0.5 tabular-nums ${INK}`}>{k.valor}</div>
           <div className="text-[12px] font-medium" style={{ color: color[k.tono] }}>{k.delta}</div>
-          {k.ayuda && <div role="tooltip" className="pointer-events-none absolute left-2 right-2 top-full mt-1.5 z-30 rounded-lg px-3 py-2 text-[12px] leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)]" style={{ background: c.panel, color: c.ink, border: `1px solid ${c.line}` }}>{k.ayuda}</div>}
+          {k.ayuda && <div role="tooltip" className="pointer-events-none absolute left-2 right-2 top-full mt-1.5 z-30 rounded-lg px-3 py-2 text-[12px] leading-snug opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-150 shadow-[0_12px_28px_-8px_rgba(15,23,42,0.22)]" style={{ background: c.panel, color: c.ink, border: `1px solid ${c.line}` }}>{k.ayuda}</div>}
         </div>
       ))}
     </div>
@@ -106,7 +106,7 @@ function KpiStrip({ kpis }: { kpis: Kpi[] }) {
 
 function Card({ title, q, children, className = '' }: { title: string; q?: string; children: ReactNode; className?: string }) {
   return (
-    <div className={`${PANEL} p-4 min-w-0 ${className}`}>
+    <div className={`${PANEL} p-4 min-w-0 max-md:p-3 ${className}`}>
       <h3 className={`text-[15px] font-semibold m-0 ${INK}`}>{title}</h3>
       {q && <p className={`text-[13px] mt-0.5 mb-2 ${INK2}`}>{q}</p>}
       {children}
@@ -118,9 +118,23 @@ function Vacio({ height = 300 }: { height?: number }) {
   return <div className={`flex items-center justify-center text-[14px] text-center px-6 ${INK3}`} style={{ height }}>Aún no hay datos en este periodo</div>
 }
 
+// En el telefono (menos de 768 px) las graficas son mas bajas
+function useEsMovil() {
+  const [movil, setMovil] = useState(false)
+  useEffect(() => {
+    const m = window.matchMedia('(max-width: 767px)')
+    const cambio = () => setMovil(m.matches)
+    cambio(); m.addEventListener('change', cambio)
+    return () => m.removeEventListener('change', cambio)
+  }, [])
+  return movil
+}
+
 function Chart({ option, height = 300, empty }: { option: any; height?: number; empty: boolean }) {
-  if (empty) return <Vacio height={height} />
-  return <ReactECharts option={option} notMerge opts={{ renderer: 'svg' }} style={{ height, width: '100%' }} />
+  const movil = useEsMovil()
+  const alto = movil && height <= 400 ? Math.min(height, 260) : height
+  if (empty) return <Vacio height={alto} />
+  return <ReactECharts option={option} notMerge opts={{ renderer: 'svg' }} style={{ height: alto, width: '100%' }} />
 }
 
 function Pendiente({ height = 300, texto }: { height?: number; texto: string }) {
@@ -662,6 +676,7 @@ export default function ItServiceDeskDashboardPage() {
   const [dateTo, setDateTo] = useState(today())
   const [empresa, setEmpresa] = useState('')
   const [tipo, setTipo] = useState('')
+  const [verFiltros, setVerFiltros] = useState(false)   // en el telefono los filtros se pliegan
   const [data, setData] = useState<D | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -703,15 +718,17 @@ export default function ItServiceDeskDashboardPage() {
     '--bg': c.bg, '--panel': c.panel, '--ink': c.ink, '--ink2': c.ink2, '--ink3': c.ink3,
     '--line': c.line, '--grid': c.grid, '--sombra': SOMBRA[tema], fontFamily: FUENTE, colorScheme: tema === 'oscuro' ? 'dark' : 'light',
   } as CSSProperties
-  const control = `font-[inherit] text-[13px] px-2.5 py-1.5 rounded-md border border-[var(--line)] bg-[var(--panel)] ${INK}`
+  const control = `font-[inherit] text-[13px] px-2.5 py-1.5 rounded-md border border-[var(--line)] bg-[var(--panel)] max-md:h-10 max-md:min-w-0 max-md:text-base ${INK}`
+  const corta = (f: string) => (f ? `${f.slice(8, 10)}/${f.slice(5, 7)}` : '')
+  const nombreEmpresa = empresa ? (data?.opciones?.empresas?.find((e: D) => String(e.id) === String(empresa))?.nombre ?? 'Una empresa') : 'Todas las empresas'
 
   return (
     <PaletaCtx.Provider value={c}>
       <div className="w-full shrink-0 min-h-[calc(100vh-49px)] bg-[var(--bg)] text-[14px] leading-[1.5] antialiased transition-colors" style={vars}>
-        <div className="w-full px-6 pt-3 pb-12">
+        <div className="w-full px-6 pt-3 pb-12 max-md:px-3 max-md:pb-6">
           {/* Sin titulo: la ruta del navbar ya dice donde estas. Pestanas a la izquierda y filtros a la derecha, en una sola fila */}
           <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 mb-5 border-b border-[var(--line)]">
-            <nav role="tablist" aria-label="Vistas del dashboard" className="flex gap-0.5 overflow-x-auto overflow-y-hidden -mb-px">
+            <nav role="tablist" aria-label="Vistas del dashboard" className="flex gap-0.5 overflow-x-auto overflow-y-hidden -mb-px max-md:w-full max-md:[scrollbar-width:none]">
               {TABS.map(t => (
                 <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
                   className={`font-[inherit] text-[14px] px-3.5 py-2.5 whitespace-nowrap bg-transparent border-0 border-b-[3px] cursor-pointer ${tab === t.id ? 'font-semibold' : `font-medium border-transparent ${INK2}`}`}
@@ -720,19 +737,24 @@ export default function ItServiceDeskDashboardPage() {
                 </button>
               ))}
             </nav>
-            <div className="flex flex-wrap items-center gap-2 pb-2">
-              <select aria-label="Empresa" value={empresa} onChange={e => setEmpresa(e.target.value)} className={control}>
+            <button type="button" onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros}
+              className={`flex h-10 w-full items-center justify-between gap-2 rounded-md border border-[var(--line)] bg-[var(--panel)] px-3 text-left text-sm max-md:order-first md:hidden ${INK}`}>
+              <span className="truncate"><b className="font-semibold">Filtros</b> <span className={INK2}>· {nombreEmpresa} · {corta(dateFrom)} – {corta(dateTo)}</span></span>
+              <span className={`shrink-0 text-xs ${INK2}`}>{verFiltros ? 'Ocultar' : 'Cambiar'}</span>
+            </button>
+            <div className={`flex flex-wrap items-center gap-2 pb-2 max-md:order-first max-md:grid max-md:w-full max-md:grid-cols-2 max-md:pb-0 ${verFiltros ? '' : 'max-md:hidden'}`}>
+              <select aria-label="Empresa" value={empresa} onChange={e => setEmpresa(e.target.value)} className={`${control} max-md:col-span-2`}>
                 <option value="">Todas las empresas</option>
                 {data?.opciones?.empresas?.map((e: D) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
               </select>
-              <select aria-label="Tipo de ticket" value={tipo} onChange={e => setTipo(e.target.value)} className={control}>
+              <select aria-label="Tipo de ticket" value={tipo} onChange={e => setTipo(e.target.value)} className={`${control} max-md:col-span-2`}>
                 <option value="">Todos los tipos</option>
                 {data?.opciones?.tipos?.map((t: D) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
               </select>
               <input type="date" aria-label="Desde" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={control} />
-              <span className={`text-[13px] ${INK3}`}>a</span>
+              <span className={`text-[13px] max-md:hidden ${INK3}`}>a</span>
               <input type="date" aria-label="Hasta" value={dateTo} onChange={e => setDateTo(e.target.value)} className={control} />
-              <button type="button" onClick={cambiarTema} className={`${control} inline-flex items-center gap-1.5 cursor-pointer`}>
+              <button type="button" onClick={cambiarTema} className={`${control} inline-flex items-center gap-1.5 cursor-pointer max-md:col-span-2 max-md:justify-center`}>
                 {tema === 'claro' ? <Moon size={14} /> : <Sun size={14} />} Cambiar tema
               </button>
             </div>
