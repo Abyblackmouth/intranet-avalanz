@@ -30,7 +30,7 @@ function rangoAtajo(a: string): [string, string] {
 }
 const ATAJOS = [['semana', 'Esta semana'], ['mes', 'Este mes'], ['anterior', 'Mes anterior'], ['30', 'Últimos 30 días'], ['anio', 'Este año']]
 const LABEL = 'block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5'
-const CAMPO = 'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-[#1a4fa0]'
+const CAMPO = 'w-full min-w-0 max-w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 outline-none focus:border-[#1a4fa0] max-md:py-2 max-md:text-base'
 
 export default function ConstructorReportes() {
   const [atajo, setAtajo] = useState('mes')
@@ -115,11 +115,19 @@ export default function ConstructorReportes() {
     const c = [...ls]; [c[i], c[j]] = [c[j], c[i]]; return c
   })
   const elegirAtajo = (a: string) => { setAtajo(a); setRango(rangoAtajo(a)) }
+  const [vistaMovil, setVistaMovil] = useState<'ajustes' | 'vista'>('ajustes')   // telefono: una pestana a la vez
 
   return (
-    <div className="flex flex-1 min-h-0">
-      <aside className="w-80 shrink-0 flex flex-col border-r border-slate-200 bg-white">
-        <div className="flex-1 overflow-auto px-4 py-4 space-y-5">
+    <div className="flex flex-1 min-h-0 max-md:flex-col">
+      {/* Telefono: Ajustes y Vista previa en pestanas */}
+      <div role="tablist" aria-label="Constructor" className="grid shrink-0 grid-cols-2 border-b border-slate-200 bg-white md:hidden">
+        {([['ajustes', 'Ajustes'], ['vista', `Vista previa · ${nLaminas}`]] as const).map(([id, txt]) => (
+          <button key={id} type="button" role="tab" aria-selected={vistaMovil === id} onClick={() => setVistaMovil(id)}
+            className={`h-11 border-b-2 text-sm font-semibold ${vistaMovil === id ? 'border-[#1a4fa0] text-[#1a4fa0]' : 'border-transparent text-slate-500'}`}>{txt}</button>
+        ))}
+      </div>
+      <aside className={`w-80 shrink-0 flex flex-col border-r border-slate-200 bg-white max-md:min-h-0 max-md:w-full max-md:flex-1 max-md:border-r-0 ${vistaMovil === 'vista' ? 'max-md:hidden' : ''}`}>
+        <div className="flex-1 overflow-auto px-4 py-4 space-y-5 max-md:overflow-x-hidden max-md:overscroll-x-none max-md:touch-pan-y">
           <div>
             <p className="flex items-center gap-2 text-base font-bold text-slate-800"><Presentation size={18} className="text-[#1a4fa0]" /> Arma tu presentación</p>
             <p className="text-xs text-slate-500 mt-0.5">La vista previa es exactamente lo que descargas.</p>
@@ -170,11 +178,11 @@ export default function ConstructorReportes() {
             <div className="space-y-1.5">
               {laminas.map((l, i) => (
                 <div key={l.id} className={`flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5 ${l.on ? '' : 'opacity-50'}`}>
-                  <input type="checkbox" checked={l.on} aria-label={`Incluir ${l.nombre}`} className="size-4 accent-[#1a4fa0]"
+                  <input type="checkbox" checked={l.on} aria-label={`Incluir ${l.nombre}`} className="size-4 accent-[#1a4fa0] max-md:size-5"
                     onChange={e => setLaminas(ls => ls.map(x => x.id === l.id ? { ...x, on: e.target.checked } : x))} />
                   <span className="flex-1 text-sm font-medium text-slate-700">{l.nombre}</span>
-                  <button type="button" onClick={() => mover(i, -1)} aria-label="Subir" className="grid size-6 place-items-center rounded text-slate-500 hover:bg-slate-100"><ArrowUp size={13} /></button>
-                  <button type="button" onClick={() => mover(i, 1)} aria-label="Bajar" className="grid size-6 place-items-center rounded text-slate-500 hover:bg-slate-100"><ArrowDown size={13} /></button>
+                  <button type="button" onClick={() => mover(i, -1)} aria-label="Subir" className="grid size-6 place-items-center rounded text-slate-500 hover:bg-slate-100 max-md:size-9"><ArrowUp size={13} /></button>
+                  <button type="button" onClick={() => mover(i, 1)} aria-label="Bajar" className="grid size-6 place-items-center rounded text-slate-500 hover:bg-slate-100 max-md:size-9"><ArrowDown size={13} /></button>
                 </div>
               ))}
             </div>
@@ -218,7 +226,7 @@ export default function ConstructorReportes() {
         </div>
       </aside>
 
-      <section className="flex-1 min-w-0 overflow-auto bg-slate-400/40 px-6 py-5" aria-label="Vista previa">
+      <section className={`flex-1 min-w-0 overflow-auto bg-slate-400/40 px-6 py-5 max-md:min-h-0 max-md:px-3 max-md:py-3 ${vistaMovil === 'ajustes' ? 'max-md:hidden' : ''}`} aria-label="Vista previa">
         <div className="mb-3 flex items-center justify-between text-xs text-slate-600">
           <span className="flex items-center gap-1.5"><FileText size={14} /> {nLaminas} lámina{nLaminas === 1 ? '' : 's'} · 16:9</span>
           {cargando && <span className="flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Actualizando…</span>}
@@ -229,6 +237,14 @@ export default function ConstructorReportes() {
               style={{ width: ANCHO, height: altoHtml, transform: `scale(${escala})`, transformOrigin: 'top left' }}
               className="border-0 bg-transparent" />
           </div>
+        </div>
+        {/* Telefono: descargar tambien desde la vista previa */}
+        <div className="sticky bottom-0 -mx-3 mt-3 border-t border-slate-200 bg-white p-3 md:hidden">
+          {error && <p role="alert" className="mb-2 text-xs text-red-600">{error}</p>}
+          <button type="button" onClick={descargar} disabled={bajando || !nLaminas}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#1a4fa0] text-sm font-semibold text-white disabled:opacity-50">
+            {bajando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Descargar PDF
+          </button>
         </div>
       </section>
     </div>
