@@ -199,9 +199,9 @@ function TicketRowInner({ ticket: t, systems, severities, canAssign, onAssign, o
           {STATUS_LABEL[t.status] ?? t.status}
         </span>
       </td>
-      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500"><span className="block max-[1440px]:max-w-32.5 max-[1440px]:truncate" title={t.requester_name}>{t.requester_name}</span></td>
+      <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500"><span className="block max-w-64 truncate max-[1440px]:max-w-32.5" title={t.requester_name}>{t.requester_name}</span></td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500">
-        <span className="block max-[1440px]:max-w-32.5 max-[1440px]:truncate" title={t.assigned_to_name ?? ''}>{t.assigned_to_name ?? <span className="italic text-slate-300">Sin asignar</span>}</span>
+        <span className="block max-w-64 truncate max-[1440px]:max-w-32.5" title={t.assigned_to_name ?? ''}>{t.assigned_to_name ?? <span className="italic text-slate-300">Sin asignar</span>}</span>
       </td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-xs text-slate-500 whitespace-nowrap">{fmt(t.created_at)}</td>
       <td className="px-4 max-[1440px]:px-2.5 py-2 text-center">
