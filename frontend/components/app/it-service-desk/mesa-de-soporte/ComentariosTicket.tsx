@@ -5,6 +5,7 @@ import { Lock, Paperclip, Send, X, Hourglass, Camera, CalendarClock, ListOrdered
 import { getComentarios, enviarComentario } from '@/services/itServiceDeskService'
 import { useWSEvent } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/store/authStore'
+import api from '@/services/api'
 
 // Conversacion del ticket con estilo de mensajeria: burbujas, separador por dia,
 // hora y palomita dentro de la burbuja. Comentarios de ida y vuelta (solicitante
@@ -41,6 +42,20 @@ function hace(iso: string) {
 }
 const completa = (iso: string) => new Date(iso).toLocaleString('es-MX', { timeZone: TZ, dateStyle: 'medium', timeStyle: 'short' })
 
+interface Mencionable { id: string; nombre: string; rol: 'participante' | 'incident-manager'; bloqueado?: boolean }
+const sinAcentos = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+const escapar = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** El texto del mensaje con las menciones (@Nombre) resaltadas */
+function ConMenciones({ texto, nombres }: { texto: string; nombres: string[] }) {
+  const lista = nombres.filter(Boolean).sort((a, b) => b.length - a.length)
+  if (!lista.length || !texto.includes('@')) return <>{texto}</>
+  const re = new RegExp(`(@(?:${lista.map(escapar).join('|')}))`, 'g')
+  return <>{texto.split(re).map((t, i) => (i % 2 === 1
+    ? <span key={i} className="rounded bg-blue-100 px-0.5 font-semibold text-[#1a4fa0]">{t}</span>
+    : <Fragment key={i}>{t}</Fragment>))}</>
+}
+
 export default function ComentariosTicket({ incidentId, renderAdjunto, renderAvatar }: {
   incidentId: string; renderAdjunto: (a: any, i: number) => ReactNode
   renderAvatar?: (nombre: string, foto: string | null) => ReactNode
@@ -57,6 +72,11 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [arrastrando, setArrastrando] = useState(false)
+  // Menciones con @
+  const [mencionables, setMencionables] = useState<Mencionable[]>([])
+  const [elegidos, setElegidos] = useState<Mencionable[]>([])
+  const [busquedaM, setBusquedaM] = useState<string | null>(null)   // texto despues de @, o null si no hay lista abierta
+  const [indiceM, setIndiceM] = useState(0)
   const hilo = useRef<HTMLDivElement>(null)
   const caja = useRef<HTMLTextAreaElement>(null)
   const archivoRef = useRef<HTMLInputElement>(null)
@@ -68,6 +88,26 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
     }).catch(() => {})
   }, [incidentId])
   useEffect(() => { cargar() }, [cargar])
+  useEffect(() => {
+    api.get(`/api/v1/it-service-desk/mesa-de-soporte/incidencias/${incidentId}/mencionables`).then(r => setMencionables(r.data?.data ?? [])).catch(() => setMencionables([]))
+  }, [incidentId, lista.length])
+
+  const opcionesM = busquedaM === null ? [] : mencionables
+    .filter(m => sinAcentos(m.nombre).includes(sinAcentos(busquedaM)))
+    .slice(0, 6)
+  const detectarMencion = (valor: string, cursor: number) => {
+    const m = /(^|\s)@([^\s@]{0,30})$/.exec(valor.slice(0, cursor))
+    setBusquedaM(m ? m[2] : null); setIndiceM(0)
+  }
+  const elegirMencion = (m: Mencionable) => {
+    const el = caja.current
+    const cursor = el?.selectionStart ?? texto.length
+    const antes = texto.slice(0, cursor).replace(/@([^\s@]{0,30})$/, `@${m.nombre} `)
+    const nuevo = antes + texto.slice(cursor)
+    setTexto(nuevo); setBusquedaM(null)
+    setElegidos(prev => (prev.some(x => x.id === m.id) ? prev : [...prev, m]))
+    setTimeout(() => { el?.focus(); el?.setSelectionRange(antes.length, antes.length) }, 0)
+  }
   // En vivo: cualquier actualizacion de este ticket recarga la conversacion
   useWSEvent('*', useCallback((data: any) => {
     const id = data?.incident_id ?? data?.id ?? data?.ticket?.id
@@ -99,9 +139,10 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
       fd.append('texto', texto.trim())
       fd.append('interna', String(interna))
       fd.append('pide_respuesta', String(pide && !interna))
+      fd.append('menciones', elegidos.filter(m => texto.includes(`@${m.nombre}`)).map(m => m.id).join(','))
       archivos.forEach(f => fd.append('files', f))
       await enviarComentario(incidentId, fd)
-      setTexto(''); setArchivos([]); setPide(false); setInterna(false)
+      setTexto(''); setArchivos([]); setPide(false); setInterna(false); setElegidos([]); setBusquedaM(null)
       cargar()
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'No se pudo enviar el mensaje')
@@ -178,7 +219,7 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
                   )}
                   {c.pide_respuesta && !c.interna && <p className={`text-[10.5px] font-semibold mb-0.5 ${mio ? 'text-white/80' : 'text-[#1a4fa0]'}`}>Pide respuesta</p>}
                   {c.adjuntos?.length > 0 && <div className="flex flex-wrap gap-1.5 my-1">{c.adjuntos.map((a, k) => renderAdjunto(a, k))}</div>}
-                  {c.texto && <p className="text-[13.5px] leading-snug whitespace-pre-wrap wrap-break-word">{c.texto}</p>}
+                  {c.texto && <p className="text-[13.5px] leading-snug whitespace-pre-wrap wrap-break-word"><ConMenciones texto={c.texto} nombres={[...mencionables.map(m => m.nombre), ...lista.map(x => x.autor)]} /></p>}
                   <p className={`flex items-center justify-end gap-0.5 text-[10.5px] mt-0.5 ${mio && !c.interna ? 'text-white/75' : 'text-slate-400'}`}>
                     {hora(c.creado)} {mio && <Check size={12} aria-label="Enviado" />}
                   </p>
@@ -235,6 +276,19 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
               ))}
             </div>
           )}
+          {opcionesM.length > 0 && (
+            <ul role="listbox" aria-label="Mencionar a" className="mb-1.5 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+              {opcionesM.map((m, i) => (
+                <li key={m.id} role="option" aria-selected={i === indiceM}>
+                  <button type="button" onMouseDown={e => { e.preventDefault(); elegirMencion(m) }}
+                    className={`flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-[13px] ${i === indiceM ? 'bg-blue-50 text-[#1a4fa0]' : 'text-slate-700 hover:bg-slate-50'}`}>
+                    <span className="truncate font-medium">@{m.nombre}</span>
+                    <span className="shrink-0 text-[11px] text-slate-400">{m.rol === 'incident-manager' ? 'Incident Manager' : 'En la conversación'}{m.bloqueado ? ' · bloqueado' : ''}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="flex items-end gap-1.5">
             <input ref={archivoRef} type="file" multiple hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
               onChange={e => { agregarArchivos(Array.from(e.target.files || [])); e.target.value = '' }} />
@@ -242,14 +296,23 @@ export default function ComentariosTicket({ incidentId, renderAdjunto, renderAva
               className="w-9.5 h-9.5 shrink-0 grid place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-[#1a4fa0]"><Paperclip size={17} /></button>
             <textarea
               ref={caja} value={texto} rows={1}
-              onChange={e => setTexto(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enviar() } }}
+              onChange={e => { setTexto(e.target.value); detectarMencion(e.target.value, e.target.selectionStart ?? e.target.value.length) }}
+              onKeyDown={e => {
+                if (opcionesM.length) {
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setIndiceM(i => (i + 1) % opcionesM.length); return }
+                  if (e.key === 'ArrowUp') { e.preventDefault(); setIndiceM(i => (i - 1 + opcionesM.length) % opcionesM.length); return }
+                  if ((e.key === 'Enter' && !e.ctrlKey && !e.metaKey) || e.key === 'Tab') { e.preventDefault(); elegirMencion(opcionesM[indiceM]); return }
+                  if (e.key === 'Escape') { e.preventDefault(); setBusquedaM(null); return }
+                }
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enviar() }
+              }}
+              onBlur={() => setTimeout(() => setBusquedaM(null), 150)}
               onPaste={e => {
                 const fs = Array.from(e.clipboardData?.files || [])
                 if (fs.length) { e.preventDefault(); agregarArchivos(fs) }
               }}
               aria-label={interna ? 'Escribir nota interna' : 'Escribir mensaje'}
-              placeholder={interna ? 'Nota interna: solo la ve TI' : 'Escribe un mensaje'}
+              placeholder={interna ? 'Nota interna: solo la ve TI · @ para mencionar' : 'Escribe un mensaje · @ para mencionar'}
               className={`flex-1 resize-none rounded-[20px] border px-3.5 py-2 text-[13.5px] text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#1a4fa0] ${
                 interna ? 'bg-[#fff7e6] border-[#f3d79b]' : 'bg-[#f8fafc] border-[#dbe2ec]'}`}
             />

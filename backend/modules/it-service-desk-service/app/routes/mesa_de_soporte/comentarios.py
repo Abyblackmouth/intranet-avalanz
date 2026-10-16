@@ -49,6 +49,48 @@ async def _acceso(incident_id: str, db: AsyncSession, user: dict):
     return inc, bool(rol_ti and not es_solicitante)
 
 
+IM_ROL = "it-service-desk:incident-manager"
+
+
+async def _incident_managers() -> dict:
+    """Incident Managers del modulo: sin bajas (is_active) y con los bloqueados normales."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as cli:
+            r = await cli.get("http://admin-service:8000/internal/users/by-module-role",
+                              params={"module_slug": "it-service-desk", "role_slug": "incident-manager"})
+            filas = r.json() if r.status_code == 200 else []
+        return {str(f["id"]): {"nombre": f.get("name") or "", "bloqueado": bool(f.get("is_locked"))} for f in filas}
+    except Exception:
+        return {}
+
+
+async def _mencionables(inc, db: AsyncSession, user: dict, es_ti: bool) -> dict:
+    """A quien puede etiquetar con @ quien escribe.
+    - Incident Manager: a cualquier Incident Manager (los IM ya ven todos los tickets: etiquetarlos no abre
+      ningun acceso nuevo) y a quien ya participa.
+    - Cualquier otro: solo a quien ya participa (el solicitante, el asignado y quien ya escribio).
+    Para atraer a alguien mas, el camino es asignarle el ticket."""
+    uid = str(user.get("user_id"))
+    roles = set(user.get("roles") or [])
+    gente: dict = {}
+    if inc.requester_id:
+        gente[str(inc.requester_id)] = {"nombre": inc.requester_name or "Solicitante", "rol": "participante"}
+    if inc.assigned_to_user_id:
+        gente[str(inc.assigned_to_user_id)] = {"nombre": inc.assigned_to_name or "Asignado", "rol": "participante"}
+    q = select(IncidentComment.author_id, IncidentComment.author_name).where(IncidentComment.incident_id == inc.id)
+    if not es_ti:
+        q = q.where(IncidentComment.is_internal == False)  # noqa: E712
+    for aid, nom in (await db.execute(q.distinct())).all():
+        if aid:
+            gente.setdefault(str(aid), {"nombre": nom or "Usuario", "rol": "participante"})
+    if IM_ROL in roles or "super_admin" in roles:
+        for iid, d in (await _incident_managers()).items():
+            if iid not in gente:
+                gente[iid] = {"nombre": d["nombre"], "rol": "incident-manager", "bloqueado": d["bloqueado"]}
+    gente.pop(uid, None)
+    return gente
+
+
 def _json(c: IncidentComment) -> dict:
     return {"id": str(c.id), "autor": c.author_name, "autor_id": str(c.author_id) if c.author_id else None,
             "rol": c.author_rol, "texto": c.body or "", "interna": bool(c.is_internal),
@@ -78,12 +120,21 @@ async def listar(incident_id: str, db: AsyncSession = Depends(_m.get_db), user: 
     return {"data": {"comentarios": comentarios, "puede_nota_interna": es_ti, "esperando": None if _cerrado(inc) else esperando, "cerrada": _cerrado(inc)}}
 
 
+@router.get("/{incident_id}/mencionables")
+async def mencionables(incident_id: str, db: AsyncSession = Depends(_m.get_db), user: dict = Depends(_m.get_current_user)):
+    inc, es_ti = await _acceso(incident_id, db, user)
+    gente = await _mencionables(inc, db, user, es_ti)
+    datos = sorted(({"id": k, **v} for k, v in gente.items()), key=lambda x: (x["rol"] != "participante", x["nombre"]))
+    return {"data": datos}
+
+
 @router.post("/{incident_id}/comentarios")
 async def comentar(
     incident_id: str,
     texto: str = Form(""),
     interna: bool = Form(False),
     pide_respuesta: bool = Form(False),
+    menciones: str = Form(""),
     files: List[UploadFile] = File(default=[]),
     db: AsyncSession = Depends(_m.get_db),
     user: dict = Depends(_m.get_current_user),
@@ -124,7 +175,18 @@ async def comentar(
         ))
     await db.commit()
     await db.refresh(c)
-    await _avisar(inc, c, db)
+    # Menciones: se vuelve a validar la regla aqui (lo que no corresponda se ignora)
+    mencionados: dict = {}
+    pedidos = {x.strip() for x in (menciones or "").split(",") if x.strip()}
+    if pedidos:
+        permitidos = await _mencionables(inc, db, user, es_ti)
+        for mid in pedidos & set(permitidos):
+            if c.is_internal and str(inc.requester_id) == mid:
+                continue   # una nota interna nunca se le avisa al solicitante
+            mencionados[mid] = permitidos[mid]["nombre"]
+    if mencionados:
+        await _avisar_menciones(inc, c, list(mencionados))
+    await _avisar(inc, c, db, ya_avisados=set(mencionados))
     try:
         await _m._broadcast_ticket_update(inc)
     except Exception:
@@ -132,7 +194,32 @@ async def comentar(
     return {"data": _json(c)}
 
 
-async def _avisar(inc, c: IncidentComment, db: AsyncSession) -> None:
+async def _avisar_menciones(inc, c: IncidentComment, destinos: list) -> None:
+    """Campana y correo a quien etiquetaron con @."""
+    from app.assignment import _notify_inapp
+    datos = {"incident_id": str(inc.id), "folio": inc.folio}
+    resumen = (c.body or "")[:160]
+    liga = f"{os.getenv('FRONTEND_URL', 'https://intranet.avalanz.com').rstrip('/')}/app/it-service-desk/mesa-de-soporte?ticket={inc.id}"
+    titulo = f"{c.author_name} te mencionó en el ticket #{inc.folio}"
+    for d in destinos:
+        try:
+            await _notify_inapp(d, titulo, resumen, "info", datos)
+            perfil = await _m._get_requester_profile(d)
+            if perfil.get("email"):
+                async with httpx.AsyncClient(timeout=5.0) as cli:
+                    await cli.post("http://email-service:8000/api/v1/email/system-notification", json={
+                        "to_email": perfil["email"], "full_name": perfil.get("full_name") or "",
+                        "subject": titulo,
+                        "message": f"{c.author_name} te mencionó en {'una nota interna del' if c.is_internal else 'el'} ticket #{inc.folio} · {inc.title}:",
+                        "alert_type": "info", "action_url": liga, "action_label": "Ver la conversación",
+                        "fields": [{"label": "Mensaje", "value": c.body or "(sin texto)", "mono": False},
+                                   {"label": "Folio", "value": inc.folio, "mono": True}],
+                    })
+        except Exception:
+            pass   # el comentario ya se guardo; si un aviso falla no se pierde nada
+
+
+async def _avisar(inc, c: IncidentComment, db: AsyncSession, ya_avisados: set = frozenset()) -> None:
     """Avisa a quien sigue la conversacion (campana en tiempo real y, si es publico, correo).
 
     Siguen la conversacion: el asignado actual y todos los de TI que hayan escrito en
@@ -172,14 +259,15 @@ async def _avisar(inc, c: IncidentComment, db: AsyncSession) -> None:
         seguidores_ti.discard(autor)
         solicitante = str(inc.requester_id) if inc.requester_id else None
         seguidores_ti.discard(solicitante)
+        seguidores_ti -= set(ya_avisados)   # a los mencionados ya les llego su aviso
 
         if c.is_internal:
             for d in seguidores_ti:
                 await _notify_inapp(d, f"Nota interna en #{inc.folio}", f"{c.author_name}: {resumen}", "info", datos)
             return
 
-        avisados = set()
-        if c.author_rol == "ti" and solicitante and solicitante != autor:
+        avisados = set(ya_avisados)
+        if c.author_rol == "ti" and solicitante and solicitante != autor and solicitante not in avisados:
             titulo = f"{'Te piden información' if c.pide_respuesta else 'Nuevo comentario'} en tu ticket #{inc.folio}"
             await _notify_inapp(solicitante, titulo, resumen, "warning" if c.pide_respuesta else "info", datos)
             await correo(solicitante, titulo)
