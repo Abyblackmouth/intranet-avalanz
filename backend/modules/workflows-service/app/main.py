@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import FastAPI
@@ -19,8 +20,23 @@ Instrumentator(excluded_handlers=["/metrics", "/health"]).add(
 
 app.include_router(main_router, prefix="/api/v1/workflows")
 
-# El consumidor de RabbitMQ (bandeja de salida hacia las plataformas) se
-# arranca en el evento startup cuando exista (paso 5 del plan de construccion).
+
+@app.on_event("startup")
+async def startup_event():
+    """Consumidor de la cola de resultados y barrido periodico de la bandeja de salida.
+    Si RabbitMQ se cae, el consumidor reintenta; el barrido sigue solo con la base."""
+    from app.rabbitmq import start_consumer, barrido_periodico
+
+    async def _consumidor():
+        while True:
+            try:
+                await start_consumer()
+            except Exception:
+                logger.exception("Consumidor de resultados se cayó, reintentando en 5 s...")
+                await asyncio.sleep(5)
+
+    asyncio.create_task(_consumidor())
+    asyncio.create_task(barrido_periodico(config.OUTBOX_SWEEP_SECONDS))
 
 
 @app.get("/health")

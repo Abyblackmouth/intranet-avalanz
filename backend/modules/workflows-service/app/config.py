@@ -18,6 +18,14 @@ class Config(BaseSettings):
     NOTIFY_SERVICE_URL: str = "http://notify-service:8000"
     WEBSOCKET_SERVICE_URL: str = "http://websocket-service:8000"
     UPLOAD_SERVICE_URL: str = "http://upload-service:8000"
+    # MinIO directo (boto3) para los archivos que llegan en el sobre (sin JWT de usuario)
+    MINIO_ENDPOINT: str = ""
+    MINIO_ACCESS_KEY: str = ""
+    MINIO_SECRET_KEY: str = ""
+    MINIO_BUCKET: str = "dirdoc"
+    MINIO_SECURE: bool = False
+    # Barrido de la bandeja de salida (segundos)
+    OUTBOX_SWEEP_SECONDS: int = 60
 
     class Config:
         env_file = ".env"
