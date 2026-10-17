@@ -84,11 +84,16 @@ def resumen(cfg: Optional[Dict[str, Any]], card_data: Dict[str, Any], folio: str
 
 
 def secciones(card_data: Dict[str, Any], cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Para el detalle: lo escalar como clave/valor (con la etiqueta configurada si la hay) y cada lista de objetos como tabla."""
-    etiquetas = {c["clave"]: c.get("etiqueta") for c in ((cfg or {}).get("campos") or [])}
-    tipos = {c["clave"]: c.get("tipo", "texto") for c in ((cfg or {}).get("campos") or [])}
+    """Para el detalle: lo escalar como clave/valor (con la etiqueta configurada si la hay) y cada lista de objetos como tabla.
+    Los campos que ya salen en el resumen (y el numero de documento) no se repiten."""
+    campos_cfg = _campos(cfg, card_data or {})
+    etiquetas = {c["clave"]: c.get("etiqueta") for c in campos_cfg}
+    tipos = {c["clave"]: c.get("tipo", "texto") for c in campos_cfg}
+    ya = set(etiquetas) | {(cfg or {}).get("numero") or ("numerosolicitud" if (card_data or {}).get("numerosolicitud") else "")}
     escalares, tablas = [], []
     for k, v in (card_data or {}).items():
+        if k in ya:
+            continue
         if isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
             columnas: List[str] = []
             for fila in v:

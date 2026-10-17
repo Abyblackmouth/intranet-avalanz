@@ -27,7 +27,7 @@ export interface NodoPlataforma { titulo: string; estado?: 'pendiente' | 'aplica
 const ESTILO: Record<EstadoEtapa, string> = {
   definicion: 'border-slate-400 bg-white',
   pendiente: 'border-slate-400 bg-white',
-  en_turno: 'border-[#1a4fa0] bg-blue-50 ring-2 ring-[#1a4fa0]/25',
+  en_turno: 'border-[#1a4fa0] bg-blue-50 ring-4 ring-[#1a4fa0]/20 shadow-md scale-[1.04] z-10',
   aprobada: 'border-emerald-600 bg-emerald-50',
   rechazada: 'border-red-600 bg-red-50',
   omitida: 'border-dashed border-slate-400 bg-white opacity-70',
@@ -49,12 +49,13 @@ export default function RielFlujo({ etapas, plataforma, editable, onEtapa, onAgr
   etapas: EtapaRiel[]; plataforma?: NodoPlataforma | null; editable?: boolean
   onEtapa?: (e: EtapaRiel) => void; onAgregar?: () => void; compacto?: boolean
 }) {
+  const hayTurno = etapas.some(e => e.status === 'en_turno')
   const Flecha = () => <div className="grid shrink-0 place-items-center px-0.5 text-slate-400 max-md:rotate-90 max-md:py-0.5"><ChevronRight size={18} /></div>
   const ancho = compacto ? 'min-w-36 max-w-44' : 'min-w-42 max-w-52'
   const estadoPlat: EstadoEtapa = plataforma?.estado === 'aplicada' ? 'aprobada' : plataforma?.estado === 'fallida' ? 'rechazada' : plataforma?.estado === 'pendiente' ? 'en_turno' : 'pendiente'
 
   return (
-    <div className="flex items-stretch gap-0 overflow-x-auto py-1.5 max-md:flex-col max-md:overflow-visible">
+    <div className="flex items-stretch gap-0 overflow-x-auto py-3 px-1 max-md:flex-col max-md:overflow-visible">
       {etapas.length === 0 && !editable && <p className="text-[13px] text-slate-400 py-3">Sin etapas.</p>}
       {etapas.map((e, i) => {
         const st = e.status ?? 'definicion'
@@ -63,8 +64,9 @@ export default function RielFlujo({ etapas, plataforma, editable, onEtapa, onAgr
           <div key={e.id ?? e.orden} className="flex items-stretch max-md:flex-col">
             {i > 0 && <Flecha />}
             <Tag type={editable ? 'button' : undefined} onClick={editable && onEtapa ? () => onEtapa(e) : undefined}
-              className={`relative shrink-0 rounded-xl border-2 px-3 py-2.5 text-left ${ancho} max-md:max-w-none ${ESTILO[st]} ${editable ? 'cursor-pointer hover:border-[#1a4fa0] hover:shadow-sm transition' : ''}`}>
+              className={`relative shrink-0 rounded-xl border-2 px-3 py-2.5 text-left ${ancho} max-md:max-w-none ${ESTILO[st]} ${editable ? 'cursor-pointer hover:border-[#1a4fa0] hover:shadow-sm transition' : ''} ${!editable && hayTurno && st !== 'en_turno' ? 'opacity-80' : ''}`}>
               <span className={`absolute right-2.5 top-2.5 size-2.5 rounded-full ${PUNTO[st]}`} />
+              {st === 'en_turno' && <span className="absolute -top-2.5 left-3 rounded-full bg-[#1a4fa0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">en turno</span>}
               <p className="text-[11px] text-slate-500">Etapa {e.orden}{e.puesto_esperado ? ` · ${e.puesto_esperado}` : ''}{e.tipo && e.tipo !== 'aprobacion' ? ` · ${e.tipo}` : ''}</p>
               <p className="mt-0.5 text-[13px] font-bold leading-tight text-slate-900 pr-3">{e.nombre}</p>
               <p className="mt-1 text-[12px] text-slate-700">

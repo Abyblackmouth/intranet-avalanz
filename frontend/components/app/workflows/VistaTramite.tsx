@@ -4,7 +4,7 @@
 // de Bandeja/Seguimiento (modo privado, con JWT) y en la página pública de la liga del correo
 // (modo liga: decide con el token). Tres columnas: datos, aprobación, historial.
 import { useState } from 'react'
-import { FileText, RefreshCw, UserCog, RotateCcw } from 'lucide-react'
+import { FileText, RefreshCw, UserCog, RotateCcw, ClipboardList, CheckSquare, History, Mail } from 'lucide-react'
 import {
   TramiteDetalle, UsuarioIntranet, decidirTramite, decidirPorLiga, reenviarAviso, reasignarTramite, reprocesarTramite, buscarUsuariosFlujos,
 } from '@/services/workflowsService'
@@ -36,6 +36,7 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [reasignar, setReasignar] = useState(false)
+  const [pestana, setPestana] = useState<'solicitud' | 'aprobacion' | 'historial' | 'correos'>('solicitud')
   const secc = t.secciones ?? { escalares: [], tablas: [] }
   const enTurno = t.vista === 'aprobador' ? (t.mi_etapa ?? null) : t.etapas.find(e => e.status === 'en_turno')
   const esAprobador = t.vista === 'aprobador'
@@ -86,19 +87,30 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
         <div className="mb-4 rounded-xl border-2 border-[#1a4fa0] bg-blue-50 px-4 py-3 text-[13px]"><b>Te toca decidir</b> · etapa {enTurno.orden} de {t.total_etapas} · {enTurno.nombre}{t.liga?.decido_como ? ` · decides como ${t.liga.decido_como}` : ''}</div>
       )}
 
-      <div className={`grid gap-5 ${esAprobador ? 'lg:grid-cols-[1.3fr_1fr]' : 'lg:grid-cols-[1.15fr_1fr_1fr]'}`}>
-        <section>
+      {!esAprobador && (
+        <div className="flex items-center gap-1 border-b-2 border-slate-300 mb-4 overflow-x-auto">
+          {([['solicitud', 'Solicitud', ClipboardList], ['aprobacion', enTurno && puedoDecidir ? 'Aprobación · me toca' : 'Aprobación', CheckSquare], ['historial', `Historial (${t.bitacora.length})`, History], ['correos', `Correos y plataforma (${t.correos.length + t.transacciones.length})`, Mail]] as [typeof pestana, string, typeof Mail][])
+            .filter(([k]) => !(esSolicitante && k === 'correos'))
+            .map(([k, l, Ic]) => (
+              <button key={k} type="button" onClick={() => setPestana(k)} className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 -mb-0.5 ${pestana === k ? 'border-[#1a4fa0] text-[#1a4fa0]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><Ic size={14} /> {l}</button>
+            ))}
+        </div>
+      )}
+      <div className={`grid gap-5 ${esAprobador ? 'lg:grid-cols-[1.3fr_1fr]' : ''}`}>
+        <section className={!esAprobador && pestana !== 'solicitud' ? 'hidden' : ''}>
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Datos (como los mandó la plataforma)</h4>
           {t.resumen && t.resumen.campos.length > 0 && (
             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {t.resumen.campos.map(c => <div key={c.clave} className="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5"><p className="text-[11px] text-slate-500">{c.etiqueta}</p><p className="text-[13px] font-semibold truncate tabular-nums" title={c.valor}>{c.valor}</p></div>)}
             </div>
           )}
+          <div className={!esAprobador ? 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]' : ''}><div>
           <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-1 text-[13px]">
             <dt className="text-slate-500">Solicitante</dt><dd>{t.requester.name}{t.requester.id && <span className="text-slate-400"> · id {t.requester.id}</span>}{!t.requester.user_id && <span className="ml-1 rounded bg-amber-50 px-1 text-[11px] text-amber-700">sin ligar</span>}</dd>
             {secc.escalares.map(e => <div key={e.clave} className="contents"><dt className="text-slate-500 truncate" title={e.clave}>{e.etiqueta}</dt><dd className="break-words">{e.valor || <span className="text-slate-400">—</span>}</dd></div>)}
             {!esAprobador && <><dt className="text-slate-500">Origen</dt><dd>grupo {t.company_group} · tenant {t.tenant_id}</dd><dt className="text-slate-500">Clave externa</dt><dd className="font-mono text-[12px]">{t.external_key}</dd></>}
           </dl>
+          </div><div>
           {secc.tablas.map(tb => (
             <div key={tb.clave} className="mt-3 overflow-x-auto">
               <p className="text-[12px] font-semibold text-slate-600 mb-1">{tb.titulo} <span className="font-normal text-slate-400">({tb.filas.length})</span></p>
@@ -113,9 +125,10 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
             <div key={a.id} className="flex items-center gap-2 py-1 text-[13px]"><FileText size={14} className="text-slate-400" /><span>{a.nombre}</span><span className="text-[11px] text-slate-400">{a.tipo}</span>
               {a.url && <a href={a.url} target="_blank" rel="noreferrer" className="ml-auto text-[12.5px] text-[#1a4fa0] hover:underline">Descargar</a>}</div>
           )) : <p className="text-[13px] text-slate-400">Sin archivos</p>}
+          </div></div>
         </section>
 
-        <section>
+        <section className={!esAprobador && pestana !== 'aprobacion' ? 'hidden' : ''}>
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Aprobación</h4>
           {enTurno ? (
             <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1 text-[13px]">
@@ -149,18 +162,20 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
           {error && <p className="mt-3 text-[13px] text-red-600">{error}</p>}
         </section>
 
-        {!esAprobador && <section>
+        {!esAprobador && <section className={pestana !== 'historial' ? 'hidden' : ''}>
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Historial</h4>
-          <ul className="max-h-72 overflow-y-auto divide-y divide-slate-200">
+          <ul className="max-h-[28rem] overflow-y-auto divide-y divide-slate-200">
             {t.bitacora.map((b, i) => (
               <li key={i} className="py-1.5 text-[13px]">{ACCION[b.accion] ?? b.accion}{b.detail && typeof b.detail.etapa === 'number' ? ` · etapa ${b.detail.etapa}${typeof b.detail.nombre === 'string' ? ' · ' + b.detail.nombre : ''}` : ''}
                 <span className="block text-[11.5px] text-slate-500">{fmtFecha(b.fecha)}{b.por ? ` · ${b.por}` : ''}{b.detail && typeof b.detail.comentario === 'string' && b.detail.comentario ? ` · «${b.detail.comentario}»` : ''}{b.detail && typeof b.detail.nota === 'string' ? ` · ${b.detail.nota}` : ''}</span>
               </li>
             ))}
           </ul>
-          {modo === 'privado' && !esSolicitante && (
+        </section>}
+        {!esAprobador && !esSolicitante && <section className={pestana !== 'correos' ? 'hidden' : ''}>
+          {modo === 'privado' && (
             <>
-              <h4 className="mt-4 text-[12px] font-semibold text-slate-500 mb-1">Correos ({t.correos.length})</h4>
+              <h4 className="text-[12px] font-semibold text-slate-500 mb-1">Correos ({t.correos.length})</h4>
               <ul className="divide-y divide-slate-200">
                 {t.correos.map(c => <li key={c.id} className="py-1.5 text-[13px]">{c.plantilla} → {c.para}{c.reenvio && <span className="ml-1 rounded bg-slate-100 px-1 text-[11px]">reenvío</span>}<span className="block text-[11.5px] text-slate-500">{fmtFecha(c.fecha)} · {c.resultado}</span></li>)}
                 {t.correos.length === 0 && <li className="py-1.5 text-[13px] text-slate-400">Ninguno</li>}
