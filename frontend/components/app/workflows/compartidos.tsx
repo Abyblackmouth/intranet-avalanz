@@ -58,7 +58,7 @@ export function Modal({ titulo, onClose, children, ancho = 'max-w-md' }: { titul
 }
 
 /** Buscador de usuarios de la Intranet (por nombre o correo) con sugerencias. */
-export function BuscadorUsuario({ valor, onElegir, placeholder = 'Buscar por nombre o correo' }: { valor: UsuarioIntranet | null; onElegir: (u: UsuarioIntranet | null) => void; placeholder?: string }) {
+export function BuscadorUsuario({ valor, onElegir, placeholder = 'Buscar por nombre o correo', buscar = buscarUsuariosIntranet }: { valor: UsuarioIntranet | null; onElegir: (u: UsuarioIntranet | null) => void; placeholder?: string; buscar?: (q: string) => Promise<{ data: UsuarioIntranet[] }> }) {
   const [q, setQ] = useState('')
   const [res, setRes] = useState<UsuarioIntranet[]>([])
   const [abierto, setAbierto] = useState(false)
@@ -67,9 +67,9 @@ export function BuscadorUsuario({ valor, onElegir, placeholder = 'Buscar por nom
     if (t.current) clearTimeout(t.current)
     if (q.trim().length < 2) { setRes([]); return }
     t.current = setTimeout(async () => {
-      try { const r = await buscarUsuariosIntranet(q.trim()); setRes(r.data ?? []); setAbierto(true) } catch { setRes([]) }
+      try { const r = await buscar(q.trim()); setRes(r.data ?? []); setAbierto(true) } catch { setRes([]) }
     }, 250)
-  }, [q])
+  }, [q, buscar])
   if (valor) {
     return (
       <div className="flex items-center gap-2 min-w-0">

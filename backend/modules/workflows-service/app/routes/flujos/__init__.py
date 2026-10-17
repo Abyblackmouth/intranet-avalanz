@@ -1,1 +1,1 @@
-from app.routes.flujos.flujos import router
+from app.routes.flujos.flujos import router  # noqa: F401
