@@ -1,3 +1,4 @@
+from app.routes.ajustes.ajustes import router as ajustes_router
 from app.routes.flujos.flujos import router as flujos_router
 from app.routes.segimiento.segimiento import router as segimiento_router
 from app.routes.bandeja.bandeja import router as bandeja_router
@@ -9,3 +10,4 @@ router.include_router(workflows_router)
 router.include_router(bandeja_router)
 router.include_router(segimiento_router)
 router.include_router(flujos_router)
+router.include_router(ajustes_router)
