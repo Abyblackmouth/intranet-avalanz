@@ -54,4 +54,10 @@ def guardar_sobre(archivos: List[Dict[str, Any]], conexion_slug: str, origen_cla
 
 
 def url_firmada(object_key: str, bucket: str = None, segundos: int = 900) -> str:
-    return _cliente().generate_presigned_url("get_object", Params={"Bucket": bucket or config.MINIO_BUCKET, "Key": object_key}, ExpiresIn=segundos)
+    """Liga firmada con la direccion PUBLICA de MinIO (la que ve el navegador a traves de Nginx),
+    igual que hace el upload-service con SIGNED_URL_HOST. La firma depende del host, asi que se
+    genera con un cliente apuntado a esa direccion."""
+    publico = config.MINIO_PUBLIC_URL or config.MINIO_ENDPOINT
+    cliente = boto3.client("s3", endpoint_url=publico, aws_access_key_id=config.MINIO_ACCESS_KEY, aws_secret_access_key=config.MINIO_SECRET_KEY,
+                           config=BotoConfig(signature_version="s3v4", s3={"addressing_style": "path"}), region_name="us-east-1")
+    return cliente.generate_presigned_url("get_object", Params={"Bucket": bucket or config.MINIO_BUCKET, "Key": object_key}, ExpiresIn=segundos)

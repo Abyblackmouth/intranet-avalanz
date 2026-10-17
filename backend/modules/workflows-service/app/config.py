@@ -24,6 +24,8 @@ class Config(BaseSettings):
     MINIO_SECRET_KEY: str = ""
     MINIO_BUCKET: str = "dirdoc"
     MINIO_SECURE: bool = False
+    # Direccion publica de MinIO para las ligas firmadas (la misma que SIGNED_URL_HOST del upload-service)
+    MINIO_PUBLIC_URL: str = ""
     # Barrido de la bandeja de salida (segundos)
     OUTBOX_SWEEP_SECONDS: int = 60
 
