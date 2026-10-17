@@ -102,6 +102,9 @@ class Flujo(Base):
     activo = Column(Boolean, nullable=False, default=True)
     version = Column(Integer, nullable=False, default=1)
     correos = Column(JSONB, nullable=True)                             # null = hereda los ajustes del modulo
+    # Que campos de cardData son el "resumen" del flujo (tabla, correo y detalle) y cual es el numero de documento visible:
+    # {"numero": "numerosolicitud" | "folio", "campos": [{"clave": "total", "etiqueta": "Total", "tipo": "moneda"}, ...]}
+    resumen = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=ahora)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=ahora, onupdate=ahora)
 

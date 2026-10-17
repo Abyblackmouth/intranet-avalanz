@@ -64,21 +64,23 @@ def _fmt(n: Any) -> str:
         return str(n or "")
 
 
-def _resumen(inst: Instancia, flujo_nombre: str) -> str:
+def _resumen(inst: Instancia, flujo_nombre: str, cfg: Optional[Dict[str, Any]] = None) -> str:
+    """Encabezado + los campos del resumen configurado en el flujo + cada lista de cardData como tabla (hasta 15 filas)."""
+    from app.motor.resumen import resumen as armar_resumen, secciones
     cd = inst.card_data or {}
-    filas = [("Folio", inst.folio), ("Flujo", flujo_nombre), ("Empresa", inst.company_name or inst.origen_clave), ("Solicitante", inst.requester_nombre)]
-    for etiqueta, clave in (("Solicitud", "numerosolicitud"), ("Proveedor", "proveedor"), ("Motivo", "motivoCompra")):
-        if cd.get(clave):
-            filas.append((etiqueta, str(cd[clave])))
-    if cd.get("total") is not None:
-        filas.append(("Total", f"{_fmt(cd['total'])} {cd.get('moneda', '')}".strip()))
+    r = armar_resumen(cfg, cd, inst.folio)
+    filas = [("Folio", inst.folio)]
+    if not r["numero_es_folio"]:
+        filas.append(("Documento", r["numero"]))
+    filas += [("Flujo", flujo_nombre), ("Empresa", inst.company_name or inst.origen_clave), ("Solicitante", inst.requester_nombre)]
+    filas += [(c["etiqueta"], c["valor"]) for c in r["campos"]]
     cuerpo = "".join(f'<tr><td style="padding:6px 10px;color:#64748b;font-size:13px">{k}</td><td style="padding:6px 10px;font-size:13px"><b>{v}</b></td></tr>' for k, v in filas)
-    partidas = cd.get("items") if isinstance(cd.get("items"), list) else []
-    tabla = ""
-    if partidas:
-        celdas = "".join(f"<tr><td style='padding:4px 8px;font-size:12px'>{p.get('item', '')}</td><td style='padding:4px 8px;font-size:12px'>{p.get('descripcion', '')}</td><td style='padding:4px 8px;font-size:12px;text-align:right'>{p.get('cantidad', '')}</td><td style='padding:4px 8px;font-size:12px;text-align:right'>{_fmt(p.get('valorUnitario'))}</td></tr>" for p in partidas[:15])
-        tabla = f"<table style='border-collapse:collapse;width:100%;margin-top:10px;border-top:1px solid #e2e8f0'><tr><th style='text-align:left;padding:4px 8px;font-size:11px;color:#64748b'>Item</th><th style='text-align:left;padding:4px 8px;font-size:11px;color:#64748b'>Descripción</th><th style='text-align:right;padding:4px 8px;font-size:11px;color:#64748b'>Cant.</th><th style='text-align:right;padding:4px 8px;font-size:11px;color:#64748b'>Unitario</th></tr>{celdas}</table>"
-    return f"<table style='border-collapse:collapse;background:#f8fafc;border-radius:10px;width:100%'>{cuerpo}</table>{tabla}"
+    tablas = ""
+    for t in secciones(cd, cfg)["tablas"]:
+        th = "".join(f"<th style='text-align:left;padding:4px 8px;font-size:11px;color:#64748b'>{c}</th>" for c in t["columnas"][:6])
+        tr = "".join("<tr>" + "".join(f"<td style='padding:4px 8px;font-size:12px'>{fila.get(c, '')}</td>" for c in t["columnas"][:6]) + "</tr>" for fila in t["filas"][:15])
+        tablas += f"<p style='margin:12px 0 4px;font-size:12px;color:#64748b'><b>{t['titulo']}</b> ({len(t['filas'])})</p><table style='border-collapse:collapse;width:100%;border-top:1px solid #e2e8f0'><tr>{th}</tr>{tr}</table>"
+    return f"<table style='border-collapse:collapse;background:#f8fafc;border-radius:10px;width:100%'>{cuerpo}</table>{tablas}"
 
 
 def _boton(url: str, texto: str) -> str:
@@ -92,6 +94,11 @@ def _alerta(texto: str, color: str = "#f59e0b") -> str:
 async def _flujo_nombre(db: AsyncSession, inst: Instancia) -> str:
     f = (await db.execute(select(Flujo).where(Flujo.id == inst.flujo_id))).scalar_one_or_none()
     return f.nombre if f else inst.process_id
+
+
+async def _flujo_resumen_cfg(db: AsyncSession, inst: Instancia) -> Optional[Dict[str, Any]]:
+    f = (await db.execute(select(Flujo).where(Flujo.id == inst.flujo_id))).scalar_one_or_none()
+    return f.resumen if f else None
 
 
 def liga_publica(token: str) -> str:
@@ -124,7 +131,7 @@ async def notificar_turno(db: AsyncSession, inst: Instancia, aviso: Optional[Dic
         if mandar_correo:
             html = (f"<h2 style='margin:0 0 6px'>Tienes una aprobación pendiente</h2><p>Hola {nombre.split(' ')[0] if nombre else ''}:</p>"
                     f"<p>{inst.requester_nombre} envió <b>{flujo_nombre}</b> en {inst.company_name or inst.origen_clave}. Te toca decidir en la etapa <b>{etapa.orden} · {etapa.nombre}</b>"
-                    + (" (como suplente: aprueba el primero que responda)" if es_suplente else "") + ".</p>" + _resumen(inst, flujo_nombre)
+                    + (" (como suplente: aprueba el primero que responda)" if es_suplente else "") + ".</p>" + _resumen(inst, flujo_nombre, await _flujo_resumen_cfg(db, inst))
                     + (_boton(liga_publica(token), "Revisar y decidir") if token else "")
                     + "<p style='font-size:12px;color:#64748b'>La liga es personal y de un solo uso; también puedes decidir desde tu Bandeja en la Intranet.</p>")
             await correo(db, inst, "aprobacion_pendiente", email, nombre, user_id, f"Aprobación pendiente · {inst.folio} · {flujo_nombre}", html, etapa_id=etapa.id, reenvio_de=reenvio_de, por=por)
@@ -137,7 +144,7 @@ async def notificar_recibido(db: AsyncSession, inst: Instancia) -> None:
     flujo_nombre = await _flujo_nombre(db, inst)
     await campana(inst.requester_user_id, f"Trámite {inst.folio} recibido", f"{flujo_nombre} · en aprobación", "info", {"instancia_id": inst.id, "folio": inst.folio, "modulo": "workflows", "ruta": liga_tramite(inst)})
     if (await ajustes_service.obtener(db, "correos.recibido")) == "true":
-        html = f"<h2 style='margin:0 0 6px'>Recibimos tu trámite</h2><p>Tu {flujo_nombre} entró al flujo de aprobación con el folio <b>{inst.folio}</b>.</p>{_resumen(inst, flujo_nombre)}{_boton(liga_tramite(inst), 'Seguir el trámite')}"
+        html = f"<h2 style='margin:0 0 6px'>Recibimos tu trámite</h2><p>Tu {flujo_nombre} entró al flujo de aprobación con el folio <b>{inst.folio}</b>.</p>{_resumen(inst, flujo_nombre, await _flujo_resumen_cfg(db, inst))}{_boton(liga_tramite(inst), 'Seguir el trámite')}"
         await correo(db, inst, "recibido", inst.requester_email, inst.requester_nombre, inst.requester_user_id, f"Recibimos tu {flujo_nombre} · {inst.folio}", html)
         await db.commit()
 
@@ -182,7 +189,7 @@ async def notificar_decision(db: AsyncSession, inst: Instancia, momento: str) ->
         titulo, color, plantilla = "Tu trámite fue rechazado", "#ef4444", "decision"
         cuerpo = f"Rechazó <b>{rechazo.decidio_nombre if rechazo else ''}</b> en la etapa {rechazo.orden if rechazo else ''}" + (f": «{rechazo.comentario}»" if rechazo and rechazo.comentario else ".")
         asunto = f"Tu {flujo_nombre} {inst.folio} fue rechazada"
-    html = f"<h2 style='margin:0 0 6px'>{titulo}</h2>{_alerta(cuerpo, color)}{_resumen(inst, flujo_nombre)}<ul style='padding-left:18px'>{hist}</ul>{_boton(liga_tramite(inst), 'Ver el trámite')}"
+    html = f"<h2 style='margin:0 0 6px'>{titulo}</h2>{_alerta(cuerpo, color)}{_resumen(inst, flujo_nombre, await _flujo_resumen_cfg(db, inst))}<ul style='padding-left:18px'>{hist}</ul>{_boton(liga_tramite(inst), 'Ver el trámite')}"
     await correo(db, inst, plantilla, inst.requester_email, inst.requester_nombre, inst.requester_user_id, asunto, html)
     bitacora(db, inst.id, "correo_decision", None, {"momento": momento, "plantilla": plantilla, "ajuste": ajuste})
     await db.commit()

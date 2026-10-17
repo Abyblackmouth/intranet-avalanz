@@ -19,7 +19,6 @@ export const ESTADO_AFECTACION: Record<string, [string, string]> = {
   pendiente: ['bg-amber-50 text-amber-700', 'Plataforma: pendiente'], aplicada: ['bg-emerald-50 text-emerald-700', 'Plataforma: aplicada'], fallida: ['bg-red-50 text-red-700', 'Plataforma: sin respuesta'],
 }
 export function Chip({ par }: { par: [string, string] }) { return <span className={`rounded-full px-2 py-0.5 text-[12px] font-medium ${par[0]}`}>{par[1]}</span> }
-const fmt = (n: unknown) => typeof n === 'number' ? `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : String(n ?? '')
 const ACCION: Record<string, string> = {
   recibido: 'recibido de la plataforma', grupo_resuelto: 'grupo de aprobación resuelto', en_turno: 'etapa en turno', aviso_enviado: 'aviso enviado',
   etapa_aprobada: 'etapa aprobada', rechazada: 'trámite rechazado', aprobada: 'trámite aprobado', resultado_encolado: 'resultado en cola hacia la plataforma',
@@ -37,11 +36,10 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [reasignar, setReasignar] = useState(false)
-  const cd = t.card_data ?? {}
+  const secc = t.secciones ?? { escalares: [], tablas: [] }
   const enTurno = t.vista === 'aprobador' ? (t.mi_etapa ?? null) : t.etapas.find(e => e.status === 'en_turno')
   const esAprobador = t.vista === 'aprobador'
   const esSolicitante = t.vista === 'solicitante'
-  const items = Array.isArray(cd.items) ? (cd.items as Record<string, unknown>[]) : []
   const puedoDecidir = modo === 'liga' ? t.liga?.estado === 'vigente' : t.puedo_decidir
   const comentarioObligatorio = true
 
@@ -62,12 +60,12 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
   const reenviar = async () => { setError(null); try { const r = await reenviarAviso(t.id); onChange(r.data); setAviso(`Aviso reenviado a ${enTurno?.aprobador_nombre ?? 'el aprobador'} con liga nueva.`) } catch (e) { setError(errMsg(e, 'No se pudo reenviar')) } }
   const reprocesar = async () => { setError(null); try { const r = await reprocesarTramite(t.id); onChange(r.data); setAviso('Reprocesado con la configuración vigente.') } catch (e) { setError(errMsg(e, 'No se pudo reprocesar')) } }
 
-  const datosExtra = Object.entries(cd).filter(([k, v]) => !['items', 'total', 'subtotal', 'numerosolicitud', 'proveedor', 'motivoCompra', 'moneda'].includes(k) && (typeof v !== 'object' || v === null))
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="font-mono text-[16px] font-semibold">{t.folio}</span>
+        {t.resumen && !t.resumen.numero_es_folio && <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[12px]">doc. {t.resumen.numero}</span>}
         <span className="text-[14px] text-slate-800">{t.flujo_nombre ?? t.process_id}</span>
         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[12px]">{t.company_name || t.origen_clave}</span>
         {t.grupo_nombre && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[12px]">grupo: {t.grupo_nombre}</span>}
@@ -91,22 +89,25 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
       <div className={`grid gap-5 ${esAprobador ? 'lg:grid-cols-[1.3fr_1fr]' : 'lg:grid-cols-[1.15fr_1fr_1fr]'}`}>
         <section>
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Datos (como los mandó la plataforma)</h4>
-          <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-[13px]">
-            {cd.numerosolicitud != null && <><dt className="text-slate-500">Solicitud</dt><dd>{String(cd.numerosolicitud)}</dd></>}
-            <dt className="text-slate-500">Solicitante</dt><dd>{t.requester.name}{t.requester.id && <span className="text-slate-400"> · id {t.requester.id}</span>}{!t.requester.user_id && <span className="ml-1 rounded bg-amber-50 px-1 text-[11px] text-amber-700">sin ligar</span>}</dd>
-            {cd.motivoCompra != null && <><dt className="text-slate-500">Motivo</dt><dd>{String(cd.motivoCompra)}</dd></>}
-            {cd.proveedor != null && <><dt className="text-slate-500">Proveedor</dt><dd>{String(cd.proveedor)}</dd></>}
-            {cd.total != null && <><dt className="text-slate-500">Total</dt><dd className="font-semibold">{fmt(cd.total)} {String(cd.moneda ?? '')}</dd></>}
-            {datosExtra.map(([k, v]) => <div key={k} className="contents"><dt className="text-slate-500 truncate">{k}</dt><dd>{String(v)}</dd></div>)}
-            <dt className="text-slate-500">Origen</dt><dd>grupo {t.company_group} · tenant {t.tenant_id}</dd>
-            <dt className="text-slate-500">Clave externa</dt><dd className="font-mono text-[12px]">{t.external_key}</dd>
-          </dl>
-          {items.length > 0 && (
-            <table className="mt-3 w-full text-[12px]">
-              <thead><tr className="text-left text-slate-500"><th className="py-1 pr-2 font-medium">Item</th><th className="py-1 pr-2 font-medium">Descripción</th><th className="py-1 pr-2 font-medium text-right">Cant.</th><th className="py-1 pr-2 font-medium text-right">Unitario</th></tr></thead>
-              <tbody>{items.map((i, idx) => <tr key={idx} className="border-t border-slate-200"><td className="py-1 pr-2">{String(i.item ?? idx + 1)}</td><td className="py-1 pr-2">{String(i.descripcion ?? '')}</td><td className="py-1 pr-2 text-right">{String(i.cantidad ?? '')}</td><td className="py-1 pr-2 text-right">{fmt(i.valorUnitario)}</td></tr>)}</tbody>
-            </table>
+          {t.resumen && t.resumen.campos.length > 0 && (
+            <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {t.resumen.campos.map(c => <div key={c.clave} className="rounded-lg border border-slate-300 bg-slate-50 px-2.5 py-1.5"><p className="text-[11px] text-slate-500">{c.etiqueta}</p><p className="text-[13px] font-semibold truncate tabular-nums" title={c.valor}>{c.valor}</p></div>)}
+            </div>
           )}
+          <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-1 text-[13px]">
+            <dt className="text-slate-500">Solicitante</dt><dd>{t.requester.name}{t.requester.id && <span className="text-slate-400"> · id {t.requester.id}</span>}{!t.requester.user_id && <span className="ml-1 rounded bg-amber-50 px-1 text-[11px] text-amber-700">sin ligar</span>}</dd>
+            {secc.escalares.map(e => <div key={e.clave} className="contents"><dt className="text-slate-500 truncate" title={e.clave}>{e.etiqueta}</dt><dd className="break-words">{e.valor || <span className="text-slate-400">—</span>}</dd></div>)}
+            {!esAprobador && <><dt className="text-slate-500">Origen</dt><dd>grupo {t.company_group} · tenant {t.tenant_id}</dd><dt className="text-slate-500">Clave externa</dt><dd className="font-mono text-[12px]">{t.external_key}</dd></>}
+          </dl>
+          {secc.tablas.map(tb => (
+            <div key={tb.clave} className="mt-3 overflow-x-auto">
+              <p className="text-[12px] font-semibold text-slate-600 mb-1">{tb.titulo} <span className="font-normal text-slate-400">({tb.filas.length})</span></p>
+              <table className="w-full text-[12px]">
+                <thead><tr className="text-left text-slate-500">{tb.columnas.map(c => <th key={c} className="py-1 pr-2 font-medium whitespace-nowrap">{c}</th>)}</tr></thead>
+                <tbody>{tb.filas.map((fila, i) => <tr key={i} className="border-t border-slate-200">{tb.columnas.map(c => <td key={c} className="py-1 pr-2">{fila[c] ?? ''}</td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          ))}
           <h4 className="mt-4 text-[12px] font-semibold text-slate-500 mb-1">Archivos</h4>
           {t.archivos.length ? t.archivos.map(a => (
             <div key={a.id} className="flex items-center gap-2 py-1 text-[13px]"><FileText size={14} className="text-slate-400" /><span>{a.nombre}</span><span className="text-[11px] text-slate-400">{a.tipo}</span>

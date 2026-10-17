@@ -71,8 +71,12 @@ export interface GrupoDef {
 export interface Flujo {
   id: string; process_id: string; aliases: string[]; nombre: string; descripcion: string | null
   conexion_id: string; conexion_titulo: string | null; conexion_slug: string | null; result_service: string
-  activo: boolean; version: number; correos: Record<string, unknown> | null; grupos: number; instancias_activas: number; updated_at: string | null
+  activo: boolean; version: number; correos: Record<string, unknown> | null; resumen: ResumenConfig | null; grupos: number; instancias_activas: number; updated_at: string | null
 }
+export interface CampoResumen { clave: string; etiqueta: string; tipo: 'texto' | 'moneda' | 'numero' | 'fecha' }
+export interface ResumenConfig { numero: string; campos: CampoResumen[] }
+export interface ResumenTramite { numero: string; numero_es_folio: boolean; campos: (CampoResumen & { valor: string })[]; texto: string }
+export interface SeccionesTramite { escalares: { clave: string; etiqueta: string; valor: string }[]; tablas: { clave: string; titulo: string; columnas: string[]; filas: Record<string, string>[] }[] }
 export interface FlujoDetalle extends Flujo {
   grupos_detalle: GrupoDef[]; instancias_total: number
   empresas_conexion: { clave: string; nombre: string; activa: boolean }[]
@@ -94,7 +98,7 @@ export const getFlujos = () => api.get<Flujo[]>(`${BASE}/flujos`)
 export const getFlujo = (id: string) => api.get<FlujoDetalle>(`${BASE}/flujos/${id}`)
 export const createFlujo = (data: { conexion_id: string; process_id: string; nombre: string; descripcion?: string; result_service?: string; activo?: boolean }) =>
   api.post<Flujo>(`${BASE}/flujos`, data)
-export const updateFlujo = (id: string, data: { process_id?: string; aliases?: string[]; nombre?: string; descripcion?: string | null; result_service?: string; activo?: boolean }) =>
+export const updateFlujo = (id: string, data: { process_id?: string; aliases?: string[]; nombre?: string; descripcion?: string | null; result_service?: string; activo?: boolean; resumen?: ResumenConfig }) =>
   api.patch<FlujoDetalle>(`${BASE}/flujos/${id}`, data)
 export const deleteFlujo = (id: string) => api.delete(`${BASE}/flujos/${id}`)
 export const getFlujoVersiones = (id: string) => api.get<VersionFlujo[]>(`${BASE}/flujos/${id}/versiones`)
@@ -133,7 +137,7 @@ export interface Tramite {
   etapa_actual: number | null; approved: boolean | null; decidida_en: string | null
   afectacion: 'pendiente' | 'aplicada' | 'fallida' | null; afectada_en: string | null; mensaje_plataforma: string | null
   sustituida_por_id: string | null; created_at: string | null; updated_at: string | null
-  etapa_en_turno?: EtapaTramite | null; me_toca?: boolean; total?: number | null
+  etapa_en_turno?: EtapaTramite | null; me_toca?: boolean; total?: number | null; resumen?: ResumenTramite
 }
 export interface ArchivoTramite { id: string; tipo: string; nombre: string; mime_type: string | null; size_bytes: number | null; sha256: string | null; uploaded_at: string; url?: string | null }
 export interface BitacoraTramite { accion: string; por: string; rol: string; fecha: string; detail: Record<string, unknown> | null }
@@ -147,6 +151,7 @@ export interface TramiteDetalle extends Tramite {
   etapas: EtapaTramite[]; archivos: ArchivoTramite[]; bitacora: BitacoraTramite[]; correos: CorreoTramite[]; transacciones: Transaccion[]
   puedo_decidir: boolean; puedo_administrar: boolean; soy_solicitante: boolean
   vista: 'administrador' | 'solicitante' | 'aprobador'; total_etapas: number; mi_etapa?: EtapaTramite | null
+  secciones: SeccionesTramite; resumen_config: ResumenConfig | null
   liga?: { estado: 'vigente' | 'usada' | 'invalidada' | 'vencida' | 'cerrada'; etapa_orden: number; etapa_nombre: string; expira: string; decido_como: string; mensaje: string }
 }
 export interface Resumen { me_toca: number; en_aprobacion: number; sin_aplicar: number; error_configuracion: number; mis_tramites: number; ultimos: Tramite[]; ve_todo: boolean }

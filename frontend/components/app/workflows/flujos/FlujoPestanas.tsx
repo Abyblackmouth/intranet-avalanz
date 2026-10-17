@@ -2,9 +2,9 @@
 
 // Pestañas secundarias del detalle de un flujo: Simular, Datos generales y Versiones.
 import { useEffect, useState } from 'react'
-import { Play } from 'lucide-react'
+import { Play, Plus, X } from 'lucide-react'
 import {
-  FlujoDetalle, Simulacion, UsuarioIntranet, VersionFlujo, ConexionResumen,
+  FlujoDetalle, Simulacion, UsuarioIntranet, VersionFlujo, ConexionResumen, CampoResumen,
   simularFlujo, updateFlujo, deleteFlujo, getFlujoVersiones, buscarUsuariosFlujos, getConexionesFlujos, createFlujo,
 } from '@/services/workflowsService'
 import RielFlujo, { LeyendaRiel } from '@/components/app/workflows/RielFlujo'
@@ -82,15 +82,19 @@ export function Simulador({ flujo }: { flujo: FlujoDetalle }) {
 // ── Datos generales ───────────────────────────────────────────────────────
 export function DatosGenerales({ flujo, onChange, puedeEditar, onEliminado }: { flujo: FlujoDetalle; onChange: (f: FlujoDetalle) => void; puedeEditar: boolean; onEliminado: () => void }) {
   const [f, setF] = useState({ nombre: flujo.nombre, descripcion: flujo.descripcion ?? '', process_id: flujo.process_id, result_service: flujo.result_service, aliases: flujo.aliases.join(', ') })
+  const [numero, setNumero] = useState(flujo.resumen?.numero ?? 'folio')
+  const [campos, setCampos] = useState<CampoResumen[]>(flujo.resumen?.campos ?? [])
   const [estado, setEstado] = useState<{ ok: boolean; texto: string } | null>(null)
   const [guardando, setGuardando] = useState(false)
-  useEffect(() => { setF({ nombre: flujo.nombre, descripcion: flujo.descripcion ?? '', process_id: flujo.process_id, result_service: flujo.result_service, aliases: flujo.aliases.join(', ') }) }, [flujo])
+  useEffect(() => { setF({ nombre: flujo.nombre, descripcion: flujo.descripcion ?? '', process_id: flujo.process_id, result_service: flujo.result_service, aliases: flujo.aliases.join(', ') }); setNumero(flujo.resumen?.numero ?? 'folio'); setCampos(flujo.resumen?.campos ?? []) }, [flujo])
+  const setCampo = (i: number, k: keyof CampoResumen, v: string) => setCampos(cs => cs.map((c, j) => j === i ? { ...c, [k]: v } : c))
   const guardar = async () => {
     setEstado(null); setGuardando(true)
     try {
       const r = await updateFlujo(flujo.id, {
         nombre: f.nombre.trim(), descripcion: f.descripcion.trim() || null, process_id: f.process_id.trim(), result_service: f.result_service.trim(),
         aliases: f.aliases.split(',').map(a => a.trim()).filter(Boolean),
+        resumen: { numero: numero.trim() || 'folio', campos: campos.filter(c => c.clave.trim()) },
       })
       onChange(r.data); setEstado({ ok: true, texto: `Guardado · versión ${r.data.version}` })
     } catch (e) { setEstado({ ok: false, texto: errMsg(e, 'No se pudo guardar') }) } finally { setGuardando(false) }
@@ -126,6 +130,30 @@ export function DatosGenerales({ flujo, onChange, puedeEditar, onEliminado }: { 
           <textarea rows={2} className={`${inputCls} w-full`} value={f.descripcion} onChange={e => setF(s => ({ ...s, descripcion: e.target.value }))} disabled={dis} />
         </div>
         <div className="sm:col-span-2 text-[13px] text-slate-600">Plataforma: <b>{flujo.conexion_titulo}</b> <span className="text-slate-400">({flujo.conexion_slug})</span>. Para cambiarla, crea otro flujo.</div>
+      </div>
+
+      <div className="mt-6 pt-5 border-t border-slate-200 max-w-3xl">
+        <h4 className="text-[14px] font-bold text-slate-900">Resumen del trámite</h4>
+        <p className="text-[12.5px] text-slate-500 mt-0.5 mb-3">Qué campos de <code>cardData</code> se muestran en la tabla de trámites, en el correo al aprobador y en el detalle. Cada flujo tiene los suyos (compras: solicitud, proveedor, total; cuentas contables: cuenta, descripción…). Hasta 4.</p>
+        <div className="grid gap-3 sm:grid-cols-2 mb-3">
+          <div>
+            <label className={labelCls}>Número de documento visible</label>
+            <input className={`${inputCls} w-full font-mono`} value={numero} onChange={e => setNumero(e.target.value)} placeholder="numerosolicitud" disabled={dis} />
+            <p className="text-[11px] text-slate-400 mt-1">Clave de cardData que trae el número (lo asigna la plataforma), o <code>folio</code> si lo asigna la Intranet y la plataforma lo recibe en la respuesta.</p>
+          </div>
+        </div>
+        {campos.map((c, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-2 mb-2">
+            <input className={`${inputCls} w-44 font-mono`} placeholder="clave en cardData" value={c.clave} onChange={e => setCampo(i, 'clave', e.target.value)} disabled={dis} />
+            <input className={`${inputCls} w-40`} placeholder="Etiqueta" value={c.etiqueta} onChange={e => setCampo(i, 'etiqueta', e.target.value)} disabled={dis} />
+            <select className={`${inputCls} w-32`} value={c.tipo} onChange={e => setCampo(i, 'tipo', e.target.value)} disabled={dis}>
+              <option value="texto">Texto</option><option value="moneda">Moneda</option><option value="numero">Número</option><option value="fecha">Fecha</option>
+            </select>
+            {!dis && <button type="button" onClick={() => setCampos(cs => cs.filter((_, j) => j !== i))} aria-label="Quitar" className="grid size-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>}
+          </div>
+        ))}
+        {!dis && campos.length < 4 && <button type="button" className={btnSecundario} onClick={() => setCampos(cs => [...cs, { clave: '', etiqueta: '', tipo: 'texto' }])}><Plus size={13} /> Agregar campo</button>}
+        {campos.length === 0 && <p className="text-[12px] text-slate-400 mt-2">Sin configurar, la Intranet toma lo que reconozca (solicitud, proveedor, total, cuenta, descripción…).</p>}
       </div>
       {puedeEditar && (
         <div className="mt-5 flex flex-wrap items-center gap-3">

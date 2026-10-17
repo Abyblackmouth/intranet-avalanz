@@ -6,15 +6,21 @@ import { Tramite } from '@/services/workflowsService'
 import { Chip, ESTADO_AFECTACION, ESTADO_TRAMITE } from '@/components/app/workflows/VistaTramite'
 import { fmtFecha } from '@/components/app/workflows/compartidos'
 
-const fmt = (n: unknown) => typeof n === 'number' ? `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : '—'
 
 export default function TablaTramites({ filas, cargando, onAbrir, reinicio, vacio }: { filas: Tramite[]; cargando: boolean; onAbrir: (id: string) => void; reinicio?: unknown; vacio: React.ReactNode }) {
+  const unSoloFlujo = filas.length > 0 && filas.every(t => t.flujo_id === filas[0].flujo_id)
+  const clavesResumen = unSoloFlujo ? (filas[0].resumen?.campos ?? []).map(c => ({ clave: c.clave, etiqueta: c.etiqueta, tipo: c.tipo })) : []
+  const hayDocumento = filas.some(t => t.resumen && !t.resumen.numero_es_folio)
+  const colsResumen: Columna<Tramite>[] = unSoloFlujo
+    ? clavesResumen.map(c => ({ id: 'r_' + c.clave, titulo: c.etiqueta, orden: (t: Tramite) => t.resumen?.campos.find(x => x.clave === c.clave)?.valor ?? '', clase: c.tipo === 'moneda' || c.tipo === 'numero' ? 'text-right' : '', celda: (t: Tramite) => t.resumen?.campos.find(x => x.clave === c.clave)?.valor ?? '—' }))
+    : [{ id: 'resumen', titulo: 'Resumen', orden: (t: Tramite) => t.resumen?.texto ?? '', celda: (t: Tramite) => <span className="text-slate-600">{t.resumen?.texto || '—'}</span> }]
   const columnas: Columna<Tramite>[] = [
     { id: 'folio', titulo: 'Folio', orden: t => t.folio, celda: t => <button type="button" onClick={() => onAbrir(t.id)} className="font-mono font-semibold text-[#1a4fa0] hover:underline">{t.folio}</button> },
+    ...(hayDocumento ? [{ id: 'doc', titulo: 'Documento', orden: (t: Tramite) => t.resumen?.numero ?? '', celda: (t: Tramite) => <span className="font-mono">{t.resumen && !t.resumen.numero_es_folio ? t.resumen.numero : '—'}</span> } as Columna<Tramite>] : []),
     { id: 'flujo', titulo: 'Flujo', orden: t => t.flujo_nombre ?? '', celda: t => t.flujo_nombre ?? t.process_id },
     { id: 'empresa', titulo: 'Empresa', orden: t => t.company_name, celda: t => t.company_name || t.origen_clave },
     { id: 'sol', titulo: 'Solicitante', orden: t => t.requester.name, celda: t => t.requester.name },
-    { id: 'total', titulo: 'Total', orden: t => Number(t.total ?? 0), clase: 'text-right', celda: t => fmt(t.total) },
+    ...colsResumen,
     { id: 'etapa', titulo: 'Etapa', orden: t => t.etapa_en_turno?.orden ?? 99, celda: t => t.etapa_en_turno ? <span>{t.etapa_en_turno.orden} · {t.etapa_en_turno.aprobador_nombre || t.etapa_en_turno.nombre}{t.me_toca && <span className="ml-1.5 rounded bg-blue-50 px-1.5 text-[11px] font-semibold text-[#1a4fa0]">me toca</span>}</span> : <span className="text-slate-400">—</span> },
     { id: 'estado', titulo: 'Estatus', orden: t => t.status, celda: t => <span className="inline-flex flex-wrap gap-1"><Chip par={ESTADO_TRAMITE[t.status]} />{t.afectacion && <Chip par={ESTADO_AFECTACION[t.afectacion]} />}</span> },
     { id: 'desde', titulo: 'Desde', orden: t => t.created_at ?? '', celda: t => <span className="text-slate-500">{fmtFecha(t.created_at)}</span> },

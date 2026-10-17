@@ -31,6 +31,7 @@ class FlujoIn(BaseModel):
 
 class FlujoPatch(BaseModel):
     process_id: Optional[str] = None
+    resumen: Optional[Dict[str, Any]] = None
     aliases: Optional[List[str]] = None
     nombre: Optional[str] = None
     descripcion: Optional[str] = None

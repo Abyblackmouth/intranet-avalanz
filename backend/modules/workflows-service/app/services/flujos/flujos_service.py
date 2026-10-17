@@ -56,7 +56,7 @@ async def _instancias_total(db: AsyncSession, flujo_id: str) -> int:
 def _flujo(f: Flujo, conexion: Optional[Conexion], grupos: int, activas: int) -> Dict[str, Any]:
     return {"id": f.id, "process_id": f.process_id, "aliases": f.aliases or [], "nombre": f.nombre, "descripcion": f.descripcion,
             "conexion_id": f.conexion_id, "conexion_titulo": conexion.titulo if conexion else None, "conexion_slug": conexion.slug if conexion else None,
-            "result_service": f.result_service, "activo": f.activo, "version": f.version, "correos": f.correos,
+            "result_service": f.result_service, "activo": f.activo, "version": f.version, "correos": f.correos, "resumen": f.resumen,
             "grupos": grupos, "instancias_activas": activas, "updated_at": f.updated_at.isoformat() if f.updated_at else None}
 
 
@@ -179,6 +179,15 @@ async def actualizar(db: AsyncSession, flujo_id: str, datos: Dict[str, Any], use
     if "correos" in datos:
         f.correos = datos["correos"]
         cambios.append("correos del flujo actualizados")
+    if "resumen" in datos and datos["resumen"] is not None:
+        from app.motor.resumen import normalizar
+        try:
+            nuevo_resumen = normalizar(datos["resumen"])
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        if nuevo_resumen != (f.resumen or {}):
+            f.resumen = nuevo_resumen
+            cambios.append("resumen actualizado")
     if cambios:
         await nueva_version(db, f, user, "; ".join(cambios))
         await db.commit()

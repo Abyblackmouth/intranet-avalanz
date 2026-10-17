@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import es_super_admin, get_flat_roles
 from app.models import Bitacora, Conexion, CorreoEnviado, Flujo, Instancia, InstanciaArchivo, InstanciaEtapa, Transaccion
 from app.motor.instancias import serializar_etapa, serializar_instancia
+from app.motor.resumen import resumen as armar_resumen, secciones
 
 ROLES_TODO = ("administrador", "auditoria", "disenador")
 
@@ -63,6 +64,10 @@ async def detalle(db: AsyncSession, inst: Instancia, user: Dict[str, Any], con_u
     conexion = (await db.execute(select(Conexion).where(Conexion.id == inst.conexion_id))).scalar_one_or_none()
     flujo = (await db.execute(select(Flujo).where(Flujo.id == inst.flujo_id))).scalar_one_or_none()
     d = serializar_instancia(inst, etapas, conexion, flujo.nombre if flujo else None)
+    cfg = flujo.resumen if flujo else None
+    d["resumen"] = armar_resumen(cfg, inst.card_data or {}, inst.folio)
+    d["secciones"] = secciones(inst.card_data or {}, cfg)
+    d["resumen_config"] = cfg
     archivos = (await db.execute(select(InstanciaArchivo).where(InstanciaArchivo.instancia_id == inst.id).order_by(InstanciaArchivo.uploaded_at))).scalars().all()
     d["archivos"] = []
     for a in archivos:
@@ -141,6 +146,8 @@ async def listar(db: AsyncSession, user: Dict[str, Any], status: Optional[str], 
         d["etapa_en_turno"] = (serializar_etapa(e) if (todo or me_toca or soy_solicitante) else _sin_nombres(serializar_etapa(e))) if e else None
         d["me_toca"] = me_toca
         d["total"] = (i.card_data or {}).get("total")
+        f = flujos.get(i.flujo_id)
+        d["resumen"] = armar_resumen(f.resumen if f else None, i.card_data or {}, i.folio)
         if not todo and not me_toca and not soy_solicitante:
             d["grupo_nombre"] = ""
         out.append(d)
