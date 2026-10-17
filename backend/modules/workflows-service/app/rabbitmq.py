@@ -77,6 +77,11 @@ async def barrido_periodico(cada_segundos: int = 60) -> None:
                         await outbox.procesar(db, tx)
                     except Exception:
                         logger.exception("Barrido: falló tx %s", tx.id)
+                try:
+                    from app.motor.avisos import revisar_afectaciones_pendientes
+                    await revisar_afectaciones_pendientes(db)
+                except Exception:
+                    logger.exception("Barrido: revisión de afectaciones pendientes")
         except Exception:
             logger.exception("Barrido de resultados falló")
         await asyncio.sleep(cada_segundos)

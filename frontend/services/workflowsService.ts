@@ -115,3 +115,51 @@ export const updateEtapa = (flujoId: string, grupoId: string, etapaId: string, d
 export const deleteEtapa = (flujoId: string, grupoId: string, etapaId: string) => api.delete<FlujoDetalle>(`${BASE}/flujos/${flujoId}/grupos/${grupoId}/etapas/${etapaId}`)
 export interface ConexionResumen { id: string; slug: string; titulo: string; activa: boolean; empresas: { clave: string; nombre: string }[] }
 export const getConexionesFlujos = () => api.get<ConexionResumen[]>(`${BASE}/flujos/catalogos/conexiones`)
+
+// ── Trámites (Bandeja, Seguimiento, página pública) ────────────────────────
+export interface EtapaTramite {
+  id: string; orden: number; nombre: string; tipo: string; puesto_esperado: string | null; condicion: string | null
+  aprobador_user_id: string | null; aprobador_nombre: string; aprobador_email: string | null; suplente_user_id: string | null; suplente_nombre: string | null
+  status: 'pendiente' | 'en_turno' | 'aprobada' | 'rechazada' | 'omitida' | 'no_alcanzada' | 'reasignada'; nota: string | null
+  decidio_user_id: string | null; decidio_nombre: string | null; decidio_id_externo: string | null; decidio_en: string | null; comentario: string | null; en_turno_desde: string | null
+}
+export interface Tramite {
+  id: string; folio: string; flujo_id: string; flujo_nombre: string | null; process_id: string; result_service: string
+  conexion_id: string; conexion_titulo: string | null; conexion_slug: string | null; external_key: string
+  company_group: string; tenant_id: string; company_name: string; origen_clave: string
+  requester: { id: string; login: string | null; user_id: string | null; name: string; email: string | null }
+  card_data: Record<string, unknown>; grupo_nombre: string
+  status: 'en_aprobacion' | 'aprobada' | 'rechazada' | 'sustituida' | 'cancelada' | 'error_configuracion'
+  etapa_actual: number | null; approved: boolean | null; decidida_en: string | null
+  afectacion: 'pendiente' | 'aplicada' | 'fallida' | null; afectada_en: string | null; mensaje_plataforma: string | null
+  sustituida_por_id: string | null; created_at: string | null; updated_at: string | null
+  etapa_en_turno?: EtapaTramite | null; me_toca?: boolean; total?: number | null
+}
+export interface ArchivoTramite { id: string; tipo: string; nombre: string; mime_type: string | null; size_bytes: number | null; sha256: string | null; uploaded_at: string; url?: string | null }
+export interface BitacoraTramite { accion: string; por: string; rol: string; fecha: string; detail: Record<string, unknown> | null }
+export interface CorreoTramite { id: string; plantilla: string; para: string | null; email: string; fecha: string; resultado: string; reenvio: boolean }
+export interface Transaccion {
+  id: string; instancia_id: string | null; folio: string | null; direccion: 'entrada' | 'salida'; tipo: string
+  estado: 'recibido' | 'pendiente_envio' | 'enviado' | 'error' | 'abandonado'; intento: number; proximo_intento: string | null
+  respuesta_status: number | null; respuesta_body: string | null; error: string | null; created_at: string | null; updated_at: string | null; payload?: unknown
+}
+export interface TramiteDetalle extends Tramite {
+  etapas: EtapaTramite[]; archivos: ArchivoTramite[]; bitacora: BitacoraTramite[]; correos: CorreoTramite[]; transacciones: Transaccion[]
+  puedo_decidir: boolean; puedo_administrar: boolean; soy_solicitante: boolean
+  liga?: { estado: 'vigente' | 'usada' | 'invalidada' | 'vencida' | 'cerrada'; etapa_orden: number; etapa_nombre: string; expira: string; decido_como: string; mensaje: string }
+}
+export interface Resumen { me_toca: number; en_aprobacion: number; sin_aplicar: number; error_configuracion: number; mis_tramites: number; ultimos: Tramite[]; ve_todo: boolean }
+
+export const getBandeja = (filtro: 'mias' | 'decididas' | 'participo', q = '') => api.get<Tramite[]>(`${BASE}/bandeja`, { params: { filtro, q } })
+export const getTramite = (id: string) => api.get<TramiteDetalle>(`${BASE}/bandeja/${id}`)
+export const decidirTramite = (id: string, data: { aprobar: boolean; comentario?: string }) => api.post<TramiteDetalle>(`${BASE}/bandeja/${id}/decidir`, data)
+export const getResumen = () => api.get<Resumen>(`${BASE}/seguimiento/resumen`)
+export const getTramites = (params: { status?: string; flujo_id?: string; origen_clave?: string; q?: string }) => api.get<Tramite[]>(`${BASE}/seguimiento/instancias`, { params })
+export const reasignarTramite = (id: string, data: { user_id: string; nombre: string; email?: string | null; motivo: string }) => api.post<TramiteDetalle>(`${BASE}/seguimiento/instancias/${id}/reasignar`, data)
+export const reprocesarTramite = (id: string) => api.post<TramiteDetalle>(`${BASE}/seguimiento/instancias/${id}/reprocesar`)
+export const reenviarAviso = (id: string) => api.post<TramiteDetalle>(`${BASE}/seguimiento/instancias/${id}/reenviar-aviso`)
+export const getTransacciones = (params: { estado?: string; instancia_id?: string }) => api.get<Transaccion[]>(`${BASE}/seguimiento/transacciones`, { params })
+export const getTransaccion = (id: string) => api.get<Transaccion>(`${BASE}/seguimiento/transacciones/${id}`)
+export const reenviarTransaccion = (id: string) => api.post<{ estado: string; status: number | null; error: string | null; mensaje: string | null }>(`${BASE}/seguimiento/transacciones/${id}/reenviar`)
+export const getLigaPublica = (token: string) => api.get<TramiteDetalle>(`${BASE}/public/aprobar/${token}`)
+export const decidirPorLiga = (token: string, data: { aprobar: boolean; comentario?: string }) => api.post<{ ok: boolean; status: string; folio: string; mensaje: string }>(`${BASE}/public/aprobar/${token}/decidir`, data)

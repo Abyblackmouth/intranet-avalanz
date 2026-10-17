@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Conexion, Instancia, InstanciaEtapa
 from app.motor import archivos as archivos_mod
+from app.motor import avisos
 from app.motor import instancias as motor
 from app.services.ajustes.conexiones_service import validar_token_entrada
 
@@ -99,7 +100,22 @@ async def recibir_sobre(request: Request, db: AsyncSession = Depends(get_db), x_
     ip = request.headers.get("x-real-ip") or (request.client.host if request.client else None)
     r = await motor.recibir(db, conexion, datos, guardados, ip)
     inst: Instancia = r["instancia"]
-    # Avisos (campana/correo) se enganchan aquí en el paso 6; el trámite ya está guardado.
+    if r["nueva"]:
+        # El trámite ya está guardado: los avisos son mejor esfuerzo
+        try:
+            if inst.status == "error_configuracion":
+                await avisos.notificar_ti(db, inst, "Trámite sin grupo de aprobación", f"{inst.folio}: no hay grupo para la empresa {inst.origen_clave} en {inst.process_id}. Captúralo en Flujos y usa «Reprocesar».")
+            else:
+                await avisos.notificar_recibido(db, inst)
+                if r.get("aviso"):
+                    await avisos.notificar_turno(db, inst, r["aviso"])
+                elif inst.status in ("aprobada", "rechazada"):
+                    await avisos.notificar_decision(db, inst, "decidida")
+                    from app.rabbitmq import publicar_resultados_pendientes
+                    await publicar_resultados_pendientes(inst.id)
+        except Exception:
+            import logging
+            logging.getLogger("avalanz").exception("Avisos tras recibir %s", inst.folio)
     cuerpo_resp = {"instanceId": inst.id, "folio": inst.folio, "status": inst.status, "message": _mensaje(inst, r["nueva"])}
     if not r["nueva"]:
         from fastapi.responses import JSONResponse

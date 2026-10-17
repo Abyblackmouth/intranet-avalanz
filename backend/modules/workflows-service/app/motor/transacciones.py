@@ -90,6 +90,13 @@ async def procesar(db: AsyncSession, tx: Transaccion) -> Dict[str, Any]:
         tx.proximo_intento = None
         inst.afectacion, inst.afectada_en, inst.mensaje_plataforma = "aplicada", ahora(), r.get("mensaje")
         bitacora(db, inst.id, "afectacion_aplicada", None, {"status": r.get("status"), "mensaje": r.get("mensaje"), "intento": tx.intento})
+        await db.commit()
+        try:
+            from app.motor.avisos import notificar_decision
+            await notificar_decision(db, inst, "aplicada")
+        except Exception:
+            logger.exception("Correo de decisión tras afectación %s", inst.folio)
+        return {"estado": tx.estado, "status": r.get("status"), "error": None, "mensaje": r.get("mensaje")}
     elif r.get("reintentar", True) and tx.intento < (conexion.reintentos_max or 0):
         tx.estado = "error"
         tx.proximo_intento = ahora() + timedelta(minutes=_espaciado(conexion, tx.intento))
@@ -100,6 +107,13 @@ async def procesar(db: AsyncSession, tx: Transaccion) -> Dict[str, Any]:
         tx.proximo_intento = None
         inst.afectacion = "fallida"
         bitacora(db, inst.id, "afectacion_abandonada", None, {"status": r.get("status"), "error": r.get("error"), "intento": tx.intento})
+        await db.commit()
+        try:
+            from app.motor.avisos import notificar_ti
+            await notificar_ti(db, inst, "Resultado abandonado", f"{inst.folio}: {r.get('error')}. Revisa Seguimiento → Transacciones y usa «Reenviar» cuando la plataforma responda.")
+        except Exception:
+            logger.exception("Aviso a TI por abandono %s", inst.folio)
+        return {"estado": tx.estado, "status": r.get("status"), "error": r.get("error")}
     await db.commit()
     return {"estado": tx.estado, "status": r.get("status"), "error": r.get("error"), "mensaje": r.get("mensaje")}
 

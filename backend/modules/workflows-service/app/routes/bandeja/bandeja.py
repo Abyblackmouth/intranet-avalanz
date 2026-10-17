@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.motor import consultas
+from app.motor import avisos, consultas
 from app.motor import instancias as motor
 from app.motor.consultas import es_admin_modulo
 
@@ -54,9 +54,11 @@ async def decidir(instancia_id: str, body: Decision, request: Request, db: Async
     ip = request.headers.get("x-real-ip") or (request.client.host if request.client else None)
     aviso = await motor.decidir(db, inst, en_turno, body.aprobar, body.comentario or "", actor, via="bandeja", ip=ip)
     await db.commit()
-    # Si el trámite cerró, el resultado ya está en la cola: dispara el envío ahora mismo
+    await avisos.notificar_avance(db, inst, en_turno, body.aprobar, user.get("full_name") or "")
+    if aviso:
+        await avisos.notificar_turno(db, inst, aviso)
     if inst.status in ("aprobada", "rechazada"):
+        await avisos.notificar_decision(db, inst, "decidida")
         from app.rabbitmq import publicar_resultados_pendientes
         await publicar_resultados_pendientes(inst.id)
-    # Avisos (campana/correo) al siguiente aprobador: paso 6
     return await consultas.detalle(db, inst, user)
