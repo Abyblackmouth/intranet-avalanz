@@ -38,7 +38,9 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
   const [aviso, setAviso] = useState<string | null>(null)
   const [reasignar, setReasignar] = useState(false)
   const cd = t.card_data ?? {}
-  const enTurno = t.etapas.find(e => e.status === 'en_turno')
+  const enTurno = t.vista === 'aprobador' ? (t.mi_etapa ?? null) : t.etapas.find(e => e.status === 'en_turno')
+  const esAprobador = t.vista === 'aprobador'
+  const esSolicitante = t.vista === 'solicitante'
   const items = Array.isArray(cd.items) ? (cd.items as Record<string, unknown>[]) : []
   const puedoDecidir = modo === 'liga' ? t.liga?.estado === 'vigente' : t.puedo_decidir
   const comentarioObligatorio = true
@@ -76,10 +78,17 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
       {t.afectacion === 'aplicada' && t.mensaje_plataforma && <div className="mb-3 rounded-xl border-l-4 border-emerald-500 bg-emerald-50 px-4 py-2.5 text-[13px] text-emerald-900">La plataforma respondió: «{t.mensaje_plataforma}»</div>}
       {t.liga && t.liga.estado !== 'vigente' && <div className="mb-3 rounded-xl border-l-4 border-slate-400 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">{t.liga.mensaje}</div>}
 
-      <RielFlujo etapas={t.etapas} plataforma={{ titulo: `${t.conexion_titulo ?? 'Plataforma'} · ${t.result_service || '—'}`, estado: t.afectacion, detalle: t.afectacion === 'aplicada' ? 'Aplicada' : t.afectacion === 'fallida' ? 'Sin respuesta, reintentando' : t.afectacion === 'pendiente' ? 'Enviando resultado…' : 'Aplica el resultado' }} />
-      <div className="mt-1 mb-4"><LeyendaRiel /></div>
+      {!esAprobador && (
+        <>
+          <RielFlujo etapas={t.etapas} plataforma={{ titulo: `${t.conexion_titulo ?? 'Plataforma'} · ${t.result_service || '—'}`, estado: t.afectacion, detalle: t.afectacion === 'aplicada' ? 'Aplicada' : t.afectacion === 'fallida' ? 'Sin respuesta, reintentando' : t.afectacion === 'pendiente' ? 'Enviando resultado…' : 'Aplica el resultado' }} />
+          <div className="mt-1 mb-4"><LeyendaRiel /></div>
+        </>
+      )}
+      {esAprobador && enTurno && (
+        <div className="mb-4 rounded-xl border-2 border-[#1a4fa0] bg-blue-50 px-4 py-3 text-[13px]"><b>Te toca decidir</b> · etapa {enTurno.orden} de {t.total_etapas} · {enTurno.nombre}{t.liga?.decido_como ? ` · decides como ${t.liga.decido_como}` : ''}</div>
+      )}
 
-      <div className="grid gap-5 lg:grid-cols-[1.15fr_1fr_1fr]">
+      <div className={`grid gap-5 ${esAprobador ? 'lg:grid-cols-[1.3fr_1fr]' : 'lg:grid-cols-[1.15fr_1fr_1fr]'}`}>
         <section>
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Datos (como los mandó la plataforma)</h4>
           <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-[13px]">
@@ -109,11 +118,11 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Aprobación</h4>
           {enTurno ? (
             <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1 text-[13px]">
-              <dt className="text-slate-500">Etapa</dt><dd>{enTurno.orden} · {enTurno.nombre}</dd>
-              <dt className="text-slate-500">Aprobador</dt><dd>{enTurno.aprobador_nombre}{enTurno.suplente_nombre && <span className="text-slate-400"> (suplente: {enTurno.suplente_nombre})</span>}</dd>
+              <dt className="text-slate-500">Etapa</dt><dd>{enTurno.orden} de {t.total_etapas} · {enTurno.nombre}</dd>
+              {!esAprobador && <><dt className="text-slate-500">Aprobador</dt><dd>{enTurno.aprobador_nombre}{enTurno.suplente_nombre && <span className="text-slate-400"> (suplente: {enTurno.suplente_nombre})</span>}</dd></>}
               <dt className="text-slate-500">Desde</dt><dd>{fmtFecha(enTurno.en_turno_desde)}</dd>
             </dl>
-          ) : <p className="text-[13px] text-slate-500">{t.status === 'en_aprobacion' ? 'Sin etapa en turno.' : 'Este trámite ya está cerrado.'}</p>}
+          ) : <p className="text-[13px] text-slate-500">{t.status === 'en_aprobacion' ? (esAprobador ? 'Ya no te toca decidir en este trámite.' : 'Sin etapa en turno.') : 'Este trámite ya está cerrado.'}</p>}
           {puedoDecidir && enTurno && (
             <div className="mt-3">
               {modo === 'liga' && t.liga && <p className="mb-2 text-[12px] text-slate-500">Decides como <b>{t.liga.decido_como}</b>. Queda registrado con fecha, hora e IP.</p>}
@@ -125,7 +134,7 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
               </div>
             </div>
           )}
-          {!puedoDecidir && enTurno && modo === 'privado' && <p className="mt-2 text-[12.5px] text-slate-400">Solo {enTurno.aprobador_nombre}{enTurno.suplente_nombre ? ` o ${enTurno.suplente_nombre}` : ''} puede decidir esta etapa.</p>}
+          {!puedoDecidir && enTurno && modo === 'privado' && !esAprobador && <p className="mt-2 text-[12.5px] text-slate-400">Solo {enTurno.aprobador_nombre}{enTurno.suplente_nombre ? ` o ${enTurno.suplente_nombre}` : ''} puede decidir esta etapa.</p>}
           {modo === 'privado' && (t.puedo_administrar || t.soy_solicitante) && enTurno && (
             <div className="mt-4 pt-3 border-t border-slate-200 flex flex-wrap gap-2">
               <button type="button" className={btnSecundario} onClick={reenviar}><RefreshCw size={13} /> Reenviar aviso</button>
@@ -139,16 +148,16 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
           {error && <p className="mt-3 text-[13px] text-red-600">{error}</p>}
         </section>
 
-        <section>
+        {!esAprobador && <section>
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Historial</h4>
           <ul className="max-h-72 overflow-y-auto divide-y divide-slate-200">
             {t.bitacora.map((b, i) => (
-              <li key={i} className="py-1.5 text-[13px]">{ACCION[b.accion] ?? b.accion}
-                <span className="block text-[11.5px] text-slate-500">{fmtFecha(b.fecha)} · {b.por}{b.detail && typeof b.detail.comentario === 'string' && b.detail.comentario ? ` · «${b.detail.comentario}»` : ''}{b.detail && typeof b.detail.nota === 'string' ? ` · ${b.detail.nota}` : ''}</span>
+              <li key={i} className="py-1.5 text-[13px]">{ACCION[b.accion] ?? b.accion}{b.detail && typeof b.detail.etapa === 'number' ? ` · etapa ${b.detail.etapa}${typeof b.detail.nombre === 'string' ? ' · ' + b.detail.nombre : ''}` : ''}
+                <span className="block text-[11.5px] text-slate-500">{fmtFecha(b.fecha)}{b.por ? ` · ${b.por}` : ''}{b.detail && typeof b.detail.comentario === 'string' && b.detail.comentario ? ` · «${b.detail.comentario}»` : ''}{b.detail && typeof b.detail.nota === 'string' ? ` · ${b.detail.nota}` : ''}</span>
               </li>
             ))}
           </ul>
-          {modo === 'privado' && (
+          {modo === 'privado' && !esSolicitante && (
             <>
               <h4 className="mt-4 text-[12px] font-semibold text-slate-500 mb-1">Correos ({t.correos.length})</h4>
               <ul className="divide-y divide-slate-200">
@@ -161,7 +170,7 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
               </ul>
             </>
           )}
-        </section>
+        </section>}
       </div>
       {reasignar && <ModalReasignar t={t} onClose={() => setReasignar(false)} onDone={d => { onChange(d); setReasignar(false); setAviso('Aprobador reasignado y avisado.') }} />}
     </div>

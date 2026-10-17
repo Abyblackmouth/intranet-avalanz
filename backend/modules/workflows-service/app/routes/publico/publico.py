@@ -56,10 +56,7 @@ async def ver(token: str, db: AsyncSession = Depends(get_db)):
 async def _detalle_publico(db: AsyncSession, inst: Instancia, actor: dict) -> dict:
     """Mismo detalle que la Bandeja, pero sin validar scope por JWT: el token ya es la autorización."""
     from app.motor.consultas import detalle
-    try:
-        return await detalle(db, inst, {**actor, "roles": ["workflows:auditoria"]}, con_urls=True)
-    except HTTPException:
-        raise HTTPException(status_code=403, detail="No se pudo abrir el trámite")
+    return await detalle(db, inst, actor, con_urls=True, vista_forzada="aprobador")
 
 
 @router.post("/aprobar/{token}/decidir")

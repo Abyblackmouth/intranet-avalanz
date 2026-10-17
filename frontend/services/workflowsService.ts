@@ -146,6 +146,7 @@ export interface Transaccion {
 export interface TramiteDetalle extends Tramite {
   etapas: EtapaTramite[]; archivos: ArchivoTramite[]; bitacora: BitacoraTramite[]; correos: CorreoTramite[]; transacciones: Transaccion[]
   puedo_decidir: boolean; puedo_administrar: boolean; soy_solicitante: boolean
+  vista: 'administrador' | 'solicitante' | 'aprobador'; total_etapas: number; mi_etapa?: EtapaTramite | null
   liga?: { estado: 'vigente' | 'usada' | 'invalidada' | 'vencida' | 'cerrada'; etapa_orden: number; etapa_nombre: string; expira: string; decido_como: string; mensaje: string }
 }
 export interface Resumen { me_toca: number; en_aprobacion: number; sin_aplicar: number; error_configuracion: number; mis_tramites: number; ultimos: Tramite[]; ve_todo: boolean }
