@@ -58,7 +58,9 @@ Consultas opcionales para la plataforma: `GET /integration/instances/{instanceId
 
 Respuesta esperada (TOTVS): `200 { "actualizado": true, "mensaje": "..." }`. `actualizado: false` o un 4xx se tratan como definitivos; 5xx y tiempo agotado se reintentan.
 
-## Protheus
+## Protheus (plataforma actual)
+
+![Ejemplo: Workflows con TOTVS Protheus](../img/arquitectura/01b-ejemplo-totvs.png)
 
 ### Fuentes
 

@@ -4,6 +4,10 @@
 
 ![Arquitectura del módulo](../img/arquitectura/01-arquitectura.png)
 
+El módulo es independiente de la plataforma: cualquier sistema que mande el sobre del contrato y exponga un servicio de resultado se conecta igual, con su propia conexión en Ajustes. Hoy la única en operación es TOTVS Protheus:
+
+![Ejemplo: Workflows con TOTVS Protheus](../img/arquitectura/01b-ejemplo-totvs.png)
+
 | Pieza | Dónde | Notas |
 |---|---|---|
 | `workflows-service` | `backend/modules/workflows-service/` · contenedor `avalanz-workflows` | FastAPI + SQLAlchemy 2 (async) + Alembic; Python 3.11 |

@@ -45,11 +45,12 @@ Estado: en desarrollo (rama `feature/workflows-service`). Flujos en operación e
 
 | Imagen | Muestra |
 |---|---|
-| `01-arquitectura.png` | Componentes del módulo y cómo se comunican |
-| `02-recorrido.png` | Recorrido de un trámite paso a paso |
+| `01-arquitectura.png` | Arquitectura general: plataformas, Intranet y personas |
+| `01b-ejemplo-totvs.png` | Ejemplo: la misma arquitectura con TOTVS Protheus y sus fuentes |
+| `02-recorrido.png` | Recorrido de un trámite paso a paso (general, con el ejemplo de Protheus) |
 | `03-estados.png` | Estados del trámite, de sus etapas y de la afectación |
 | `04-grupos-y-etapas.png` | Cómo se elige el grupo y qué etapas aplican |
 | `05-bandeja-de-salida.png` | Regreso del resultado y reintentos |
 | `06-modelo-de-datos.png` | Las 18 tablas y sus relaciones |
 | `07-hoja-del-tramite.png` | De la configuración de la hoja a la pantalla y al correo |
-| `08-alta-de-cliente-odoo.png` | Alta de cliente con la integración de Odoo |
+| `08-alta-de-cliente-odoo.png` | Ejemplo de un flujo concreto: alta de cliente con la integración de Odoo |
