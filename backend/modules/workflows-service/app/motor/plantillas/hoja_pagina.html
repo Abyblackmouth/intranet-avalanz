@@ -240,16 +240,16 @@ html[data-tema="arena"] tfoot .total td{background:#1f3a5f; color:#fff}
 /* ── 4 · Tarjetas flotantes (sin bordes, sombras suaves) ── */
 html[data-tema="flotante"] body{background:#e8ecf2}
 html[data-tema="flotante"] .hoja{background:#e8ecf2; box-shadow:none}
-html[data-tema="flotante"] .cab{background:#fff; border:1px solid #d6dde8; border-radius:18px; margin:0 0 10px; box-shadow:0 1px 3px rgba(15,23,42,.08), 0 12px 28px -16px rgba(15,23,42,.30)}
+html[data-tema="flotante"] .cab{background:#fff; border:1.5px solid #c5cfdd; border-radius:18px; margin:0 0 10px; box-shadow:0 1px 3px rgba(15,23,42,.08), 0 12px 28px -16px rgba(15,23,42,.30)}
 html[data-tema="flotante"] .cinta{background:transparent; border:0; padding-left:20px}
-html[data-tema="flotante"] .seccion{background:#fff; border:1px solid #d6dde8; border-radius:18px; box-shadow:0 1px 3px rgba(15,23,42,.08), 0 12px 28px -16px rgba(15,23,42,.30)}
+html[data-tema="flotante"] .seccion{background:#fff; border:1.5px solid #c5cfdd; border-radius:18px; box-shadow:0 1px 3px rgba(15,23,42,.08), 0 12px 28px -16px rgba(15,23,42,.30)}
 html[data-tema="flotante"] .seccion h3{background:none; border:0; color:#94a3b8}
-html[data-tema="flotante"] .campo{background:#f6f8fb; border:1px solid #dfe5ee}
-html[data-tema="flotante"] .archivo{border:1px solid #dfe5ee; background:#f6f8fb}
-html[data-tema="flotante"] .tabla-wrap{border:1px solid #dfe5ee; border-radius:12px}
-html[data-tema="flotante"] thead th{background:#eef2f7; color:#475569; border:0; border-bottom:1px solid #dfe5ee}
+html[data-tema="flotante"] .campo{background:#f6f8fb; border:1px solid #cdd6e3}
+html[data-tema="flotante"] .archivo{border:1px solid #cdd6e3; background:#f6f8fb}
+html[data-tema="flotante"] .tabla-wrap{border:1px solid #cdd6e3; border-radius:12px}
+html[data-tema="flotante"] thead th{background:#eef2f7; color:#475569; border:0; border-bottom:1px solid #cdd6e3}
 html[data-tema="flotante"] thead th:first-child, html[data-tema="flotante"] thead th:last-child{border-radius:0}
-html[data-tema="flotante"] tbody td{border-bottom:1px solid #e8edf3; border-right:0}
+html[data-tema="flotante"] tbody td{border-bottom:1px solid #dde4ed; border-right:0}
 html[data-tema="flotante"] tfoot td{background:#fafbfd; border:0; border-top:1px solid #e8edf3}
 html[data-tema="flotante"] tfoot .total td{background:#fff; color:#1a4fa0; font-size:19px}
 html[data-tema="flotante"] .acciones{background:rgba(255,255,255,.92); border-radius:18px 18px 0 0}
@@ -261,6 +261,51 @@ html.embebida .lienzo{width:100%; margin:0}
 html.embebida .hoja{min-height:0; box-shadow:none}
 html.embebida[data-tema="flotante"] .hoja{background:transparent}
 html.embebida .pie{display:none}
+
+/* ── Logo ── */
+.logo-img{height:46px; width:auto; display:block; flex:none}
+
+/* ── Impresión: hoja carta, limpia, sin importar el estilo elegido ── */
+@media print{
+  @page{size:letter; margin:12mm 11mm}
+  html, body{background:#fff !important}
+  *{-webkit-print-color-adjust:exact; print-color-adjust:exact; box-shadow:none !important; text-shadow:none !important; animation:none !important}
+  .lienzo{width:100% !important; margin:0 !important; padding:0 !important; max-width:none !important}
+  .hoja{min-height:0 !important; border-radius:0 !important; background:#fff !important; display:block !important}
+  #selector, .acciones, .pie, #mensaje, .btn-print{display:none !important}
+  .cab{background:#fff !important; border:0 !important; border-bottom:2px solid #0f172a !important; border-radius:0 !important; margin:0 0 6px !important; padding:0 0 8px !important; color:#0f172a !important}
+  .cab *{color:#0f172a !important}
+  .cab .marca small, .numero .lbl, .numero .folio, .titulo p{color:#475569 !important}
+  .titulo h1{font-size:18pt !important}
+  .numero .num{font-size:22pt !important}
+  .cinta{background:#fff !important; border:0 !important; border-bottom:1px solid #94a3b8 !important; padding:4px 0 6px !important}
+  .cinta b{color:#0f172a !important}
+  .pulso{display:inline-block !important; background:#0f172a !important}
+  .cuerpo{padding:8px 0 0 !important}
+  .seccion{background:#fff !important; border:1px solid #94a3b8 !important; border-radius:6px !important; margin:0 0 8px !important; padding:8px 10px 10px !important; break-inside:avoid; page-break-inside:avoid}
+  .seccion h3{background:none !important; border:0 !important; border-bottom:1px solid #cbd5e1 !important; margin:0 0 8px !important; padding:0 0 4px !important; color:#0f172a !important}
+  .superior{display:block !important}
+  .campo{background:#fff !important; border:1px solid #cbd5e1 !important; border-radius:4px !important; min-width:0 !important; max-width:none !important}
+  .campo .v{white-space:normal !important; overflow:visible !important; text-overflow:clip !important}
+  .tarjetas{grid-template-columns:repeat(3, minmax(0,1fr)) !important}
+  .campo.ancha{grid-column:span 2 !important}
+  .archivos{display:block !important}
+  .archivo{display:inline-flex !important; flex-direction:row !important; gap:6px !important; border:1px solid #cbd5e1 !important; background:#fff !important; padding:3px 8px !important; margin:0 6px 6px 0 !important; min-width:0 !important; max-width:none !important}
+  .archivo small{display:none !important}
+  .doc{width:20px !important; height:25px !important; padding-bottom:2px !important}
+  .doc i{font-size:6pt !important; padding:0 2px !important}
+  .tabla-wrap{border:1px solid #94a3b8 !important; border-radius:0 !important; overflow:visible !important}
+  table{font-size:9pt !important}
+  .seccion-tabla{break-inside:auto !important; page-break-inside:auto !important}
+  thead{display:table-header-group}
+  tfoot{display:table-row-group}
+  tfoot tr{break-inside:avoid}
+  tr{break-inside:avoid; page-break-inside:avoid}
+  thead th{background:#f1f5f9 !important; color:#0f172a !important; border-bottom:1px solid #94a3b8 !important; padding:5px 7px !important}
+  tbody td{border-bottom:1px solid #cbd5e1 !important; padding:5px 7px !important; white-space:normal !important; max-width:none !important; overflow:visible !important; text-overflow:clip !important}
+  tfoot td{background:#fff !important; border-top:1px solid #cbd5e1 !important; padding:4px 7px !important}
+  tfoot .total td{background:#f1f5f9 !important; color:#0f172a !important; border-top:2px solid #0f172a !important; font-size:11pt !important}
+}
 </style>
 </head>
 <body>
@@ -270,9 +315,7 @@ html.embebida .pie{display:none}
     <header class="cab">
       <div class="fila">
         <div class="marca">
-          <div class="logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 3 20h4.2l1.6-3.4h6.4L16.8 20H21L12 3Zm0 6.2 2.1 4.6H9.9L12 9.2Z" fill="#fff"/></svg>
-          </div>
+          <img class="logo-img" src="{{ logo_url }}" alt="Avalanz" onerror="this.style.display='none'">
           <div><b>Intranet Avalanz</b><small>Workflows · {{ h.cabecera.flujo }}</small></div>
         </div>
         <div class="numero">
@@ -319,7 +362,7 @@ html.embebida .pie{display:none}
       {% endif %}
 
       {% for t in h.tablas %}
-      <section class="seccion">
+      <section class="seccion seccion-tabla">
         <h3>{{ t.titulo }} <span class="pill">{{ t.filas|length }}</span></h3>
         <div class="tabla-wrap scroll">
           <table>
