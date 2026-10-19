@@ -108,28 +108,22 @@ def _resumen(inst: Instancia, flujo_nombre: str, cfg: Optional[Dict[str, Any]] =
 
 
 def _boton(url: str, texto: str) -> str:
-    """Boton centrado, azul corporativo, que se ve igual en Outlook (escritorio y web), Gmail y movil:
-    celda de tabla con fondo + version VML para Outlook de escritorio, que ignora padding y colores del enlace.
-    Las tablas llevan fondo blanco explicito para no heredar el gris que la plantilla corporativa da a las tablas."""
+    """Boton centrado, azul corporativo. Sin tablas: la plantilla corporativa pinta de gris las
+    celdas del contenido. Outlook de escritorio usa su version VML; los demas, el enlace con fondo."""
     ancho = max(150, 8 * len(texto) + 44)
-    blanco = 'background:#ffffff;border:0;padding:0;'
     return (
-        f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" bgcolor="#ffffff" style="{blanco}margin:0 auto;">'
-        f'<tr><td height="26" bgcolor="#ffffff" style="{blanco}height:26px;font-size:0;line-height:0;">&nbsp;</td></tr>'
-        f'<tr><td align="center" bgcolor="#ffffff" style="{blanco}">'
+        '<div style="height:26px;line-height:26px;font-size:0;">&nbsp;</div>'
+        '<div style="text-align:center;">'
         f'<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{url}" '
         f'style="height:38px;v-text-anchor:middle;width:{ancho}px;" arcsize="20%" stroke="f" fillcolor="#1a4fa0"><w:anchorlock/>'
         f'<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;">{texto}</center></v:roundrect><![endif]-->'
         '<!--[if !mso]><!-->'
-        f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="{blanco}"><tr>'
-        '<td align="center" bgcolor="#1a4fa0" style="background:#1a4fa0;border:0;padding:0;border-radius:8px;">'
-        f'<a href="{url}" target="_blank" style="display:inline-block;padding:10px 22px;font-family:Arial,Helvetica,sans-serif;font-size:14px;'
-        f'font-weight:bold;line-height:18px;color:#ffffff !important;text-decoration:none;border-radius:8px;background:#1a4fa0;">'
-        f'<span style="color:#ffffff;">{texto}</span></a></td></tr></table>'
+        f'<a href="{url}" target="_blank" style="display:inline-block;background:#1a4fa0;padding:10px 22px;font-family:Arial,Helvetica,sans-serif;'
+        f'font-size:14px;font-weight:bold;line-height:18px;color:#ffffff !important;text-decoration:none;border-radius:8px;mso-hide:all;">'
+        f'<span style="color:#ffffff;">{texto}</span></a>'
         '<!--<![endif]-->'
-        '</td></tr>'
-        f'<tr><td height="18" bgcolor="#ffffff" style="{blanco}height:18px;font-size:0;line-height:0;">&nbsp;</td></tr>'
-        '</table>'
+        '</div>'
+        '<div style="height:18px;line-height:18px;font-size:0;">&nbsp;</div>'
     )
 
 
