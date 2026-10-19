@@ -6,6 +6,8 @@ Para **administradores** y **auditoría** del módulo (los demás usuarios ven a
 
 ## Trámites
 
+![Estados de un trámite](../img/arquitectura/03-estados.png)
+
 Lista de todos los trámites con buscador (folio, solicitante, empresa, clave externa) y filtros por estatus y por flujo. Si filtras por un flujo, aparecen sus columnas propias (las del resumen del flujo).
 
 | Estatus | Significa |
@@ -37,6 +39,8 @@ Clic en el folio. Arriba el **riel** con las etapas (verde aprobada, azul en tur
 | **Reprocesar** | Un trámite en *error de configuración*, después de crear el grupo que faltaba en Flujos |
 
 ## Transacciones con las plataformas
+
+![Regreso del resultado](../img/arquitectura/05-bandeja-de-salida.png)
 
 Cada mensaje entre la Intranet y Protheus: la **entrada** del documento y la **salida** del resultado.
 

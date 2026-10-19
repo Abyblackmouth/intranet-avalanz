@@ -22,29 +22,10 @@ Estas decisiones están cerradas y explican casi todo el diseño:
 
 ## Cómo funciona, de punta a punta
 
-```
-Protheus                          Intranet (Workflows)                        Aprobadores
-────────                          ────────────────────                        ───────────
-1. El usuario graba el documento
-   (solicitud, cliente…) y el
-   punto de entrada lo bloquea
-   y manda el sobre ───────────▶  2. Valida el contrato, guarda todo,
-                                     da folio (WF-AVAL-000123) y
-   ◀──────────── 202 + folio         contesta de inmediato
-                                  3. Resuelve el grupo de aprobación
-                                     (empresa + solicitante) y arma
-                                     las etapas que aplican
-                                  4. Avisa al aprobador en turno ───────────▶ 5. Abre la liga del correo,
-                                                                                 revisa la hoja y los
-                                                                                 documentos y decide
-                                  6. Avanza a la siguiente etapa ◀──────────────
-                                     (y repite 4–5) hasta cerrar
-                                  7. Encola el resultado y lo manda
-   8. El servicio REST del flujo ◀── (con reintentos si falla)
-      aplica la decisión (libera,
-      desbloquea) y contesta 200 ──▶ 9. Marca el trámite como aplicado
-                                     y avisa al solicitante
-```
+![Arquitectura del módulo](img/arquitectura/01-arquitectura.png)
+
+![Recorrido de un trámite](img/arquitectura/02-recorrido.png)
+
 
 ## Submódulos
 

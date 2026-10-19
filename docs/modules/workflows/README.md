@@ -4,6 +4,10 @@ Módulo de aprobaciones de la Intranet Avalanz. Sustituye a Fluig (TOTVS) para l
 
 Estado: en desarrollo (rama `feature/workflows-service`). Flujos en operación en el ambiente de desarrollo: **Solicitud de compra directa** (`CompraDirecta`) y **Alta de cliente** (`AltaCliente`).
 
+## Arquitectura
+
+![Arquitectura del módulo](img/arquitectura/01-arquitectura.png)
+
 ## Documentación
 
 **Contexto**
@@ -36,3 +40,16 @@ Estado: en desarrollo (rama `feature/workflows-service`). Flujos en operación e
 | [manuales/06-seguimiento.md](manuales/06-seguimiento.md) | Administrador / auditoría: trámites, transacciones y acciones |
 | [manuales/07-ajustes.md](manuales/07-ajustes.md) | TI: correos, folios, estilo y ligas |
 | [manuales/08-protheus-usuarios.md](manuales/08-protheus-usuarios.md) | Capturistas en Protheus: solicitud de compra y alta de cliente |
+
+**Diagramas** (`img/arquitectura/`)
+
+| Imagen | Muestra |
+|---|---|
+| `01-arquitectura.png` | Componentes del módulo y cómo se comunican |
+| `02-recorrido.png` | Recorrido de un trámite paso a paso |
+| `03-estados.png` | Estados del trámite, de sus etapas y de la afectación |
+| `04-grupos-y-etapas.png` | Cómo se elige el grupo y qué etapas aplican |
+| `05-bandeja-de-salida.png` | Regreso del resultado y reintentos |
+| `06-modelo-de-datos.png` | Las 18 tablas y sus relaciones |
+| `07-hoja-del-tramite.png` | De la configuración de la hoja a la pantalla y al correo |
+| `08-alta-de-cliente-odoo.png` | Alta de cliente con la integración de Odoo |

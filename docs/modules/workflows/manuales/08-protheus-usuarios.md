@@ -15,6 +15,8 @@ Los documentos que la solicitud tenga en el Banco de Conocimiento viajan con ell
 
 ## Alta de cliente
 
+![Alta de cliente](../img/arquitectura/08-alta-de-cliente-odoo.png)
+
 1. Facturación → Clientes → **Incluir**, captura y graba.
 2. Aparece **"Cliente bloqueado"**: el cliente se guardó y quedó bloqueado (Estatus = 1) hasta que se apruebe. Así no se puede usar en pedidos ni facturas.
 3. Con el cliente seleccionado en la lista: **Otras acciones → Conocimiento** y adjunta sus documentos (constancia de situación fiscal, comprobante de domicilio, identificación…). Puedes adjuntar varios.

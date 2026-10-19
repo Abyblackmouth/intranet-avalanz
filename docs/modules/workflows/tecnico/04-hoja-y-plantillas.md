@@ -2,6 +2,8 @@
 
 La **hoja** es cómo se presenta el documento al aprobador. Se configura por flujo (pantalla Flujos → Hoja) y se arma **una sola vez en el servidor**; de ahí salen la página de aprobación, la vista en la Bandeja, el detalle del administrador y la vista previa del editor, así que nunca se desalinean.
 
+![Hoja del trámite](../img/arquitectura/07-hoja-del-tramite.png)
+
 ## Configuración (`flujos.hoja`, JSON)
 
 ```json

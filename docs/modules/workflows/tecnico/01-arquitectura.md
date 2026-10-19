@@ -2,6 +2,8 @@
 
 ## Piezas
 
+![Arquitectura del módulo](../img/arquitectura/01-arquitectura.png)
+
 | Pieza | Dónde | Notas |
 |---|---|---|
 | `workflows-service` | `backend/modules/workflows-service/` · contenedor `avalanz-workflows` | FastAPI + SQLAlchemy 2 (async) + Alembic; Python 3.11 |
@@ -43,6 +45,8 @@ backend/modules/workflows-service/
 ```
 
 ## Base de datos
+
+![Modelo de datos](../img/arquitectura/06-modelo-de-datos.png)
 
 **Configuración**
 

@@ -2,6 +2,8 @@
 
 ## Contrato
 
+![Recorrido de un trámite](../img/arquitectura/02-recorrido.png)
+
 En inglés, camelCase, un solo nombre por concepto. `processId`, `tenantId` y `cardData` son fijos para todas las plataformas.
 
 ### Envío (plataforma → Intranet)
@@ -94,6 +96,8 @@ Los parámetros son por grupo de empresa (`SX6` de cada grupo); para otro grupo 
 `C1_XWFID` (C 36) y `C1_XWFFOL` (C 20) en `SC1`: id y folio del trámite. Sin ellos todo funciona, pero sin `C1_XWFID` no hay idempotencia en el regreso de compras.
 
 ### Puntos a cuidar
+
+![Alta de cliente con Odoo](../img/arquitectura/08-alta-de-cliente-odoo.png)
 
 - **Un solo punto de entrada por rutina**: `M110STTS` y `CRMA980` ya existían; por eso se agregaron interruptores y secciones dentro de ellos, nunca un fuente aparte con el mismo nombre.
 - **Codificación**: el sobre se manda con `EncodeUTF8`; las respuestas se leen con `DecodeUTF8`. Las respuestas de los servicios REST hacia la Intranet van sin acentos.

@@ -2,6 +2,10 @@
 
 El motor vive en `app/motor/` y no depende de las rutas: las mismas funciones las usan la integración, la Bandeja, la página pública, Seguimiento y el simulador. Regla general: **primero se guarda y se hace commit; los avisos y el envío a la plataforma son "mejor esfuerzo" después**. Un correo que falla nunca deja un trámite a medias.
 
+![Recorrido de un trámite](../img/arquitectura/02-recorrido.png)
+
+![Estados de un trámite](../img/arquitectura/03-estados.png)
+
 ## 1. Recepción del sobre (`instancias.recibir`)
 
 1. **Autenticación** (`routes/integration`): el `X-WF-Token` se compara contra el token de entrada de cada conexión (cifrado); si la conexión está inactiva, `409`.
@@ -19,6 +23,8 @@ El motor vive en `app/motor/` y no depende de las rutas: las mismas funciones la
 10. Contesta `202 { instanceId, folio, status, message }`. Luego, ya guardado: acuse al solicitante (si está activo), aviso al primer aprobador, o, si todas las etapas se omitieron, cierre y envío del resultado.
 
 ## 2. Grupo y etapas (`grupos.py`)
+
+![Grupo de aprobación y etapas](../img/arquitectura/04-grupos-y-etapas.png)
 
 **Resolución del grupo** para la empresa del trámite (`origen_clave = companyGroup|tenantId[:2]`):
 
@@ -59,6 +65,8 @@ El **simulador** de Flujos llama a estas mismas funciones con la definición vig
 - **Reenviar aviso** (solicitante o administrador) invalida la liga anterior y manda una nueva.
 
 ## 5. Bandeja de salida (`transacciones.py`)
+
+![Bandeja de salida](../img/arquitectura/05-bandeja-de-salida.png)
 
 Cuando un trámite cierra, el resultado se guarda primero como transacción `pendiente_envio` y después se intenta enviar:
 

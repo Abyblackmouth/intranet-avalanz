@@ -20,6 +20,8 @@ Un **flujo** es un tipo de documento que se aprueba (Solicitud de compra directa
 
 ## 2. Grupos de aprobación
 
+![Cómo se elige el grupo y las etapas](../img/arquitectura/04-grupos-y-etapas.png)
+
 Un grupo es **una cascada de etapas para una empresa**. Cada empresa necesita al menos un grupo **default**, que aplica a cualquier solicitante de esa empresa que no sea miembro de otro grupo.
 
 **Nuevo grupo**:
