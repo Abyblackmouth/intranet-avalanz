@@ -67,11 +67,11 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
   if (esAprobador || esSolicitante) {
     const avisoHoja = (
       <>
-        {t.liga && t.liga.estado !== 'vigente' && <div className="mb-2.5 rounded-xl border-l-4 border-slate-400 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">{t.liga.mensaje}</div>}
-        {esAprobador && t.status === 'en_aprobacion' && !enTurno && <div className="mb-2.5 rounded-xl border-l-4 border-slate-400 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">Ya no te toca decidir en este trámite.</div>}
-        {t.afectacion === 'fallida' && <div className="mb-2.5 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900">Ya se decidió; la plataforma todavía no confirma que lo aplicó. TI está atendiendo.</div>}
-        {aviso && <div className="mb-2.5 rounded-xl border-l-4 border-emerald-500 bg-emerald-50 px-4 py-2.5 text-[13px] text-emerald-900">{aviso}</div>}
-        {error && <div className="mb-2.5 rounded-xl border-l-4 border-red-500 bg-red-50 px-4 py-2.5 text-[13px] text-red-900">{error}</div>}
+        {t.liga && t.liga.estado !== 'vigente' && <div className="mb-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">{t.liga.mensaje}</div>}
+        {esAprobador && t.status === 'en_aprobacion' && !enTurno && <div className="mb-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">Ya no te toca decidir en este trámite.</div>}
+        {t.afectacion === 'fallida' && <div className="mb-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900">Ya se decidió; la plataforma todavía no confirma que lo aplicó. TI está atendiendo.</div>}
+        {aviso && <div className="mb-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[13px] text-emerald-900">{aviso}</div>}
+        {error && <div className="mb-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] text-red-900">{error}</div>}
       </>
     )
     const barra = esAprobador && puedoDecidir && enTurno ? (
@@ -96,10 +96,10 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
         {t.grupo_nombre && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[12px]">grupo: {t.grupo_nombre}</span>}
         <Chip par={ESTADO_TRAMITE[t.status]} />{t.afectacion && <Chip par={ESTADO_AFECTACION[t.afectacion]} />}
       </div>
-      {t.status === 'error_configuracion' && <div className="mb-3 rounded-xl border-l-4 border-red-500 bg-red-50 px-4 py-2.5 text-[13px] text-red-900">No hay grupo de aprobación para la empresa {t.origen_clave} en este flujo. Captúralo en Flujos y usa «Reprocesar».</div>}
-      {t.afectacion === 'fallida' && <div className="mb-3 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900">Decidido, pero la plataforma no ha confirmado. El resultado está en la cola y se reintenta solo; también se puede reenviar desde Seguimiento → Transacciones.</div>}
-      {t.afectacion === 'aplicada' && t.mensaje_plataforma && <div className="mb-3 rounded-xl border-l-4 border-emerald-500 bg-emerald-50 px-4 py-2.5 text-[13px] text-emerald-900">La plataforma respondió: «{t.mensaje_plataforma}»</div>}
-      {t.liga && t.liga.estado !== 'vigente' && <div className="mb-3 rounded-xl border-l-4 border-slate-400 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">{t.liga.mensaje}</div>}
+      {t.status === 'error_configuracion' && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] text-red-900">No hay grupo de aprobación para la empresa {t.origen_clave} en este flujo. Captúralo en Flujos y usa «Reprocesar».</div>}
+      {t.afectacion === 'fallida' && <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900">Decidido, pero la plataforma no ha confirmado. El resultado está en la cola y se reintenta solo; también se puede reenviar desde Seguimiento → Transacciones.</div>}
+      {t.afectacion === 'aplicada' && t.mensaje_plataforma && <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[13px] text-emerald-900">La plataforma respondió: «{t.mensaje_plataforma}»</div>}
+      {t.liga && t.liga.estado !== 'vigente' && <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">{t.liga.mensaje}</div>}
 
       {!esAprobador && (
         <>

@@ -65,7 +65,7 @@ export function Simulador({ flujo }: { flujo: FlujoDetalle }) {
       {res && (
         <Seccion titulo={res.grupo ? `Grupo: ${res.grupo.nombre}` : 'Sin grupo'} sub={res.grupo ? (res.via === 'miembro' ? 'por ser miembro del grupo' : 'default de la empresa') : undefined}>
           {res.resultado === 'error_configuracion' ? (
-            <div className="rounded-xl border-l-4 border-red-500 bg-red-50 px-4 py-3 text-[13px] text-red-900">{res.mensaje}</div>
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-900">{res.mensaje}</div>
           ) : (
             <>
               <RielFlujo etapas={res.etapas} plataforma={{ titulo: `${flujo.conexion_titulo ?? 'Plataforma'} · ${flujo.result_service || 'resultService'}`, estado: null }} />

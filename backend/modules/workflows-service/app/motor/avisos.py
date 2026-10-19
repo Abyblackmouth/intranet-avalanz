@@ -112,7 +112,9 @@ def _boton(url: str, texto: str) -> str:
 
 
 def _alerta(texto: str, color: str = "#f59e0b") -> str:
-    return f'<div style="border-left:4px solid {color};background:#f8fafc;padding:10px 12px;border-radius:6px;margin:12px 0;font-size:13px">{texto}</div>'
+    fondo = {"#22c55e": "#f0fdf4", "#ef4444": "#fef2f2", "#f59e0b": "#fffbeb", "#3b82f6": "#eff6ff"}.get(color, "#f8fafc")
+    borde = {"#22c55e": "#bbf7d0", "#ef4444": "#fecaca", "#f59e0b": "#fde68a", "#3b82f6": "#bfdbfe"}.get(color, "#e2e8f0")
+    return f'<div style="border:1px solid {borde};background:{fondo};padding:10px 12px;border-radius:8px;margin:12px 0;font-size:13px">{texto}</div>'
 
 
 async def _flujo_nombre(db: AsyncSession, inst: Instancia) -> str:
@@ -168,11 +170,19 @@ async def correo_solicitante(inst: Instancia) -> Optional[str]:
     de la Intranet, el de su perfil."""
     if inst.requester_email:
         return inst.requester_email
-    if not inst.requester_user_id:
+    user_id = inst.requester_user_id
+    if not user_id:
+        # La liga pudo hacerse despues de que nacio el tramite: se consulta la liga actual
+        from app.database import AsyncSessionLocal
+        from app.models import ConexionUsuario
+        async with AsyncSessionLocal() as db2:
+            user_id = (await db2.execute(select(ConexionUsuario.user_id).where(ConexionUsuario.conexion_id == inst.conexion_id,
+                                                                               ConexionUsuario.id_externo == inst.requester_id_externo))).scalar_one_or_none()
+    if not user_id:
         return None
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(f"{config.ADMIN_SERVICE_URL}/internal/users/{inst.requester_user_id}/profile")
+            r = await client.get(f"{config.ADMIN_SERVICE_URL}/internal/users/{user_id}/profile")
         return (r.json() or {}).get("email") if r.status_code == 200 else None
     except Exception:
         return None

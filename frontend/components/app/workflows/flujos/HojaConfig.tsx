@@ -103,7 +103,7 @@ export default function HojaConfig({ flujo, onChange, puedeEditar }: { flujo: Fl
           <button type="button" className={`${btnPrimario} ml-auto`} onClick={guardar} disabled={guardando || !sucio}>{guardando ? 'Guardando…' : sucio ? 'Guardar hoja' : 'Guardada'}</button>
         </div>
         {estado && <p className={`text-[13px] ${estado.ok ? 'text-emerald-700' : 'text-red-600'}`}>{estado.texto}</p>}
-        {sinTramites && <p className="rounded-lg border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">Este flujo todavía no tiene trámites: puedes configurar la hoja, pero la vista previa y «Detectar campos» necesitan que la plataforma mande al menos uno.</p>}
+        {sinTramites && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">Este flujo todavía no tiene trámites: puedes configurar la hoja, pero la vista previa y «Detectar campos» necesitan que la plataforma mande al menos uno.</p>}
 
         <section className="rounded-xl border border-slate-300 bg-white p-3">
           <h4 className="mb-2 text-[13px] font-bold text-slate-800">Documento</h4>
