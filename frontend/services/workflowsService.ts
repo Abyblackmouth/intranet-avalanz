@@ -188,6 +188,6 @@ export interface HojaTramite {
   tablas: { titulo: string; columnas: { etiqueta: string; alinear: string; tipo: string }[]; filas: { valor: string; detalle: string }[][]; totales: { etiqueta: string; valor: string; destacado: boolean }[]; col_total: number }[]
 }
 export const getHojaSugerida = (flujoId: string) => api.get<{ hoja: HojaCfg; folio: string; claves: string[] }>(`${BASE}/flujos/${flujoId}/hoja/sugerida`)
-export const previsualizarHoja = (flujoId: string, hoja: HojaCfg | null) => api.post<{ hoja: HojaTramite; correo_html: string; folio: string }>(`${BASE}/flujos/${flujoId}/hoja/vista-previa`, { hoja })
+export const previsualizarHoja = (flujoId: string, hoja: HojaCfg | null) => api.post<{ hoja: HojaTramite; pagina_html: string; correo_html: string; folio: string }>(`${BASE}/flujos/${flujoId}/hoja/vista-previa`, { hoja })
 export const probarHoja = (flujoId: string, hoja: HojaCfg | null) => api.post<{ ok: boolean; para: string }>(`${BASE}/flujos/${flujoId}/hoja/prueba`, { hoja })
 export const guardarHoja = (flujoId: string, hoja: HojaCfg) => api.patch<FlujoDetalle>(`${BASE}/flujos/${flujoId}`, { hoja })

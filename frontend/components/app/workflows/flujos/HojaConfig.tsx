@@ -9,7 +9,6 @@ import {
   FlujoDetalle, HojaCfg, HojaTramite as HojaT, CampoHojaCfg, ColumnaHojaCfg, TotalHojaCfg, TablaHojaCfg, TipoCampoHoja,
   getHojaSugerida, previsualizarHoja, probarHoja, guardarHoja,
 } from '@/services/workflowsService'
-import HojaTramite from '@/components/app/workflows/HojaTramite'
 import { Interruptor, inputCls, labelCls, btnPrimario, btnSecundario, errMsg } from '@/components/app/workflows/compartidos'
 
 const VACIA: HojaCfg = { documento: { etiqueta: '', numero: 'folio', area: '' }, tarjetas: [], adjuntos: true, tablas: [] }
@@ -47,8 +46,8 @@ export default function HojaConfig({ flujo, onChange, puedeEditar }: { flujo: Fl
   const [cfg, setCfg] = useState<HojaCfg>(flujo.hoja ?? VACIA)
   const [claves, setClaves] = useState<string[]>([])
   const [clavesTabla, setClavesTabla] = useState<Record<string, string[]>>({})
-  const [vista, setVista] = useState<'pantalla' | 'correo'>('pantalla')
-  const [prev, setPrev] = useState<{ hoja: HojaT; correo_html: string; folio: string } | null>(null)
+  const [vista, setVista] = useState<'pagina' | 'correo'>('pagina')
+  const [prev, setPrev] = useState<{ hoja: HojaT; pagina_html: string; correo_html: string; folio: string } | null>(null)
   const [estado, setEstado] = useState<{ ok: boolean; texto: string } | null>(null)
   const [sinTramites, setSinTramites] = useState(false)
   const [guardando, setGuardando] = useState(false)
@@ -187,15 +186,15 @@ export default function HojaConfig({ flujo, onChange, puedeEditar }: { flujo: Fl
         <div className="mb-2 flex items-center gap-2">
           <span className="text-[13px] font-semibold text-slate-700">Vista previa{prev ? ` · ${prev.folio}` : ''}</span>
           <div className="ml-auto flex rounded-lg border border-slate-300 bg-white p-0.5 text-[12.5px]">
-            {(['pantalla', 'correo'] as const).map(v => <button key={v} type="button" onClick={() => setVista(v)} className={`rounded-md px-3 py-1 ${vista === v ? 'bg-[#1a4fa0] text-white' : 'text-slate-600'}`}>{v === 'pantalla' ? 'Pantalla' : 'Correo'}</button>)}
+            {(['pagina', 'correo'] as const).map(v => <button key={v} type="button" onClick={() => setVista(v)} className={`rounded-md px-3 py-1 ${vista === v ? 'bg-[#1a4fa0] text-white' : 'text-slate-600'}`}>{v === 'pagina' ? 'Página de aprobación' : 'Correo'}</button>)}
           </div>
         </div>
         {!prev ? (
           <div className="grid h-64 place-items-center rounded-2xl border border-dashed border-slate-300 text-[13px] text-slate-400">{sinTramites ? 'Sin trámites para previsualizar' : 'Armando la vista previa…'}</div>
-        ) : vista === 'pantalla' ? (
-          <div className="rounded-2xl bg-[#eef2f7] p-3"><HojaTramite hoja={prev.hoja} embebida /></div>
+        ) : vista === 'pagina' ? (
+          <iframe title="Vista previa de la página de aprobación" className="h-[820px] w-full rounded-2xl border border-slate-300 bg-[#eef2f7]" srcDoc={prev.pagina_html} sandbox="allow-same-origin" />
         ) : (
-          <iframe title="Vista previa del correo" className="h-[720px] w-full rounded-2xl border border-slate-300 bg-white" srcDoc={`<!doctype html><html><body style="margin:0;padding:20px;background:#f1f5f9"><div style="max-width:680px;margin:0 auto;background:#fff;padding:24px;border-radius:12px">${prev.correo_html}</div></body></html>`} />
+          <iframe title="Vista previa del correo" className="h-[520px] w-full rounded-2xl border border-slate-300 bg-white" srcDoc={`<!doctype html><html><body style="margin:0;padding:20px;background:#f1f5f9;font-family:system-ui,sans-serif"><div style="max-width:560px;margin:0 auto;background:#fff;padding:24px;border-radius:12px"><h2 style="margin:0 0 6px">Tienes una aprobación pendiente</h2><p>Te toca decidir en la etapa 1 · Gerente de compras.</p>${prev.correo_html}<p style="margin:18px 0"><span style="display:inline-block;background:#1a4fa0;color:#fff;padding:10px 18px;border-radius:10px;font-weight:600">Revisar y decidir</span></p></div></body></html>`} />
         )}
       </div>
     </div>

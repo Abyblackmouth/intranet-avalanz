@@ -65,10 +65,27 @@ def _fmt(n: Any) -> str:
 
 
 async def _hoja_html(db: AsyncSession, inst: Instancia) -> str:
-    """La hoja del tramite (plantilla del flujo) en version correo."""
-    from app.motor.hoja_correo import html
+    """Resumen corto para el correo (plantilla corporativa). La hoja completa vive en la
+    pagina de aprobacion (liga del correo), no dentro del correo."""
     from app.motor.hoja_db import hoja_de
-    return html(await hoja_de(db, inst, con_urls=False))
+    return resumen_breve(await hoja_de(db, inst, con_urls=False))
+
+
+def resumen_breve(h: Dict[str, Any]) -> str:
+    c = h["cabecera"]
+    filas = [("Folio", c["folio"])]
+    if not c.get("numero_es_folio"):
+        filas.append((c.get("etiqueta") or "Documento", c["numero"]))
+    filas += [("Empresa", c["empresa"]), ("Solicitante", c["solicitado_por"])]
+    for t in h.get("tablas") or []:
+        tot = next((x for x in t.get("totales") or [] if x.get("destacado")), None)
+        if tot:
+            filas.append((tot["etiqueta"], tot["valor"]))
+            break
+    if h.get("adjuntos"):
+        filas.append(("Archivos adjuntos", str(len(h["adjuntos"]))))
+    cuerpo = "".join(f'<tr><td style="padding:6px 10px;color:#64748b;font-size:13px">{k}</td><td style="padding:6px 10px;font-size:13px"><b>{v}</b></td></tr>' for k, v in filas)
+    return f"<table style='border-collapse:collapse;background:#f8fafc;border-radius:10px;width:100%'>{cuerpo}</table>"
 
 
 def _resumen(inst: Instancia, flujo_nombre: str, cfg: Optional[Dict[str, Any]] = None) -> str:

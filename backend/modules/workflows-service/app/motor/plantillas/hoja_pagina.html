@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>{{ h.cabecera.etiqueta }} · No. {{ h.cabecera.numero }} · Intranet Avalanz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --azul:#1a4fa0; --azul-2:#2563eb; --azul-suave:#eaf1fc; --tinta:#0f172a; --gris-7:#334155; --gris-5:#64748b; --gris-3:#cbd5e1; --gris-2:#e2e8f0; --gris-1:#f1f5f9;
+    --papel:#ffffff; --fondo:#eef2f7; --verde:#16a34a; --verde-suave:#ecfdf3; --rojo:#dc2626; --rojo-suave:#fef2f2; --ambar:#d97706; --ambar-suave:#fffbeb;
+    --sombra:0 24px 60px -24px rgba(15,23,42,.35), 0 2px 8px rgba(15,23,42,.06);
+    box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ color-scheme:dark; --fondo:#0b1220; --sombra:0 24px 60px -24px rgba(0,0,0,.8), 0 2px 8px rgba(0,0,0,.4); } }
+  :root[data-theme="dark"]{ color-scheme:dark; --fondo:#0b1220; }
+  *{box-sizing:border-box}
+  html{scroll-padding-top:env(safe-area-inset-top,0px)}
+  body{margin:0; background:var(--fondo); color:var(--tinta); font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif; font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased}
+  h1,h2,h3,.jak{font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif}
+  .mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  .lienzo{width:90vw; max-width:none; margin:10px auto 16px; padding:0}
+  .hoja{background:var(--papel); border-radius:20px; box-shadow:var(--sombra); overflow:hidden; color:var(--tinta); min-height:calc(100vh - 26px); display:flex; flex-direction:column}
+  .cuerpo{flex:1}
+
+  /* Cabecera */
+  .cab{position:relative; padding:12px 20px 10px; background:
+      radial-gradient(900px 300px at -10% -40%, rgba(37,99,235,.14), transparent 60%),
+      radial-gradient(600px 220px at 110% 0%, rgba(26,79,160,.10), transparent 60%), var(--papel);
+      border-bottom:1px solid var(--gris-2)}
+  .cab .fila{display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap}
+  .marca{display:flex; align-items:center; gap:12px}
+  .logo{width:44px; height:44px; display:grid; place-items:center; border-radius:12px; background:linear-gradient(135deg,var(--azul),var(--azul-2)); box-shadow:0 8px 20px -8px rgba(26,79,160,.6)}
+  .logo svg{width:26px; height:26px}
+  .marca small{display:block; color:var(--gris-5); font-size:12px; letter-spacing:.02em}
+  .marca b{font-family:"Plus Jakarta Sans",sans-serif; font-weight:800; font-size:16px; letter-spacing:-.01em}
+  .numero{text-align:right}
+  .numero .lbl{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gris-5); font-weight:600}
+  .numero .num{font-family:"Plus Jakarta Sans",sans-serif; font-weight:800; font-size:34px; letter-spacing:-.02em; line-height:1; margin-top:4px}
+  .numero .folio{margin-top:6px; color:var(--gris-5); font-size:12px}
+  .titulo{margin:6px 0 0}
+  .titulo h1{margin:0; font-size:23px; font-weight:800; letter-spacing:-.02em}
+  .titulo p{margin:6px 0 0; color:var(--gris-5)}
+
+  /* Cinta de estatus */
+  .cinta{display:flex; align-items:center; gap:14px; padding:8px 20px; background:#e8f0fb; border-bottom:1px solid #c7d6ec; flex-wrap:wrap}
+  .cinta .pulso{width:10px; height:10px; border-radius:50%; background:var(--azul); box-shadow:0 0 0 0 rgba(26,79,160,.5); animation:pulso 2s infinite}
+  @keyframes pulso{0%{box-shadow:0 0 0 0 rgba(26,79,160,.45)} 70%{box-shadow:0 0 0 10px rgba(26,79,160,0)} 100%{box-shadow:0 0 0 0 rgba(26,79,160,0)}}
+  .cinta b{font-family:"Plus Jakarta Sans",sans-serif; font-weight:700; color:var(--azul)}
+  .cinta .sep{color:var(--gris-3)}
+  .cinta .pasos{margin-left:auto; display:flex; gap:6px; align-items:center}
+  .paso{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--gris-5)}
+  .paso i{width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-style:normal; font-size:11px; font-weight:700; border:2px solid var(--gris-3); color:var(--gris-5); background:var(--papel)}
+  .paso.ok i{background:var(--verde); border-color:var(--verde); color:#fff}
+  .paso.actual i{background:var(--azul); border-color:var(--azul); color:#fff}
+  .paso.actual{color:var(--azul); font-weight:600}
+  .paso .linea{width:22px; height:2px; background:var(--gris-3)}
+
+  /* Cuerpo */
+  .cuerpo{padding:14px 20px 4px}
+  .seccion{margin-bottom:10px; border:1.5px solid #c7d6ec; border-radius:14px; padding:10px 14px 12px; background:#f6f9fe; overflow:hidden}
+  .seccion h3{margin:-10px -14px 10px; padding:7px 14px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--azul); font-weight:700; display:flex; align-items:center; gap:10px; background:#e8f0fb; border-bottom:1.5px solid #c7d6ec; border-radius:0}
+  .seccion h3::after{content:none}
+  .campos{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px 22px}
+  .campo{padding:7px 12px; border:1px solid #c9d8ef; border-radius:10px; background:var(--papel); min-width:190px; max-width:320px}
+  .campo .k{font-size:11px; color:var(--gris-5); font-weight:600; letter-spacing:.02em}
+  .campo .v{margin-top:1px; font-weight:600; font-size:13px}
+  .campo.destacado{border-color:#bfd3f2; box-shadow:inset 3px 0 0 var(--azul)}
+
+  table{width:100%; border-collapse:collapse; font-size:13.5px}
+  .tabla-wrap{border:1.5px solid #c7d6ec; border-radius:10px; overflow:hidden; background:var(--papel)}
+  thead th{background:#e8f0fb; color:var(--azul); font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:700; text-align:left; padding:11px 14px; border-bottom:1.5px solid #c7d6ec; border-right:1px solid #dbe5f3; white-space:nowrap}
+  thead th:last-child, tbody td:last-child, tfoot td:last-child{border-right:none}
+  tbody td{padding:12px 14px; border-bottom:1px solid var(--gris-3); border-right:1px solid var(--gris-2); vertical-align:middle; white-space:nowrap}
+  tbody td.desc-col{max-width:420px; overflow:hidden; text-overflow:ellipsis}
+  tbody tr:last-child td{border-bottom:1.5px solid var(--gris-3)}
+  tbody tr:hover td{background:#fafcff}
+  .num{text-align:right; font-variant-numeric:tabular-nums}
+  td .desc{font-weight:600}
+  td .sub{color:var(--gris-5); font-size:12px; margin-left:8px}
+  .pill{display:inline-block; padding:2px 8px; border-radius:999px; background:var(--gris-1); color:var(--gris-7); font-size:12px; font-weight:500; border:1px solid var(--gris-2)}
+  tfoot td{padding:10px 14px; border-top:1px solid var(--gris-2); background:var(--gris-1); font-size:13px}
+  tfoot .total td{background:#e8f0fb; font-weight:800; font-size:15px; color:var(--azul); font-family:"Plus Jakarta Sans",sans-serif}
+  .scroll{overflow-x:auto}
+  .superior{display:block}
+  .datos{margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px 22px}
+  .datos div{display:grid; grid-template-columns:118px minmax(0,1fr); gap:10px; align-items:baseline; padding:5px 0; border-bottom:1px dashed var(--gris-2)}
+  .datos dt{font-size:11px; color:var(--gris-5); font-weight:600; letter-spacing:.02em; text-transform:uppercase}
+  .datos dd{margin:0; font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .datos .destacado dd{color:var(--azul)}
+  .tarjetas{grid-template-columns:repeat(auto-fill,minmax(190px,max-content)); gap:8px 10px}
+  @media (max-width:1100px){ .tarjetas{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media (max-width:560px){ .tarjetas{grid-template-columns:1fr} }
+  .campo .v{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .archivos{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,max-content)); gap:8px}
+  .archivo{display:flex; flex-direction:column; align-items:center; gap:4px; padding:6px 10px 5px; min-width:130px; max-width:173px; border:1.5px solid #c9d8ef; border-radius:12px; text-decoration:none; color:var(--tinta); background:var(--papel); text-align:center; transition:border-color .15s, transform .15s, box-shadow .15s}
+  .archivo:hover{border-color:var(--azul); transform:translateY(-2px); box-shadow:0 12px 24px -16px rgba(26,79,160,.5)}
+  .archivo b{font-size:11.5px; font-weight:600; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .archivo small{color:var(--gris-5); font-size:11px}
+  .doc{position:relative; width:33px; height:42px; border-radius:5px 10px 5px 5px; background:var(--gris-1); border:1.5px solid var(--gris-3); display:grid; place-items:end center; padding-bottom:6px}
+  .doc::before{content:""; position:absolute; right:-1.5px; top:-1.5px; width:12px; height:12px; border-radius:0 10px 0 5px; background:var(--gris-3)}
+  .doc i{font-style:normal; font:800 9px "Plus Jakarta Sans",sans-serif; letter-spacing:.05em; color:#fff; padding:2px 6px; border-radius:5px; background:var(--gris-5)}
+  .doc.pdf{background:#fff5f5; border-color:#fecaca} .doc.pdf::before{background:#fecaca} .doc.pdf i{background:#dc2626}
+  .doc.xls{background:#f0fdf4; border-color:#bbf7d0} .doc.xls::before{background:#bbf7d0} .doc.xls i{background:#16a34a}
+  .doc.word{background:#eff6ff; border-color:#bfdbfe} .doc.word::before{background:#bfdbfe} .doc.word i{background:#2563eb}
+  .doc.img{background:#fdf4ff; border-color:#f5d0fe} .doc.img::before{background:#f5d0fe} .doc.img i{background:#a21caf}
+  .doc.xml{background:#fffbeb; border-color:#fde68a} .doc.xml::before{background:#fde68a} .doc.xml i{background:#d97706}
+  .linea-info{display:flex; flex-wrap:wrap; gap:6px 22px; padding:10px 14px; border-radius:12px; background:var(--gris-1); border:1px solid var(--gris-2); color:var(--gris-7); font-size:13px}
+  .linea-info em{font-style:normal; color:var(--gris-5); font-size:11px; letter-spacing:.06em; text-transform:uppercase; font-weight:700; margin-right:6px}
+  .linea-info .adj a{color:var(--azul); text-decoration:none; font-weight:600}
+  .linea-info .adj a:hover{text-decoration:underline}
+  table{font-size:14px}
+  thead th{padding:8px 12px}
+  tbody td{padding:8px 12px}
+  tfoot td{padding:7px 12px}
+  tfoot .total td{font-size:16px}
+
+  .dos{display:grid; grid-template-columns:1.4fr 1fr; gap:22px}
+  @media (max-width:720px){
+    .lienzo{width:100%; margin:0; padding:0} .hoja{border-radius:0; min-height:100vh}
+    .dos{grid-template-columns:1fr} .cab,.cinta,.cuerpo,.acciones,.pie{padding-left:14px; padding-right:14px}
+    .cab .fila{flex-direction:column; gap:10px} .numero{text-align:left} .numero .num{font-size:28px}
+    .titulo h1{font-size:19px} .titulo p{font-size:13px}
+    .tarjetas{grid-template-columns:1fr 1fr} .campo{min-width:0; max-width:none}
+    .archivos{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))} .archivo{min-width:0; max-width:none}
+    .acciones{flex-direction:column; align-items:stretch} .acciones .btn{justify-content:center}
+  }
+  @media (max-width:420px){ .tarjetas{grid-template-columns:1fr} }
+  .nota{border:1px dashed var(--gris-3); border-radius:12px; padding:12px 14px; color:var(--gris-7); background:var(--papel)}
+  .adjuntos a{display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--gris-2); border-radius:12px; text-decoration:none; color:var(--tinta); margin-bottom:8px; background:var(--papel)}
+  .adjuntos a:hover{border-color:var(--azul); background:#fafcff}
+  .adjuntos .ico{width:34px; height:34px; border-radius:9px; background:var(--rojo-suave); color:var(--rojo); display:grid; place-items:center; font-size:10px; font-weight:800}
+  .adjuntos small{color:var(--gris-5)}
+  .linea-tiempo{list-style:none; margin:0; padding:0}
+  .linea-tiempo li{position:relative; padding:0 0 14px 26px}
+  .linea-tiempo li::before{content:""; position:absolute; left:7px; top:6px; width:8px; height:8px; border-radius:50%; background:var(--gris-3)}
+  .linea-tiempo li::after{content:""; position:absolute; left:10.5px; top:16px; bottom:-2px; width:1px; background:var(--gris-2)}
+  .linea-tiempo li:last-child::after{display:none}
+  .linea-tiempo li.ok::before{background:var(--verde); box-shadow:0 0 0 3px var(--verde-suave)}
+  .linea-tiempo li.actual::before{background:var(--azul); box-shadow:0 0 0 3px var(--azul-suave)}
+  .linea-tiempo b{display:block; font-size:13px}
+  .linea-tiempo span{color:var(--gris-5); font-size:12px}
+
+  /* Barra de acciones (solo aprobador) */
+  .acciones{position:sticky; bottom:0; display:flex; gap:12px; align-items:center; padding:12px 20px; background:color-mix(in srgb,var(--papel) 92%, transparent); backdrop-filter:blur(10px); border-top:1px solid var(--gris-2); flex-wrap:wrap}
+  .acciones textarea{flex:1 1 260px; min-height:44px; resize:vertical; border:1px solid var(--gris-3); border-radius:12px; padding:10px 12px; font:inherit; background:var(--papel); color:var(--tinta)}
+  .btn{border:0; border-radius:12px; padding:12px 22px; font:600 14px Inter,sans-serif; cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:transform .08s ease, box-shadow .2s}
+  .btn:active{transform:translateY(1px)}
+  .btn-ok{background:linear-gradient(135deg,#16a34a,#15803d); color:#fff; box-shadow:0 10px 22px -10px rgba(22,163,74,.7)}
+  .btn-no{background:var(--papel); color:var(--rojo); border:1.5px solid #fecaca}
+  .btn-no:hover{background:var(--rojo-suave)}
+  .btn-print{background:var(--gris-1); color:var(--gris-7); border:1px solid var(--gris-2)}
+  .pie{padding:8px 20px 12px; color:var(--gris-5); font-size:12px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap}
+  .pie .mono{color:var(--gris-5)}
+
+  @media print{
+    body{background:#fff} .lienzo{margin:0; padding:0; max-width:none} .hoja{box-shadow:none; border-radius:0}
+    .acciones,.btn-print,.pulso{display:none !important} .cinta{background:#fff; border-bottom:2px solid #1a4fa0}
+    @page{size:letter; margin:14mm}
+  }
+
+  /* ── Página de aprobación (estados y resultado) ── */
+  .cinta.ok b{color:#16a34a} .cinta.ok .pulso{background:#16a34a; animation:none}
+  .cinta.no b{color:#dc2626} .cinta.no .pulso{background:#dc2626; animation:none}
+  .cinta.aviso b{color:#d97706} .cinta.aviso .pulso{background:#d97706; animation:none}
+  .cinta.neutro b{color:#475569} .cinta.neutro .pulso{background:#94a3b8; animation:none}
+  .cinta .turno-txt{color:var(--gris-7); font-size:13px}
+  .mensaje{margin:0 0 10px; padding:10px 14px; border-radius:12px; border-left:4px solid #94a3b8; background:#f8fafc; color:#334155; font-size:13.5px}
+  .mensaje.ok{border-color:#22c55e; background:#ecfdf3; color:#14532d}
+  .mensaje.error{border-color:#ef4444; background:#fef2f2; color:#7f1d1d}
+  .mensaje.aviso{border-color:#f59e0b; background:#fffbeb; color:#78350f}
+  .btn[disabled]{opacity:.55; cursor:not-allowed}
+  .vacio{padding:40px 0; text-align:center; color:var(--gris-5)}
+  .acciones .decide{font-size:12px; color:var(--gris-5); flex-basis:100%}
+  tbody td .sub{color:var(--gris-5); font-size:12px; margin-left:8px; font-family:"JetBrains Mono",ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div class="lienzo">
+  <article class="hoja">
+
+    <header class="cab">
+      <div class="fila">
+        <div class="marca">
+          <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 3 20h4.2l1.6-3.4h6.4L16.8 20H21L12 3Zm0 6.2 2.1 4.6H9.9L12 9.2Z" fill="#fff"/></svg>
+          </div>
+          <div><b>Intranet Avalanz</b><small>Workflows · {{ h.cabecera.flujo }}</small></div>
+        </div>
+        <div class="numero">
+          <div class="lbl">{{ h.cabecera.etiqueta }}</div>
+          <div class="num mono">No. {{ h.cabecera.numero }}</div>
+          <div class="folio">{% if not h.cabecera.numero_es_folio %}Folio Intranet <span class="mono">{{ h.cabecera.folio }}</span> · {% endif %}{{ h.cabecera.fecha }}</div>
+        </div>
+      </div>
+      <div class="titulo">
+        <h1>{{ h.cabecera.empresa }}</h1>
+        <p>Solicitado por <strong>{{ h.cabecera.solicitado_por }}</strong>{% if h.cabecera.area %} · {{ h.cabecera.area }}{% endif %} · Grupo {{ h.cabecera.grupo }} · Filial {{ h.cabecera.filial }}</p>
+      </div>
+    </header>
+
+    <div class="cinta {{ h.estatus.tono }}" role="status">
+      <span class="pulso" aria-hidden="true"></span>
+      <b id="estatus">{{ h.estatus.texto }}</b>
+    </div>
+
+    <div class="cuerpo">
+      <div id="mensaje">{% if mensaje %}<div class="mensaje {{ mensaje_tono }}">{{ mensaje }}</div>{% endif %}</div>
+
+      {% if h.tarjetas or h.adjuntos %}
+      <div class="superior">
+        {% if h.tarjetas %}
+        <section class="seccion datos-panel">
+          <h3>Datos de la solicitud</h3>
+          <div class="campos tarjetas">
+            {% for t in h.tarjetas %}<div class="campo"><div class="k">{{ t.etiqueta }}</div><div class="v" title="{{ t.valor }}">{{ t.valor }}</div></div>
+            {% endfor %}
+          </div>
+        </section>
+        {% endif %}
+        {% if h.adjuntos %}
+        <section class="seccion">
+          <h3>Archivos adjuntos <span class="pill">{{ h.adjuntos|length }}</span></h3>
+          <div class="archivos">
+            {% for a in h.adjuntos %}<a href="{{ a.url or '#' }}" target="_blank" rel="noopener" class="archivo" title="{{ a.nombre }}{% if a.tamano %} · {{ a.tamano }}{% endif %}"><span class="doc {{ clase_doc(a.ext) }}"><i>{{ a.ext|upper }}</i></span><b>{{ a.nombre }}</b>{% if a.tamano %}<small>{{ a.tamano }}</small>{% endif %}</a>
+            {% endfor %}
+          </div>
+        </section>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% for t in h.tablas %}
+      <section class="seccion">
+        <h3>{{ t.titulo }} <span class="pill">{{ t.filas|length }}</span></h3>
+        <div class="tabla-wrap scroll">
+          <table>
+            <thead><tr>{% for c in t.columnas %}<th class="{{ 'num' if c.alinear == 'der' else '' }}"{% if c.alinear == 'centro' %} style="text-align:center"{% endif %}>{{ c.etiqueta }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              {% for f in t.filas %}<tr>{% for cel in f %}{% set col = t.columnas[loop.index0] %}<td class="{{ 'num' if col.alinear == 'der' else '' }}{{ ' desc-col' if col.tipo == 'texto' else '' }}"{% if col.alinear == 'centro' %} style="text-align:center"{% endif %} title="{{ cel.valor }}{% if cel.detalle %} · {{ cel.detalle }}{% endif %}">{% if col.tipo == 'moneda' and loop.index0 == t.col_total %}<strong>{{ cel.valor }}</strong>{% else %}{{ cel.valor }}{% endif %}{% if cel.detalle %}<span class="sub">{{ cel.detalle }}</span>{% endif %}</td>{% endfor %}</tr>
+              {% endfor %}
+            </tbody>
+            {% if t.totales %}<tfoot>
+              {% for tot in t.totales %}<tr{% if tot.destacado %} class="total"{% endif %}><td colspan="{{ [t.col_total, 1]|max }}" class="num">{{ tot.etiqueta }}</td><td class="num">{{ tot.valor }}</td>{% if t.columnas|length - t.col_total - 1 > 0 %}<td colspan="{{ t.columnas|length - t.col_total - 1 }}"></td>{% endif %}</tr>
+              {% endfor %}
+            </tfoot>{% endif %}
+          </table>
+        </div>
+      </section>
+      {% endfor %}
+
+      {% if not h.tarjetas and not h.tablas and not h.adjuntos %}<p class="vacio">Este trámite no trae datos para mostrar.</p>{% endif %}
+    </div>
+
+    {% if puede_decidir %}
+    <div class="acciones" id="acciones">
+      <textarea id="comentario" placeholder="Comentario (obligatorio si rechazas)"></textarea>
+      <button class="btn btn-ok" type="button" id="btn-ok">✓ &nbsp;Aprobar</button>
+      <button class="btn btn-no" type="button" id="btn-no">Rechazar</button>
+      <button class="btn btn-print" type="button" onclick="window.print()">Imprimir / PDF</button>
+      {% if decide_como %}<span class="decide">Decides como <b>{{ decide_como }}</b> · etapa {{ etapa_orden }} · {{ etapa_nombre }}. Queda registrado con fecha, hora e IP.</span>{% endif %}
+    </div>
+    {% endif %}
+
+    <footer class="pie">
+      <span>Intranet Avalanz · Workflows</span>
+      <span class="mono">{{ h.cabecera.folio }}</span>
+    </footer>
+  </article>
+</div>
+{% if puede_decidir %}
+<script>
+(function () {
+  var url = {{ url_decidir|tojson }};
+  var ok = document.getElementById('btn-ok'), no = document.getElementById('btn-no'), txt = document.getElementById('comentario');
+  function aviso(texto, tono) { document.getElementById('mensaje').innerHTML = '<div class="mensaje ' + tono + '"></div>'; document.querySelector('#mensaje .mensaje').textContent = texto; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  function decidir(aprobar) {
+    var comentario = (txt.value || '').trim();
+    if (!aprobar && !comentario) { aviso('Escribe el motivo del rechazo.', 'error'); txt.focus(); return; }
+    ok.disabled = no.disabled = true;
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aprobar: aprobar, comentario: comentario }) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { ok.disabled = no.disabled = false; aviso(typeof res.d.detail === 'string' ? res.d.detail : 'No se pudo registrar la decisión.', 'error'); return; }
+        document.getElementById('acciones').remove();
+        var c = document.querySelector('.cinta'); c.className = 'cinta ' + (aprobar ? 'ok' : 'no');
+        document.getElementById('estatus').textContent = aprobar ? 'Aprobaste esta solicitud' : 'Rechazaste esta solicitud';
+        aviso(res.d.mensaje || 'Tu decisión quedó registrada.', 'ok');
+      })
+      .catch(function () { ok.disabled = no.disabled = false; aviso('Sin conexión con la Intranet; intenta de nuevo.', 'error'); });
+  }
+  ok.addEventListener('click', function () { decidir(true); });
+  no.addEventListener('click', function () { decidir(false); });
+})();
+</script>
+{% endif %}
+</body>
+</html>

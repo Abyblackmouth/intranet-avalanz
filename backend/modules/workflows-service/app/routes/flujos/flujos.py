@@ -192,7 +192,10 @@ async def hoja_vista_previa(flujo_id: str, body: HojaIn, db: AsyncSession = Depe
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     h = await hoja_de(db, inst, con_urls=False, cfg_override=cfg)
-    return {"hoja": h, "correo_html": html(h), "folio": inst.folio}
+    from app.motor.hoja_pagina import html as pagina_html
+    from app.motor.avisos import resumen_breve
+    return {"hoja": h, "pagina_html": pagina_html(h, puede_decidir=True, url_decidir="#", decide_como="(vista previa)", etapa_orden=1, etapa_nombre="Etapa de ejemplo"),
+            "correo_html": resumen_breve(h), "folio": inst.folio}
 
 
 @router.post("/{flujo_id}/hoja/prueba")
@@ -215,7 +218,10 @@ async def hoja_prueba(flujo_id: str, body: HojaIn, db: AsyncSession = Depends(ge
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     h = await hoja_de(db, inst, con_urls=False, cfg_override=cfg)
-    cuerpo = f"<p style='font-size:12px;color:#64748b'>Correo de prueba de la hoja de «{f.nombre}» con los datos del trámite {inst.folio}. No requiere acción.</p>" + html(h)
+    from app.motor.avisos import resumen_breve
+    cuerpo = (f"<p style='font-size:12px;color:#64748b'>Correo de prueba de «{f.nombre}» con los datos del trámite {inst.folio}. Así lo recibe el aprobador; en el correo real el botón abre la página de aprobación.</p>"
+              "<h2 style='margin:0 0 6px'>Tienes una aprobación pendiente</h2>" + resumen_breve(h)
+              + "<p style='margin:18px 0'><span style='display:inline-block;background:#1a4fa0;color:#fff;padding:10px 18px;border-radius:10px;font-weight:600'>Revisar y decidir</span></p>")
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.post(f"{config.EMAIL_SERVICE_URL}/api/v1/email/module", json={"to_email": user["email"], "full_name": user.get("full_name") or "", "subject": f"[Prueba] Hoja · {f.nombre} · {inst.folio}", "html_content": cuerpo})
     if r.status_code >= 300:

@@ -59,6 +59,28 @@ async def _detalle_publico(db: AsyncSession, inst: Instancia, actor: dict) -> di
     return await detalle(db, inst, actor, con_urls=True, vista_forzada="aprobador")
 
 
+@router.get("/aprobar/{token}/pagina")
+async def pagina(token: str, db: AsyncSession = Depends(get_db)):
+    """La pagina de aprobacion (diseno v9) completa, renderizada en el servidor."""
+    from fastapi.responses import HTMLResponse
+    from app.motor.hoja_db import hoja_de
+    from app.motor.hoja_pagina import html
+    try:
+        t, inst, etapa, estado = await _token_vigente(db, token)
+    except HTTPException:
+        return HTMLResponse("<!doctype html><meta charset=utf-8><title>Liga no válida</title><body style='font-family:system-ui;padding:48px;color:#334155'><h2>Esta liga no existe</h2><p>Revisa que la copiaste completa o entra a tu Bandeja en la Intranet.</p></body>", status_code=404)
+    h = await hoja_de(db, inst, con_urls=True)
+    mensajes = {"usada": ("Esta liga ya se usó. Tu decisión quedó registrada.", "ok"),
+                "invalidada": ("Esta liga ya no es válida: se reenvió el aviso o se reasignó la etapa. Usa la liga más reciente o entra a tu Bandeja.", "aviso"),
+                "vencida": ("Esta liga venció. Pide que te reenvíen el aviso o entra a tu Bandeja.", "aviso"),
+                "cerrada": ("Este trámite ya fue decidido.", "")}
+    msg, tono = mensajes.get(estado, ("", ""))
+    nombre = etapa.aprobador_nombre if t.user_id == etapa.aprobador_user_id else (etapa.suplente_nombre or "")
+    cuerpo = html(h, puede_decidir=estado == "vigente", url_decidir=f"/api/v1/workflows/public/aprobar/{token}/decidir",
+                  decide_como=nombre, etapa_orden=etapa.orden, etapa_nombre=etapa.nombre, mensaje=msg, mensaje_tono=tono)
+    return HTMLResponse(cuerpo, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
 @router.post("/aprobar/{token}/decidir")
 async def decidir(token: str, body: Decision, request: Request, db: AsyncSession = Depends(get_db)):
     t, inst, etapa, estado = await _token_vigente(db, token)
