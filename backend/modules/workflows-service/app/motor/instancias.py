@@ -248,8 +248,13 @@ async def decidir(db: AsyncSession, inst: Instancia, etapa: InstanciaEtapa, apro
     etapa.decidio_en = ahora()
     etapa.comentario = comentario or None
     # id del aprobador en la plataforma, para el history de regreso
-    res = await db.execute(select(ConexionUsuario.id_externo).where(ConexionUsuario.conexion_id == inst.conexion_id, ConexionUsuario.user_id == uid))
-    etapa.decidio_id_externo = res.scalar_one_or_none()
+    # Un usuario de la Intranet puede estar ligado a varios usuarios de la plataforma
+    # (su usuario personal y, por ejemplo, uno generico). Se prefiere el del mismo correo.
+    ligas = (await db.execute(select(ConexionUsuario).where(ConexionUsuario.conexion_id == inst.conexion_id, ConexionUsuario.user_id == uid)
+                              .order_by(ConexionUsuario.id_externo))).scalars().all()
+    correo = (user.get("email") or etapa.aprobador_email or "").lower()
+    elegida = next((l for l in ligas if correo and (l.email or "").lower() == correo), ligas[0] if ligas else None)
+    etapa.decidio_id_externo = elegida.id_externo if elegida else None
     await invalidar_tokens(db, inst.id, etapa.id)
     if aprobar:
         etapa.status = "aprobada"
