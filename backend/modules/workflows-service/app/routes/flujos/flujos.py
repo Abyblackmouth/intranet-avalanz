@@ -27,21 +27,23 @@ class FlujoIn(BaseModel):
     descripcion: Optional[str] = None
     result_service: str = ""
     activo: bool = True
+    folio_codigo: Optional[str] = None
 
 
 class FlujoPatch(BaseModel):
     process_id: Optional[str] = None
+    aliases: Optional[List[str]] = None
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    result_service: Optional[str] = None
+    activo: Optional[bool] = None
+    folio_codigo: Optional[str] = None
     resumen: Optional[Dict[str, Any]] = None
     hoja: Optional[Dict[str, Any]] = None
 
 
 class HojaIn(BaseModel):
     hoja: Optional[Dict[str, Any]] = None
-    aliases: Optional[List[str]] = None
-    nombre: Optional[str] = None
-    descripcion: Optional[str] = None
-    result_service: Optional[str] = None
-    activo: Optional[bool] = None
 
 
 class GrupoIn(BaseModel):

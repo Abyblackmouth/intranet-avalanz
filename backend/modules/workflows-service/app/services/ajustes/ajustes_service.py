@@ -32,8 +32,8 @@ AJUSTES: List[Dict[str, Any]] = [
      "descripcion": "Los folios se arman como PREFIJO-FAMILIA-000001 (por ejemplo WF-AVAL-000001). Cambiarlo solo afecta a los trámites nuevos.",
      "tipo": "texto", "default": "WF", "max_len": 5},
     {"key": "folio.familia", "grupo": "Trámites", "label": "Familia del folio",
-     "descripcion": "La parte de en medio del folio (PREFIJO-FAMILIA-000001). Por ahora una sola para todo el módulo; cuando las empresas estén mapeadas puede ser por familia.",
-     "tipo": "texto", "default": "AVAL", "max_len": 4},
+     "descripcion": "Parte del folio despues del prefijo (PREFIJO-FAMILIA-…). Es la de todo el módulo; cada empresa de una conexión puede tener la suya en Ajustes → Conexiones. Vacía: el folio no lleva familia.",
+     "tipo": "texto", "default": "AVAL", "max_len": 6, "vacio_ok": True},
     {"key": "hoja.estilo", "grupo": "Apariencia", "label": "Estilo de la hoja del trámite",
      "descripcion": "Cómo se ve el documento en la página de aprobación, la Bandeja y la vista previa. Cada flujo puede usar otro estilo desde su Hoja.",
      "tipo": "opcion", "default": "flotante",
@@ -68,7 +68,7 @@ def normalizar(ajuste: Dict[str, Any], valor: Any) -> str:
         return str(valor)
     if tipo == "texto":
         v = str(valor or "").strip().upper()
-        if not v or len(v) > ajuste.get("max_len", 255) or not v.replace("-", "").isalnum():
+        if (not v and not ajuste.get("vacio_ok")) or len(v) > ajuste.get("max_len", 255) or (v and not v.replace("-", "").isalnum()):
             raise HTTPException(status_code=422, detail="Solo letras y números, sin espacios")
         return v
     raise HTTPException(status_code=500, detail="Tipo de ajuste desconocido")

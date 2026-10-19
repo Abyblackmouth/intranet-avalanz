@@ -49,6 +49,7 @@ class Conexion(Base):
     timeout_seg = Column(Integer, nullable=False, default=20)
     reintentos_max = Column(Integer, nullable=False, default=5)
     espaciado_min = Column(JSONB, nullable=False, default=list)       # [1, 5, 15, 60, 240]
+    folio_ambiente = Column(String(8), nullable=True)                  # "PRB" en desarrollo: separa los folios de prueba
     activa = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=ahora)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=ahora, onupdate=ahora)
@@ -65,6 +66,7 @@ class ConexionEmpresa(Base):
     clave = Column(String(20), nullable=False)                         # "02|01"
     nombre = Column(String(255), nullable=False, default="")
     company_id = Column(UUID(as_uuid=False), nullable=True)
+    familia = Column(String(8), nullable=True)                        # familia del folio para esta empresa (si no, la del ajuste)
     activa = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=ahora)
 
@@ -107,6 +109,7 @@ class Flujo(Base):
     resumen = Column(JSONB, nullable=True)
     # Hoja del tramite (plantilla por flujo): documento, tarjetas, adjuntos y tablas. Ver app/motor/hoja.py
     hoja = Column(JSONB, nullable=True)
+    folio_codigo = Column(String(8), nullable=True)                   # codigo del flujo en el folio (SC, CLI)
     created_at = Column(DateTime(timezone=True), nullable=False, default=ahora)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=ahora, onupdate=ahora)
 
@@ -212,7 +215,7 @@ class FolioCounter(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     prefix = Column(String(5), nullable=False)
-    family_clave = Column(String(4), nullable=False)
+    family_clave = Column(String(30), nullable=False)          # serie: FAMILIA-AMBIENTE-FLUJO
     last_number = Column(Integer, nullable=False, default=0)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=ahora, onupdate=ahora)
 
@@ -236,7 +239,7 @@ class Instancia(Base):
     )
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    folio = Column(String(20), nullable=False, unique=True)
+    folio = Column(String(40), nullable=False, unique=True)
     flujo_id = Column(UUID(as_uuid=False), ForeignKey("flujos.id", ondelete="RESTRICT"), nullable=False)
     version_id = Column(UUID(as_uuid=False), ForeignKey("flujo_versiones.id", ondelete="SET NULL"), nullable=True)
     conexion_id = Column(UUID(as_uuid=False), ForeignKey("conexiones.id", ondelete="RESTRICT"), nullable=False)

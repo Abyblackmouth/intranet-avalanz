@@ -53,10 +53,17 @@ async def _instancias_total(db: AsyncSession, flujo_id: str) -> int:
     return (await db.execute(select(func.count()).select_from(Instancia).where(Instancia.flujo_id == flujo_id))).scalar_one()
 
 
+def _codigo_folio(v: Any) -> Optional[str]:
+    v = str(v or "").strip().upper()
+    if v and (len(v) > 6 or not v.isalnum()):
+        raise HTTPException(status_code=422, detail="El código del flujo para el folio solo lleva letras y números (máximo 6)")
+    return v or None
+
+
 def _flujo(f: Flujo, conexion: Optional[Conexion], grupos: int, activas: int) -> Dict[str, Any]:
     return {"id": f.id, "process_id": f.process_id, "aliases": f.aliases or [], "nombre": f.nombre, "descripcion": f.descripcion,
             "conexion_id": f.conexion_id, "conexion_titulo": conexion.titulo if conexion else None, "conexion_slug": conexion.slug if conexion else None,
-            "result_service": f.result_service, "activo": f.activo, "version": f.version, "correos": f.correos, "resumen": f.resumen, "hoja": f.hoja,
+            "result_service": f.result_service, "activo": f.activo, "version": f.version, "correos": f.correos, "resumen": f.resumen, "hoja": f.hoja, "folio_codigo": f.folio_codigo,
             "grupos": grupos, "instancias_activas": activas, "updated_at": f.updated_at.isoformat() if f.updated_at else None}
 
 
@@ -140,7 +147,8 @@ async def crear(db: AsyncSession, datos: Dict[str, Any], user: Dict[str, Any]) -
     if not (datos.get("nombre") or "").strip():
         raise HTTPException(status_code=422, detail="El nombre es obligatorio")
     f = Flujo(conexion_id=c.id, process_id=pid, nombre=datos["nombre"].strip(), descripcion=(datos.get("descripcion") or "").strip() or None,
-              result_service=(datos.get("result_service") or "").strip(), activo=bool(datos.get("activo", True)), version=0)
+              result_service=(datos.get("result_service") or "").strip(), activo=bool(datos.get("activo", True)), version=0,
+              folio_codigo=_codigo_folio(datos.get("folio_codigo")))
     db.add(f)
     await db.flush()
     await nueva_version(db, f, user, "flujo creado")
@@ -166,6 +174,11 @@ async def actualizar(db: AsyncSession, flujo_id: str, datos: Dict[str, Any], use
     if "aliases" in datos and datos["aliases"] is not None:
         f.aliases = sorted(set(_validar_process_id(a) for a in datos["aliases"] if a and a != f.process_id))
         cambios.append("aliases actualizados")
+    if "folio_codigo" in datos:
+        codigo = _codigo_folio(datos["folio_codigo"])
+        if codigo != f.folio_codigo:
+            cambios.append(f"código de folio: {f.folio_codigo} → {codigo}")
+            f.folio_codigo = codigo
     for campo in ("nombre", "descripcion", "result_service", "activo"):
         if campo in datos and datos[campo] is not None:
             v = datos[campo].strip() if isinstance(datos[campo], str) else datos[campo]

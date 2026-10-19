@@ -81,19 +81,19 @@ export function Simulador({ flujo }: { flujo: FlujoDetalle }) {
 
 // ── Datos generales ───────────────────────────────────────────────────────
 export function DatosGenerales({ flujo, onChange, puedeEditar, onEliminado }: { flujo: FlujoDetalle; onChange: (f: FlujoDetalle) => void; puedeEditar: boolean; onEliminado: () => void }) {
-  const [f, setF] = useState({ nombre: flujo.nombre, descripcion: flujo.descripcion ?? '', process_id: flujo.process_id, result_service: flujo.result_service, aliases: flujo.aliases.join(', ') })
+  const [f, setF] = useState({ nombre: flujo.nombre, descripcion: flujo.descripcion ?? '', process_id: flujo.process_id, result_service: flujo.result_service, aliases: flujo.aliases.join(', '), folio_codigo: flujo.folio_codigo ?? '' })
   const [numero, setNumero] = useState(flujo.resumen?.numero ?? 'folio')
   const [campos, setCampos] = useState<CampoResumen[]>(flujo.resumen?.campos ?? [])
   const [estado, setEstado] = useState<{ ok: boolean; texto: string } | null>(null)
   const [guardando, setGuardando] = useState(false)
-  useEffect(() => { setF({ nombre: flujo.nombre, descripcion: flujo.descripcion ?? '', process_id: flujo.process_id, result_service: flujo.result_service, aliases: flujo.aliases.join(', ') }); setNumero(flujo.resumen?.numero ?? 'folio'); setCampos(flujo.resumen?.campos ?? []) }, [flujo])
+  useEffect(() => { setF({ nombre: flujo.nombre, descripcion: flujo.descripcion ?? '', process_id: flujo.process_id, result_service: flujo.result_service, aliases: flujo.aliases.join(', '), folio_codigo: flujo.folio_codigo ?? '' }); setNumero(flujo.resumen?.numero ?? 'folio'); setCampos(flujo.resumen?.campos ?? []) }, [flujo])
   const setCampo = (i: number, k: keyof CampoResumen, v: string) => setCampos(cs => cs.map((c, j) => j === i ? { ...c, [k]: v } : c))
   const guardar = async () => {
     setEstado(null); setGuardando(true)
     try {
       const r = await updateFlujo(flujo.id, {
         nombre: f.nombre.trim(), descripcion: f.descripcion.trim() || null, process_id: f.process_id.trim(), result_service: f.result_service.trim(),
-        aliases: f.aliases.split(',').map(a => a.trim()).filter(Boolean),
+        aliases: f.aliases.split(',').map(a => a.trim()).filter(Boolean), folio_codigo: f.folio_codigo.trim().toUpperCase() || null,
         resumen: { numero: numero.trim() || 'folio', campos: campos.filter(c => c.clave.trim()) },
       })
       onChange(r.data); setEstado({ ok: true, texto: `Guardado · versión ${r.data.version}` })
@@ -124,6 +124,11 @@ export function DatosGenerales({ flujo, onChange, puedeEditar, onEliminado }: { 
         <div className="sm:col-span-2">
           <label className={labelCls}>Aliases (otros processId que también entran a este flujo, separados por coma)</label>
           <input className={`${inputCls} w-full font-mono`} value={f.aliases} onChange={e => setF(s => ({ ...s, aliases: e.target.value }))} disabled={dis} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Código del flujo en el folio</label>
+          <input className={`${inputCls} w-32 font-mono uppercase`} maxLength={6} value={f.folio_codigo} onChange={e => setF(s => ({ ...s, folio_codigo: e.target.value.toUpperCase() }))} placeholder="SC" disabled={dis} />
+          <p className="text-[11px] text-slate-400 mt-1">Aparece en el folio de este flujo (WF-AVAL-SC-000001) y le da su propio consecutivo. Aplica a los trámites nuevos; vacío, no aparece.</p>
         </div>
         <div className="sm:col-span-2">
           <label className={labelCls}>Descripción</label>
@@ -191,13 +196,13 @@ export function Versiones({ flujo }: { flujo: FlujoDetalle }) {
 // ── Nuevo flujo ───────────────────────────────────────────────────────────
 export function FormNuevoFlujo({ onClose, onCreado }: { onClose: () => void; onCreado: (id: string) => void }) {
   const [conexiones, setConexiones] = useState<ConexionResumen[]>([])
-  const [f, setF] = useState({ conexion_id: '', nombre: '', process_id: '', result_service: '', descripcion: '' })
+  const [f, setF] = useState({ conexion_id: '', nombre: '', process_id: '', result_service: '', descripcion: '', folio_codigo: '' })
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   useEffect(() => { getConexionesFlujos().then(r => { setConexiones(r.data ?? []); setF(s => ({ ...s, conexion_id: r.data?.[0]?.id ?? '' })) }).catch(() => setError('No se pudieron cargar las conexiones')) }, [])
   const crear = async () => {
     setError(null); setGuardando(true)
-    try { const r = await createFlujo({ conexion_id: f.conexion_id, nombre: f.nombre.trim(), process_id: f.process_id.trim(), result_service: f.result_service.trim(), descripcion: f.descripcion.trim() || undefined }); onCreado(r.data.id) }
+    try { const r = await createFlujo({ conexion_id: f.conexion_id, nombre: f.nombre.trim(), process_id: f.process_id.trim(), result_service: f.result_service.trim(), descripcion: f.descripcion.trim() || undefined, folio_codigo: f.folio_codigo.trim().toUpperCase() || null }); onCreado(r.data.id) }
     catch (e) { setError(errMsg(e, 'No se pudo crear el flujo')) } finally { setGuardando(false) }
   }
   return (
@@ -214,7 +219,10 @@ export function FormNuevoFlujo({ onClose, onCreado }: { onClose: () => void; onC
             <div><label className={labelCls}>processId</label><input className={`${inputCls} w-full font-mono`} value={f.process_id} onChange={e => setF(s => ({ ...s, process_id: e.target.value }))} placeholder="CompraDirecta" /></div>
             <div><label className={labelCls}>resultService</label><input className={`${inputCls} w-full font-mono`} value={f.result_service} onChange={e => setF(s => ({ ...s, result_service: e.target.value }))} placeholder="WFM110RESULT" /></div>
           </div>
-          <div><label className={labelCls}>Descripción (opcional)</label><input className={`${inputCls} w-full`} value={f.descripcion} onChange={e => setF(s => ({ ...s, descripcion: e.target.value }))} /></div>
+          <div className="grid grid-cols-[1fr_8rem] gap-3">
+            <div><label className={labelCls}>Descripción (opcional)</label><input className={`${inputCls} w-full`} value={f.descripcion} onChange={e => setF(s => ({ ...s, descripcion: e.target.value }))} /></div>
+            <div><label className={labelCls}>Código en folio</label><input className={`${inputCls} w-full font-mono uppercase`} maxLength={6} value={f.folio_codigo} onChange={e => setF(s => ({ ...s, folio_codigo: e.target.value.toUpperCase() }))} placeholder="SC" /></div>
+          </div>
           {error && <p className="text-[13px] text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" className={btnSecundario} onClick={onClose}>Cancelar</button>

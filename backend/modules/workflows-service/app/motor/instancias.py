@@ -42,20 +42,32 @@ def bitacora(db: AsyncSession, instancia_id: str, accion: str, user: Optional[Di
     ))
 
 
-async def generar_folio(db: AsyncSession) -> str:
-    """PREFIJO-FAMILIA-000001 con SELECT ... FOR UPDATE: dos envios al mismo tiempo nunca repiten folio."""
-    prefijo = await ajustes_service.obtener(db, "folio.prefijo")
-    familia = await ajustes_service.obtener(db, "folio.familia")
-    res = await db.execute(select(FolioCounter).where(FolioCounter.prefix == prefijo, FolioCounter.family_clave == familia).with_for_update())
+async def generar_folio(db: AsyncSession, conexion: Optional[Conexion] = None, flujo: Optional[Flujo] = None, origen_clave: str = "") -> str:
+    """PREFIJO-FAMILIA-AMBIENTE-FLUJO-000001 con SELECT ... FOR UPDATE (dos envios simultaneos nunca repiten).
+    Familia: la de la empresa de la conexion o, si no tiene, la del ajuste (puede ir vacia).
+    Ambiente: el de la conexion (PRB en desarrollo). Flujo: su codigo. Las partes vacias no aparecen.
+    Cada serie (familia + ambiente + flujo) lleva su propio consecutivo: las pruebas no queman folios reales."""
+    from app.models import ConexionEmpresa
+    prefijo = (await ajustes_service.obtener(db, "folio.prefijo") or "").strip()
+    familia = (await ajustes_service.obtener(db, "folio.familia") or "").strip()
+    if conexion is not None and origen_clave:
+        propia = (await db.execute(select(ConexionEmpresa.familia).where(ConexionEmpresa.conexion_id == conexion.id,
+                                                                        ConexionEmpresa.clave == origen_clave))).scalar_one_or_none()
+        if propia:
+            familia = propia.strip()
+    ambiente = (getattr(conexion, "folio_ambiente", None) or "").strip()
+    codigo = (getattr(flujo, "folio_codigo", None) or "").strip()
+    serie = "-".join(x for x in (familia, ambiente, codigo) if x)
+    res = await db.execute(select(FolioCounter).where(FolioCounter.prefix == prefijo, FolioCounter.family_clave == serie).with_for_update())
     c = res.scalar_one_or_none()
     if not c:
-        c = FolioCounter(prefix=prefijo, family_clave=familia, last_number=0)
+        c = FolioCounter(prefix=prefijo, family_clave=serie, last_number=0)
         db.add(c)
         await db.flush()
         res = await db.execute(select(FolioCounter).where(FolioCounter.id == c.id).with_for_update())
         c = res.scalar_one()
     c.last_number += 1
-    return f"{prefijo}-{familia}-{c.last_number:06d}"
+    return "-".join(x for x in (prefijo, serie, f"{c.last_number:06d}") if x)
 
 
 # ── Identidad del solicitante ─────────────────────────────────────────────
@@ -137,7 +149,7 @@ async def recibir(db: AsyncSession, conexion: Conexion, sobre: Dict[str, Any], a
     user_id = await ligar_requester(db, conexion, requester)
 
     inst = Instancia(
-        folio=await generar_folio(db), flujo_id=flujo.id, version_id=version.id if version else None, conexion_id=conexion.id,
+        folio=await generar_folio(db, conexion, flujo, origen_clave), flujo_id=flujo.id, version_id=version.id if version else None, conexion_id=conexion.id,
         process_id=flujo.process_id, result_service=(sobre.get("resultService") or flujo.result_service or "").strip(),
         external_key=external_key, company_group=sobre["companyGroup"], tenant_id=sobre["tenantId"],
         company_name=sobre.get("companyName") or "", origen_clave=origen_clave,

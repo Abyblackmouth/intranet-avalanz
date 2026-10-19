@@ -3,11 +3,11 @@
 // Ajustes → Conexiones: una tarjeta por plataforma (TOTVS, Odoo…). Todo lo que
 // antes viviría en un .env se captura aquí; los secretos se cifran en el backend.
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, RefreshCw, Plug, Trash2, Copy, Check, Eye, EyeOff } from 'lucide-react'
+import { Plus, RefreshCw, Plug, Trash2, Copy, Check, Eye, EyeOff, Eraser } from 'lucide-react'
 import {
   Conexion, ConexionDatos, EmpresaConexion,
   getConexiones, createConexion, updateConexion, deleteConexion, regenerarTokenConexion, probarConexion,
-  addEmpresaConexion, updateEmpresaConexion, removeEmpresaConexion,
+  addEmpresaConexion, updateEmpresaConexion, removeEmpresaConexion, limpiarPruebasConexion,
 } from '@/services/workflowsService'
 import { Seccion, Interruptor, Modal, inputCls, labelCls, btnPrimario, btnSecundario, btnPeligro, errMsg } from '@/components/app/workflows/compartidos'
 
@@ -19,6 +19,7 @@ function FormConexion({ inicial, onClose, onSaved }: { inicial: Conexion | null;
     auth_tipo: inicial?.auth_tipo ?? 'ninguna', auth_usuario: inicial?.auth_usuario ?? '', auth_secreto: '',
     timeout_seg: inicial?.timeout_seg ?? 20, reintentos_max: inicial?.reintentos_max ?? 5,
     espaciado: (inicial?.espaciado_min ?? [1, 5, 15, 60, 240]).join(', '),
+    folio_ambiente: inicial?.folio_ambiente ?? '',
   })
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -31,6 +32,7 @@ function FormConexion({ inicial, onClose, onSaved }: { inicial: Conexion | null;
     const datos: ConexionDatos = {
       titulo: f.titulo.trim(), url_base: f.url_base.trim(), auth_tipo: f.auth_tipo, auth_usuario: f.auth_usuario.trim() || null,
       timeout_seg: Number(f.timeout_seg), reintentos_max: Number(f.reintentos_max), espaciado_min: espaciado,
+      folio_ambiente: f.folio_ambiente.trim().toUpperCase() || null,
     }
     if (f.auth_secreto) datos.auth_secreto = f.auth_secreto
     setGuardando(true)
@@ -91,6 +93,11 @@ function FormConexion({ inicial, onClose, onSaved }: { inicial: Conexion | null;
           <input className={`${inputCls} w-full font-mono`} value={f.espaciado} onChange={e => set('espaciado', e.target.value)} />
           <p className="text-[11px] text-slate-400 mt-1">Después del último valor se repite ese mismo espaciado hasta agotar los reintentos.</p>
         </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Identificador de ambiente en el folio</label>
+          <input className={`${inputCls} w-32 font-mono uppercase`} maxLength={6} value={f.folio_ambiente} onChange={e => set('folio_ambiente', e.target.value.toUpperCase())} placeholder="PRB" />
+          <p className="text-[11px] text-slate-400 mt-1">Para conexiones de prueba: los folios salen como WF-AVAL-PRB-SC-000001, llevan su propio consecutivo y se pueden borrar de una vez. Déjalo vacío en producción.</p>
+        </div>
       </div>
       {error && <p className="mt-3 text-[13px] text-red-600">{error}</p>}
       <div className="mt-5 flex justify-end gap-2">
@@ -118,25 +125,33 @@ function Token({ valor }: { valor: string | null }) {
 function Empresas({ c, onChange }: { c: Conexion; onChange: () => void }) {
   const [clave, setClave] = useState('')
   const [nombre, setNombre] = useState('')
+  const [familia, setFamilia] = useState('')
   const [error, setError] = useState<string | null>(null)
   const agregar = async () => {
     setError(null)
-    try { await addEmpresaConexion(c.id, { clave: clave.trim(), nombre: nombre.trim() }); setClave(''); setNombre(''); onChange() }
+    try { await addEmpresaConexion(c.id, { clave: clave.trim(), nombre: nombre.trim(), familia: familia.trim().toUpperCase() || null }); setClave(''); setNombre(''); setFamilia(''); onChange() }
     catch (e) { setError(errMsg(e, 'No se pudo agregar')) }
   }
   const alternar = async (e: EmpresaConexion) => { await updateEmpresaConexion(c.id, e.id, { activa: !e.activa }); onChange() }
+  const guardarFamilia = async (e: EmpresaConexion, v: string) => {
+    const nueva = v.trim().toUpperCase()
+    if (nueva === (e.familia ?? '')) return
+    setError(null)
+    try { await updateEmpresaConexion(c.id, e.id, { familia: nueva || null }); onChange() } catch (err) { setError(errMsg(err, 'No se pudo guardar la familia')) }
+  }
   const quitar = async (e: EmpresaConexion) => { if (!confirm(`¿Quitar ${e.clave} ${e.nombre}?`)) return; await removeEmpresaConexion(c.id, e.id); onChange() }
   return (
     <div>
-      <p className="text-[12.5px] text-slate-500 mb-2">Clave <code className="bg-slate-100 rounded px-1">grupo|empresa</code> tal como la manda la plataforma (por ejemplo <code className="bg-slate-100 rounded px-1">02|01</code>). Es solo para mostrar el nombre: el motor usa la clave.</p>
+      <p className="text-[12.5px] text-slate-500 mb-2">Clave <code className="bg-slate-100 rounded px-1">grupo|empresa</code> tal como la manda la plataforma (por ejemplo <code className="bg-slate-100 rounded px-1">02|01</code>). El motor usa la clave. La <b>familia</b> es la que lleva el folio de los trámites de esa empresa; vacía, se usa la de Ajustes.</p>
       {c.empresas.length > 0 && (
         <table className="w-full text-[13px] mb-3">
-          <thead><tr className="text-left text-slate-500"><th className="py-1 font-medium">Clave</th><th className="py-1 font-medium">Nombre</th><th className="py-1 font-medium">Activa</th><th /></tr></thead>
+          <thead><tr className="text-left text-slate-500"><th className="py-1 font-medium">Clave</th><th className="py-1 font-medium">Nombre</th><th className="py-1 font-medium">Familia del folio</th><th className="py-1 font-medium">Activa</th><th /></tr></thead>
           <tbody>
             {c.empresas.map(e => (
               <tr key={e.id} className="border-t border-slate-200">
                 <td className="py-1.5 font-mono">{e.clave}</td>
                 <td className="py-1.5">{e.nombre || <span className="text-slate-400">—</span>}</td>
+                <td className="py-1.5"><input className={`${inputCls} w-24 font-mono uppercase !py-1`} maxLength={6} defaultValue={e.familia ?? ''} placeholder="(Ajustes)" onBlur={ev => guardarFamilia(e, ev.target.value)} onKeyDown={ev => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur() }} aria-label={`Familia del folio de ${e.clave}`} /></td>
                 <td className="py-1.5"><Interruptor on={e.activa} onChange={() => alternar(e)} label={`Activar ${e.clave}`} /></td>
                 <td className="py-1.5 text-right"><button type="button" onClick={() => quitar(e)} aria-label="Quitar" className="text-slate-400 hover:text-red-600"><Trash2 size={14} /></button></td>
               </tr>
@@ -147,6 +162,7 @@ function Empresas({ c, onChange }: { c: Conexion; onChange: () => void }) {
       <div className="flex flex-wrap gap-2 items-center">
         <input className={`${inputCls} w-24 font-mono`} placeholder="02|04" value={clave} onChange={e => setClave(e.target.value)} />
         <input className={`${inputCls} flex-1 min-w-48`} placeholder="Nombre de la empresa" value={nombre} onChange={e => setNombre(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') agregar() }} />
+        <input className={`${inputCls} w-28 font-mono uppercase`} maxLength={6} placeholder="Familia" value={familia} onChange={e => setFamilia(e.target.value.toUpperCase())} />
         <button type="button" className={btnSecundario} onClick={agregar} disabled={!clave.trim()}><Plus size={14} /> Agregar</button>
       </div>
       {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
@@ -170,6 +186,15 @@ function TarjetaConexion({ c, onChange }: { c: Conexion; onChange: () => void })
     setAviso({ ok: true, texto: 'Token regenerado. Actualízalo en la plataforma antes de mandar trámites.' })
   }
   const alternar = async () => { await updateConexion(c.id, { activa: !c.activa }); onChange() }
+  const [limpiando, setLimpiando] = useState(false)
+  const limpiar = async () => {
+    const marca = `-${c.folio_ambiente}-`
+    const escrito = prompt(`Se borrarán TODOS los trámites de esta conexión cuyo folio contenga «${marca}», con sus archivos, transacciones, correos y bitácora, y sus consecutivos volverán a empezar en 000001. No se puede deshacer.\n\nEscribe ${c.folio_ambiente} para confirmar:`)
+    if ((escrito ?? '').trim().toUpperCase() !== c.folio_ambiente) return
+    setLimpiando(true); setAviso(null)
+    try { const r = await limpiarPruebasConexion(c.id); setAviso({ ok: true, texto: `Se borraron ${r.data.tramites} trámites de prueba y ${r.data.archivos} archivos.` }) }
+    catch (e) { setAviso({ ok: false, texto: errMsg(e, 'No se pudo limpiar') }) } finally { setLimpiando(false) }
+  }
   const eliminar = async () => {
     if (!confirm(`¿Eliminar la conexión ${c.titulo}? Solo se puede si no tiene flujos.`)) return
     try { await deleteConexion(c.id); onChange() } catch (e) { setAviso({ ok: false, texto: errMsg(e, 'No se pudo eliminar') }) }
@@ -183,6 +208,7 @@ function TarjetaConexion({ c, onChange }: { c: Conexion; onChange: () => void })
         <dt className="text-slate-500">Autenticación</dt><dd>{auth}{c.auth_tipo === 'basica' && c.auth_usuario ? ` · ${c.auth_usuario}` : ''}{c.auth_tipo !== 'ninguna' ? (c.tiene_secreto ? ' · secreto guardado' : ' · sin secreto') : ''}</dd>
         <dt className="text-slate-500">Token de entrada</dt><dd className="flex items-center gap-2 flex-wrap"><Token valor={c.token_entrada} /><button type="button" onClick={regenerar} className="text-[12.5px] text-[#1a4fa0] hover:underline inline-flex items-center gap-1"><RefreshCw size={12} /> Regenerar</button></dd>
         <dt className="text-slate-500">Reintentos</dt><dd>{c.timeout_seg} s de espera · hasta {c.reintentos_max} intentos · cada {c.espaciado_min.join(', ')} min</dd>
+        <dt className="text-slate-500">Ambiente en el folio</dt><dd>{c.folio_ambiente ? <><code className="text-[12px] bg-slate-100 rounded px-1.5 py-0.5">{c.folio_ambiente}</code> <span className="text-slate-500">· los trámites de esta conexión son de prueba</span></> : <span className="text-slate-400">ninguno (producción)</span>}</dd>
       </dl>
       <div className="mt-4 pt-4 border-t border-slate-200">
         <p className="text-[13px] font-semibold text-slate-800 mb-2">Empresas de esta plataforma</p>
@@ -193,6 +219,7 @@ function TarjetaConexion({ c, onChange }: { c: Conexion; onChange: () => void })
         <button type="button" className={btnSecundario} onClick={probar} disabled={probando || !c.url_base}><Plug size={14} /> {probando ? 'Probando…' : 'Probar conexión'}</button>
         {prueba && <span className={`text-[13px] ${prueba.ok ? 'text-emerald-700' : 'text-red-600'}`}>{prueba.mensaje}</span>}
         {aviso && <span className={`text-[13px] ${aviso.ok ? 'text-emerald-700' : 'text-red-600'}`}>{aviso.texto}</span>}
+        {c.folio_ambiente && <button type="button" className={btnSecundario} onClick={limpiar} disabled={limpiando}><Eraser size={14} /> {limpiando ? 'Borrando…' : `Borrar trámites de prueba (${c.folio_ambiente})`}</button>}
         <button type="button" className={`${btnPeligro} ml-auto`} onClick={eliminar} disabled={c.flujos > 0}><Trash2 size={14} /> Eliminar</button>
       </div>
       {editar && <FormConexion inicial={c} onClose={() => setEditar(false)} onSaved={onChange} />}

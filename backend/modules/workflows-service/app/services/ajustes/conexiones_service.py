@@ -36,6 +36,14 @@ def _descifrar(cifrado: Optional[str]) -> Optional[str]:
     return decrypt_data(cifrado, config.FERNET_KEY)
 
 
+def _codigo(v: Any, que: str, largo: int = 6) -> Optional[str]:
+    """Codigo para el folio: letras y numeros, en mayusculas; vacio = no aparece."""
+    v = str(v or "").strip().upper()
+    if v and (len(v) > largo or not v.isalnum()):
+        raise HTTPException(status_code=422, detail=f"El {que} del folio solo lleva letras y números (máximo {largo})")
+    return v or None
+
+
 def generar_token() -> str:
     return "wft_" + secrets.token_urlsafe(32)
 
@@ -46,8 +54,8 @@ def serializar(c: Conexion, empresas: List[ConexionEmpresa], flujos: int = 0, co
         "auth_tipo": c.auth_tipo, "auth_usuario": c.auth_usuario, "tiene_secreto": bool(c.auth_secreto),
         "token_entrada": _descifrar(c.token_entrada) if con_token else None,
         "timeout_seg": c.timeout_seg, "reintentos_max": c.reintentos_max, "espaciado_min": c.espaciado_min or [],
-        "activa": c.activa, "flujos": flujos,
-        "empresas": [{"id": e.id, "clave": e.clave, "nombre": e.nombre, "company_id": e.company_id, "activa": e.activa}
+        "activa": c.activa, "flujos": flujos, "folio_ambiente": c.folio_ambiente,
+        "empresas": [{"id": e.id, "clave": e.clave, "nombre": e.nombre, "company_id": e.company_id, "familia": e.familia, "activa": e.activa}
                      for e in sorted(empresas, key=lambda x: x.clave)],
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
@@ -112,7 +120,7 @@ async def crear(db: AsyncSession, datos: Dict[str, Any], user: Dict[str, Any]) -
         auth_tipo=datos["auth_tipo"], auth_usuario=(datos.get("auth_usuario") or "").strip() or None,
         auth_secreto=_cifrar(datos.get("auth_secreto")), token_entrada=_cifrar(token),
         timeout_seg=datos["timeout_seg"], reintentos_max=datos["reintentos_max"], espaciado_min=datos["espaciado_min"],
-        activa=bool(datos.get("activa", True)),
+        activa=bool(datos.get("activa", True)), folio_ambiente=_codigo(datos.get("folio_ambiente"), "identificador de ambiente"),
     )
     db.add(c)
     await db.flush()
@@ -127,6 +135,11 @@ async def actualizar(db: AsyncSession, conexion_id: str, datos: Dict[str, Any], 
     completo = {**serializar(c, []), **datos}
     _validar(completo)
     cambios = []
+    if "folio_ambiente" in datos:
+        amb = _codigo(datos["folio_ambiente"], "identificador de ambiente")
+        if amb != c.folio_ambiente:
+            cambios.append(f"folio_ambiente: {c.folio_ambiente} → {amb}")
+            c.folio_ambiente = amb
     for campo in ("titulo", "url_base", "auth_tipo", "auth_usuario", "timeout_seg", "reintentos_max", "espaciado_min", "activa"):
         if campo in datos:
             nuevo = datos[campo]
@@ -221,12 +234,13 @@ async def agregar_empresa(db: AsyncSession, conexion_id: str, datos: Dict[str, A
     res = await db.execute(select(ConexionEmpresa).where(ConexionEmpresa.conexion_id == c.id, ConexionEmpresa.clave == clave))
     if res.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Esa clave ya está en la conexión")
-    e = ConexionEmpresa(conexion_id=c.id, clave=clave, nombre=(datos.get("nombre") or "").strip(), company_id=datos.get("company_id") or None)
+    e = ConexionEmpresa(conexion_id=c.id, clave=clave, nombre=(datos.get("nombre") or "").strip(), company_id=datos.get("company_id") or None,
+                         familia=_codigo(datos.get("familia"), "código de familia"))
     db.add(e)
     await registrar_historial(db, f"conexion.{c.slug}", None, f"empresa agregada: {clave} {e.nombre}", user)
     await db.commit()
     await db.refresh(e)
-    return {"id": e.id, "clave": e.clave, "nombre": e.nombre, "company_id": e.company_id, "activa": e.activa}
+    return {"id": e.id, "clave": e.clave, "nombre": e.nombre, "company_id": e.company_id, "familia": e.familia, "activa": e.activa}
 
 
 async def actualizar_empresa(db: AsyncSession, conexion_id: str, empresa_id: str, datos: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
@@ -235,13 +249,15 @@ async def actualizar_empresa(db: AsyncSession, conexion_id: str, empresa_id: str
     e = res.scalar_one_or_none()
     if not e:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    if "familia" in datos:
+        e.familia = _codigo(datos["familia"], "código de familia")
     for campo in ("nombre", "company_id", "activa"):
         if campo in datos:
             setattr(e, campo, datos[campo].strip() if isinstance(datos[campo], str) else datos[campo])
     await registrar_historial(db, f"conexion.{c.slug}", None, f"empresa actualizada: {e.clave}", user)
     await db.commit()
     await db.refresh(e)
-    return {"id": e.id, "clave": e.clave, "nombre": e.nombre, "company_id": e.company_id, "activa": e.activa}
+    return {"id": e.id, "clave": e.clave, "nombre": e.nombre, "company_id": e.company_id, "familia": e.familia, "activa": e.activa}
 
 
 async def quitar_empresa(db: AsyncSession, conexion_id: str, empresa_id: str, user: Dict[str, Any]) -> None:
@@ -253,3 +269,40 @@ async def quitar_empresa(db: AsyncSession, conexion_id: str, empresa_id: str, us
     await registrar_historial(db, f"conexion.{c.slug}", None, f"empresa quitada: {e.clave}", user)
     await db.delete(e)
     await db.commit()
+
+
+async def limpiar_pruebas(db: AsyncSession, conexion_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
+    """Borra los tramites de prueba de la conexion: los que llevan su identificador de ambiente en el folio
+    (WF-AVAL-PRB-SC-000001), con sus etapas, ligas, archivos, transacciones, correos y bitacora (ON DELETE CASCADE),
+    los objetos de MinIO y los consecutivos de esas series (vuelven a empezar en 000001)."""
+    from sqlalchemy import delete as sql_delete
+    from app.models import FolioCounter, Instancia, InstanciaArchivo
+    c = await obtener(db, conexion_id)
+    if not c.folio_ambiente:
+        raise HTTPException(status_code=422, detail="Esta conexión no tiene identificador de ambiente: solo se limpian trámites marcados como prueba")
+    marca = f"-{c.folio_ambiente}-"
+    ids = list((await db.execute(select(Instancia.id).where(Instancia.conexion_id == c.id, Instancia.folio.contains(marca)))).scalars().all())
+    archivos = list((await db.execute(select(InstanciaArchivo).where(InstanciaArchivo.instancia_id.in_(ids)))).scalars().all()) if ids else []
+    borrados = 0
+    try:
+        from app.motor.archivos import _cliente
+        cli = _cliente()
+        for a in archivos:
+            try:
+                cli.delete_object(Bucket=a.bucket, Key=a.object_key)
+                borrados += 1
+            except Exception:
+                pass
+    except Exception:
+        pass
+    if ids:
+        await db.execute(sql_delete(Instancia).where(Instancia.id.in_(ids)))
+    series = list((await db.execute(select(FolioCounter))).scalars().all())
+    reiniciadas = 0
+    for f in series:
+        if c.folio_ambiente in (f.family_clave or "").split("-"):
+            await db.delete(f)
+            reiniciadas += 1
+    await registrar_historial(db, f"conexion.{c.slug}", None, f"limpieza de pruebas ({marca}): {len(ids)} trámites, {borrados} archivos", user)
+    await db.commit()
+    return {"marca": marca, "tramites": len(ids), "archivos": borrados, "series_reiniciadas": reiniciadas}

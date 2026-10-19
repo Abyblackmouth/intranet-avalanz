@@ -10,17 +10,17 @@ export interface Ajuste {
 }
 export interface CambioAjuste { key: string; label: string; anterior: string | null; nuevo: string; usuario: string; fecha: string }
 
-export interface EmpresaConexion { id: string; clave: string; nombre: string; company_id: string | null; activa: boolean }
+export interface EmpresaConexion { id: string; clave: string; nombre: string; company_id: string | null; familia: string | null; activa: boolean }
 export interface Conexion {
   id: string; slug: string; titulo: string; url_base: string
   auth_tipo: 'ninguna' | 'basica' | 'token'; auth_usuario: string | null; tiene_secreto: boolean
   token_entrada: string | null; timeout_seg: number; reintentos_max: number; espaciado_min: number[]
-  activa: boolean; flujos: number; empresas: EmpresaConexion[]
+  activa: boolean; flujos: number; empresas: EmpresaConexion[]; folio_ambiente: string | null
 }
 export interface ConexionDatos {
   slug?: string; titulo?: string; url_base?: string; auth_tipo?: string; auth_usuario?: string | null
   auth_secreto?: string; borrar_secreto?: boolean; timeout_seg?: number; reintentos_max?: number
-  espaciado_min?: number[]; activa?: boolean
+  espaciado_min?: number[]; activa?: boolean; folio_ambiente?: string | null
 }
 export interface UsuarioPlataforma {
   id: string; conexion_id: string; id_externo: string; login_externo: string | null; email: string | null
@@ -42,11 +42,13 @@ export const deleteConexion = (id: string) => api.delete(`${BASE}/ajustes/conexi
 export const regenerarTokenConexion = (id: string) => api.post<{ token_entrada: string }>(`${BASE}/ajustes/conexiones/${id}/regenerar-token`)
 export const probarConexion = (id: string) =>
   api.post<{ ok: boolean; status: number | null; ms: number | null; mensaje: string }>(`${BASE}/ajustes/conexiones/${id}/probar`)
-export const addEmpresaConexion = (id: string, data: { clave: string; nombre?: string; company_id?: string | null }) =>
+export const addEmpresaConexion = (id: string, data: { clave: string; nombre?: string; company_id?: string | null; familia?: string | null }) =>
   api.post<EmpresaConexion>(`${BASE}/ajustes/conexiones/${id}/empresas`, data)
-export const updateEmpresaConexion = (id: string, empresaId: string, data: { nombre?: string; company_id?: string | null; activa?: boolean }) =>
+export const updateEmpresaConexion = (id: string, empresaId: string, data: { nombre?: string; company_id?: string | null; familia?: string | null; activa?: boolean }) =>
   api.patch<EmpresaConexion>(`${BASE}/ajustes/conexiones/${id}/empresas/${empresaId}`, data)
 export const removeEmpresaConexion = (id: string, empresaId: string) => api.delete(`${BASE}/ajustes/conexiones/${id}/empresas/${empresaId}`)
+export const limpiarPruebasConexion = (id: string) =>
+  api.post<{ marca: string; tramites: number; archivos: number; series_reiniciadas: number }>(`${BASE}/ajustes/conexiones/${id}/limpiar-pruebas`)
 
 // ── Usuarios de plataformas ───────────────────────────────────────────────
 export const getUsuariosPlataforma = (params?: { conexion_id?: string; pendientes?: boolean; q?: string }) =>
@@ -71,7 +73,7 @@ export interface GrupoDef {
 export interface Flujo {
   id: string; process_id: string; aliases: string[]; nombre: string; descripcion: string | null
   conexion_id: string; conexion_titulo: string | null; conexion_slug: string | null; result_service: string
-  activo: boolean; version: number; correos: Record<string, unknown> | null; resumen: ResumenConfig | null; hoja: HojaCfg | null; grupos: number; instancias_activas: number; updated_at: string | null
+  activo: boolean; version: number; correos: Record<string, unknown> | null; resumen: ResumenConfig | null; hoja: HojaCfg | null; folio_codigo: string | null; grupos: number; instancias_activas: number; updated_at: string | null
 }
 export interface CampoResumen { clave: string; etiqueta: string; tipo: 'texto' | 'moneda' | 'numero' | 'fecha' }
 export interface ResumenConfig { numero: string; campos: CampoResumen[] }
@@ -96,9 +98,9 @@ export type EtapaDatos = Partial<Omit<EtapaDef, 'id' | 'orden' | 'tipo_resolucio
 
 export const getFlujos = () => api.get<Flujo[]>(`${BASE}/flujos`)
 export const getFlujo = (id: string) => api.get<FlujoDetalle>(`${BASE}/flujos/${id}`)
-export const createFlujo = (data: { conexion_id: string; process_id: string; nombre: string; descripcion?: string; result_service?: string; activo?: boolean }) =>
+export const createFlujo = (data: { conexion_id: string; process_id: string; nombre: string; descripcion?: string; result_service?: string; activo?: boolean; folio_codigo?: string | null }) =>
   api.post<Flujo>(`${BASE}/flujos`, data)
-export const updateFlujo = (id: string, data: { process_id?: string; aliases?: string[]; nombre?: string; descripcion?: string | null; result_service?: string; activo?: boolean; resumen?: ResumenConfig }) =>
+export const updateFlujo = (id: string, data: { process_id?: string; aliases?: string[]; nombre?: string; descripcion?: string | null; result_service?: string; activo?: boolean; folio_codigo?: string | null; resumen?: ResumenConfig }) =>
   api.patch<FlujoDetalle>(`${BASE}/flujos/${id}`, data)
 export const deleteFlujo = (id: string) => api.delete(`${BASE}/flujos/${id}`)
 export const getFlujoVersiones = (id: string) => api.get<VersionFlujo[]>(`${BASE}/flujos/${id}/versiones`)

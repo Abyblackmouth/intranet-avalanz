@@ -41,6 +41,7 @@ class ConexionIn(BaseModel):
     reintentos_max: int = 5
     espaciado_min: List[int] = [1, 5, 15, 60, 240]
     activa: bool = True
+    folio_ambiente: Optional[str] = None
 
 
 class ConexionPatch(BaseModel):
@@ -54,17 +55,20 @@ class ConexionPatch(BaseModel):
     reintentos_max: Optional[int] = None
     espaciado_min: Optional[List[int]] = None
     activa: Optional[bool] = None
+    folio_ambiente: Optional[str] = None
 
 
 class EmpresaIn(BaseModel):
     clave: str
     nombre: str = ""
     company_id: Optional[str] = None
+    familia: Optional[str] = None
 
 
 class EmpresaPatch(BaseModel):
     nombre: Optional[str] = None
     company_id: Optional[str] = None
+    familia: Optional[str] = None
     activa: Optional[bool] = None
 
 
@@ -91,6 +95,12 @@ async def eliminar_conexion(conexion_id: str, db: AsyncSession = Depends(get_db)
 @router.post("/conexiones/{conexion_id}/regenerar-token")
 async def regenerar_token(conexion_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(require_super_admin)):
     return await conexiones_service.regenerar_token(db, conexion_id, user)
+
+
+@router.post("/conexiones/{conexion_id}/limpiar-pruebas")
+async def limpiar_pruebas(conexion_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(require_super_admin)):
+    """Borra los tramites de prueba (folio con el identificador de ambiente de la conexion)."""
+    return await conexiones_service.limpiar_pruebas(db, conexion_id, user)
 
 
 @router.post("/conexiones/{conexion_id}/probar")
