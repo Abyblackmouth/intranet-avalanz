@@ -109,22 +109,26 @@ def _resumen(inst: Instancia, flujo_nombre: str, cfg: Optional[Dict[str, Any]] =
 
 def _boton(url: str, texto: str) -> str:
     """Boton centrado, azul corporativo, que se ve igual en Outlook (escritorio y web), Gmail y movil:
-    celda de tabla con fondo + version VML para Outlook de escritorio, que ignora padding y colores del enlace."""
-    ancho = max(180, 12 * len(texto) + 56)
+    celda de tabla con fondo + version VML para Outlook de escritorio, que ignora padding y colores del enlace.
+    El espacio arriba y abajo va en filas de tabla porque Outlook ignora los margenes."""
+    ancho = max(150, 8 * len(texto) + 44)
     return (
-        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:24px auto 18px">'
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">'
+        '<tr><td height="26" style="height:26px;font-size:0;line-height:0;">&nbsp;</td></tr>'
         '<tr><td align="center">'
         f'<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{url}" '
-        f'style="height:46px;v-text-anchor:middle;width:{ancho}px;" arcsize="22%" stroke="f" fillcolor="#1a4fa0"><w:anchorlock/>'
-        f'<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">{texto}</center></v:roundrect><![endif]-->'
+        f'style="height:38px;v-text-anchor:middle;width:{ancho}px;" arcsize="20%" stroke="f" fillcolor="#1a4fa0"><w:anchorlock/>'
+        f'<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;">{texto}</center></v:roundrect><![endif]-->'
         '<!--[if !mso]><!-->'
         '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
-        '<td align="center" bgcolor="#1a4fa0" style="background:#1a4fa0;border-radius:10px;">'
-        f'<a href="{url}" target="_blank" style="display:inline-block;padding:13px 30px;font-family:Arial,Helvetica,sans-serif;font-size:15px;'
-        f'font-weight:bold;line-height:20px;color:#ffffff !important;text-decoration:none;border-radius:10px;">'
+        '<td align="center" bgcolor="#1a4fa0" style="background:#1a4fa0;border-radius:8px;">'
+        f'<a href="{url}" target="_blank" style="display:inline-block;padding:10px 22px;font-family:Arial,Helvetica,sans-serif;font-size:14px;'
+        f'font-weight:bold;line-height:18px;color:#ffffff !important;text-decoration:none;border-radius:8px;">'
         f'<span style="color:#ffffff;">{texto}</span></a></td></tr></table>'
         '<!--<![endif]-->'
-        '</td></tr></table>'
+        '</td></tr>'
+        '<tr><td height="18" style="height:18px;font-size:0;line-height:0;">&nbsp;</td></tr>'
+        '</table>'
     )
 
 
