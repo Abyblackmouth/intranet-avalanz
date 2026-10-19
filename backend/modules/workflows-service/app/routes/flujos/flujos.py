@@ -32,6 +32,11 @@ class FlujoIn(BaseModel):
 class FlujoPatch(BaseModel):
     process_id: Optional[str] = None
     resumen: Optional[Dict[str, Any]] = None
+    hoja: Optional[Dict[str, Any]] = None
+
+
+class HojaIn(BaseModel):
+    hoja: Optional[Dict[str, Any]] = None
     aliases: Optional[List[str]] = None
     nombre: Optional[str] = None
     descripcion: Optional[str] = None
@@ -149,6 +154,73 @@ async def versiones(flujo_id: str, db: AsyncSession = Depends(get_db), user: dic
 @router.get("/{flujo_id}/definicion")
 async def definicion(flujo_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(lectura)):
     return await flujos_service.definicion(db, flujo_id)
+
+
+# ── Hoja del trámite (plantilla) ──────────────────────────────────────────
+
+async def _ultima_instancia(db: AsyncSession, flujo_id: str):
+    from sqlalchemy import select
+    from app.models import Instancia
+    return (await db.execute(select(Instancia).where(Instancia.flujo_id == flujo_id).order_by(Instancia.created_at.desc()).limit(1))).scalar_one_or_none()
+
+
+@router.get("/{flujo_id}/hoja/sugerida")
+async def hoja_sugerida(flujo_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(edicion)):
+    """«Detectar campos»: hoja inferida del cardData del último trámite real del flujo."""
+    from app.motor.hoja import inferir
+    f = await flujos_service.obtener(db, flujo_id)
+    inst = await _ultima_instancia(db, flujo_id)
+    if not inst:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Este flujo todavía no tiene trámites; manda uno desde la plataforma para detectar sus campos")
+    return {"hoja": inferir(inst.card_data or {}, f.resumen), "folio": inst.folio, "claves": sorted((inst.card_data or {}).keys())}
+
+
+@router.post("/{flujo_id}/hoja/vista-previa")
+async def hoja_vista_previa(flujo_id: str, body: HojaIn, db: AsyncSession = Depends(get_db), user: dict = Depends(lectura)):
+    """Arma la hoja con la configuración del editor (sin guardar) sobre el último trámite real."""
+    from fastapi import HTTPException
+    from app.motor.hoja import normalizar
+    from app.motor.hoja_db import hoja_de
+    from app.motor.hoja_correo import html
+    await flujos_service.obtener(db, flujo_id)
+    inst = await _ultima_instancia(db, flujo_id)
+    if not inst:
+        raise HTTPException(status_code=404, detail="Este flujo todavía no tiene trámites para previsualizar")
+    try:
+        cfg = normalizar(body.hoja) if body.hoja is not None else None
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    h = await hoja_de(db, inst, con_urls=False, cfg_override=cfg)
+    return {"hoja": h, "correo_html": html(h), "folio": inst.folio}
+
+
+@router.post("/{flujo_id}/hoja/prueba")
+async def hoja_prueba(flujo_id: str, body: HojaIn, db: AsyncSession = Depends(get_db), user: dict = Depends(edicion)):
+    """Manda a quien edita un correo de prueba con la hoja (configuración del editor, sin guardar)."""
+    import httpx
+    from fastapi import HTTPException
+    from app.config import config
+    from app.motor.hoja import normalizar
+    from app.motor.hoja_db import hoja_de
+    from app.motor.hoja_correo import html
+    f = await flujos_service.obtener(db, flujo_id)
+    inst = await _ultima_instancia(db, flujo_id)
+    if not inst:
+        raise HTTPException(status_code=404, detail="Este flujo todavía no tiene trámites para la prueba")
+    if not user.get("email"):
+        raise HTTPException(status_code=422, detail="Tu usuario no tiene correo registrado")
+    try:
+        cfg = normalizar(body.hoja) if body.hoja is not None else None
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    h = await hoja_de(db, inst, con_urls=False, cfg_override=cfg)
+    cuerpo = f"<p style='font-size:12px;color:#64748b'>Correo de prueba de la hoja de «{f.nombre}» con los datos del trámite {inst.folio}. No requiere acción.</p>" + html(h)
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.post(f"{config.EMAIL_SERVICE_URL}/api/v1/email/module", json={"to_email": user["email"], "full_name": user.get("full_name") or "", "subject": f"[Prueba] Hoja · {f.nombre} · {inst.folio}", "html_content": cuerpo})
+    if r.status_code >= 300:
+        raise HTTPException(status_code=502, detail=f"email-service contestó HTTP {r.status_code}")
+    return {"ok": True, "para": user["email"]}
 
 
 @router.post("/{flujo_id}/simular")

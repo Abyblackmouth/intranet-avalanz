@@ -56,7 +56,7 @@ async def _instancias_total(db: AsyncSession, flujo_id: str) -> int:
 def _flujo(f: Flujo, conexion: Optional[Conexion], grupos: int, activas: int) -> Dict[str, Any]:
     return {"id": f.id, "process_id": f.process_id, "aliases": f.aliases or [], "nombre": f.nombre, "descripcion": f.descripcion,
             "conexion_id": f.conexion_id, "conexion_titulo": conexion.titulo if conexion else None, "conexion_slug": conexion.slug if conexion else None,
-            "result_service": f.result_service, "activo": f.activo, "version": f.version, "correos": f.correos, "resumen": f.resumen,
+            "result_service": f.result_service, "activo": f.activo, "version": f.version, "correos": f.correos, "resumen": f.resumen, "hoja": f.hoja,
             "grupos": grupos, "instancias_activas": activas, "updated_at": f.updated_at.isoformat() if f.updated_at else None}
 
 
@@ -188,6 +188,15 @@ async def actualizar(db: AsyncSession, flujo_id: str, datos: Dict[str, Any], use
         if nuevo_resumen != (f.resumen or {}):
             f.resumen = nuevo_resumen
             cambios.append("resumen actualizado")
+    if "hoja" in datos and datos["hoja"] is not None:
+        from app.motor.hoja import normalizar as normalizar_hoja
+        try:
+            nueva_hoja = normalizar_hoja(datos["hoja"])
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        if nueva_hoja != (f.hoja or {}):
+            f.hoja = nueva_hoja
+            cambios.append("hoja del trámite actualizada")
     if cambios:
         await nueva_version(db, f, user, "; ".join(cambios))
         await db.commit()

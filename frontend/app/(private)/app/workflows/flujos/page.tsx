@@ -3,17 +3,19 @@
 // Workflows → Flujos. Lista (TablaPantalla) y, al abrir uno, el detalle con sus pestañas:
 // Grupos de aprobación · Simular · Datos generales · Versiones. Sin título: la ruta vive en el navbar.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Plus, Search, Lock, Users, Play, SlidersHorizontal, History } from 'lucide-react'
+import { ArrowLeft, Plus, Search, Lock, Users, Play, SlidersHorizontal, History, FileText } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import TablaPantalla, { Columna } from '@/components/ui/TablaPantalla'
 import { Flujo, FlujoDetalle, getFlujos, getFlujo, updateFlujo } from '@/services/workflowsService'
 import { Interruptor, btnPrimario, btnSecundario, inputCls, errMsg } from '@/components/app/workflows/compartidos'
 import GruposConfig from '@/components/app/workflows/flujos/GruposConfig'
+import HojaConfig from '@/components/app/workflows/flujos/HojaConfig'
 import { Simulador, DatosGenerales, Versiones, FormNuevoFlujo } from '@/components/app/workflows/flujos/FlujoPestanas'
 
-type Tab = 'grupos' | 'simular' | 'datos' | 'versiones'
+type Tab = 'grupos' | 'hoja' | 'simular' | 'datos' | 'versiones'
 const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
   { key: 'grupos', label: 'Grupos de aprobación', icon: Users },
+  { key: 'hoja', label: 'Hoja', icon: FileText },
   { key: 'simular', label: 'Simular', icon: Play },
   { key: 'datos', label: 'Datos generales', icon: SlidersHorizontal },
   { key: 'versiones', label: 'Versiones', icon: History },
@@ -106,6 +108,7 @@ export default function FlujosPage() {
         </div>
         {error && <p className="mb-3 text-[13px] text-red-600">{error}</p>}
         {tab === 'grupos' && <GruposConfig flujo={flujo} onChange={setFlujo} puedeEditar={puedeEditar} />}
+        {tab === 'hoja' && <HojaConfig flujo={flujo} onChange={setFlujo} puedeEditar={puedeEditar} />}
         {tab === 'simular' && <Simulador flujo={flujo} />}
         {tab === 'datos' && <DatosGenerales flujo={flujo} onChange={setFlujo} puedeEditar={puedeEditar} onEliminado={cerrar} />}
         {tab === 'versiones' && <Versiones flujo={flujo} />}

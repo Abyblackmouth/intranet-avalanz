@@ -9,6 +9,7 @@ import {
   TramiteDetalle, UsuarioIntranet, decidirTramite, decidirPorLiga, reenviarAviso, reasignarTramite, reprocesarTramite, buscarUsuariosFlujos,
 } from '@/services/workflowsService'
 import RielFlujo, { LeyendaRiel } from '@/components/app/workflows/RielFlujo'
+import HojaTramite from '@/components/app/workflows/HojaTramite'
 import { Modal, BuscadorUsuario, inputCls, labelCls, btnPrimario, btnSecundario, btnPeligro, errMsg, fmtFecha } from '@/components/app/workflows/compartidos'
 
 export const ESTADO_TRAMITE: Record<TramiteDetalle['status'], [string, string]> = {
@@ -62,6 +63,29 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
   const reprocesar = async () => { setError(null); try { const r = await reprocesarTramite(t.id); onChange(r.data); setAviso('Reprocesado con la configuración vigente.') } catch (e) { setError(errMsg(e, 'No se pudo reprocesar')) } }
 
 
+  // ── Aprobador y solicitante: la hoja del trámite (plantilla del flujo) ──
+  if (esAprobador || esSolicitante) {
+    const avisoHoja = (
+      <>
+        {t.liga && t.liga.estado !== 'vigente' && <div className="mb-2.5 rounded-xl border-l-4 border-slate-400 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">{t.liga.mensaje}</div>}
+        {esAprobador && t.status === 'en_aprobacion' && !enTurno && <div className="mb-2.5 rounded-xl border-l-4 border-slate-400 bg-slate-50 px-4 py-2.5 text-[13px] text-slate-700">Ya no te toca decidir en este trámite.</div>}
+        {t.afectacion === 'fallida' && <div className="mb-2.5 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900">Ya se decidió; la plataforma todavía no confirma que lo aplicó. TI está atendiendo.</div>}
+        {aviso && <div className="mb-2.5 rounded-xl border-l-4 border-emerald-500 bg-emerald-50 px-4 py-2.5 text-[13px] text-emerald-900">{aviso}</div>}
+        {error && <div className="mb-2.5 rounded-xl border-l-4 border-red-500 bg-red-50 px-4 py-2.5 text-[13px] text-red-900">{error}</div>}
+      </>
+    )
+    const barra = esAprobador && puedoDecidir && enTurno ? (
+      <>
+        <textarea rows={1} className={`${inputCls} min-h-[44px] flex-1 basis-64 resize-y`} value={comentario} onChange={e => setComentario(e.target.value)} placeholder="Comentario (obligatorio si rechazas)" />
+        <button type="button" className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-green-600 to-green-700 px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_22px_-10px_rgba(22,163,74,.7)] disabled:opacity-60" onClick={() => decidir(true)} disabled={trabajando}>✓ Aprobar</button>
+        <button type="button" className="inline-flex items-center justify-center rounded-xl border-[1.5px] border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60" onClick={() => decidir(false)} disabled={trabajando}>Rechazar</button>
+      </>
+    ) : esSolicitante && modo === 'privado' && enTurno ? (
+      <button type="button" className={btnSecundario} onClick={reenviar}><RefreshCw size={13} /> Reenviar aviso al aprobador</button>
+    ) : undefined
+    return <HojaTramite hoja={t.hoja} acciones={barra} embebida={modo === 'privado'} aviso={avisoHoja} />
+  }
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -97,7 +121,8 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
         </div>
       )}
       <div className={`grid gap-5 ${esAprobador ? 'lg:grid-cols-[1.3fr_1fr]' : ''}`}>
-        <section className={!esAprobador && pestana !== 'solicitud' ? 'hidden' : ''}>
+        {pestana === 'solicitud' && t.hoja && <div className="lg:col-span-full"><HojaTramite hoja={t.hoja} embebida /></div>}
+        <section className="hidden">
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Datos (como los mandó la plataforma)</h4>
           {t.resumen && t.resumen.campos.length > 0 && (
             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">

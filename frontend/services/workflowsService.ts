@@ -71,7 +71,7 @@ export interface GrupoDef {
 export interface Flujo {
   id: string; process_id: string; aliases: string[]; nombre: string; descripcion: string | null
   conexion_id: string; conexion_titulo: string | null; conexion_slug: string | null; result_service: string
-  activo: boolean; version: number; correos: Record<string, unknown> | null; resumen: ResumenConfig | null; grupos: number; instancias_activas: number; updated_at: string | null
+  activo: boolean; version: number; correos: Record<string, unknown> | null; resumen: ResumenConfig | null; hoja: HojaCfg | null; grupos: number; instancias_activas: number; updated_at: string | null
 }
 export interface CampoResumen { clave: string; etiqueta: string; tipo: 'texto' | 'moneda' | 'numero' | 'fecha' }
 export interface ResumenConfig { numero: string; campos: CampoResumen[] }
@@ -151,7 +151,7 @@ export interface TramiteDetalle extends Tramite {
   etapas: EtapaTramite[]; archivos: ArchivoTramite[]; bitacora: BitacoraTramite[]; correos: CorreoTramite[]; transacciones: Transaccion[]
   puedo_decidir: boolean; puedo_administrar: boolean; soy_solicitante: boolean
   vista: 'administrador' | 'solicitante' | 'aprobador'; total_etapas: number; mi_etapa?: EtapaTramite | null
-  secciones: SeccionesTramite; resumen_config: ResumenConfig | null
+  secciones: SeccionesTramite; resumen_config: ResumenConfig | null; hoja: HojaTramite
   liga?: { estado: 'vigente' | 'usada' | 'invalidada' | 'vencida' | 'cerrada'; etapa_orden: number; etapa_nombre: string; expira: string; decido_como: string; mensaje: string }
 }
 export interface Resumen { me_toca: number; en_aprobacion: number; sin_aplicar: number; error_configuracion: number; mis_tramites: number; ultimos: Tramite[]; ve_todo: boolean }
@@ -169,3 +169,25 @@ export const getTransaccion = (id: string) => api.get<Transaccion>(`${BASE}/segu
 export const reenviarTransaccion = (id: string) => api.post<{ estado: string; status: number | null; error: string | null; mensaje: string | null }>(`${BASE}/seguimiento/transacciones/${id}/reenviar`)
 export const getLigaPublica = (token: string) => api.get<TramiteDetalle>(`${BASE}/public/aprobar/${token}`)
 export const decidirPorLiga = (token: string, data: { aprobar: boolean; comentario?: string }) => api.post<{ ok: boolean; status: string; folio: string; mensaje: string }>(`${BASE}/public/aprobar/${token}/decidir`, data)
+
+// ── Hoja del trámite (plantilla por flujo) ─────────────────────────────────
+export type TipoCampoHoja = 'texto' | 'moneda' | 'numero' | 'fecha' | 'porcentaje'
+export interface CampoHojaCfg { clave: string; etiqueta: string; tipo: TipoCampoHoja }
+export interface ColumnaHojaCfg extends CampoHojaCfg { alinear: 'izq' | 'centro' | 'der'; detalle: string }
+export interface TotalHojaCfg extends CampoHojaCfg { destacado: boolean }
+export interface TablaHojaCfg { clave: string; titulo: string; columnas: ColumnaHojaCfg[]; totales: TotalHojaCfg[] }
+export interface HojaCfg {
+  documento: { etiqueta: string; numero: string; area: string }
+  tarjetas: CampoHojaCfg[]; adjuntos: boolean; tablas: TablaHojaCfg[]
+}
+export interface HojaTramite {
+  cabecera: { flujo: string; etiqueta: string; numero: string; numero_es_folio: boolean; folio: string; fecha: string; empresa: string; solicitado_por: string; area: string; grupo: string; filial: string }
+  estatus: { texto: string; tono: 'turno' | 'ok' | 'no' | 'aviso' | 'neutro' }
+  tarjetas: { etiqueta: string; valor: string }[]
+  adjuntos: { id: string; nombre: string; ext: string; tamano: string; url: string | null }[]
+  tablas: { titulo: string; columnas: { etiqueta: string; alinear: string; tipo: string }[]; filas: { valor: string; detalle: string }[][]; totales: { etiqueta: string; valor: string; destacado: boolean }[]; col_total: number }[]
+}
+export const getHojaSugerida = (flujoId: string) => api.get<{ hoja: HojaCfg; folio: string; claves: string[] }>(`${BASE}/flujos/${flujoId}/hoja/sugerida`)
+export const previsualizarHoja = (flujoId: string, hoja: HojaCfg | null) => api.post<{ hoja: HojaTramite; correo_html: string; folio: string }>(`${BASE}/flujos/${flujoId}/hoja/vista-previa`, { hoja })
+export const probarHoja = (flujoId: string, hoja: HojaCfg | null) => api.post<{ ok: boolean; para: string }>(`${BASE}/flujos/${flujoId}/hoja/prueba`, { hoja })
+export const guardarHoja = (flujoId: string, hoja: HojaCfg) => api.patch<FlujoDetalle>(`${BASE}/flujos/${flujoId}`, { hoja })
