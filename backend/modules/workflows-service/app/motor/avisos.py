@@ -163,13 +163,28 @@ async def notificar_turno(db: AsyncSession, inst: Instancia, aviso: Optional[Dic
     await db.commit()
 
 
+async def correo_solicitante(inst: Instancia) -> Optional[str]:
+    """Correo del solicitante: el que trajo el sobre; si vino vacio y esta ligado a un usuario
+    de la Intranet, el de su perfil."""
+    if inst.requester_email:
+        return inst.requester_email
+    if not inst.requester_user_id:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(f"{config.ADMIN_SERVICE_URL}/internal/users/{inst.requester_user_id}/profile")
+        return (r.json() or {}).get("email") if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
 async def notificar_recibido(db: AsyncSession, inst: Instancia) -> None:
     """Al solicitante: campana siempre; correo solo si el ajuste 'correos.recibido' esta activo. Hace commit."""
     flujo_nombre = await _flujo_nombre(db, inst)
     await campana(inst.requester_user_id, f"Trámite {inst.folio} recibido", f"{flujo_nombre} · en aprobación", "info", {"instancia_id": inst.id, "folio": inst.folio, "modulo": "workflows", "ruta": liga_tramite(inst)})
     if (await ajustes_service.obtener(db, "correos.recibido")) == "true":
         html = f"<h2 style='margin:0 0 6px'>Recibimos tu trámite</h2><p>Tu {flujo_nombre} entró al flujo de aprobación con el folio <b>{inst.folio}</b>.</p>{await _hoja_html(db, inst)}{_boton(liga_tramite(inst), 'Seguir el trámite')}"
-        await correo(db, inst, "recibido", inst.requester_email, inst.requester_nombre, inst.requester_user_id, f"Recibimos tu {flujo_nombre} · {inst.folio}", html)
+        await correo(db, inst, "recibido", await correo_solicitante(inst), inst.requester_nombre, inst.requester_user_id, f"Recibimos tu {flujo_nombre} · {inst.folio}", html)
         await db.commit()
 
 
@@ -195,7 +210,8 @@ async def notificar_decision(db: AsyncSession, inst: Instancia, momento: str) ->
         return
     if momento == "aplicada" and (ajuste != "esperar_afectacion" or not aprobada):
         return
-    ya = (await db.execute(select(CorreoEnviado).where(CorreoEnviado.instancia_id == inst.id, CorreoEnviado.plantilla == "decision"))).scalars().first()
+    ya = (await db.execute(select(CorreoEnviado).where(CorreoEnviado.instancia_id == inst.id, CorreoEnviado.plantilla == "decision",
+                                                        CorreoEnviado.resultado.like("aceptado%")))).scalars().first()
     if ya and momento != "pendiente_aplicar":
         return
     etapas = (await db.execute(select(InstanciaEtapa).where(InstanciaEtapa.instancia_id == inst.id).order_by(InstanciaEtapa.orden))).scalars().all()
@@ -214,7 +230,7 @@ async def notificar_decision(db: AsyncSession, inst: Instancia, momento: str) ->
         cuerpo = f"Rechazó <b>{rechazo.decidio_nombre if rechazo else ''}</b> en la etapa {rechazo.orden if rechazo else ''}" + (f": «{rechazo.comentario}»" if rechazo and rechazo.comentario else ".")
         asunto = f"Tu {flujo_nombre} {inst.folio} fue rechazada"
     html = f"<h2 style='margin:0 0 6px'>{titulo}</h2>{_alerta(cuerpo, color)}{await _hoja_html(db, inst)}<ul style='padding-left:18px'>{hist}</ul>{_boton(liga_tramite(inst), 'Ver el trámite')}"
-    await correo(db, inst, plantilla, inst.requester_email, inst.requester_nombre, inst.requester_user_id, asunto, html)
+    await correo(db, inst, plantilla, await correo_solicitante(inst), inst.requester_nombre, inst.requester_user_id, asunto, html)
     bitacora(db, inst.id, "correo_decision", None, {"momento": momento, "plantilla": plantilla, "ajuste": ajuste})
     await db.commit()
 
