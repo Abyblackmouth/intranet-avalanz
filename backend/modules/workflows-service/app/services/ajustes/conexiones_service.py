@@ -306,3 +306,27 @@ async def limpiar_pruebas(db: AsyncSession, conexion_id: str, user: Dict[str, An
     await registrar_historial(db, f"conexion.{c.slug}", None, f"limpieza de pruebas ({marca}): {len(ids)} trámites, {borrados} archivos", user)
     await db.commit()
     return {"marca": marca, "tramites": len(ids), "archivos": borrados, "series_reiniciadas": reiniciadas}
+
+
+async def familias_intranet() -> List[Dict[str, Any]]:
+    """Familias de empresas dadas de alta en la Intranet (Administracion -> Empresas), tomadas de
+    /internal/companies del admin-service: clave, nombre y cuantas empresas tiene cada una."""
+    import httpx
+    from app.config import config
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(f"{config.ADMIN_SERVICE_URL}/internal/companies")
+        empresas = r.json() if r.status_code == 200 else []
+    except Exception:
+        raise HTTPException(status_code=502, detail="No se pudo consultar el catálogo de empresas de la Intranet")
+    if isinstance(empresas, dict):
+        empresas = empresas.get("data") or empresas.get("items") or []
+    familias: Dict[str, Dict[str, Any]] = {}
+    for e in empresas or []:
+        f = (e or {}).get("familia") or {}
+        clave = str(f.get("clave") or "").strip().upper()
+        if not clave:
+            continue
+        x = familias.setdefault(clave, {"clave": clave, "nombre": f.get("nombre") or clave, "empresas": 0})
+        x["empresas"] += 1
+    return sorted(familias.values(), key=lambda x: x["clave"])

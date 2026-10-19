@@ -103,6 +103,12 @@ async def limpiar_pruebas(conexion_id: str, db: AsyncSession = Depends(get_db), 
     return await conexiones_service.limpiar_pruebas(db, conexion_id, user)
 
 
+@router.get("/familias")
+async def familias(user: dict = Depends(require_super_admin)):
+    """Familias de empresas de la Intranet, para elegir la familia del folio de cada empresa."""
+    return await conexiones_service.familias_intranet()
+
+
 @router.post("/conexiones/{conexion_id}/probar")
 async def probar_conexion(conexion_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(require_super_admin)):
     return await conexiones_service.probar(db, conexion_id)

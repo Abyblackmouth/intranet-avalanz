@@ -47,6 +47,8 @@ export const addEmpresaConexion = (id: string, data: { clave: string; nombre?: s
 export const updateEmpresaConexion = (id: string, empresaId: string, data: { nombre?: string; company_id?: string | null; familia?: string | null; activa?: boolean }) =>
   api.patch<EmpresaConexion>(`${BASE}/ajustes/conexiones/${id}/empresas/${empresaId}`, data)
 export const removeEmpresaConexion = (id: string, empresaId: string) => api.delete(`${BASE}/ajustes/conexiones/${id}/empresas/${empresaId}`)
+export interface FamiliaIntranet { clave: string; nombre: string; empresas: number }
+export const getFamiliasIntranet = () => api.get<FamiliaIntranet[]>(`${BASE}/ajustes/familias`)
 export const limpiarPruebasConexion = (id: string) =>
   api.post<{ marca: string; tramites: number; archivos: number; series_reiniciadas: number }>(`${BASE}/ajustes/conexiones/${id}/limpiar-pruebas`)
 

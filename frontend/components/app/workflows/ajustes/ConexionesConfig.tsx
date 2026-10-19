@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, RefreshCw, Plug, Trash2, Copy, Check, Eye, EyeOff, Eraser } from 'lucide-react'
 import {
-  Conexion, ConexionDatos, EmpresaConexion,
+  Conexion, ConexionDatos, EmpresaConexion, FamiliaIntranet, getFamiliasIntranet,
   getConexiones, createConexion, updateConexion, deleteConexion, regenerarTokenConexion, probarConexion,
   addEmpresaConexion, updateEmpresaConexion, removeEmpresaConexion, limpiarPruebasConexion,
 } from '@/services/workflowsService'
@@ -126,6 +126,14 @@ function Empresas({ c, onChange }: { c: Conexion; onChange: () => void }) {
   const [clave, setClave] = useState('')
   const [nombre, setNombre] = useState('')
   const [familia, setFamilia] = useState('')
+  const [familias, setFamilias] = useState<FamiliaIntranet[]>([])
+  useEffect(() => { getFamiliasIntranet().then(r => setFamilias(r.data)).catch(() => setFamilias([])) }, [])
+  // Opciones de familia: las de la Intranet y, si la empresa ya tiene una que no esté en el catálogo, esa también
+  const opciones = (actual?: string | null) => {
+    const lista = familias.map(f => ({ clave: f.clave, texto: `${f.clave} · ${f.nombre} (${f.empresas})` }))
+    if (actual && !familias.some(f => f.clave === actual)) lista.unshift({ clave: actual, texto: `${actual} (no está en la Intranet)` })
+    return lista
+  }
   const [error, setError] = useState<string | null>(null)
   const agregar = async () => {
     setError(null)
@@ -151,7 +159,12 @@ function Empresas({ c, onChange }: { c: Conexion; onChange: () => void }) {
               <tr key={e.id} className="border-t border-slate-200">
                 <td className="py-1.5 font-mono">{e.clave}</td>
                 <td className="py-1.5">{e.nombre || <span className="text-slate-400">—</span>}</td>
-                <td className="py-1.5"><input className={`${inputCls} w-24 font-mono uppercase !py-1`} maxLength={6} defaultValue={e.familia ?? ''} placeholder="(Ajustes)" onBlur={ev => guardarFamilia(e, ev.target.value)} onKeyDown={ev => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur() }} aria-label={`Familia del folio de ${e.clave}`} /></td>
+                <td className="py-1.5">
+                  <select className={`${inputCls} !py-1 max-w-56`} value={e.familia ?? ''} onChange={ev => guardarFamilia(e, ev.target.value)} aria-label={`Familia del folio de ${e.clave}`}>
+                    <option value="">(la de Ajustes)</option>
+                    {opciones(e.familia).map(o => <option key={o.clave} value={o.clave}>{o.texto}</option>)}
+                  </select>
+                </td>
                 <td className="py-1.5"><Interruptor on={e.activa} onChange={() => alternar(e)} label={`Activar ${e.clave}`} /></td>
                 <td className="py-1.5 text-right"><button type="button" onClick={() => quitar(e)} aria-label="Quitar" className="text-slate-400 hover:text-red-600"><Trash2 size={14} /></button></td>
               </tr>
@@ -162,7 +175,10 @@ function Empresas({ c, onChange }: { c: Conexion; onChange: () => void }) {
       <div className="flex flex-wrap gap-2 items-center">
         <input className={`${inputCls} w-24 font-mono`} placeholder="02|04" value={clave} onChange={e => setClave(e.target.value)} />
         <input className={`${inputCls} flex-1 min-w-48`} placeholder="Nombre de la empresa" value={nombre} onChange={e => setNombre(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') agregar() }} />
-        <input className={`${inputCls} w-28 font-mono uppercase`} maxLength={6} placeholder="Familia" value={familia} onChange={e => setFamilia(e.target.value.toUpperCase())} />
+        <select className={`${inputCls} max-w-56`} value={familia} onChange={e => setFamilia(e.target.value)} aria-label="Familia del folio">
+          <option value="">Familia: la de Ajustes</option>
+          {opciones().map(o => <option key={o.clave} value={o.clave}>{o.texto}</option>)}
+        </select>
         <button type="button" className={btnSecundario} onClick={agregar} disabled={!clave.trim()}><Plus size={14} /> Agregar</button>
       </div>
       {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
