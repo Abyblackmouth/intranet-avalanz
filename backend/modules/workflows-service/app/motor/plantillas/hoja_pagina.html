@@ -256,7 +256,8 @@ html[data-tema="flotante"] .acciones{background:rgba(255,255,255,.92); border-ra
 
 
 /* ── Modo embebido (Bandeja, detalle del administrador, vista previa) ── */
-html.embebida body{background:transparent}
+html.embebida, html.embebida body{background:#ffffff; color-scheme:light; height:auto; min-height:0}
+html.embebida[data-tema="flotante"], html.embebida[data-tema="flotante"] body{background:#eef1f5}
 html.embebida .lienzo{width:100%; margin:0}
 html.embebida .hoja{min-height:0; box-shadow:none}
 html.embebida[data-tema="flotante"] .hoja{background:transparent}

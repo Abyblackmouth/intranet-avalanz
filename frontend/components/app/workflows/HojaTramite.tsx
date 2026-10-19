@@ -40,17 +40,18 @@ function IconoDoc({ ext }: { ext: string }) {
 // en un iframe que toma la altura de su contenido. Los documentos abren en otra pestaña.
 function MarcoHoja({ html }: { html: string }) {
   const ref = useRef<HTMLIFrameElement>(null)
-  const [alto, setAlto] = useState(600)
+  const [alto, setAlto] = useState(320)
   useEffect(() => {
     const f = ref.current
     if (!f) return
     let obs: ResizeObserver | null = null
-    const medir = () => { const d = f.contentDocument; if (d?.documentElement) setAlto(d.documentElement.scrollHeight + 2) }
+    // Alto del contenido (no de la ventana del marco): así el marco se ajusta a la hoja, sin sobrantes
+    const medir = () => { const d = f.contentDocument; if (!d?.body) return; const l = d.querySelector('.lienzo') as HTMLElement | null; setAlto(Math.ceil(l ? l.getBoundingClientRect().height : d.body.scrollHeight) + 2) }
     const alCargar = () => { medir(); try { obs = new ResizeObserver(medir); if (f.contentDocument?.body) obs.observe(f.contentDocument.body) } catch { /* sin ResizeObserver */ } setTimeout(medir, 400) }
     f.addEventListener('load', alCargar)
     return () => { f.removeEventListener('load', alCargar); obs?.disconnect() }
   }, [html])
-  return <iframe ref={ref} title="Hoja del trámite" srcDoc={html} style={{ height: alto }} className="block w-full border-0 bg-transparent"
+  return <iframe ref={ref} title="Hoja del trámite" srcDoc={html} style={{ height: alto }} className="block w-full overflow-hidden rounded-2xl border-0 bg-transparent"
     sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" />
 }
 
