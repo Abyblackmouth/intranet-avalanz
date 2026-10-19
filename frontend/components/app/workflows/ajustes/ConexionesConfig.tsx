@@ -130,7 +130,7 @@ function Empresas({ c, onChange }: { c: Conexion; onChange: () => void }) {
   useEffect(() => { getFamiliasIntranet().then(r => setFamilias(r.data)).catch(() => setFamilias([])) }, [])
   // Opciones de familia: las de la Intranet y, si la empresa ya tiene una que no esté en el catálogo, esa también
   const opciones = (actual?: string | null) => {
-    const lista = familias.map(f => ({ clave: f.clave, texto: `${f.clave} · ${f.nombre} (${f.empresas})` }))
+    const lista = familias.map(f => ({ clave: f.clave, texto: `${f.clave} · ${f.nombre}` }))
     if (actual && !familias.some(f => f.clave === actual)) lista.unshift({ clave: actual, texto: `${actual} (no está en la Intranet)` })
     return lista
   }
