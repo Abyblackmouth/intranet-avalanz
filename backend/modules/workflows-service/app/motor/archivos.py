@@ -54,10 +54,18 @@ def guardar_sobre(archivos: List[Dict[str, Any]], conexion_slug: str, origen_cla
 
 
 def url_firmada(object_key: str, bucket: str = None, segundos: int = 900) -> str:
-    """Liga firmada con la direccion PUBLICA de MinIO (la que ve el navegador a traves de Nginx),
-    igual que hace el upload-service con SIGNED_URL_HOST. La firma depende del host, asi que se
-    genera con un cliente apuntado a esa direccion."""
-    publico = config.MINIO_PUBLIC_URL or config.MINIO_ENDPOINT
-    cliente = boto3.client("s3", endpoint_url=publico, aws_access_key_id=config.MINIO_ACCESS_KEY, aws_secret_access_key=config.MINIO_SECRET_KEY,
+    """Liga firmada que funciona a traves de Nginx (/storage/ -> MinIO).
+
+    Nginx quita el prefijo /storage y manda a MinIO el Host publico (intranet.avalanz.com).
+    MinIO valida la firma con ese host y la ruta /<bucket>/<key>, asi que se firma
+    exactamente eso y despues se inserta el prefijo publico (/storage) en la liga."""
+    from urllib.parse import urlsplit
+    publico = (config.MINIO_PUBLIC_URL or "").rstrip("/")
+    if not publico:
+        return _cliente().generate_presigned_url("get_object", Params={"Bucket": bucket or config.MINIO_BUCKET, "Key": object_key}, ExpiresIn=segundos)
+    partes = urlsplit(publico)
+    base = f"{partes.scheme}://{partes.netloc}"
+    cliente = boto3.client("s3", endpoint_url=base, aws_access_key_id=config.MINIO_ACCESS_KEY, aws_secret_access_key=config.MINIO_SECRET_KEY,
                            config=BotoConfig(signature_version="s3v4", s3={"addressing_style": "path"}), region_name="us-east-1")
-    return cliente.generate_presigned_url("get_object", Params={"Bucket": bucket or config.MINIO_BUCKET, "Key": object_key}, ExpiresIn=segundos)
+    url = cliente.generate_presigned_url("get_object", Params={"Bucket": bucket or config.MINIO_BUCKET, "Key": object_key}, ExpiresIn=segundos)
+    return url.replace(base, publico, 1)
