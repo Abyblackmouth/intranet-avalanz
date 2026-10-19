@@ -108,7 +108,24 @@ def _resumen(inst: Instancia, flujo_nombre: str, cfg: Optional[Dict[str, Any]] =
 
 
 def _boton(url: str, texto: str) -> str:
-    return f'<p style="margin:18px 0"><a href="{url}" style="display:inline-block;background:#1a4fa0;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-weight:600">{texto}</a></p>'
+    """Boton centrado, azul corporativo, que se ve igual en Outlook (escritorio y web), Gmail y movil:
+    celda de tabla con fondo + version VML para Outlook de escritorio, que ignora padding y colores del enlace."""
+    ancho = max(180, 12 * len(texto) + 56)
+    return (
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:24px auto 18px">'
+        '<tr><td align="center">'
+        f'<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{url}" '
+        f'style="height:46px;v-text-anchor:middle;width:{ancho}px;" arcsize="22%" stroke="f" fillcolor="#1a4fa0"><w:anchorlock/>'
+        f'<center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">{texto}</center></v:roundrect><![endif]-->'
+        '<!--[if !mso]><!-->'
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+        '<td align="center" bgcolor="#1a4fa0" style="background:#1a4fa0;border-radius:10px;">'
+        f'<a href="{url}" target="_blank" style="display:inline-block;padding:13px 30px;font-family:Arial,Helvetica,sans-serif;font-size:15px;'
+        f'font-weight:bold;line-height:20px;color:#ffffff !important;text-decoration:none;border-radius:10px;">'
+        f'<span style="color:#ffffff;">{texto}</span></a></td></tr></table>'
+        '<!--<![endif]-->'
+        '</td></tr></table>'
+    )
 
 
 def _alerta(texto: str, color: str = "#f59e0b") -> str:

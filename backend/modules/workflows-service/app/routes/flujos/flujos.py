@@ -221,7 +221,7 @@ async def hoja_prueba(flujo_id: str, body: HojaIn, db: AsyncSession = Depends(ge
     from app.motor.avisos import resumen_breve
     cuerpo = (f"<p style='font-size:12px;color:#64748b'>Correo de prueba de «{f.nombre}» con los datos del trámite {inst.folio}. Así lo recibe el aprobador; en el correo real el botón abre la página de aprobación.</p>"
               "<h2 style='margin:0 0 6px'>Tienes una aprobación pendiente</h2>" + resumen_breve(h)
-              + "<p style='margin:18px 0'><span style='display:inline-block;background:#1a4fa0;color:#fff;padding:10px 18px;border-radius:10px;font-weight:600'>Revisar y decidir</span></p>")
+              + __import__("app.motor.avisos", fromlist=["_boton"])._boton(f"{config.FRONTEND_URL.rstrip('/')}/app/workflows/flujos", "Revisar y decidir"))
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.post(f"{config.EMAIL_SERVICE_URL}/api/v1/email/module", json={"to_email": user["email"], "full_name": user.get("full_name") or "", "subject": f"[Prueba] Hoja · {f.nombre} · {inst.folio}", "html_content": cuerpo})
     if r.status_code >= 300:
