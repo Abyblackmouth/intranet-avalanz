@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 TIPOS = ("texto", "moneda", "numero", "fecha", "porcentaje")
+ESTILOS = ("flotante", "neutro", "tinta", "arena", "clasico")
 ALINEAR = ("izq", "centro", "der")
 MAX_TARJETAS = 16
 MAX_TABLAS = 6
@@ -99,6 +100,31 @@ def _es_numero(v: Any) -> bool:
 
 # ── Configuracion ─────────────────────────────────────────────────────────
 
+MAX_VALORES = 60
+
+
+def _valores(v: Any, donde: str, clave: str) -> Dict[str, str]:
+    """Equivalencias de valores: {"1": "Consumidor final", "F": "Física"}. Acepta dict o lista [{de, a}]."""
+    if not v:
+        return {}
+    pares = v.items() if isinstance(v, dict) else [((x or {}).get("de"), (x or {}).get("a")) for x in v] if isinstance(v, list) else []
+    out: Dict[str, str] = {}
+    for de, a in pares:
+        de, a = str(de if de is not None else "").strip(), str(a if a is not None else "").strip()
+        if de and a:
+            out[de[:40]] = a[:80]
+    if len(out) > MAX_VALORES:
+        raise ValueError(f"{donde}: máximo {MAX_VALORES} equivalencias en «{clave}»")
+    return out
+
+
+def _traducir(valor: Any, valores: Optional[Dict[str, str]]) -> Any:
+    if not valores or valor is None:
+        return valor
+    s = str(valor).strip()
+    return valores.get(s, valores.get(s.upper(), valor))
+
+
 def normalizar(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Valida y limpia lo que llega del editor. Lanza ValueError con mensaje en espanol."""
     cfg = cfg or {}
@@ -118,6 +144,11 @@ def normalizar(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if tipo not in TIPOS:
             raise ValueError(f"{donde}: tipo «{tipo}» no válido ({', '.join(TIPOS)})")
         out = {"clave": clave, "etiqueta": str(c.get("etiqueta") or _etiqueta_de(clave)).strip()[:40], "tipo": tipo}
+        if c.get("ancho") == "ancha":
+            out["ancho"] = "ancha"
+        valores = _valores(c.get("valores"), donde, clave)
+        if valores:
+            out["valores"] = valores
         return out
 
     tarjetas = [x for x in (campo(c, "Tarjetas") for c in (cfg.get("tarjetas") or [])) if x]
@@ -151,7 +182,11 @@ def normalizar(cfg: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if len(tablas) > MAX_TABLAS:
         raise ValueError(f"Máximo {MAX_TABLAS} tablas")
 
-    return {"documento": documento, "tarjetas": tarjetas, "adjuntos": bool(cfg.get("adjuntos", True)), "tablas": tablas}
+    estilo = str(cfg.get("estilo") or "").strip()
+    out = {"documento": documento, "tarjetas": tarjetas, "adjuntos": bool(cfg.get("adjuntos", True)), "tablas": tablas}
+    if estilo in ESTILOS:
+        out["estilo"] = estilo          # sin estilo = el del modulo (Ajustes)
+    return out
 
 
 def inferir(card_data: Dict[str, Any], resumen_cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -219,9 +254,11 @@ def armar(cfg: Optional[Dict[str, Any]], *, card_data: Dict[str, Any], folio: st
 
     tarjetas = []
     for t in c.get("tarjetas") or []:
-        v = formatear(_valor(cd, t["clave"]), t.get("tipo", "texto"))
+        crudo = _valor(cd, t["clave"])
+        traducido = _traducir(crudo, t.get("valores"))
+        v = formatear(traducido, "texto" if traducido is not crudo else t.get("tipo", "texto"))
         if v:
-            tarjetas.append({"etiqueta": t.get("etiqueta") or _etiqueta_de(t["clave"]), "valor": v})
+            tarjetas.append({"etiqueta": t.get("etiqueta") or _etiqueta_de(t["clave"]), "valor": v, "ancha": t.get("ancho") == "ancha"})
 
     tablas = []
     for t in c.get("tablas") or []:
@@ -235,7 +272,9 @@ def armar(cfg: Optional[Dict[str, Any]], *, card_data: Dict[str, Any], folio: st
                 continue
             celdas = []
             for col in cols:
-                v = formatear(_valor(f, col["clave"]), col.get("tipo", "texto"))
+                crudo = _valor(f, col["clave"])
+                traducido = _traducir(crudo, col.get("valores"))
+                v = formatear(traducido, "texto" if traducido is not crudo else col.get("tipo", "texto"))
                 det = formatear(_valor(f, col["detalle"])) if col.get("detalle") else ""
                 celdas.append({"valor": v, "detalle": det})
             filas.append(celdas)
@@ -264,5 +303,6 @@ def armar(cfg: Optional[Dict[str, Any]], *, card_data: Dict[str, Any], folio: st
             "solicitado_por": requester_nombre, "area": doc.get("area") or "", "grupo": company_group, "filial": tenant_id,
         },
         "estatus": {"texto": est_txt, "tono": est_tono},
+        "estilo": (cfg or {}).get("estilo") if (cfg or {}).get("estilo") in ESTILOS else None,
         "tarjetas": tarjetas, "adjuntos": adjuntos, "tablas": tablas,
     }

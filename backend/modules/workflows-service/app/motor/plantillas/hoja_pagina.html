@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es"{% if h.estilo and h.estilo != "clasico" %} data-tema="{{ h.estilo }}"{% endif %}{% if embebida %} class="embebida"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -174,8 +174,93 @@
   .mensaje.aviso{border-color:#fde68a; background:#fffbeb; color:#78350f}
   .btn[disabled]{opacity:.55; cursor:not-allowed}
   .vacio{padding:40px 0; text-align:center; color:var(--gris-5)}
+  .campo.ancha{grid-column:span 2; max-width:660px}
+  @media (max-width:720px){ .campo.ancha{grid-column:auto} }
   .acciones .decide{font-size:12px; color:var(--gris-5); flex-basis:100%}
   tbody td .sub{color:var(--gris-5); font-size:12px; margin-left:8px; font-family:"JetBrains Mono",ui-monospace,monospace}
+/* ═════════ Estilos de la hoja (data-tema en <html>; sin atributo = clasico) ═════════ */
+html[data-tema] .seccion{overflow:visible}
+html[data-tema] .seccion h3::before, html[data-tema] .seccion h3::after{content:none}
+
+/* ── 1 · Neutro (minimalista, tipo Stripe/Linear) ── */
+html[data-tema="neutro"] body{background:#f5f6f8}
+html[data-tema="neutro"] .cab{background:#fff; border-bottom:1px solid #eceef2}
+html[data-tema="neutro"] .logo{background:#111827; box-shadow:none}
+html[data-tema="neutro"] .cinta{background:#fff; border-bottom:1px solid #eceef2}
+html[data-tema="neutro"] .cinta b{color:#111827}
+html[data-tema="neutro"] .cinta .pulso{background:#2563eb}
+html[data-tema="neutro"] .seccion{background:transparent; border:0; border-top:1px solid #eceef2; border-radius:0; padding:14px 0 6px; margin:0}
+html[data-tema="neutro"] .seccion h3{background:none; border:0; margin:0 0 10px; padding:0; color:#6b7280; letter-spacing:.08em}
+html[data-tema="neutro"] .campo{background:#fff; border:1px solid #eceef2; border-radius:10px}
+html[data-tema="neutro"] .campo .k{color:#9ca3af}
+html[data-tema="neutro"] .archivo{border:1px solid #eceef2}
+html[data-tema="neutro"] .tabla-wrap{border:1px solid #eceef2; border-radius:12px}
+html[data-tema="neutro"] thead th{background:#fafafa; color:#6b7280; border-bottom:1px solid #eceef2; border-right:0}
+html[data-tema="neutro"] tbody td{border-bottom:1px solid #f1f2f5; border-right:0}
+html[data-tema="neutro"] tfoot td{background:#fff; border-top:1px solid #f1f2f5}
+html[data-tema="neutro"] tfoot .total td{background:#fff; color:#111827; border-top:1px solid #111827}
+html[data-tema="neutro"] .pill{background:#f3f4f6; border-color:#e5e7eb}
+
+/* ── 2 · Tinta (cabecera oscura, cuerpo blanco) ── */
+html[data-tema="tinta"] body{background:#e9ecf1}
+html[data-tema="tinta"] .cab{background:#0f172a; color:#f8fafc; border-bottom:0}
+html[data-tema="tinta"] .cab .marca small, html[data-tema="tinta"] .numero .lbl, html[data-tema="tinta"] .numero .folio, html[data-tema="tinta"] .titulo p{color:#94a3b8}
+html[data-tema="tinta"] .titulo p strong{color:#e2e8f0}
+html[data-tema="tinta"] .logo{background:#fff; box-shadow:none} html[data-tema="tinta"] .logo path{fill:#0f172a}
+html[data-tema="tinta"] .cinta{background:#1e293b; border-bottom:0}
+html[data-tema="tinta"] .cinta b{color:#fde68a} html[data-tema="tinta"] .cinta .pulso{background:#fbbf24}
+html[data-tema="tinta"] .seccion{background:#fff; border:1px solid #e5e7eb; border-radius:14px}
+html[data-tema="tinta"] .seccion h3{background:none; border-bottom:1px solid #f1f5f9; color:#0f172a}
+html[data-tema="tinta"] .campo{background:#f8fafc; border:0}
+html[data-tema="tinta"] .archivo{border:1px solid #e5e7eb}
+html[data-tema="tinta"] .tabla-wrap{border:0; border-radius:0}
+html[data-tema="tinta"] thead th{background:#fff; color:#64748b; border-bottom:2px solid #0f172a; border-right:0}
+html[data-tema="tinta"] tbody td{border-bottom:1px solid #f1f5f9; border-right:0}
+html[data-tema="tinta"] tfoot td{background:#fff; border-top:0}
+html[data-tema="tinta"] tfoot .total td{background:#0f172a; color:#fff}
+
+/* ── 3 · Arena (cálido, papel) ── */
+html[data-tema="arena"] body{background:#efebe4}
+html[data-tema="arena"] .hoja{background:#fffdf9}
+html[data-tema="arena"] .cab{background:#fffdf9; border-bottom:1px solid #e9e2d6}
+html[data-tema="arena"] .logo{background:#1f3a5f; box-shadow:none}
+html[data-tema="arena"] .cinta{background:#f7f2e9; border-bottom:1px solid #e9e2d6}
+html[data-tema="arena"] .cinta b{color:#1f3a5f} html[data-tema="arena"] .cinta .pulso{background:#c2410c}
+html[data-tema="arena"] .seccion{background:transparent; border:1px solid #e9e2d6; border-radius:14px}
+html[data-tema="arena"] .seccion h3{background:none; border-bottom:1px solid #e9e2d6; color:#8a7f6e}
+html[data-tema="arena"] .campo{background:#fff; border:1px solid #ede7dc}
+html[data-tema="arena"] .campo .k{color:#9a8f7d}
+html[data-tema="arena"] .archivo{border:1px solid #ede7dc; background:#fff}
+html[data-tema="arena"] .tabla-wrap{border:1px solid #e9e2d6}
+html[data-tema="arena"] thead th{background:#f7f2e9; color:#6b6252; border-bottom:1px solid #e9e2d6; border-right:0}
+html[data-tema="arena"] tbody td{border-bottom:1px solid #f1ece3; border-right:0}
+html[data-tema="arena"] tfoot td{background:#fffdf9}
+html[data-tema="arena"] tfoot .total td{background:#1f3a5f; color:#fff}
+
+/* ── 4 · Tarjetas flotantes (sin bordes, sombras suaves) ── */
+html[data-tema="flotante"] body{background:#eef1f5}
+html[data-tema="flotante"] .hoja{background:#eef1f5; box-shadow:none}
+html[data-tema="flotante"] .cab{background:#fff; border:0; border-radius:18px; margin:0 0 10px; box-shadow:0 1px 2px rgba(15,23,42,.05), 0 10px 30px -18px rgba(15,23,42,.25)}
+html[data-tema="flotante"] .cinta{background:transparent; border:0; padding-left:20px}
+html[data-tema="flotante"] .seccion{background:#fff; border:0; border-radius:18px; box-shadow:0 1px 2px rgba(15,23,42,.05), 0 10px 30px -18px rgba(15,23,42,.25)}
+html[data-tema="flotante"] .seccion h3{background:none; border:0; color:#94a3b8}
+html[data-tema="flotante"] .campo{background:#f5f7fa; border:0}
+html[data-tema="flotante"] .archivo{border:0; background:#f5f7fa}
+html[data-tema="flotante"] .tabla-wrap{border:0}
+html[data-tema="flotante"] thead th{background:#f5f7fa; color:#64748b; border:0}
+html[data-tema="flotante"] thead th:first-child{border-radius:10px 0 0 10px} html[data-tema="flotante"] thead th:last-child{border-radius:0 10px 10px 0}
+html[data-tema="flotante"] tbody td{border-bottom:1px solid #f1f5f9; border-right:0}
+html[data-tema="flotante"] tfoot td{background:#fff; border:0}
+html[data-tema="flotante"] tfoot .total td{background:#fff; color:#1a4fa0; font-size:19px}
+html[data-tema="flotante"] .acciones{background:rgba(255,255,255,.92); border-radius:18px 18px 0 0}
+
+
+/* ── Modo embebido (Bandeja, detalle del administrador, vista previa) ── */
+html.embebida body{background:transparent}
+html.embebida .lienzo{width:100%; margin:0}
+html.embebida .hoja{min-height:0; box-shadow:none}
+html.embebida[data-tema="flotante"] .hoja{background:transparent}
+html.embebida .pie{display:none}
 </style>
 </head>
 <body>
@@ -216,7 +301,7 @@
         <section class="seccion datos-panel">
           <h3>Datos de la solicitud</h3>
           <div class="campos tarjetas">
-            {% for t in h.tarjetas %}<div class="campo"><div class="k">{{ t.etiqueta }}</div><div class="v" title="{{ t.valor }}">{{ t.valor }}</div></div>
+            {% for t in h.tarjetas %}<div class="campo{{ ' ancha' if t.ancha else '' }}"><div class="k">{{ t.etiqueta }}</div><div class="v" title="{{ t.valor }}">{{ t.valor }}</div></div>
             {% endfor %}
           </div>
         </section>

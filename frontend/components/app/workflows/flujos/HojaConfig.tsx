@@ -21,9 +21,16 @@ function mover<T>(arr: T[], i: number, d: -1 | 1): T[] {
   const c = [...arr];[c[i], c[j]] = [c[j], c[i]]; return c
 }
 
-function FilaCampo<T extends CampoHojaCfg>({ c, i, total, claves, onCambio, onMover, onQuitar, extra }: {
+const aTexto = (v?: Record<string, string>) => Object.entries(v ?? {}).map(([k, x]) => `${k} = ${x}`).join('\n')
+const deTexto = (t: string): Record<string, string> => Object.fromEntries(t.split('\n').map(l => l.split('=')).filter(p => p.length >= 2 && p[0].trim() && p.slice(1).join('=').trim()).map(p => [p[0].trim(), p.slice(1).join('=').trim()]))
+
+function FilaCampo<T extends CampoHojaCfg>({ c, i, total, claves, onCambio, onMover, onQuitar, extra, conAncho, conValores }: {
   c: T; i: number; total: number; claves: string[]; onCambio: (c: T) => void; onMover: (d: -1 | 1) => void; onQuitar: () => void; extra?: React.ReactNode
+  conAncho?: boolean; conValores?: boolean
 }) {
+  const nValores = Object.keys(c.valores ?? {}).length
+  const [verValores, setVerValores] = useState(false)
+  const [texto, setTexto] = useState(aTexto(c.valores))
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5">
       <input list="hoja-claves" className={`${mini} w-40 font-mono`} placeholder="clave" value={c.clave} onChange={e => onCambio({ ...c, clave: e.target.value })} />
@@ -32,12 +39,31 @@ function FilaCampo<T extends CampoHojaCfg>({ c, i, total, claves, onCambio, onMo
         {TIPOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
       {extra}
+      {conAncho && (
+        <select className={`${mini} w-24`} value={c.ancho ?? 'normal'} onChange={e => onCambio({ ...c, ancho: e.target.value as 'normal' | 'ancha' })} title="Ancho de la tarjeta">
+          <option value="normal">Normal</option><option value="ancha">Ancha</option>
+        </select>
+      )}
+      {conValores && (
+        <button type="button" onClick={() => setVerValores(v => !v)} title="Equivalencias: mostrar un texto en lugar del valor que manda Protheus"
+          className={`rounded-md border px-2 py-1 text-[12px] ${nValores ? 'border-[#1a4fa0] bg-blue-50 text-[#1a4fa0]' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}>
+          {nValores ? `${nValores} equivalencia${nValores === 1 ? '' : 's'}` : 'Equivalencias'}
+        </button>
+      )}
       <span className="ml-auto flex items-center">
         <button type="button" aria-label="Subir" disabled={i === 0} onClick={() => onMover(-1)} className="grid size-7 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"><ArrowUp size={13} /></button>
         <button type="button" aria-label="Bajar" disabled={i === total - 1} onClick={() => onMover(1)} className="grid size-7 place-items-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"><ArrowDown size={13} /></button>
         <button type="button" aria-label="Quitar" onClick={onQuitar} className="grid size-7 place-items-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600"><X size={13} /></button>
       </span>
       {claves.length > 0 && c.clave && !claves.includes(c.clave) && <span className="w-full text-[11px] text-amber-700">El último trámite no trae «{c.clave}»; no se mostrará si viene vacío.</span>}
+      {conValores && verValores && (
+        <div className="w-full">
+          <textarea rows={3} className={`${inputCls} w-full font-mono !text-[12.5px]`} value={texto}
+            onChange={e => { setTexto(e.target.value); onCambio({ ...c, valores: deTexto(e.target.value) }) }}
+            placeholder={'Una por renglón, valor = texto\n1 = Consumidor final\nF = Persona física'} />
+          <p className="text-[11px] text-slate-400">Si el valor que llega no está en la lista, se muestra tal cual.</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -107,6 +133,16 @@ export default function HojaConfig({ flujo, onChange, puedeEditar }: { flujo: Fl
 
         <section className="rounded-xl border border-slate-300 bg-white p-3">
           <h4 className="mb-2 text-[13px] font-bold text-slate-800">Documento</h4>
+          <div className="mb-2">
+            <label className={labelCls}>Estilo</label>
+            <div className="flex flex-wrap gap-1.5">
+              {([['', 'El del módulo'], ['flotante', 'Flotante'], ['neutro', 'Neutro'], ['tinta', 'Tinta'], ['arena', 'Arena'], ['clasico', 'Clásico']] as [string, string][]).map(([v, l]) => (
+                <button key={v || 'modulo'} type="button" onClick={() => setCfg(c => ({ ...c, estilo: (v || undefined) as HojaCfg['estilo'] }))}
+                  className={`rounded-lg border px-3 py-1 text-[12.5px] ${(cfg.estilo ?? '') === v ? 'border-[#1a4fa0] bg-[#1a4fa0] text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'}`}>{l}</button>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">«El del módulo» usa el que esté en Ajustes → Apariencia (Flotante, si nadie lo cambia).</p>
+          </div>
           <div className="grid gap-2 sm:grid-cols-3">
             <div><label className={labelCls}>Etiqueta</label><input className={`${inputCls} w-full`} placeholder={flujo.nombre} value={cfg.documento.etiqueta} onChange={e => setCfg(c => ({ ...c, documento: { ...c.documento, etiqueta: e.target.value } }))} /></div>
             <div><label className={labelCls}>Número (clave o folio)</label><input list="hoja-claves" className={`${inputCls} w-full font-mono`} value={cfg.documento.numero} onChange={e => setCfg(c => ({ ...c, documento: { ...c.documento, numero: e.target.value } }))} /></div>
@@ -119,7 +155,7 @@ export default function HojaConfig({ flujo, onChange, puedeEditar }: { flujo: Fl
             <button type="button" className="ml-auto text-[12.5px] text-[#1a4fa0] hover:underline inline-flex items-center gap-1" onClick={() => setCfg(c => ({ ...c, tarjetas: [...c.tarjetas, { clave: '', etiqueta: '', tipo: 'texto' }] }))}><Plus size={12} /> Agregar</button></div>
           <div className="grid gap-1.5">
             {cfg.tarjetas.map((t, i) => (
-              <FilaCampo key={i} c={t} i={i} total={cfg.tarjetas.length} claves={claves}
+              <FilaCampo key={i} c={t} i={i} total={cfg.tarjetas.length} claves={claves} conAncho conValores
                 onCambio={n => setCfg(c => ({ ...c, tarjetas: c.tarjetas.map((x, j) => (j === i ? n : x)) }))}
                 onMover={d => setCfg(c => ({ ...c, tarjetas: mover(c.tarjetas, i, d) }))}
                 onQuitar={() => setCfg(c => ({ ...c, tarjetas: c.tarjetas.filter((_, j) => j !== i) }))} />
@@ -151,7 +187,7 @@ export default function HojaConfig({ flujo, onChange, puedeEditar }: { flujo: Fl
               <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Columnas</p>
               <div className="grid gap-1.5">
                 {t.columnas.map((col, ci) => (
-                  <FilaCampo<ColumnaHojaCfg> key={ci} c={col} i={ci} total={t.columnas.length} claves={cls}
+                  <FilaCampo<ColumnaHojaCfg> key={ci} c={col} i={ci} total={t.columnas.length} claves={cls} conValores
                     onCambio={n => setTabla(ti, { ...t, columnas: t.columnas.map((x, j) => (j === ci ? n : x)) })}
                     onMover={d => setTabla(ti, { ...t, columnas: mover(t.columnas, ci, d) })}
                     onQuitar={() => setTabla(ti, { ...t, columnas: t.columnas.filter((_, j) => j !== ci) })}

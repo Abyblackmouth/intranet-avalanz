@@ -3,7 +3,7 @@
 // HojaTramite: la "hoja" del trámite (plantilla por flujo, diseño v9). El servidor manda la
 // estructura ya armada y formateada (app/motor/hoja.py); aquí solo se pinta. La misma hoja
 // se ve en la liga del correo, en la Bandeja y en la pestaña Solicitud del administrador.
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { HojaTramite as Hoja } from '@/services/workflowsService'
 
 const TONO: Record<string, string> = { turno: 'text-[#1a4fa0]', ok: 'text-emerald-700', no: 'text-red-700', aviso: 'text-amber-700', neutro: 'text-slate-600' }
@@ -36,12 +36,40 @@ function IconoDoc({ ext }: { ext: string }) {
   )
 }
 
-export default function HojaTramite({ hoja, acciones, embebida, aviso }: {
+// La hoja tal como la arma el servidor (misma plantilla y estilo que la liga del correo),
+// en un iframe que toma la altura de su contenido. Los documentos abren en otra pestaña.
+function MarcoHoja({ html }: { html: string }) {
+  const ref = useRef<HTMLIFrameElement>(null)
+  const [alto, setAlto] = useState(600)
+  useEffect(() => {
+    const f = ref.current
+    if (!f) return
+    let obs: ResizeObserver | null = null
+    const medir = () => { const d = f.contentDocument; if (d?.documentElement) setAlto(d.documentElement.scrollHeight + 2) }
+    const alCargar = () => { medir(); try { obs = new ResizeObserver(medir); if (f.contentDocument?.body) obs.observe(f.contentDocument.body) } catch { /* sin ResizeObserver */ } setTimeout(medir, 400) }
+    f.addEventListener('load', alCargar)
+    return () => { f.removeEventListener('load', alCargar); obs?.disconnect() }
+  }, [html])
+  return <iframe ref={ref} title="Hoja del trámite" srcDoc={html} style={{ height: alto }} className="block w-full border-0 bg-transparent"
+    sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" />
+}
+
+export default function HojaTramite({ hoja, html, acciones, embebida, aviso }: {
   hoja: Hoja
+  html?: string               // la hoja renderizada en el servidor; si viene, se usa en lugar del armado local
   acciones?: ReactNode        // barra fija de abajo (solo el aprobador en turno)
   embebida?: boolean          // dentro del modal del administrador: sin sombra ni alto mínimo
   aviso?: ReactNode           // mensaje bajo la cinta (liga usada, error, etc.)
 }) {
+  if (html) {
+    return (
+      <div>
+        {aviso && <div className="mb-2">{aviso}</div>}
+        <MarcoHoja html={html} />
+        {acciones && <div className="sticky bottom-0 z-10 mt-2 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_-18px_rgba(15,23,42,.4)] backdrop-blur max-md:flex-col max-md:items-stretch">{acciones}</div>}
+      </div>
+    )
+  }
   const c = hoja.cabecera
   return (
     <article className={`flex flex-col overflow-hidden bg-white text-slate-900 ${embebida ? 'rounded-2xl border border-slate-200' : 'min-h-[calc(100vh-26px)] rounded-[20px] shadow-[0_24px_60px_-24px_rgba(15,23,42,.35),0_2px_8px_rgba(15,23,42,.06)] max-md:min-h-screen max-md:rounded-none'}`}>
@@ -78,7 +106,7 @@ export default function HojaTramite({ hoja, acciones, embebida, aviso }: {
           <Seccion titulo="Datos de la solicitud">
             <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,max-content))] gap-x-2.5 gap-y-2 max-md:grid-cols-2 max-[420px]:grid-cols-1">
               {hoja.tarjetas.map((t, i) => (
-                <div key={i} className="min-w-[190px] max-w-[320px] rounded-[10px] border border-[#c9d8ef] bg-white px-3 py-[7px] max-md:min-w-0 max-md:max-w-none">
+                <div key={i} className={`min-w-[190px] rounded-[10px] border border-[#c9d8ef] bg-white px-3 py-[7px] max-md:col-span-1 max-md:min-w-0 max-md:max-w-none ${t.ancha ? 'col-span-2 max-w-[660px]' : 'max-w-[320px]'}`}>
                   <div className="text-[11px] font-semibold tracking-wide text-slate-500">{t.etiqueta}</div>
                   <div className="mt-px truncate text-[13px] font-semibold" title={t.valor}>{t.valor}</div>
                 </div>

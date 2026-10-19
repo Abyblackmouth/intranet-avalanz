@@ -83,7 +83,7 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
     ) : esSolicitante && modo === 'privado' && enTurno ? (
       <button type="button" className={btnSecundario} onClick={reenviar}><RefreshCw size={13} /> Reenviar aviso al aprobador</button>
     ) : undefined
-    return <HojaTramite hoja={t.hoja} acciones={barra} embebida={modo === 'privado'} aviso={avisoHoja} />
+    return <HojaTramite hoja={t.hoja} html={t.hoja_html} acciones={barra} embebida={modo === 'privado'} aviso={avisoHoja} />
   }
 
   return (
@@ -121,7 +121,7 @@ export default function VistaTramite({ t, modo, token, onChange, onCerrado }: {
         </div>
       )}
       <div className={`grid gap-5 ${esAprobador ? 'lg:grid-cols-[1.3fr_1fr]' : ''}`}>
-        {pestana === 'solicitud' && t.hoja && <div className="lg:col-span-full"><HojaTramite hoja={t.hoja} embebida /></div>}
+        {pestana === 'solicitud' && t.hoja && <div className="lg:col-span-full"><HojaTramite hoja={t.hoja} html={t.hoja_html} embebida /></div>}
         <section className="hidden">
           <h4 className="text-[12px] font-semibold text-slate-500 mb-2">Datos (como los mandó la plataforma)</h4>
           {t.resumen && t.resumen.campos.length > 0 && (

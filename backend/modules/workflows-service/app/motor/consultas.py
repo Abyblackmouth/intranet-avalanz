@@ -70,6 +70,8 @@ async def detalle(db: AsyncSession, inst: Instancia, user: Dict[str, Any], con_u
     d["resumen_config"] = cfg
     from app.motor.hoja_db import hoja_de
     d["hoja"] = await hoja_de(db, inst, con_urls=con_urls)
+    from app.motor.hoja_pagina import html as hoja_html
+    d["hoja_html"] = hoja_html(d["hoja"], embebida=True)
     archivos = (await db.execute(select(InstanciaArchivo).where(InstanciaArchivo.instancia_id == inst.id).order_by(InstanciaArchivo.uploaded_at))).scalars().all()
     d["archivos"] = []
     for a in archivos:

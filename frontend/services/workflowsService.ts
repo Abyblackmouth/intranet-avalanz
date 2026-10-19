@@ -151,7 +151,7 @@ export interface TramiteDetalle extends Tramite {
   etapas: EtapaTramite[]; archivos: ArchivoTramite[]; bitacora: BitacoraTramite[]; correos: CorreoTramite[]; transacciones: Transaccion[]
   puedo_decidir: boolean; puedo_administrar: boolean; soy_solicitante: boolean
   vista: 'administrador' | 'solicitante' | 'aprobador'; total_etapas: number; mi_etapa?: EtapaTramite | null
-  secciones: SeccionesTramite; resumen_config: ResumenConfig | null; hoja: HojaTramite
+  secciones: SeccionesTramite; resumen_config: ResumenConfig | null; hoja: HojaTramite; hoja_html?: string
   liga?: { estado: 'vigente' | 'usada' | 'invalidada' | 'vencida' | 'cerrada'; etapa_orden: number; etapa_nombre: string; expira: string; decido_como: string; mensaje: string }
 }
 export interface Resumen { me_toca: number; en_aprobacion: number; sin_aplicar: number; error_configuracion: number; mis_tramites: number; ultimos: Tramite[]; ve_todo: boolean }
@@ -172,18 +172,19 @@ export const decidirPorLiga = (token: string, data: { aprobar: boolean; comentar
 
 // ── Hoja del trámite (plantilla por flujo) ─────────────────────────────────
 export type TipoCampoHoja = 'texto' | 'moneda' | 'numero' | 'fecha' | 'porcentaje'
-export interface CampoHojaCfg { clave: string; etiqueta: string; tipo: TipoCampoHoja }
+export interface CampoHojaCfg { clave: string; etiqueta: string; tipo: TipoCampoHoja; ancho?: 'normal' | 'ancha'; valores?: Record<string, string> }
 export interface ColumnaHojaCfg extends CampoHojaCfg { alinear: 'izq' | 'centro' | 'der'; detalle: string }
 export interface TotalHojaCfg extends CampoHojaCfg { destacado: boolean }
 export interface TablaHojaCfg { clave: string; titulo: string; columnas: ColumnaHojaCfg[]; totales: TotalHojaCfg[] }
 export interface HojaCfg {
   documento: { etiqueta: string; numero: string; area: string }
   tarjetas: CampoHojaCfg[]; adjuntos: boolean; tablas: TablaHojaCfg[]
+  estilo?: 'flotante' | 'neutro' | 'tinta' | 'arena' | 'clasico'
 }
 export interface HojaTramite {
   cabecera: { flujo: string; etiqueta: string; numero: string; numero_es_folio: boolean; folio: string; fecha: string; empresa: string; solicitado_por: string; area: string; grupo: string; filial: string }
   estatus: { texto: string; tono: 'turno' | 'ok' | 'no' | 'aviso' | 'neutro' }
-  tarjetas: { etiqueta: string; valor: string }[]
+  tarjetas: { etiqueta: string; valor: string; ancha?: boolean }[]
   adjuntos: { id: string; nombre: string; ext: string; tamano: string; url: string | null }[]
   tablas: { titulo: string; columnas: { etiqueta: string; alinear: string; tipo: string }[]; filas: { valor: string; detalle: string }[][]; totales: { etiqueta: string; valor: string; destacado: boolean }[]; col_total: number }[]
 }

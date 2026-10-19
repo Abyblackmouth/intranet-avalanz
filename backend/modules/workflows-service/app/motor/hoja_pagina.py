@@ -14,7 +14,7 @@ _DOC = {"pdf": "pdf", "xls": "xls", "csv": "xls", "doc": "word", "jpg": "img", "
 
 
 def html(hoja: Dict[str, Any], *, puede_decidir: bool = False, url_decidir: str = "", decide_como: str = "", etapa_orden: Optional[int] = None,
-         etapa_nombre: str = "", mensaje: str = "", mensaje_tono: str = "") -> str:
+         etapa_nombre: str = "", mensaje: str = "", mensaje_tono: str = "", embebida: bool = False) -> str:
     return _ENV.get_template("hoja_pagina.html").render(
-        h=hoja, puede_decidir=puede_decidir, url_decidir=url_decidir, decide_como=decide_como, etapa_orden=etapa_orden,
-        etapa_nombre=etapa_nombre, mensaje=mensaje, mensaje_tono=mensaje_tono, clase_doc=lambda e: _DOC.get(e, ""))
+        h=hoja, puede_decidir=puede_decidir and not embebida, url_decidir=url_decidir, decide_como=decide_como, etapa_orden=etapa_orden,
+        etapa_nombre=etapa_nombre, mensaje=mensaje, mensaje_tono=mensaje_tono, embebida=embebida, clase_doc=lambda e: _DOC.get(e, ""))
