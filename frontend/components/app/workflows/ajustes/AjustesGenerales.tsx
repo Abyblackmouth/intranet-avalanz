@@ -3,7 +3,7 @@
 // Ajustes del módulo (clave/valor). Se dibuja a partir del catálogo que manda el backend,
 // igual que en IT Service Desk: un ajuste nuevo es una entrada más allá, no código aquí.
 import { useCallback, useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
+import { ChevronDown, Check } from 'lucide-react'
 import { Ajuste, CambioAjuste, getAjustes, getAjustesHistorial, updateAjuste } from '@/services/workflowsService'
 import { errMsg, fmtFecha, Interruptor, inputCls } from '@/components/app/workflows/compartidos'
 
@@ -37,6 +37,7 @@ function Control({ a, onSave }: { a: Ajuste; onSave: (valor: string | number | b
 }
 
 export default function AjustesGenerales() {
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({})
   const [ajustes, setAjustes] = useState<Ajuste[]>([])
   const [historial, setHistorial] = useState<CambioAjuste[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,8 +82,13 @@ export default function AjustesGenerales() {
       <div className="grid min-w-0 gap-5">
         {grupos.map(g => (
           <section key={g} className="bg-white border border-slate-300 rounded-2xl shadow-sm">
-            <h2 className="px-5 py-3.5 border-b border-slate-200 font-[family-name:var(--font-jakarta)] text-[15px] font-bold text-slate-900">{g}</h2>
-            <ul>
+            <button type="button" onClick={() => setAbiertos(s => ({ ...s, [g]: !s[g] }))} aria-expanded={!!abiertos[g]}
+              className={`w-full px-5 py-3.5 flex items-center gap-2.5 text-left ${abiertos[g] ? 'border-b border-slate-200' : ''}`}>
+              <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${abiertos[g] ? '' : '-rotate-90'}`} />
+              <h2 className="font-[family-name:var(--font-jakarta)] text-[15px] font-bold text-slate-900">{g}</h2>
+              {!abiertos[g] && <span className="ml-auto text-[12.5px] text-slate-500">{ajustes.filter(a => a.grupo === g).length} ajuste{ajustes.filter(a => a.grupo === g).length === 1 ? '' : 's'}</span>}
+            </button>
+            {abiertos[g] && <ul>
               {ajustes.filter(a => a.grupo === g).map(a => (
                 <li key={a.key} className="px-5 py-4 border-b border-slate-200 last:border-0 flex flex-wrap items-center gap-x-6 gap-y-3">
                   <div className="flex-1 min-w-65">
@@ -100,7 +106,7 @@ export default function AjustesGenerales() {
                   </div>
                 </li>
               ))}
-            </ul>
+            </ul>}
           </section>
         ))}
       </div>

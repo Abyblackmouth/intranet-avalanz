@@ -3,7 +3,7 @@
 // Piezas que comparten las pantallas del módulo Workflows. Mismo estilo que
 // IT Service Desk, con bordes un poco más visibles (slate-300).
 import { useEffect, useRef, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { ChevronDown, Search, X } from 'lucide-react'
 import { buscarUsuariosIntranet, UsuarioIntranet } from '@/services/workflowsService'
 
 export const inputCls = 'bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-800 outline-none hover:border-slate-400 focus:border-[#1a4fa0] focus:ring-2 focus:ring-[#1a4fa0]/15 transition max-md:text-base'
@@ -19,17 +19,33 @@ export const errMsg = (e: unknown, fb: string) => {
 export const fmtFecha = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString('es-MX', { timeZone: 'America/Monterrey', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
-export function Seccion({ titulo, sub, children, accion, className = '' }: { titulo: string; sub?: string; children: React.ReactNode; accion?: React.ReactNode; className?: string }) {
+export function Seccion({ titulo, sub, children, accion, className = '', plegable = false, resumen }: {
+  titulo: string; sub?: string; children: React.ReactNode; accion?: React.ReactNode; className?: string
+  plegable?: boolean          // se abre y cierra con clic en el encabezado; empieza cerrada
+  resumen?: React.ReactNode   // lo que se muestra junto al título cuando está cerrada
+}) {
+  const [abierta, setAbierta] = useState(!plegable)
   return (
     <section className={`bg-white border border-slate-300 rounded-2xl shadow-sm ${className}`}>
-      <header className="px-5 py-3.5 border-b border-slate-200 flex items-start justify-between gap-3 max-md:px-4">
-        <div className="min-w-0">
-          <h3 className="font-[family-name:var(--font-jakarta)] text-[15px] font-bold text-slate-900">{titulo}</h3>
-          {sub && <p className="text-[12.5px] text-slate-500 mt-0.5">{sub}</p>}
-        </div>
+      <header className={`px-5 py-3.5 flex items-start justify-between gap-3 max-md:px-4 ${abierta ? 'border-b border-slate-200' : ''}`}>
+        {plegable ? (
+          <button type="button" onClick={() => setAbierta(a => !a)} aria-expanded={abierta} className="min-w-0 flex-1 flex items-start gap-2.5 text-left">
+            <ChevronDown size={18} className={`mt-0.5 shrink-0 text-slate-400 transition-transform ${abierta ? '' : '-rotate-90'}`} />
+            <span className="min-w-0">
+              <span className="block font-[family-name:var(--font-jakarta)] text-[15px] font-bold text-slate-900">{titulo}</span>
+              {sub && <span className="block text-[12.5px] text-slate-500 mt-0.5">{sub}</span>}
+              {!abierta && resumen && <span className="block text-[12.5px] text-slate-500 mt-0.5">{resumen}</span>}
+            </span>
+          </button>
+        ) : (
+          <div className="min-w-0">
+            <h3 className="font-[family-name:var(--font-jakarta)] text-[15px] font-bold text-slate-900">{titulo}</h3>
+            {sub && <p className="text-[12.5px] text-slate-500 mt-0.5">{sub}</p>}
+          </div>
+        )}
         {accion}
       </header>
-      <div className="px-5 py-4 max-md:px-4">{children}</div>
+      {abierta && <div className="px-5 py-4 max-md:px-4">{children}</div>}
     </section>
   )
 }

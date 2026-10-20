@@ -217,7 +217,8 @@ function TarjetaConexion({ c, onChange }: { c: Conexion; onChange: () => void })
   }
   const auth = AUTH.find(a => a[0] === c.auth_tipo)?.[1] ?? c.auth_tipo
   return (
-    <Seccion titulo={c.titulo} sub={`${c.slug} · ${c.flujos} flujo${c.flujos === 1 ? '' : 's'}`}
+    <Seccion titulo={c.titulo} sub={`${c.slug} · ${c.flujos} flujo${c.flujos === 1 ? '' : 's'}`} plegable
+      resumen={`${c.activa ? 'Activa' : 'Inactiva'}${c.folio_ambiente ? ` · ambiente ${c.folio_ambiente}` : ' · producción'} · ${c.empresas.length} empresa${c.empresas.length === 1 ? '' : 's'}`}
       accion={<div className="flex items-center gap-3 shrink-0"><span className={`text-[12px] font-medium ${c.activa ? 'text-emerald-700' : 'text-slate-400'}`}>{c.activa ? 'Activa' : 'Inactiva'}</span><Interruptor on={c.activa} onChange={alternar} label="Conexión activa" /></div>}>
       <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-[auto_1fr] items-center">
         <dt className="text-slate-500">URL base</dt><dd className="font-mono break-all">{c.url_base || <span className="text-slate-400">sin capturar</span>}</dd>
