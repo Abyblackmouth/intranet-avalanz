@@ -364,6 +364,23 @@ services:
       - avalanz-network
     logging: *default-logging
 
+  workflows-service:
+    build:
+      context: ../../backend
+      dockerfile: modules/workflows-service/Dockerfile
+    container_name: avalanz-workflows
+    restart: unless-stopped
+    env_file:
+      - ../../backend/modules/workflows-service/.env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - avalanz-network
+    logging: *default-logging
+
   toolkit-ti-service:
     build:
       context: ../../backend

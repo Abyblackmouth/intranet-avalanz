@@ -1,12 +1,8 @@
-from sqlalchemy import Column, String, Boolean, DateTime
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import DeclarativeBase
-import uuid
-
-class Base(DeclarativeBase):
-    pass
-
-# Agrega tus modelos aquí
-# class Workflows(Base):
-#     __tablename__ = "workflowss"
-#     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+from app.models.workflows import (  # noqa: F401
+    Base, SYSTEM_ACTOR_ID,
+    Conexion, ConexionEmpresa, ConexionUsuario,
+    Flujo, FlujoVersion, FlujoGrupo, FlujoGrupoMiembro, FlujoGrupoEtapa,
+    Ajuste, AjusteHistorial, FolioCounter,
+    Instancia, InstanciaEtapa, InstanciaArchivo, AprobacionToken,
+    Transaccion, CorreoEnviado, Bitacora,
+)
