@@ -758,6 +758,7 @@ export default function ContractRequestsTable({
             className="h-7 border border-slate-300 rounded-lg px-1.5 text-xs bg-white outline-none focus:border-[#1a4fa0] cursor-pointer"
           >
             <option value={13}>13</option>
+            <option value={20}>20</option>
             <option value={25}>25</option>
             <option value={50}>50</option>
           </select>
@@ -796,7 +797,7 @@ export default function ContractRequestsTable({
   return (
     <>
       {/* ── DESKTOP: Tabla ── */}
-      <div className="hidden md:block bg-white rounded-2xl ring-1 ring-slate-300 shadow-[0_4px_14px_-6px_rgba(16,45,90,0.14)] overflow-hidden">
+      <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 bg-white rounded-2xl ring-1 ring-slate-300 shadow-[0_4px_14px_-6px_rgba(16,45,90,0.14)] overflow-hidden">
         {/* Barra de densidad */}
         <div className="flex items-center justify-end px-4 py-2 border-b border-slate-200 bg-slate-50/70">
           <div className="inline-flex items-center rounded-lg border border-slate-300 bg-white overflow-hidden">
@@ -810,7 +811,7 @@ export default function ContractRequestsTable({
             </button>
           </div>
         </div>
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: 'auto', overflowY: 'auto', flex: 1, minHeight: 0 }}>
           <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 13, tableLayout: 'auto' }}>
             <thead>
               <tr className="bg-slate-100 border-b-2 border-slate-300">
