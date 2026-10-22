@@ -291,7 +291,7 @@ export default function MesaDeSoportePage() {
     setLoading(true)
     try {
       const [incRes, sysRes, sevRes] = await Promise.all([
-        getIncidents(), getSystems(), getSeverities(),
+        getIncidents({ limit: 5000 }), getSystems(), getSeverities(),
       ])
       setIncidents(incRes.data?.data ?? [])
       setSystems(sysRes.data?.data ?? [])
