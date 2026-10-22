@@ -37,6 +37,11 @@ async def generate_totp_setup(db: AsyncSession, user: User) -> Dict[str, Any]:
     )
     existing = result.scalar_one_or_none()
 
+    # Un 2FA activo no se regenera: volver a abrir la configuracion (por ejemplo, al cambiar
+    # una contrasena temporal) borraba el secreto que el usuario ya tenia en su autenticador.
+    if existing and existing.is_active:
+        raise ValidationException("El 2FA ya esta activado. Inicia sesion con el codigo de tu autenticador")
+
     encrypted_secret = encrypt_data(secret, config.FERNET_KEY)
 
     if existing:
@@ -55,6 +60,9 @@ async def generate_totp_setup(db: AsyncSession, user: User) -> Dict[str, Any]:
             is_active=False,
             backup_codes=json.dumps(backup_codes_hashed),
         ))
+
+    # Mientras el nuevo secreto no se active, la cuenta no tiene 2FA configurado
+    await db.execute(update(User).where(User.id == user.id).values(is_2fa_configured=False))
 
     await db.commit()
 
