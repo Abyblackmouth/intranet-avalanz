@@ -285,6 +285,41 @@ html[data-tema="arena"] .campo, html[data-tema="arena"] .archivo{border:1.5px so
 html[data-tema="arena"] .tabla-wrap{border:1.5px solid #d8cdbb}
 html[data-tema="arena"] tbody td{border-bottom:1px solid #e8e0d2}
 
+/* ── Teléfono: tablas como tarjetas, datos a dos columnas, barra de decisión a todo el ancho ── */
+@media screen and (max-width:720px){
+  .tarjetas{grid-template-columns:repeat(2, minmax(0,1fr)) !important}
+  .campo{min-width:0 !important; max-width:none !important}
+  .campo.ancha{grid-column:span 2 !important}
+  .campo .v{white-space:normal !important; overflow:visible !important; text-overflow:clip !important; overflow-wrap:anywhere}
+  .archivos{grid-template-columns:repeat(2, minmax(0,1fr)) !important}
+  .archivo{min-width:0 !important; max-width:none !important}
+  .tabla-wrap{border:0 !important; background:transparent !important; overflow:visible !important}
+  .tabla-wrap table, .tabla-wrap tbody, .tabla-wrap tfoot, .tabla-wrap tr, .tabla-wrap td{display:block; width:100%}
+  .tabla-wrap thead{display:none}
+  .tabla-wrap tbody tr{border:1px solid #d6dde8; border-radius:12px; background:#fff; padding:4px 12px; margin:0 0 8px}
+  .tabla-wrap tbody td{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:7px 0 !important; border:0 !important;
+                       border-bottom:1px dashed #e3e8f0 !important; white-space:normal !important; max-width:none !important; text-align:right !important}
+  .tabla-wrap tbody td:last-child{border-bottom:0 !important}
+  .tabla-wrap tbody td::before{content:attr(data-etiqueta); flex:none; max-width:45%; text-align:left; font-size:11px; font-weight:700;
+                               letter-spacing:.06em; text-transform:uppercase; color:#64748b}
+  .tabla-wrap tbody td .sub{display:block; margin:2px 0 0}
+  .tabla-wrap tfoot{border-top:2px solid #d6dde8; margin-top:4px; padding-top:4px}
+  .tabla-wrap tfoot tr.fila-total{display:flex; justify-content:space-between; align-items:baseline; padding:6px 4px}
+  .tabla-wrap tfoot td{width:auto; padding:0 !important; border:0 !important; background:transparent !important}
+  .tabla-wrap tfoot td.tot-vacio{display:none}
+  .tabla-wrap tfoot tr.total{background:#eef3fb; border-radius:10px; padding:10px 12px; margin-top:4px}
+  .acciones{display:grid !important; grid-template-columns:1fr 1fr; gap:10px !important; padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px)) !important}
+  .acciones textarea{grid-column:1 / -1; width:100% !important; min-height:64px; flex:none !important}
+  .acciones .btn{justify-content:center; width:100%; padding:13px 10px}
+  .acciones .btn-print{display:none}
+  .acciones .decide{grid-column:1 / -1}
+  .numero{text-align:left !important}
+}
+@media screen and (max-width:380px){
+  .tarjetas{grid-template-columns:1fr !important}
+  .campo.ancha{grid-column:auto !important}
+}
+
 /* ── Logo ── */
 .logo-img{height:46px; width:auto; display:block; flex:none}
 
@@ -391,11 +426,11 @@ html[data-tema="arena"] tbody td{border-bottom:1px solid #e8e0d2}
           <table>
             <thead><tr>{% for c in t.columnas %}<th class="{{ 'num' if c.alinear == 'der' else '' }}"{% if c.alinear == 'centro' %} style="text-align:center"{% endif %}>{{ c.etiqueta }}</th>{% endfor %}</tr></thead>
             <tbody>
-              {% for f in t.filas %}<tr>{% for cel in f %}{% set col = t.columnas[loop.index0] %}<td class="{{ 'num' if col.alinear == 'der' else '' }}{{ ' desc-col' if col.tipo == 'texto' else '' }}"{% if col.alinear == 'centro' %} style="text-align:center"{% endif %} title="{{ cel.valor }}{% if cel.detalle %} · {{ cel.detalle }}{% endif %}">{% if col.tipo == 'moneda' and loop.index0 == t.col_total %}<strong>{{ cel.valor }}</strong>{% else %}{{ cel.valor }}{% endif %}{% if cel.detalle %}<span class="sub">{{ cel.detalle }}</span>{% endif %}</td>{% endfor %}</tr>
+              {% for f in t.filas %}<tr>{% for cel in f %}{% set col = t.columnas[loop.index0] %}<td data-etiqueta="{{ col.etiqueta }}" class="{{ 'num' if col.alinear == 'der' else '' }}{{ ' desc-col' if col.tipo == 'texto' else '' }}"{% if col.alinear == 'centro' %} style="text-align:center"{% endif %} title="{{ cel.valor }}{% if cel.detalle %} · {{ cel.detalle }}{% endif %}">{% if col.tipo == 'moneda' and loop.index0 == t.col_total %}<strong>{{ cel.valor }}</strong>{% else %}{{ cel.valor }}{% endif %}{% if cel.detalle %}<span class="sub">{{ cel.detalle }}</span>{% endif %}</td>{% endfor %}</tr>
               {% endfor %}
             </tbody>
             {% if t.totales %}<tfoot>
-              {% for tot in t.totales %}<tr{% if tot.destacado %} class="total"{% endif %}><td colspan="{{ [t.col_total, 1]|max }}" class="num">{{ tot.etiqueta }}</td><td class="num">{{ tot.valor }}</td>{% if t.columnas|length - t.col_total - 1 > 0 %}<td colspan="{{ t.columnas|length - t.col_total - 1 }}"></td>{% endif %}</tr>
+              {% for tot in t.totales %}<tr class="fila-total{% if tot.destacado %} total{% endif %}"><td colspan="{{ [t.col_total, 1]|max }}" class="num tot-etq">{{ tot.etiqueta }}</td><td class="num tot-val">{{ tot.valor }}</td>{% if t.columnas|length - t.col_total - 1 > 0 %}<td colspan="{{ t.columnas|length - t.col_total - 1 }}" class="tot-vacio"></td>{% endif %}</tr>
               {% endfor %}
             </tfoot>{% endif %}
           </table>
