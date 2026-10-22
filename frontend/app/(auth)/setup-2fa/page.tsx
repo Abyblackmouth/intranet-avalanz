@@ -57,6 +57,7 @@ function Setup2FAContent() {
 
   const [qrSvg, setQrSvg] = useState<string | null>(null)
   const [qrUri, setQrUri] = useState<string | null>(null)
+  const [yaActivo, setYaActivo] = useState(false)   // el 2FA ya funciona: no se muestra QR nuevo
   const [secret, setSecret] = useState<string | null>(null)
   const [backupCodes, setBackupCodes] = useState<string[]>([])
   const [copiedSecret, setCopiedSecret] = useState(false)
@@ -74,7 +75,11 @@ function Setup2FAContent() {
     try {
       const res = await get2FASetup()
       if (res.success && res.data) { setQrSvg(res.data.qr_code_svg); setSecret(res.data.secret); setBackupCodes(res.data.backup_codes); setQrUri(`otpauth://totp/Avalanz:usuario?secret=${(res.data as any).secret}&issuer=Avalanz`) }
-    } catch { setError('Error al cargar el codigo QR') }
+    } catch (e: any) {
+      const msg = String(e?.response?.data?.message ?? e?.response?.data?.detail ?? '')
+      if (/ya esta activad/i.test(msg)) setYaActivo(true)
+      else setError('Error al cargar el codigo QR')
+    }
     finally { setIsLoadingQR(false) }
   }
 
@@ -127,14 +132,20 @@ function Setup2FAContent() {
               <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '1px' }} /><span>{error}</span>
             </div>
           )}
-          {isLoadingQR ? (
+          {yaActivo ? (
+            <div style={{ textAlign: 'center', padding: '24px 8px' }}>
+              <p style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a', marginBottom: '8px' }}>Tu verificación en dos pasos ya está activa</p>
+              <p style={{ fontSize: '13px', color: '#475569', marginBottom: '20px' }}>Tu contraseña quedó actualizada. Inicia sesión y usa el código de tu autenticador, como siempre.</p>
+              <button type="button" onClick={() => router.push('/login')} style={btnStyle}>Ir a iniciar sesión</button>
+            </div>
+          ) : isLoadingQR ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
               <Loader2 size={28} className="animate-spin" style={{ color: '#94a3b8' }} />
             </div>
           ) : qrSvg ? (
             <>
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '16px', padding: '16px', background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: '12px' }}>
-                {qrUri && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUri)}`} width={200} height={200} alt='QR Code' />}
+                <img src={`data:image/svg+xml;utf8,${encodeURIComponent(qrSvg)}`} alt='Código QR para tu autenticador' />
               </div>
               <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px 14px', marginBottom: '20px' }}>
                 <p style={{ fontSize: '11.5px', color: '#94a3b8', marginBottom: '6px' }}>O ingresa este codigo manualmente:</p>

@@ -135,7 +135,7 @@ async def login(
 
     # Red externa: requiere 2FA
     if not user.is_2fa_configured:
-        raise ForbiddenException("El 2FA no esta configurado, contacta al administrador")
+        raise ForbiddenException("Tu verificacion en dos pasos no esta configurada. Pide al administrador que restablezca tu contrasena para configurarla")
 
     temp_token = create_2fa_temp_token(
         payload={"user_id": str(user.id)},
