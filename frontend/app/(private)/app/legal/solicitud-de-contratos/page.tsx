@@ -38,7 +38,7 @@ export default function ContractRequestsPage() {
   const [items, setItems] = useState<ContractRequestListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(13)
+  const [perPage, setPerPage] = useState(20)
   const [isLoading, setIsLoading] = useState(false)
   const [refreshTick, setRefreshTick] = useState(0)
 
@@ -144,7 +144,8 @@ export default function ContractRequestsPage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex-1 overflow-auto px-6 pt-4 pb-6 min-h-0">
+      <div className="flex-1 overflow-auto px-6 pt-4 pb-6 min-h-0 flex flex-col">
+      <div className="flex flex-col h-full">
 
         {/* Fila 1: stats (mismo contenedor/ancho que filtros) + boton Crear contrato a la misma altura */}
         <div className="flex items-stretch gap-2 mb-2.5">
@@ -220,6 +221,7 @@ export default function ContractRequestsPage() {
         </div>
 
         {/* Tabla */}
+        <div className="flex-1 min-h-0 flex flex-col">
         <ContractRequestsTable
           items={items}
           isLoading={isLoading}
@@ -231,6 +233,8 @@ export default function ContractRequestsPage() {
           onPerPageChange={(n) => { setPerPage(n); setPage(1) }}
           role={legalRole}
         />
+        </div>
+      </div>
       </div>
     </div>
   )
