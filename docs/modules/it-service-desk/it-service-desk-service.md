@@ -864,6 +864,37 @@ Solo el Incident Manager y el super admin (`"Solo Incident Manager puede adminis
 
 Lista, edición e historial de los ajustes del módulo. Solo super admin (el submódulo **Ajustes** del menú solo lo ve el super admin).
 
+Los ajustes se declaran en la lista `AJUSTES` de `routes/ajustes/ajustes.py` (clave, grupo, etiqueta, descripción, tipo y valor por defecto) y la pantalla los dibuja sola. Tipos: `bool` (interruptor), `int`, `opcion` y, desde oct 2026, **`usuarios`** (lista de personas con chips y buscador; guarda `[{id, nombre}]` en JSON y sus opciones salen de `GET /ajustes/opciones/{fuente}`, por ahora `incident-managers`).
+
+| Clave | Grupo | Para qué |
+|---|---|---|
+| `acc.metodo_firma` | Control de accesos | `manual` o `docusign` |
+| `acc.docusign_ambiente` | Control de accesos | `pruebas` o `produccion` (ya no controla la marca de las copias) |
+| `mesa.menciones_excluidos` | Mesa de Soporte | Personas que no se ofrecen al escribir @ (por ejemplo, directores con rol temporal de IM), salvo en tickets donde ya participan |
+| `cdc.*` | Control de Cambios | Días de garantía, documento propio en el Arranque |
+
+### 9.6 Conversación del ticket y menciones (oct 2026)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/incidencias/{id}/comentarios` | Mensajes del ticket (el solicitante no ve las notas internas) |
+| POST | `/incidencias/{id}/comentarios` | Nuevo mensaje (multipart): `texto`, `interna`, `pide_respuesta`, **`menciones`** (ids separados por coma) y `files` |
+| GET | `/incidencias/{id}/mencionables` | A quién puede etiquetar con @ quien escribe |
+
+**Regla de las menciones:** un **Incident Manager** (o super admin) puede mencionar a cualquier IM del módulo (sin bajas; los bloqueados normales sí; sin los excluidos en Ajustes) y a quien ya participa; **cualquier otro** solo a quien ya participa (solicitante, asignado y quien ya escribió). Los IM ya ven todos los tickets, así que mencionarlos no abre ningún acceso; para atraer a alguien más, se le asigna el ticket. El POST **vuelve a validar** la regla; una nota interna nunca avisa al solicitante. Los IM salen de `GET http://admin-service:8000/internal/users/by-module-role` (`is_active = true`).
+
+**Avisos:** el mencionado recibe campana y correo ("{autor} te mencionó en el ticket #folio") con la liga al ticket; los seguidores reciben el aviso normal, sin duplicar a los mencionados. Todos los avisos se mandan **en segundo plano** (`asyncio.create_task`, con su propia sesión de base de datos): el mensaje se guarda y aparece al instante. Si el servicio se reinicia en ese segundo, esos avisos se pierden (mejora futura: RabbitMQ).
+
+### 9.7 Reportes para presentación
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/reportes/presentacion/datos` · `/html` · `/pdf` | Datos, vista previa y PDF 16:9 (Gotenberg) del constructor. Solo super admin, Admin Empresa, Incident Manager y Project Manager |
+
+- **Indicadores:** incidentes y solicitudes de acceso; los Controles de Cambio van aparte en la lámina **"Tickets por tipo"** (siguen su propio flujo). El Dashboard de métricas cuenta todos los tipos, por eso puede diferir.
+- **Familias:** de la clave del folio; `AVAL` → Corporativo y `PROM` → Zignia (claves de antes de que esas empresas tuvieran familia).
+- **Gráfica del resumen** (opción `grafica`): `flujo` (entraron, se resolvieron y abiertos al cierre de cada día, por defecto) o `abiertos` (la anterior). Los abiertos al cierre incluyen tickets de antes del periodo.
+
 ---
 
 ## 10. Estructura de MinIO
@@ -885,7 +916,9 @@ dirdoc/
 │   └── control-de-accesos/
 │       └── {folio}/
 │           ├── ESCANEO_{folio}_{fecha}_{hora}.pdf           ← firma manual (boto3)
-│           └── FIRMADO_{folio}_{fecha}_{hora}.pdf           ← documento final firmado (boto3)
+│           ├── FIRMADO_{folio}_{fecha}_{hora}.pdf           ← documento final firmado (boto3)
+│           ├── CERTIFICADO_{folio}_{fecha}_{hora}.pdf       ← línea de tiempo de DocuSign (oct 2026)
+│           └── COMPLETO_{folio}_{fecha}_{hora}.pdf          ← firmado + certificado, sellado por DocuSign → expediente
 └── control-de-accesos/
     └── firmas/{formato_id}/{aleatorio}.png                  ← firma guardada de TI (privada)
 ```
@@ -895,6 +928,8 @@ El nombre de archivo se normaliza a minúsculas y espacios→guión bajo por el 
 El documento firmado también se registra en el **expediente del empleado** (`user_files` del admin-service) como `ALTA|MOD_{FORMATO}_{MATRICULA}_{FOLIO}_{FECHA}.pdf`, apuntando **al mismo objeto**, sin duplicarlo. Ordenados por fecha, se leen como línea de tiempo de los accesos de la persona.
 
 ---
+
+Nota: un folio de Control de accesos tiene **dos carpetas** (la evidencia, que sube el upload-service bajo `it-service-desk/control-de-accesos/`, y los documentos firmados bajo `control-de-accesos/`). Pendiente unificarlas. Todo el bucket se copia cada noche a la NAS (ver `seguridad-sistema.md`).
 
 ## 11. Nginx
 
@@ -917,7 +952,7 @@ location ^~ /api/v1/it-service-desk {
 
 > El comentario que precede a este bloque en `intranet.conf` dice `# ── Legal Service ──` — un error de copy/paste al crear el bloque, cosmético (no afecta funcionamiento), pendiente de corregir cuando se vuelva a tocar ese archivo.
 
-Los endpoints `/internal/reportes/...` (SLA diario, cierre automático) se llaman desde dentro de la red Docker (el cron) directo al nombre del contenedor.
+Desde el 23 oct 2026, **nginx responde 404 a cualquier ruta con un segmento `internal`** desde fuera (regla a nivel del servidor). Los endpoints `/internal/reportes/...` (SLA diario, cierre automático) se llaman desde dentro de la red Docker (el cron) directo al nombre del contenedor.
 
 Rutas **públicas a propósito**: `/atender/{token}`, `/control-accesos/subida/{token}` y `/control-accesos/docusign/webhook`. La consulta `/control-accesos/internal/docusign-poll` pasa por Nginx, pero **rechaza** todo lo que no venga de `127.0.0.1` (solo se llama con `docker exec`).
 

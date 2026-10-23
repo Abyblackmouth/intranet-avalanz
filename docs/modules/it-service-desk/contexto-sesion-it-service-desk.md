@@ -1,6 +1,6 @@
 # Contexto de sesión · Intranet Avalanz
 
-**Actualizado:** 2 de octubre de 2026 · **Estado:** IT Service Desk en productivo
+**Actualizado:** 23 de octubre de 2026 · **Estado:** IT Service Desk en productivo
 
 Documento para arrancar un chat nuevo con todo el contexto. Léelo completo antes de proponer cambios.
 
@@ -84,7 +84,8 @@ Si hay migraciones: `docker exec avalanz-it-service-desk alembic upgrade head`.
 Documentación completa en `docs/modules/it-service-desk/`:
 - `it-service-desk-service.md` — guía de referencia (al día, octubre 2026)
 - `it-service-desk-motor-asignacion.md`, `it-service-desk-roles-y-perfiles.md`, `it-service-desk-base-de-datos.md` — **pendientes de actualizar** con lo de septiembre-octubre
-- `it-service-desk-control-accesos-docusign.md`, `it-service-desk-control-accesos-firma-manual.md` — nuevos
+- `it-service-desk-control-accesos-docusign.md`, `it-service-desk-control-accesos-firma-manual.md` — al día (23 oct 2026)
+- Cambios del 15 al 23 de octubre: `docs/bitacora/bitacora-2026-10-15-al-23.md`. Forma de trabajo: `docs/forma-de-trabajo-claude.md`. Seguridad: `docs/architecture/seguridad-sistema.md` y el acuse ACU-0001 (`security/informes-periodicos/`, fuera de git).
 
 ### En productivo
 - **Incidentes:** tabla, Kanban, tiempo real, SLA en horas hábiles con relojes **R** (respuesta) y **S** (resolución), marca de revisión (enlace del correo o botón), cambio de severidad con recálculo y aviso, varias imágenes con pegado (Ctrl + V), impresión, Excel.
@@ -126,6 +127,10 @@ Hábiles: L-V 9:00-19:00 hora de Monterrey, sin 1 ene, 16 sep, 25 dic. Cálculo 
 - DocuSign apunta al **ambiente de pruebas** (`demo.docusign.net`). Ajustes: `acc.metodo_firma = docusign`, `acc.docusign_ambiente = pruebas`.
 - La firma de TI **no está subida** (solo hace falta para la firma manual).
 - Tarea programada: consulta de DocuSign cada 5 min (crontab del host).
+- **Conversación:** menciones con @ (IM a IM; los demás solo a quien participa), campana y correo, avisos en segundo plano; *Excluir de las menciones* en Ajustes.
+- **Control de accesos:** formato de varias hojas; marca solo en copias sin firmar; al cerrar DocuSign se guardan firmado, certificado y la unión sellada (al expediente).
+- **Reportes:** lámina "Tickets por tipo" (CDC aparte) y gráfica de entradas, salidas y saldo (la anterior queda en el selector).
+- **Teléfono:** Mesa, Dashboard, Usuarios y Reportes adaptados; menú como cajón y barra inferior. Pendiente Actualizaciones.
 
 ---
 
@@ -137,15 +142,15 @@ Hábiles: L-V 9:00-19:00 hora de Monterrey, sin 1 ene, 16 sep, 25 dic. Cálculo 
 3. **Probar la firma manual** de punta a punta (subir la firma de TI, aprobar con `manual`, subir escaneo desde incógnito, liberar).
 
 ### Pantalla
-4. **Dashboard de métricas** y demás pantallas con el criterio responsivo de 13" (`max-[1440px]:`).
-5. **Aviso de versión nueva** ("Hay una versión nueva: recarga la página") para evitar el mensaje en inglés tras desplegar.
+4. ~~Dashboard de métricas responsivo~~ — **hecho** (también en el teléfono, oct 2026). Pendiente: **Actualizaciones en el teléfono** y la **Mesa con `TablaPantalla`** (rama `feature/mesa-tabla-pantalla`).
+5. ~~Aviso de versión nueva~~ — **hecho** (`AvisoVersion.tsx`); además, tras una actualización la pantalla recarga sola si el navegador tiene archivos viejos.
 
 ### Seguridad
-6. Proteger la consulta interna de DocuSign de **Legal** (`/legal/envelopes/internal/docusign-poll`), hoy llamable desde internet.
+6. ~~Proteger la consulta interna de DocuSign de Legal~~ — **hecho** (23 oct 2026): nginx responde 404 a toda ruta `/internal` desde fuera. Siguientes de seguridad: acciones C, E, F y G4 del ACU-0001.
 7. Revisar qué buscan los robots que escanean la intranet (`docker logs avalanz-nginx`).
 
 ### Producción de DocuSign
-8. Credenciales de la cuenta de **producción** (`DOCUSIGN_*` en el `.env` del IT Service Desk, declaradas en `config.py`) y `acc.docusign_ambiente = produccion`.
+8. Credenciales de la cuenta de **producción** (hoy los sobres van a `demo.docusign.net`: sin validez legal) (`DOCUSIGN_*` en el `.env` del IT Service Desk, declaradas en `config.py`) y `acc.docusign_ambiente = produccion`.
 
 ### Roles y usuarios
 9. Confirmar el alcance de **Auditoría** (hoy ve todo el contenido).

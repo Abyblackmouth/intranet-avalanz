@@ -183,3 +183,13 @@ Ningún rol nuevo para CDC. Incident Manager y Project Manager comparten el mism
 | 1 | Rol "Técnico" (`tecnico`) | **Resuelto** — es un mecanismo de manos extra/externos, asignable a cualquier equipo (funcional o técnico), ligado a sistema/módulo. Pendiente solo su implementación en `system_specialists`, no su definición de negocio. |
 | 2 | Rol "Jefe Empresa" | **Resuelto** — solo crea sus propios tickets y ve todos los de su empresa; no interviene. La descripción del catálogo está desactualizada y debe corregirse en `admin-service` (pendiente cosmético). Sin contradicción real con la decisión de CDC. |
 | 3 | Auditoría sin endpoint propio de bitácora | **Sigue abierto** — hoy la trazabilidad solo se ve dentro del detalle de cada ticket, sin una vista dedicada para este rol. Evaluar si se necesita construir una.
+
+
+---
+
+## 7. Menciones con @ en la conversación (oct 2026)
+
+- **Incident Manager → Incident Manager:** un IM puede mencionar a cualquier otro IM aunque no participe en el ticket, para atraerlo a la conversación. Es seguro porque los IM ya ven todos los tickets.
+- **Cualquier otro rol** (solicitante, especialista, técnico, Jefe Empresa) solo menciona a quien **ya participa** en ese ticket. Mencionar no da acceso: para que alguien más participe, se le **asigna** el ticket.
+- **Bajas:** quien causó baja (`is_active = false`) no aparece; quien está **bloqueado normal** sí.
+- **Excluidos:** en Ajustes → Mesa de Soporte → *Excluir de las menciones* (por ejemplo, directores o dueños con rol temporal de IM). No se ofrecen al escribir @, salvo en tickets donde ya participan.

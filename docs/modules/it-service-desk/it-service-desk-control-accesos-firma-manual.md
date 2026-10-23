@@ -30,6 +30,12 @@ Mientras no se libere, el solicitante **puede volver a subir** el documento (por
 
 ---
 
+## La marca de las copias
+
+El PDF que se imprime para firmar a mano **nunca** lleva la leyenda "COPIA SIN FIRMAS · SIN VALIDEZ"; solo la llevan la vista previa y la evidencia del ticket. Al imprimirse, el formato crece a las hojas que haga falta (sin recortar las firmas).
+
+---
+
 ## La firma del encargado de TI
 
 - Se sube en **IT Service Desk → Actualizaciones → Control de accesos → Firma del encargado de TI**, una por formato.
