@@ -575,7 +575,7 @@ export default function IncidentDetailModal({ incidentId, onClose, onChanged }: 
               </div>
 
               {/* 3. Conversacion: de alto completo, estilo mensajeria */}
-              <div className="lg:col-span-2 xl:col-span-1 h-[620px] xl:h-auto xl:min-h-0">
+              <div id="conversacion-ticket" className="lg:col-span-2 xl:col-span-1 h-[620px] xl:h-auto xl:min-h-0 scroll-mt-4">
                 <ComentariosTicket incidentId={detail.id}
                   renderAdjunto={(a: any, i: number) => <AttachmentThumb key={a.object_key} a={a} index={i} label="Adjunto" />}
                   renderAvatar={(nombre: string, foto: string | null) => <PersonAvatar name={nombre} photoObjectKey={foto} small />} />

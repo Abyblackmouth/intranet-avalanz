@@ -16,6 +16,12 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>
 
+// Regreso seguro despues del login: solo direcciones internas de la intranet
+const destinoSeguro = () => {
+  const v = new URLSearchParams(window.location.search).get('volver') || ''
+  return v.startsWith('/app') && !v.startsWith('//') ? v : '/app'
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const { setUser, setTokens } = useAuthStore()
@@ -48,7 +54,7 @@ export default function LoginPage() {
       }
 
       if (action === '2fa_required' && temp_token) {
-        router.push(`/setup-2fa?temp_token=${temp_token}&mode=verify`)
+        router.push(`/setup-2fa?temp_token=${temp_token}&mode=verify&volver=${encodeURIComponent(destinoSeguro())}`)
         return
       }
 
@@ -59,7 +65,7 @@ export default function LoginPage() {
         if (meRes.success && meRes.data) {
           setUser(meRes.data)
         }
-        router.push('/app')
+        router.push(destinoSeguro())
       }
 
     } catch (err: unknown) {

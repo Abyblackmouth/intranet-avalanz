@@ -274,7 +274,18 @@ export default function MesaDeSoportePage() {
     const t: any = incidents.find((x: any) => String(x.id) === ticketDeLiga)
     if (t) {
       setActiveTypes([]); setActiveSevs([]); setStatusFilter(''); setSearch(t.folio); setPage(1)
-      setViewingTicketId(t.id)
+    }
+    // El panel se abre aunque el ticket no este en la lista: lo pide por su id y,
+    // si la persona no tiene acceso, lo dice en lugar de quedarse cargando
+    setViewingTicketId(t ? t.id : ticketDeLiga)
+    if (new URLSearchParams(window.location.search).get('ver') === 'conversacion') {
+      let intentos = 0
+      const ir = () => {
+        const el = document.getElementById('conversacion-ticket')
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        else if (intentos++ < 20) setTimeout(ir, 250)
+      }
+      setTimeout(ir, 300)
     }
     setTicketDeLiga(null)
   }, [ticketDeLiga, incidents])

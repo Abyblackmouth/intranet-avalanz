@@ -216,7 +216,7 @@ async def _avisar_menciones(inc, c: IncidentComment, destinos: list) -> None:
     from app.assignment import _notify_inapp
     datos = {"incident_id": str(inc.id), "folio": inc.folio}
     resumen = (c.body or "")[:160]
-    liga = f"{os.getenv('FRONTEND_URL', 'https://intranet.avalanz.com').rstrip('/')}/app/it-service-desk/mesa-de-soporte?ticket={inc.id}"
+    liga = f"{os.getenv('FRONTEND_URL', 'https://intranet.avalanz.com').rstrip('/')}/app/it-service-desk/mesa-de-soporte?ticket={inc.id}&ver=conversacion"
     titulo = f"{c.author_name} te mencionó en el ticket #{inc.folio}"
     for d in destinos:
         try:
@@ -246,7 +246,7 @@ async def _avisar(inc, c: IncidentComment, db: AsyncSession, ya_avisados: set = 
     datos = {"incident_id": str(inc.id), "folio": inc.folio}
     resumen = (c.body or f"Adjuntó {len(c.attachments or [])} archivo(s)")[:160]
     autor = str(c.author_id)
-    liga = f"{os.getenv('FRONTEND_URL', 'https://intranet.avalanz.com').rstrip('/')}/app/it-service-desk/mesa-de-soporte?ticket={inc.id}"
+    liga = f"{os.getenv('FRONTEND_URL', 'https://intranet.avalanz.com').rstrip('/')}/app/it-service-desk/mesa-de-soporte?ticket={inc.id}&ver=conversacion"
 
     async def correo(destino: str, titulo: str):
         perfil = await _m._get_requester_profile(destino)

@@ -101,7 +101,7 @@ function Setup2FAContent() {
         setTokens({ access_token, refresh_token, token_type: 'bearer' })
         const meRes = await getMe()
         if (meRes.success && meRes.data) setUser(meRes.data)
-        router.push('/app')
+        router.push(destinoSeguro())
       }
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { message?: string } } }
@@ -233,6 +233,12 @@ function Setup2FAContent() {
     </div>
   )
 }
+// Regreso seguro despues del login: solo direcciones internas de la intranet
+const destinoSeguro = () => {
+  const v = new URLSearchParams(window.location.search).get('volver') || ''
+  return v.startsWith('/app') && !v.startsWith('//') ? v : '/app'
+}
+
 export default function Setup2FAPage() {
   return (
     <Suspense fallback={null}>

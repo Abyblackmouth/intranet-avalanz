@@ -11,6 +11,11 @@ const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchst
 
 const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
+  // Al login recordando a donde iba (por ejemplo, el enlace de un correo a un ticket)
+  const irAlLogin = () => {
+    const v = window.location.pathname + window.location.search
+    router.push(v.startsWith('/app') ? `/login?volver=${encodeURIComponent(v)}` : '/login')
+  }
   const { setUser, logout, isAuthenticated } = useAuthStore()
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -60,17 +65,17 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUser(user)
         } else {
           logout()
-          router.push('/login')
+          irAlLogin()
         }
       } catch {
         logout()
-        router.push('/login')
+        irAlLogin()
       }
     }
 
     const handleInactivityLogout = () => {
       logout()
-      router.push('/login')
+      irAlLogin()
     }
 
     const resetTimer = () => {
