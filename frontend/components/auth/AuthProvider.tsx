@@ -31,6 +31,24 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [])
 
+  // Despues de una actualizacion, un navegador con la version anterior pide archivos que ya
+  // no existen (ChunkLoadError) y la pagina se queda a medias: se recarga UNA vez con la nueva.
+  useEffect(() => {
+    const esVersionVieja = (m: string) => /ChunkLoadError|Loading chunk [\w-]+ failed|Failed to fetch dynamically imported module|Failed to find Server Action/i.test(m)
+    const recargar = (m: string) => {
+      if (!esVersionVieja(m)) return
+      if (sessionStorage.getItem('recarga-version')) return   // una sola vez, para no ciclar
+      sessionStorage.setItem('recarga-version', '1')
+      window.location.reload()
+    }
+    const onError = (e: ErrorEvent) => recargar(String(e?.message ?? ''))
+    const onRechazo = (e: PromiseRejectionEvent) => recargar(String((e?.reason as any)?.message ?? e?.reason ?? ''))
+    window.addEventListener('error', onError)
+    window.addEventListener('unhandledrejection', onRechazo)
+    const limpiar = setTimeout(() => sessionStorage.removeItem('recarga-version'), 30_000)
+    return () => { window.removeEventListener('error', onError); window.removeEventListener('unhandledrejection', onRechazo); clearTimeout(limpiar) }
+  }, [])
+
   // Roles y modulos al dia: se vuelven a pedir cada 10 min y al regresar a la pestana
   // (la renovacion del token ya toma los roles actuales del usuario)
   useEffect(() => {
@@ -51,7 +69,10 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const validate = async () => {
       const token = Cookies.get('access_token')
       if (!token) {
-        if (isAuthenticated) logout()
+        // Sin token (vencio o se borro): al login. Antes solo cerraba la sesion y la pagina
+        // se quedaba girando en /app esperando un usuario que ya no llegaba.
+        logout()
+        irAlLogin()
         return
       }
       try {
