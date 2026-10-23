@@ -12,6 +12,13 @@ export default function InicioApp() {
   const user = useAuthStore((s: any) => s.user)
   const isAdmin = useAuthStore((s: any) => s.isAdmin)
 
+  // Red de seguridad: si en 8 s no se pudo cargar el usuario, al login (nunca girar para siempre)
+  useEffect(() => {
+    if (user) return
+    const t = setTimeout(() => router.replace(`/login?volver=${encodeURIComponent('/app')}`), 8000)
+    return () => clearTimeout(t)
+  }, [user, router])
+
   useEffect(() => {
     if (!user) return
     if (isAdmin()) { router.replace('/admin/users'); return }
