@@ -265,6 +265,7 @@ export default function MesaDeSoportePage() {
   // Liga directa (por ejemplo, del boton "Ver y responder" del correo): ?ticket=<id>
   // deja el ticket a la vista en la tabla y abre su detalle
   const [ticketDeLiga, setTicketDeLiga] = useState<string | null>(null)
+  const [busquedaDeLiga, setBusquedaDeLiga] = useState<string | null>(null)
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('ticket')
     if (t) setTicketDeLiga(t)
@@ -287,8 +288,17 @@ export default function MesaDeSoportePage() {
       }
       setTimeout(ir, 300)
     }
+    if (t) setBusquedaDeLiga(t.folio)
+    // La liga ya se uso: se quita de la direccion para que la Mesa funcione normal
+    window.history.replaceState(null, '', window.location.pathname)
     setTicketDeLiga(null)
   }, [ticketDeLiga, incidents])
+  // Al cerrar el ticket abierto desde una liga, se quita el filtro que puso (si nadie lo cambio)
+  useEffect(() => {
+    if (viewingTicketId || !busquedaDeLiga) return
+    setSearch(s => (s === busquedaDeLiga ? '' : s))
+    setBusquedaDeLiga(null)
+  }, [viewingTicketId, busquedaDeLiga])
   const [viewingCdcId, setViewingCdcId] = useState<string | null>(null)
   const [cdcBoardKey, setCdcBoardKey] = useState(0)
   const [cdcClasif, setCdcClasif] = useState<'todos' | 'proyecto' | 'cambio'>('todos')
