@@ -1,5 +1,6 @@
 'use client'
 
+import { etiquetaRed } from '@/lib/redes'
 import { useState } from 'react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -421,7 +422,7 @@ export default function UserAuditReport({ user }: UserAuditReportProps) {
             formatDate(h.created_at),
             h.ip_address || '—',
             parseUserAgent(h.user_agent),
-            h.is_corporate_network ? 'Corporativa' : 'Externa',
+            etiquetaRed(h),
             h.success ? 'Exitoso' : `Fallido${h.failure_reason ? ` (${h.failure_reason})` : ''}`,
             h.requires_2fa ? (h.completed_2fa ? 'Completado' : 'Pendiente') : 'No aplicó',
           ]),
@@ -444,7 +445,7 @@ export default function UserAuditReport({ user }: UserAuditReportProps) {
               data.cell.styles.fontStyle = 'bold'
             }
             if (data.column.index === 3 && data.section === 'body') {
-              data.cell.styles.textColor = String(data.cell.raw) === 'Corporativa' ? BLUE : SLATE_600
+              data.cell.styles.textColor = String(data.cell.raw) !== 'Externa' ? BLUE : SLATE_600
             }
           },
         })

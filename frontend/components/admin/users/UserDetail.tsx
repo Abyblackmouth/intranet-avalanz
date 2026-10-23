@@ -1,4 +1,5 @@
 'use client'
+import { nombreDeRed } from '@/lib/redes'
 import { useState, useEffect, useRef } from 'react'
 import {
   X, User, Mail, Hash, Briefcase, Building2, Shield, ShieldCheck, ShieldOff,
@@ -422,13 +423,13 @@ useEffect(() => {
                                 <span className="text-sm font-medium text-slate-800 truncate">
                                   {parseUA(session.user_agent)}
                                 </span>
-                                {session.is_corporate_network ? (
+                                {(session.is_corporate_network || nombreDeRed(session.ip_address)) ? (
                                   <span className="inline-flex items-center gap-1 text-xs text-blue-600 shrink-0">
-                                    <Wifi size={11} /> Corporativa
+                                    <Wifi size={11} /> {nombreDeRed(session.ip_address) ?? 'Corporativa'}
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-xs text-slate-400 shrink-0">
-                                    <WifiOff size={11} /> Externa
+                                    <WifiOff size={11} /> {nombreDeRed(session.ip_address) ? `${nombreDeRed(session.ip_address)} · Externa` : 'Externa'}
                                   </span>
                                 )}
                               </div>
@@ -494,13 +495,13 @@ useEffect(() => {
                               <p className="text-xs text-red-600 mt-0.5">{entry.failure_reason}</p>
                             )}
                             <div className="flex items-center gap-3 mt-1">
-                              {entry.is_corporate_network ? (
+                              {(entry.is_corporate_network || nombreDeRed(entry.ip_address)) ? (
                                 <span className="text-xs text-blue-500 flex items-center gap-1">
-                                  <Wifi size={10} /> Corporativa
+                                  <Wifi size={10} /> {nombreDeRed(entry.ip_address) ?? 'Corporativa'}
                                 </span>
                               ) : (
                                 <span className="text-xs text-slate-400 flex items-center gap-1">
-                                  <WifiOff size={10} /> Externa
+                                  <WifiOff size={10} /> {nombreDeRed(entry.ip_address) ? `${nombreDeRed(entry.ip_address)} · Externa` : 'Externa'}
                                 </span>
                               )}
                               {entry.requires_2fa && (
