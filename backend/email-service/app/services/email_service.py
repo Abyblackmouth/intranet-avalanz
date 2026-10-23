@@ -179,7 +179,7 @@ async def send_welcome_email(
         _p(f"Tu cuenta ha sido creada exitosamente en la plataforma <strong>Intranet {config.EMAIL_FROM_NAME}</strong>. A continuación encontrarás tus credenciales de acceso.") +
         _credentials([("Correo", to_email, False), ("Contraseña", temp_password, True)]) +
         _alert("info", "Contraseña temporal", f"Debes cambiar tu contraseña en tu primer inicio de sesión. Esta contraseña es válida por <strong>24 horas</strong>.") +
-        _btn(f"{config.FRONTEND_URL}/change-password?user_id={user_id}", "Cambiar contraseña") +
+        _btn(f"{config.FRONTEND_URL}/login", "Iniciar sesión") +
         _note("Si no solicitaste esta cuenta, ignora este correo o contacta al administrador.")
     )
     await send_email(to_email, subject, _render(content, subject), full_name)

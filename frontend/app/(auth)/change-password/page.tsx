@@ -66,6 +66,8 @@ function ChangePasswordContent() {
   const searchParams = useSearchParams()
   const userId = searchParams.get('user_id') || ''
   const changeToken = searchParams.get('t') || ''
+  // Los enlaces de correos anteriores no traen token: se entra por el login
+  useEffect(() => { if (!changeToken) router.replace('/login') }, [changeToken])
 
   const [showNew, setShowNew] = useState(false)
   const [alreadyUsed, setAlreadyUsed] = useState(false)
