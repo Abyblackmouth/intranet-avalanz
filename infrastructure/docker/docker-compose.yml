@@ -423,7 +423,7 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SMTP_ENABLED: "true"
+      GF_SMTP_ENABLED: "false"   # sin Mailpit; las alertas salen por el reporte de salud (M365)
       GF_SMTP_HOST: "mailpit:1025"
       GF_SMTP_FROM_ADDRESS: "grafana@avalanz.com"
       GF_SMTP_FROM_NAME: "Grafana Avalanz"
@@ -444,18 +444,6 @@ services:
     container_name: avalanz-gotenberg
     restart: unless-stopped
     command: ["gotenberg", "--api-timeout=30s", "--chromium-disable-javascript=true"]
-    networks:
-      - avalanz-network
-    logging: *default-logging
-
-  # ── Mailpit ─────────────────────────────────────────────────────────────────
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: avalanz-mailpit
-    restart: unless-stopped
-    ports:
-      - "8025:8025"
-      - "1025:1025"
     networks:
       - avalanz-network
     logging: *default-logging
