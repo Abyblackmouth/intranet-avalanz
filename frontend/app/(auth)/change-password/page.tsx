@@ -65,6 +65,7 @@ function ChangePasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const userId = searchParams.get('user_id') || ''
+  const changeToken = searchParams.get('t') || ''
 
   const [showNew, setShowNew] = useState(false)
   const [alreadyUsed, setAlreadyUsed] = useState(false)
@@ -97,7 +98,7 @@ function ChangePasswordContent() {
     if (!userId) { setError('Usuario no identificado. Vuelve a iniciar sesion.'); return }
     setIsLoading(true); setError(null)
     try {
-      const res = await changePassword({ user_id: userId, new_password: data.new_password })
+      const res = await changePassword({ user_id: userId, new_password: data.new_password, change_token: changeToken } as any)
       if (!res.success) { setError(res.message); return }
       sessionStorage.setItem(`pwd_changed_${userId}`, 'true')
       if (res.data?.action === 'setup_2fa') {
@@ -107,6 +108,12 @@ function ChangePasswordContent() {
           saveSession(d.access_token, d.refresh_token)
         }
         router.push(`/setup-2fa?user_id=${userId}&mode=setup`)
+      } else if (res.data?.action === '2fa_required') {
+        router.push(`/setup-2fa?temp_token=${(res.data as any).temp_token}&mode=verify`)
+      } else if ((res.data as any)?.access_token) {
+        const { saveSession } = await import('@/services/api')
+        saveSession((res.data as any).access_token, (res.data as any).refresh_token)
+        router.push('/app')
       }
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { message?: string } } }

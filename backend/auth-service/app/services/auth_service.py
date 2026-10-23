@@ -108,7 +108,13 @@ async def login(
     if user.is_temp_password:
         await _save_login_history(db, user, client_ip, user_agent, success=True, failure_reason="temp_password")
         await db.commit()
-        return {"action": "change_password", "user_id": str(user.id)}
+        # Token firmado y de corta vida: solo quien acaba de escribir la contrasena temporal puede cambiarla
+        change_token = create_2fa_temp_token(
+            payload={"user_id": str(user.id), "purpose": "change_password"},
+            secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM,
+            expire_minutes=config.JWT_2FA_TEMP_EXPIRE_MINUTES,
+        )
+        return {"action": "change_password", "user_id": str(user.id), "change_token": change_token}
 
     # Detectar si es red corporativa
     corporate = is_corporate_ip(client_ip, config.CORPORATE_IP_RANGES)
@@ -189,8 +195,20 @@ async def change_temp_password(
     db: AsyncSession,
     user_id: str,
     new_password: str,
+    change_token: str = "",
+    client_ip: str = "",
+    user_agent: str = "",
 ) -> Dict[str, Any]:
+    """Cambio de la contrasena temporal. Exige el token que entrega el login (prueba de que la
+    persona acaba de escribir su contrasena temporal) y respeta la red real y el 2FA."""
     from shared.utils.helpers import is_strong_password
+
+    try:
+        payload = decode_2fa_temp_token_safe(change_token) if change_token else {}
+    except Exception:
+        payload = {}
+    if payload.get("purpose") != "change_password" or str(payload.get("user_id")) != str(user_id):
+        raise UnauthorizedException("Tu sesion para cambiar la contrasena vencio. Vuelve a iniciar sesion con tu contrasena temporal")
 
     result = await db.execute(
         select(User).where(User.id == user_id, User.is_deleted == False)
@@ -198,28 +216,45 @@ async def change_temp_password(
     user = result.scalar_one_or_none()
     if not user:
         raise NotFoundException("Usuario")
+    if not user.is_temp_password:
+        raise ForbiddenException("Tu contrasena ya fue cambiada. Inicia sesion normalmente")
+    if user.temp_password_expires_at and is_expired(user.temp_password_expires_at):
+        raise ForbiddenException("La contrasena temporal ha expirado, contacta al administrador")
 
     if not is_strong_password(new_password):
         raise UnauthorizedException(
             "La contrasena debe tener minimo 8 caracteres, una mayuscula, una minuscula, un numero y un caracter especial"
         )
 
+    corporate = is_corporate_ip(client_ip, config.CORPORATE_IP_RANGES)
     await db.execute(
         update(User).where(User.id == user.id).values(
             hashed_password=hash_password(new_password),
             is_temp_password=False,
             temp_password_expires_at=None,
+            last_login_at=now_utc(),
+            last_login_ip=client_ip,
         )
     )
     await db.commit()
-    tokens = await _issue_tokens(db, user, client_ip="127.0.0.1", user_agent="internal", corporate=True)
+
+    # Fuera de la red y con 2FA ya configurado: se le pide su codigo, como en un login normal
+    if not corporate and user.is_2fa_configured:
+        temp_token = create_2fa_temp_token(
+            payload={"user_id": str(user.id)},
+            secret_key=config.JWT_SECRET_KEY, algorithm=config.JWT_ALGORITHM,
+            expire_minutes=config.JWT_2FA_TEMP_EXPIRE_MINUTES,
+        )
+        return {"action": "2fa_required", "user_id": str(user.id), "temp_token": temp_token}
+
+    # Sin 2FA (lo configura enseguida) o en la red corporativa: sesion con la IP y el navegador reales
+    tokens = await _issue_tokens(db, user, client_ip=client_ip, user_agent=user_agent, corporate=corporate)
     return {
-        "action": "setup_2fa",
+        "action": "setup_2fa" if not user.is_2fa_configured else "listo",
         "user_id": str(user.id),
         "access_token": tokens["access_token"],
         "refresh_token": tokens["refresh_token"],
     }
-
 
 # ── Refresh token ─────────────────────────────────────────────────────────────
 

@@ -49,7 +49,7 @@ export default function LoginPage() {
       const { action, user_id, temp_token, access_token, refresh_token } = res.data
 
       if (action === 'change_password' && user_id) {
-        router.push(`/change-password?user_id=${user_id}`)
+        router.push(`/change-password?user_id=${user_id}&t=${encodeURIComponent((res.data as any).change_token || '')}&volver=${encodeURIComponent(destinoSeguro())}`)
         return
       }
 
