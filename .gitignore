@@ -86,3 +86,11 @@ security/
 
 # Etiquetas de descarga de Windows
 *:Zone.Identifier
+
+# Auditoria de seguridad: el script y el README si van en git; los informes y acuses no (son sensibles)
+!security/
+security/*
+!security/informes-periodicos/
+security/informes-periodicos/*
+!security/informes-periodicos/auditoria.sh
+!security/informes-periodicos/README.md
