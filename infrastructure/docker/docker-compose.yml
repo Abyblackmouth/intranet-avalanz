@@ -182,8 +182,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio-data:/data
     networks:
@@ -404,7 +404,7 @@ services:
     container_name: avalanz-prometheus
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -418,7 +418,7 @@ services:
     container_name: avalanz-grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
