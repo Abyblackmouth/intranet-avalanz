@@ -171,7 +171,10 @@ Cada item indica su **fuente** (el documento y sección de donde proviene) para 
 
 ## 6. Seguridad
 
-### Proteger la consulta interna de DocuSign de Legal
+### (Resuelto 23/10/2026) Proteger la consulta interna de DocuSign de Legal
+
+nginx responde 404 a cualquier ruta con un segmento `internal` desde fuera (ACU-0001 · B); entre servicios sigue funcionando.
+
 **Estado:** Abierto.
 **Fuente:** `it-service-desk-service.md` §17 (#12); `contexto-sesion-it-service-desk.md` §5 (#6).
 **Descripción:** El endpoint `/legal/envelopes/internal/docusign-poll` de **Legal** es hoy llamable desde internet. (El equivalente de IT Service Desk, `/control-accesos/internal/docusign-poll`, ya rechaza todo lo que no venga de `127.0.0.1`.)
@@ -202,14 +205,20 @@ Cada item indica su **fuente** (el documento y sección de donde proviene) para 
 
 ## 7. Frontend / UX
 
-### Responsivo de 13" en Dashboard y demás pantallas
+### (Avanzado oct 2026) Responsivo de 13" en Dashboard y demás pantallas
+
+Dashboard, Mesa, Usuarios y Reportes adaptados también al teléfono. Falta Actualizaciones (ver sección 10).
+
 **Estado:** Abierto.
 **Fuente:** `it-service-desk-service.md` §17 (#13); `contexto-sesion-it-service-desk.md` §5 (#4).
 **Descripción:** El criterio responsivo para laptops de 13"-15" (`max-[1440px]:`, sidebar recogido, filas en un renglón, márgenes angostos) ya se aplicó a la tabla/tableros, pero falta llevarlo al **Dashboard de métricas** y a las demás pantallas. Regla firme: nunca fijar anchos que afecten a las pantallas grandes.
 **Cambio requerido:** Aplicar el criterio `max-[1440px]:` al dashboard y pantallas restantes.
 **Impacto:** UX en laptops pequeñas.
 
-### Aviso de versión nueva
+### (Resuelto) Aviso de versión nueva
+
+`AvisoVersion.tsx` revisa cada 5 min y al volver a la pestaña; y desde el 23/10/2026, si el navegador pide archivos de una versión anterior, la página recarga sola una vez.
+
 **Estado:** Abierto.
 **Fuente:** `it-service-desk-service.md` §16 y §17 (#14); `contexto-sesion-it-service-desk.md` §5 (#5).
 **Descripción:** Tras un despliegue del frontend, las pestañas abiertas pueden mostrar "This page couldn't load" (`Failed to find Server Action`). Hoy se resuelve recargando.
@@ -257,6 +266,25 @@ Cada item indica su **fuente** (el documento y sección de donde proviene) para 
 **Descripción:** Existían **dos** rutas `PATCH /incidencias/{id}/severidad` (la vieja `validate_severity` y la nueva). FastAPI usa la primera registrada, así que la nueva nunca respondía (el cambio se guardaba, pero sin recálculo ni aviso). Ya se eliminó la vieja.
 **Lección para el futuro:** Antes de agregar una ruta, verificar que no exista otra con la misma dirección.
 **Impacto:** Ninguno (ya resuelto) — se conserva como recordatorio.
+
+---
+
+## 10. Nuevos pendientes (oct 2026)
+
+### Actualizaciones en el teléfono
+Control de accesos y SLA se desplazan a lo ancho (la tabla de SLA debería ser una tarjeta por sistema); los campos de fecha de Comunicados se desbordan; en Safari la barra inferior crece al rebotar (`pb-[env(safe-area-inset-bottom)]` cambia cuando Safari esconde su barra).
+
+### Mesa de Soporte con `TablaPantalla`
+Rama `feature/mesa-tabla-pantalla`, sin integrar: los nombres largos de Solicitante y Asignado parten la fila en varios renglones (60 px por fila) y caben menos tickets.
+
+### Avisos de la conversación por RabbitMQ
+Hoy se mandan en segundo plano dentro del servicio; si se reinicia en ese segundo, se pierden. Con una cola, se reintentan.
+
+### Dos carpetas por folio de Control de accesos en MinIO
+La evidencia (upload-service) y los firmados (boto3) viven en rutas distintas. Unificar.
+
+### DocuSign: marca de prueba en los firmados anteriores
+Los 17 sobres firmados antes del 23/10/2026 llevan "DOCUMENTO DE PRUEBA · SIN VALIDEZ" dentro del documento sellado (además de ser del ambiente de pruebas). Si alguno necesita validez, se vuelve a firmar en producción.
 
 ---
 
