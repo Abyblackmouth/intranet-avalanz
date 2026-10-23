@@ -29,6 +29,7 @@ class TwoFARequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     user_id: str
     new_password: str
+    change_token: str = ""
 
 
 class RefreshTokenRequest(BaseModel):
@@ -93,12 +94,16 @@ async def verify_2fa(
 @router.post("/change-temp-password", response_model=DataResponse)
 async def change_temp_password(
     body: ChangePasswordRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     result = await auth_service.change_temp_password(
         db=db,
         user_id=body.user_id,
         new_password=body.new_password,
+        change_token=body.change_token,
+        client_ip=get_client_ip(dict(request.headers), request.client.host),
+        user_agent=request.headers.get("user-agent", ""),
     )
     return DataResponse(success=True, message="Contrasena actualizada exitosamente", data=result)
 

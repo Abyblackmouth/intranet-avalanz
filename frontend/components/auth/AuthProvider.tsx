@@ -59,7 +59,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (res.success && res.data) {
           const user = res.data
           if ((user as any).is_temp_password) {
-            router.push(`/change-password?user_id=${user.user_id}`)
+            logout(); irAlLogin()
             return
           }
           setUser(user)
